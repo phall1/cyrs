@@ -74,11 +74,7 @@ mod tests {
     use cypher_syntax::{TextRange, TextSize};
 
     fn empty_stmt() -> HirStmt {
-        HirStmt {
-            clauses: Vec::new(),
-            bindings: indexmap::IndexMap::new(),
-            span: TextRange::new(TextSize::new(0), TextSize::new(0)),
-        }
+        HirStmt::new(TextRange::new(TextSize::new(0), TextSize::new(0)))
     }
 
     #[test]
