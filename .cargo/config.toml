@@ -1,0 +1,8 @@
+# Workspace cargo config. Spec 0001 §11, §4.3.
+#
+# The pre-commit hook (scripts/pre-commit.sh) invokes `cargo xtask gate`.
+# Cargo resolves the `xtask` subcommand via this alias, which dispatches
+# to the xtask binary in `xtask/`.
+
+[alias]
+xtask = "run --package xtask --"
