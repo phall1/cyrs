@@ -1,0 +1,17 @@
+[package]
+name         = "cypher-plan"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Logical read/write plan IR for the Cypher front-end. Spec 0001 §12."
+
+[dependencies]
+cypher-hir = { workspace = true }
+smol_str   = { workspace = true }
+indexmap   = { workspace = true }
+
+[lints]
+workspace = true

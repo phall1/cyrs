@@ -1,0 +1,26 @@
+[package]
+name         = "cypher-agent"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "JSON-over-stdio agent API for Cypher. Spec 0001 §15."
+
+[[bin]]
+name = "cypher-agent"
+path = "src/main.rs"
+
+[dependencies]
+cypher-db   = { workspace = true }
+cypher-diag = { workspace = true }
+cypher-fmt  = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

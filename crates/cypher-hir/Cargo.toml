@@ -1,0 +1,18 @@
+[package]
+name         = "cypher-hir"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Lowered HIR for Cypher: name resolution, scope graph, desugaring. Spec 0001 §6."
+
+[dependencies]
+cypher-syntax = { workspace = true }
+cypher-ast    = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+
+[lints]
+workspace = true

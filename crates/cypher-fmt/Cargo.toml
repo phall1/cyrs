@@ -1,0 +1,21 @@
+[package]
+name         = "cypher-fmt"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "CST-driven idempotent formatter for Cypher. Spec 0001 §13."
+
+[dependencies]
+cypher-syntax = { workspace = true }
+smol_str      = { workspace = true }
+
+[dev-dependencies]
+proptest        = { workspace = true }
+insta           = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

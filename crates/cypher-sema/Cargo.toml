@@ -1,0 +1,22 @@
+[package]
+name         = "cypher-sema"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Semantic analysis and type system for the Cypher front-end. Spec 0001 §7."
+
+[dependencies]
+cypher-hir    = { workspace = true }
+cypher-schema = { workspace = true }
+cypher-diag   = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+
+[dev-dependencies]
+cypher-syntax = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,28 @@
+[package]
+name         = "cypher-lsp"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Language server for Cypher / GQL. Spec 0001 §14."
+
+[[bin]]
+name = "cypher-lsp"
+path = "src/main.rs"
+
+[dependencies]
+cypher-db   = { workspace = true }
+cypher-diag = { workspace = true }
+cypher-fmt  = { workspace = true }
+lsp-server  = { workspace = true }
+lsp-types   = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# IDE / OS crud
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+.DS_Store
+
+# coverage output
+/coverage
+lcov.info
+
+# fuzz artefacts
+fuzz/target
+fuzz/corpus
+fuzz/artifacts

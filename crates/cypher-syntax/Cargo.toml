@@ -1,0 +1,31 @@
+[package]
+name         = "cypher-syntax"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Cypher lexer, recovering parser, and lossless concrete syntax tree. Spec 0001 §4."
+
+[dependencies]
+rowan      = { workspace = true }
+logos      = { workspace = true }
+smol_str   = { workspace = true }
+text-size  = { workspace = true }
+drop_bomb  = { workspace = true }
+thiserror  = { workspace = true }
+serde      = { workspace = true, optional = true }
+
+[features]
+default = []
+serde   = ["dep:serde", "smol_str/serde", "text-size/serde"]
+
+[dev-dependencies]
+expect-test       = { workspace = true }
+insta             = { workspace = true }
+proptest          = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

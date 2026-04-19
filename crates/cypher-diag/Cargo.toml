@@ -1,0 +1,24 @@
+[package]
+name         = "cypher-diag"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Diagnostic type, stable code registry, and rendering backends. Spec 0001 §10."
+
+[dependencies]
+cypher-syntax = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+thiserror     = { workspace = true }
+codespan-reporting = { workspace = true }
+serde         = { workspace = true, optional = true }
+
+[features]
+default = []
+serde   = ["dep:serde", "smol_str/serde", "cypher-syntax/serde"]
+
+[lints]
+workspace = true

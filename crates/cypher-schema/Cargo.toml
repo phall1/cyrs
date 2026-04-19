@@ -1,0 +1,21 @@
+[package]
+name         = "cypher-schema"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "SchemaProvider trait + supporting types for the Cypher front-end. Spec 0001 §8."
+
+[dependencies]
+smol_str  = { workspace = true }
+indexmap  = { workspace = true }
+serde     = { workspace = true, optional = true }
+
+[features]
+default = []
+serde   = ["dep:serde", "indexmap/serde", "smol_str/serde"]
+
+[lints]
+workspace = true

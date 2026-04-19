@@ -1,0 +1,25 @@
+[package]
+name         = "cypher-db"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Incremental analysis database tying the Cypher front-end together. Spec 0001 §11."
+
+[dependencies]
+cypher-syntax = { workspace = true }
+cypher-ast    = { workspace = true }
+cypher-hir    = { workspace = true }
+cypher-sema   = { workspace = true }
+cypher-schema = { workspace = true }
+cypher-diag   = { workspace = true }
+cypher-plan   = { workspace = true }
+cypher-fmt    = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+tracing       = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[package]
+name         = "cypher"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Meta-crate re-exporting the Cypher front-end library surface. Spec 0001 §3.1."
+
+[dependencies]
+cypher-syntax = { workspace = true }
+cypher-ast    = { workspace = true }
+cypher-hir    = { workspace = true }
+cypher-sema   = { workspace = true }
+cypher-schema = { workspace = true }
+cypher-diag   = { workspace = true }
+cypher-plan   = { workspace = true }
+cypher-fmt    = { workspace = true }
+cypher-db     = { workspace = true }
+
+[lints]
+workspace = true
