@@ -103,15 +103,18 @@ pub enum PropertyType {
     Date,
     Datetime,
     List(Box<PropertyType>),
-    /// A closed enum carrying its variant names.
-    Enum {
-        name: SmolStr,
-        variants: Vec<SmolStr>,
-    },
+    /// A closed enum carrying its name and variant names.
+    ///
+    /// Spec §8.2 shape: `Enum(SmolStr, Vec<SmolStr>)` — tuple variant.
+    Enum(SmolStr, Vec<SmolStr>),
     /// An opaque typed value the consumer chooses not to model
     /// structurally. Unifies only with itself and with `Any`.
     Opaque(SmolStr),
     /// Fallback: any property value. Equivalent to "type unknown".
+    ///
+    /// Not in spec §8.2's normative 9-variant set; retained as an
+    /// internal fallback for [`ReturnTy::Dynamic`] cloning. Consumers
+    /// should prefer the typed variants.
     Any,
 }
 
@@ -273,6 +276,23 @@ impl SchemaProvider for EmptySchema {
         [0u8; 32]
     }
 }
+
+// ============================================================
+// Static assertions
+// ============================================================
+
+/// Compile-time check that [`SchemaProvider`] is object-safe (spec §8.1).
+/// Referencing `&dyn SchemaProvider` forces the compiler to verify
+/// object-safety; the function itself is never called.
+#[doc(hidden)]
+pub fn _assert_object_safe(_: &dyn SchemaProvider) {}
+
+/// Compile-time check that [`EmptySchema`] satisfies the trait's
+/// `Send + Sync + 'static` bounds.
+const _: fn() = || {
+    fn assert_send_sync_static<T: Send + Sync + 'static>() {}
+    assert_send_sync_static::<EmptySchema>();
+};
 
 #[cfg(test)]
 mod tests {
