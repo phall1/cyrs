@@ -14,5 +14,8 @@ cypher-ast    = { workspace = true }
 smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 
+[dev-dependencies]
+insta = { workspace = true }
+
 [lints]
 workspace = true

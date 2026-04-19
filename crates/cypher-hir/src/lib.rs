@@ -8,12 +8,13 @@
 //! node carries a [`HirId`] that keys back into the originating
 //! [`cypher_syntax::SyntaxNode`].
 //!
-//! This crate intentionally exposes only data structures. Lowering from
-//! AST to HIR and name resolution live in later beads (cy-1vw and
-//! cy-nres respectively).
+//! The [`lower`] module provides the entry-point [`lower::lower_statement`]
+//! that performs the AST → HIR lowering pass (spec §6.1).
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
+
+pub mod lower;
 
 use cypher_syntax::{SyntaxNode, TextRange};
 use indexmap::IndexMap;
