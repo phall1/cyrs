@@ -133,6 +133,7 @@ b119=$(mk "cypher-testkit dev crate"                           P2 "tier-11,layer
 # --- Dependency edges -----------------------------------------------------
 
 # Tier 1
+dep "$b010" "$b001"
 dep "$b011" "$b010"; dep "$b012" "$b010"; dep "$b013" "$b010"; dep "$b013" "$b012"
 dep "$b014" "$b012"; dep "$b015" "$b001"; dep "$b016" "$b013"; dep "$b017" "$b013"
 
