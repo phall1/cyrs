@@ -22,6 +22,9 @@
 
 use smol_str::SmolStr;
 
+mod standard_library;
+pub use standard_library::StandardLibrary;
+
 // ============================================================
 // SchemaProvider
 // ============================================================
