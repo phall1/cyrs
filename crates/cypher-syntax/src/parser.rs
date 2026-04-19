@@ -4,7 +4,8 @@
 //!
 //! The parser is a hand-written recursive-descent engine that emits an
 //! [`Event`] stream rather than directly mutating a tree. A separate
-//! [`SyntaxTreeBuilder`] consumes the events and produces the [`rowan`]
+//! [`SyntaxTreeBuilder`](crate::builder::SyntaxTreeBuilder) — living in
+//! [`crate::builder`] — consumes the events and produces the [`rowan`]
 //! green tree. This split lets the parser:
 //!
 //! - rewrite events for associativity fixing in Pratt expression parsing
@@ -36,11 +37,12 @@
 //! `lossless_on_arbitrary_utf8` enforces the invariant.
 
 use drop_bomb::DropBomb;
-use rowan::{GreenNode, GreenNodeBuilder};
+use rowan::GreenNode;
 use thiserror::Error;
 
 use crate::{
     SyntaxKind, SyntaxNode,
+    builder::SyntaxTreeBuilder,
     lexer::{LexToken, lex},
 };
 
@@ -100,10 +102,16 @@ pub struct SyntaxError {
 // Event stream
 // ========================================================================
 
-/// Events are emitted by the parser and consumed by [`SyntaxTreeBuilder`].
+/// Events are emitted by the parser and consumed by
+/// [`SyntaxTreeBuilder`](crate::builder::SyntaxTreeBuilder).
+///
 /// `Start` carries an optional forward-parent index implementing
-/// `Marker::precede` (re-parenting a started node inside a new outer
-/// node); `Abandoned` retracts a speculatively-started node.
+/// [`Marker::precede`] (re-parenting a started node inside a new outer
+/// node); [`Event::Abandoned`] retracts a speculatively-started node.
+///
+/// The event stream is flat: Start/Finish pairs define nesting, Token
+/// events are emitted in source order alongside trivia that the builder
+/// re-interleaves from the underlying token slice.
 #[derive(Debug)]
 pub(crate) enum Event {
     Start {
@@ -122,151 +130,10 @@ pub(crate) enum Event {
 }
 
 impl Event {
-    fn tombstone() -> Self {
+    /// Placeholder used by the builder when it swap-removes an event
+    /// during forward-parent chain resolution.
+    pub(crate) fn tombstone() -> Self {
         Event::Abandoned
-    }
-}
-
-// ========================================================================
-// Green-tree builder
-// ========================================================================
-
-/// Wraps `rowan::GreenNodeBuilder` with an error accumulator and trivia
-/// interleaving. Consumes the event stream + the original token slice,
-/// producing a green tree whose textual content equals the input byte-for-
-/// byte (spec §4.4).
-#[derive(Debug, Default)]
-pub(crate) struct SyntaxTreeBuilder {
-    inner: GreenNodeBuilder<'static>,
-    errors: Vec<SyntaxError>,
-}
-
-impl SyntaxTreeBuilder {
-    pub(crate) fn build(
-        tokens: &[LexToken],
-        mut events: Vec<Event>,
-    ) -> (GreenNode, Vec<SyntaxError>) {
-        // Resolve forward-parent chains: a Start with forward_parent=Some(i)
-        // means "re-parent me inside the node started at event i". Before
-        // emitting to rowan we linearise these chains so Start/Finish are
-        // properly nested. This is the rust-analyzer pattern.
-        let mut builder = SyntaxTreeBuilder::default();
-        let mut tok_idx: usize = 0;
-
-        // Pre-compute each event's effective start order so we can walk
-        // forward-parent chains without mutating the vector structure.
-        // We swap-remove forwarded children using Event::tombstone.
-        let mut forward_parents: Vec<SyntaxKind> = Vec::new();
-
-        // Identify the last Finish event. Trailing trivia at EOF must be
-        // flushed INSIDE the enclosing node before that Finish so the
-        // rowan tree keeps a single root.
-        let last_finish_idx = events
-            .iter()
-            .rposition(|e| matches!(e, Event::Finish))
-            .unwrap_or(usize::MAX);
-
-        for i in 0..events.len() {
-            match std::mem::replace(&mut events[i], Event::tombstone()) {
-                Event::Start {
-                    kind,
-                    forward_parent,
-                } => {
-                    // Walk forward-parent chain to collect outer wrappers.
-                    forward_parents.clear();
-                    forward_parents.push(kind);
-                    let mut idx = i;
-                    let mut fp = forward_parent;
-                    while let Some(rel) = fp {
-                        idx += rel as usize;
-                        match std::mem::replace(&mut events[idx], Event::tombstone()) {
-                            Event::Start {
-                                kind: outer_kind,
-                                forward_parent: next_fp,
-                            } => {
-                                forward_parents.push(outer_kind);
-                                fp = next_fp;
-                            }
-                            _ => unreachable!("forward parent at event {idx} must be a Start node"),
-                        }
-                    }
-                    // Start outer-to-inner.
-                    for &k in forward_parents.iter().rev() {
-                        // Before opening a structural node, flush any
-                        // pending trivia so it belongs to the enclosing
-                        // (parent) node rather than this fresh one. This
-                        // matches the spec §4.1 preference: trivia binds
-                        // to the following significant token — but the
-                        // start of a new node is not itself a significant
-                        // token, so we defer.
-                        builder.inner.start_node(rowan::SyntaxKind(k as u16));
-                    }
-                }
-                Event::Finish => {
-                    if i == last_finish_idx {
-                        // Flush trailing trivia INSIDE the root-closing
-                        // node so rowan sees a single sub-tree. Spec
-                        // §4.1 permits trailing trivia to attach to the
-                        // preceding significant token at EOF; placing it
-                        // under the source-file root still satisfies
-                        // §4.4 losslessness.
-                        while tok_idx < tokens.len() {
-                            builder.inner.token(
-                                rowan::SyntaxKind(tokens[tok_idx].kind as u16),
-                                &tokens[tok_idx].text,
-                            );
-                            tok_idx += 1;
-                        }
-                    }
-                    builder.inner.finish_node();
-                }
-                Event::Token { kind } => {
-                    // Emit all preceding trivia, then the significant
-                    // token itself.
-                    while tok_idx < tokens.len() && tokens[tok_idx].kind.is_trivia() {
-                        builder.inner.token(
-                            rowan::SyntaxKind(tokens[tok_idx].kind as u16),
-                            &tokens[tok_idx].text,
-                        );
-                        tok_idx += 1;
-                    }
-                    debug_assert!(
-                        tok_idx < tokens.len(),
-                        "Token event past end of token stream (kind={kind:?})"
-                    );
-                    debug_assert_eq!(
-                        tokens[tok_idx].kind, kind,
-                        "Token event kind mismatch: expected {:?}, saw {:?}",
-                        tokens[tok_idx].kind, kind
-                    );
-                    builder.inner.token(
-                        rowan::SyntaxKind(tokens[tok_idx].kind as u16),
-                        &tokens[tok_idx].text,
-                    );
-                    tok_idx += 1;
-                }
-                Event::Error { msg, offset } => {
-                    builder.errors.push(SyntaxError {
-                        message: msg,
-                        offset,
-                    });
-                }
-                Event::Abandoned => {}
-            }
-        }
-
-        // All trailing trivia was folded inside the final Finish event's
-        // enclosing node above; nothing should remain here. In the
-        // degenerate case of an empty event stream (e.g. empty input
-        // where source_file() never emits Finish — which it does), this
-        // loop is a harmless no-op.
-        debug_assert!(
-            tok_idx == tokens.len(),
-            "{} trivia token(s) unflushed after build",
-            tokens.len() - tok_idx
-        );
-
-        (builder.inner.finish(), builder.errors)
     }
 }
 
