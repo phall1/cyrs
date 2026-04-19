@@ -1,4 +1,4 @@
-# CI for the cypher workspace (spec 0001 §17.15).
+# CI for the cyrs workspace (spec 0001 §17.15).
 #
 # Matrix: stable/beta × Linux/macOS/Windows. Nightly-only jobs (Miri,
 # fuzz) run on the linux-nightly leg. clippy/rustfmt/doc are gates at
@@ -18,10 +18,6 @@ env:
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
 
-defaults:
-  run:
-    working-directory: cypher
-
 jobs:
   # ---------------------------------------------------------------
   # Fast signal: fmt + clippy on one leg
@@ -36,7 +32,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
       - name: cargo clippy
@@ -53,7 +49,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - name: cargo xtask check-recovery
         run: cargo run -p xtask -- check-recovery
 
@@ -88,7 +84,7 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - name: cargo test
         run: cargo test --workspace --all-features --no-fail-fast
 
@@ -103,7 +99,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - run: cargo doc --workspace --all-features --no-deps
 
   # ---------------------------------------------------------------
@@ -121,13 +117,13 @@ jobs:
         with: { tool: cargo-llvm-cov }
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - name: cargo llvm-cov
         run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
       - uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: cypher/lcov.info
+          path: lcov.info
 
   # ---------------------------------------------------------------
   # Supply chain: cargo-audit + cargo-deny (spec §17.16)
@@ -158,7 +154,7 @@ jobs:
         with: { components: miri }
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - name: cargo miri test
         run: cargo miri test --workspace --all-features
         env:
@@ -175,7 +171,7 @@ jobs:
         with: { tool: cargo-fuzz }
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       # Fuzz targets land in a follow-up; keep this job as a gate.
       - name: cargo fuzz list
         run: cargo fuzz list || echo "(no fuzz targets registered yet)"
@@ -191,5 +187,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.94
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "cypher -> target"
+          workspaces: ". -> target"
       - run: cargo check --workspace --all-features
