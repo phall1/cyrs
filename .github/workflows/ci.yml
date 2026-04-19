@@ -43,6 +43,17 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ---------------------------------------------------------------
+  # Non-coupling gate (spec §2.C1, §2.C2)
+  # ---------------------------------------------------------------
+  non-coupling:
+    name: non-coupling gate (spec §2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: run denylist script
+        run: bash scripts/check-noncoupling.sh
+
+  # ---------------------------------------------------------------
   # Test matrix: stable + beta × linux/macos/windows
   # ---------------------------------------------------------------
   test:
