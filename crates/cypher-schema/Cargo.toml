@@ -17,5 +17,8 @@ serde     = { workspace = true, optional = true }
 default = []
 serde   = ["dep:serde", "indexmap/serde", "smol_str/serde"]
 
+[dev-dependencies]
+sha2 = "0.10"
+
 [lints]
 workspace = true
