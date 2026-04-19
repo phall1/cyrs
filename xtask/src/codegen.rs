@@ -1194,6 +1194,68 @@ mod tests {
         );
     }
 
+    #[test]
+    fn skips_alternation_with_sequence_arms() {
+        // An arm that is itself a sequence (e.g. `'*' ','? ReturnItem*`) is
+        // not a bare node reference — we can't synthesise a named tuple
+        // variant for it. These skip with a dedicated reason.
+        let src = "MatchClause = 'MATCH'\n\
+                   Pair = 'a' 'b' | 'c' 'd'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(
+            !out.contains("pub enum Pair"),
+            "did not expect enum Pair in output:\n{out}"
+        );
+        assert!(
+            out.contains("sequence arm"),
+            "expected a sequence-arm skip reason for Pair:\n{out}"
+        );
+    }
+
+    #[test]
+    fn nested_enums_cascade_via_cast() {
+        // `Outer` is an enum whose arm `Inner` is itself an enum. The
+        // inner enum only casts to something non-None when one of its
+        // own arms matches, so `Outer::cast(syntax)` reduces to "try
+        // each leaf struct in DFS order" — this test just checks that
+        // both the Outer and Inner enums emit side-by-side.
+        let src = "Outer = Inner | MatchClause\n\
+                   Inner = WithClause | ReturnClause\n\
+                   MatchClause = 'MATCH'\n\
+                   WithClause = 'WITH'\n\
+                   ReturnClause = 'RETURN'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(out.contains("pub enum Outer"), "Outer enum missing:\n{out}");
+        assert!(out.contains("pub enum Inner"), "Inner enum missing:\n{out}");
+        assert!(
+            out.contains("Inner(Inner)"),
+            "Outer should reference Inner as a tuple variant:\n{out}"
+        );
+    }
+
+    #[test]
+    fn demotes_enum_when_every_arm_is_unknown() {
+        // Every arm refers to a type with no `SyntaxKind` variant — no
+        // struct wrapper gets emitted for either arm, so the enum has
+        // nothing to hold. The codegen must drop it (rather than emit
+        // an empty enum) and record a "all arms unknown" reason.
+        //
+        // `Statement = SingleQuery | Union` is the live example from
+        // the canonical ungrammar; reproduce it here in miniature.
+        let src = "Statement = SingleQuery | Union\n\
+                   SingleQuery = 'a'\n\
+                   Union = 'b'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(
+            !out.contains("pub enum Statement"),
+            "did not expect enum Statement when all arms are unknown:\n{out}"
+        );
+        assert!(
+            out.contains("alternation arms all reference types that aren't emitted"),
+            "expected all-arms-unknown skip reason for Statement:\n{out}"
+        );
+    }
+
     /// Drift gate: running the generator against the canonical ungrammar
     /// file must produce output byte-for-byte identical to the checked-in
     /// `crates/cypher-ast/src/generated.rs`.
