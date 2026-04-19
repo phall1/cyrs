@@ -17,3 +17,6 @@ lcov.info
 fuzz/target
 fuzz/corpus
 fuzz/artifacts
+
+# bv (beads viewer) local config and caches
+.bv/
