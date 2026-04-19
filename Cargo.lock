@@ -368,6 +368,7 @@ dependencies = [
  "insta",
  "pretty_assertions",
  "proptest",
+ "rowan",
  "smol_str",
 ]
 
