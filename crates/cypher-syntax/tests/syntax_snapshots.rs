@@ -356,6 +356,37 @@ fn expr_in_operator() {
 // list-literal support in the expression grammar.
 
 // ---------------------------------------------------------------------------
+// Multi-statement files (spec §4.6)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn multi_stmt_empty_file() {
+    insta::assert_snapshot!(format_with_errors(""));
+}
+
+#[test]
+fn multi_stmt_single_no_semi() {
+    insta::assert_snapshot!(format_with_errors("RETURN 1"));
+}
+
+#[test]
+fn multi_stmt_single_trailing_semi() {
+    insta::assert_snapshot!(format_with_errors("RETURN 1;"));
+}
+
+#[test]
+fn multi_stmt_two_statements() {
+    insta::assert_snapshot!(format_with_errors("RETURN 1; RETURN 2"));
+}
+
+#[test]
+fn multi_stmt_two_with_trailing_semi() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) RETURN n; MATCH (m) RETURN m;"
+    ));
+}
+
+// ---------------------------------------------------------------------------
 // Error cases — tree + diagnostics both snapshotted
 // ---------------------------------------------------------------------------
 

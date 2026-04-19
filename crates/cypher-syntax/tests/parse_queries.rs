@@ -161,15 +161,28 @@ fn parse_return_distinct_order_limit() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Statement boundaries
+// 2. Statement boundaries (spec §4.6)
 // ---------------------------------------------------------------------------
+
+/// Helper: count direct `STATEMENT` node children of the root.
+fn count_statements(tree: &SyntaxNode) -> usize {
+    tree.children()
+        .filter(|c| c.kind() == SyntaxKind::STATEMENT)
+        .count()
+}
 
 #[test]
 fn empty_input() {
     let p = parse("");
-    assert!(p.errors().is_empty());
+    assert!(p.errors().is_empty(), "empty input must have no errors");
     assert_eq!(p.syntax().kind(), SyntaxKind::SOURCE_FILE);
     assert_eq!(p.syntax().to_string(), "");
+    // spec §4.6: empty file → 0 Statement children, not an error.
+    assert_eq!(
+        count_statements(&p.syntax()),
+        0,
+        "empty file must have 0 Statement children"
+    );
 }
 
 #[test]
@@ -177,6 +190,22 @@ fn whitespace_only_input() {
     let p = parse("   \n  ");
     assert!(p.errors().is_empty());
     assert_eq!(p.syntax().to_string(), "   \n  ");
+    // Whitespace-only is still an empty tree (no statements).
+    assert_eq!(count_statements(&p.syntax()), 0);
+}
+
+#[test]
+fn single_statement_no_semicolon() {
+    // spec §4.6: trailing `;` is optional — a lone statement with no `;` is fine.
+    let tree = assert_ok("MATCH (n) RETURN n");
+    assert_eq!(count_statements(&tree), 1, "one Statement expected");
+}
+
+#[test]
+fn single_statement_trailing_semicolon() {
+    // spec §4.6: trailing `;` is optional but permitted.
+    let tree = assert_ok("MATCH (n) RETURN n;");
+    assert_eq!(count_statements(&tree), 1, "one Statement expected");
 }
 
 #[test]
@@ -186,12 +215,41 @@ fn trailing_semicolon_ok() {
 
 #[test]
 fn two_statements_semi_separated() {
-    assert_ok("MATCH (n) RETURN n; MATCH (m) RETURN m");
+    // spec §4.6: `;` separates two statements.
+    let tree = assert_ok("MATCH (n) RETURN n; MATCH (m) RETURN m");
+    assert_eq!(count_statements(&tree), 2, "two Statements expected");
 }
 
 #[test]
 fn two_statements_with_trailing_semi() {
-    assert_ok("MATCH (n) RETURN n; MATCH (m) RETURN m;");
+    let tree = assert_ok("MATCH (n) RETURN n; MATCH (m) RETURN m;");
+    assert_eq!(count_statements(&tree), 2, "two Statements expected");
+}
+
+#[test]
+fn multi_clause_single_statement() {
+    // A MATCH … RETURN is one statement with multiple clauses (not two statements).
+    // This verifies the clause-loop in single_query correctly accumulates clauses.
+    let tree = assert_ok("MATCH (n) RETURN n");
+    assert_eq!(count_statements(&tree), 1, "MATCH+RETURN is 1 Statement");
+}
+
+#[test]
+fn two_statements_missing_separator_error_recovery() {
+    // spec §4.6 + §4.2 error-tolerance: when an unexpected non-clause
+    // token appears between two statements, the parser emits a diagnostic
+    // but still recovers to parse the second statement.
+    let tree = assert_err_recovery("RETURN 1; junk RETURN 2");
+    // Both RETURN clauses should survive after recovery.
+    assert!(
+        find_first(&tree, SyntaxKind::RETURN_CLAUSE).is_some(),
+        "expected at least one RETURN_CLAUSE after recovery"
+    );
+    let stmts = count_statements(&tree);
+    assert!(
+        stmts >= 1,
+        "expected at least 1 Statement after recovery, got {stmts}"
+    );
 }
 
 // ---------------------------------------------------------------------------
