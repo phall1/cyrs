@@ -1,0 +1,27 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 370
+expression: "dump(\"RETURN 1 + 2 * 3\")"
+---
+SourceFile(SOURCE_FILE@0..16)
+  STATEMENT@0..16
+    ReturnClause(RETURN_CLAUSE@0..16)
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..16
+        RETURN_ITEMS@6..16
+          ReturnItem(RETURN_ITEM@6..16)
+            Expr::BinaryExpr(BINARY_EXPR@6..16)
+              LITERAL_EXPR@6..8
+                WHITESPACE@6..7 " "
+                INT_LITERAL@7..8 "1"
+              WHITESPACE@8..9 " "
+              PLUS@9..10 "+"
+              Expr::BinaryExpr(BINARY_EXPR@10..16)
+                LITERAL_EXPR@10..12
+                  WHITESPACE@10..11 " "
+                  INT_LITERAL@11..12 "2"
+                WHITESPACE@12..13 " "
+                STAR@13..14 "*"
+                LITERAL_EXPR@14..16
+                  WHITESPACE@14..15 " "
+                  INT_LITERAL@15..16 "3"

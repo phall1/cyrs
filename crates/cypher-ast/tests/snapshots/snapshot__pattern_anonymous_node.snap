@@ -1,0 +1,24 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 266
+expression: "dump(\"MATCH () RETURN 1\")"
+---
+SourceFile(SOURCE_FILE@0..17)
+  STATEMENT@0..17
+    MatchClause(MATCH_CLAUSE@0..8)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..8)
+        PATTERN_PART@5..8
+          NodePattern(NODE_PATTERN@5..8)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            R_PAREN@7..8 ")"
+    ReturnClause(RETURN_CLAUSE@8..17)
+      WHITESPACE@8..9 " "
+      RETURN_KW@9..15 "RETURN"
+      RETURN_BODY@15..17
+        RETURN_ITEMS@15..17
+          ReturnItem(RETURN_ITEM@15..17)
+            LITERAL_EXPR@15..17
+              WHITESPACE@15..16 " "
+              INT_LITERAL@16..17 "1"

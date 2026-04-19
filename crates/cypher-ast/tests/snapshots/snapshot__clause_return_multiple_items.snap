@@ -1,0 +1,45 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 235
+expression: "dump(\"MATCH (n) RETURN n.name, n.age, n.id\")"
+---
+SourceFile(SOURCE_FILE@0..36)
+  STATEMENT@0..36
+    MatchClause(MATCH_CLAUSE@0..9)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    ReturnClause(RETURN_CLAUSE@9..36)
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..36
+        RETURN_ITEMS@16..36
+          ReturnItem(RETURN_ITEM@16..23)
+            PROP_ACCESS_EXPR@16..23
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              DOT@18..19 "."
+              IDENT@19..23 "name"
+          COMMA@23..24 ","
+          ReturnItem(RETURN_ITEM@24..30)
+            PROP_ACCESS_EXPR@24..30
+              VAR_EXPR@24..26
+                WHITESPACE@24..25 " "
+                IDENT@25..26 "n"
+              DOT@26..27 "."
+              IDENT@27..30 "age"
+          COMMA@30..31 ","
+          ReturnItem(RETURN_ITEM@31..36)
+            PROP_ACCESS_EXPR@31..36
+              VAR_EXPR@31..33
+                WHITESPACE@31..32 " "
+                IDENT@32..33 "n"
+              DOT@33..34 "."
+              IDENT@34..36 "id"
