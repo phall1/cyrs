@@ -9,10 +9,14 @@
 
 pub mod codes;
 pub mod json;
+#[cfg(feature = "lsp")]
+pub mod lsp;
 pub mod render;
 
 pub use codes::DiagCode;
 pub use json::{to_json, to_json_string, to_ndjson};
+#[cfg(feature = "lsp")]
+pub use lsp::{to_lsp, to_lsp_all};
 pub use render::{render_text, render_text_stderr, render_text_string};
 
 use cypher_syntax::TextRange;
