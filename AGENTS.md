@@ -110,8 +110,11 @@ cypher         → all non-binary crates above
 
 ### 4.1 Branch & commit policy
 
-- Work directly on the current feature branch. No feature branches per
-  bead; no worktrees. Treat the swarm as committing to a single branch.
+- The orchestrator may dispatch beads in parallel via git worktrees
+  (one worktree + branch per bead). Each worktree branches off `main`
+  named `bead/<id>-<slug>`; the implementing agent commits inside its
+  worktree, and the orchestrator fast-forwards / merges branches back
+  to `main` serially. Solo work still goes directly on `main`.
 - Small, frequent commits. Each commit compiles and passes
   `cargo check -p <touched crate>`.
 - Push after every commit when collaborating with other agents —
@@ -123,14 +126,27 @@ cypher         → all non-binary crates above
   you find someone else's changes in the tree, treat them as your own
   (pull, rebase gently, or leave them alone).
 
-### 4.2 File reservations (when multi-agent)
+### 4.2 Multi-agent coordination
 
-When more than one agent is active, claim the crates or files you plan
-to edit via Agent Mail (or the equivalent reservation channel the
-operator has configured). Release on commit. Advisory, not rigid — a
-stale reservation after 1h is auto-expired. See Flywheel AGENTS.md
-guidance for the exact macro shape; this workspace does not mandate a
-specific reservation backend.
+- **Beads state is orchestrator-owned.** Implementing agents do not run
+  `br update` / `br close` / `br sync`. The orchestrator claims beads
+  with `br update --status=in_progress` before dispatch and closes them
+  with `br close <id>` after the branch lands on `main`. This avoids
+  SQLite write contention across worktrees (worktrees share `.git` but
+  each carries its own `.beads/` working copy).
+- **Crate-scoped parallelism.** Dispatch only beads whose `crate:*`
+  label is disjoint from other in-flight beads. Root `Cargo.toml`
+  `[workspace.members]` edits (e.g. adding a new crate) serialize —
+  run those beads alone.
+- **Merge order.** Merge finished branches into `main` one at a time,
+  in dependency order where declared. Re-run `cargo xtask gate` on
+  `main` after each merge; if it fails, revert the merge rather than
+  patching on top.
+- **File reservations** (single-tree multi-agent fallback): when more
+  than one agent shares a tree, claim crates or files via Agent Mail
+  (or the equivalent reservation channel). Release on commit.
+  Advisory, not rigid — a stale reservation after 1h is auto-expired.
+  See Flywheel AGENTS.md guidance for the macro shape.
 
 ### 4.3 Pre-commit gate (§17)
 
