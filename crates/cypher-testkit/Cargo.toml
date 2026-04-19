@@ -6,12 +6,24 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Shared test fixtures and compiletest runner for the Cypher front-end (dev only). Spec 0001 §17.6."
+description  = "Shared test fixtures, snapshot helpers, and compiletest runner for the Cypher front-end (dev only). Spec 0001 §17.6."
 publish      = false
 
 [dependencies]
-cypher-db = { workspace = true }
-insta     = { workspace = true }
+cypher-syntax = { workspace = true }
+cypher-ast    = { workspace = true }
+cypher-hir    = { workspace = true }
+cypher-sema   = { workspace = true }
+cypher-schema = { workspace = true }
+cypher-diag   = { workspace = true }
+cypher-plan   = { workspace = true }
+cypher-fmt    = { workspace = true }
+cypher-db     = { workspace = true }
+insta         = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile      = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
 
 [lints]
 workspace = true

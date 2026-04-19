@@ -1,21 +1,30 @@
-//! `cypher-testkit` — shared test fixtures (dev only).
+//! `cypher-testkit` — shared test fixtures, snapshot helpers, and
+//! compiletest runner for the Cypher front-end. Dev-only; never published.
 //!
-//! Spec 0001 §17.6 describes a compiletest-style golden-file runner. This
-//! crate is where that runner will live, alongside helper setup for the
-//! incremental database and insta snapshot plumbing shared across crates.
+//! Spec 0001 §17.6 describes a `rustc`-style golden compiletest corpus.
+//! This crate provides:
+//!
+//! - [`fixture`] — helpers for building a populated [`Database`] and
+//!   loading `.cypher` input files from the `tests/ui/**` corpus.
+//! - [`snapshot`] — thin wrappers around `insta` so every crate uses the
+//!   same redaction set and settings file automatically.
+//! - [`compiletest`] — the custom golden-file runner that pairs each
+//!   `.cypher` input with its expected `.stderr`, `.ast.txt`, `.hir.txt`,
+//!   and `.plan.json` outputs and fails loudly on byte-level divergence.
+//!   Re-generation is `cargo xtask bless`.
+//!
+//! # Why a separate crate?
+//!
+//! Duplicating setup boilerplate across fifteen crates raises the bar for
+//! writing tests and leads to drift.  Centralising it here keeps test
+//! entry-points lean and ensures consistent `insta` settings, database
+//! construction, and diff output across the whole workspace.
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-testkit/0.0.1")]
 
-use cypher_db::Database;
+pub mod compiletest;
+pub mod fixture;
+pub mod snapshot;
 
-/// Build a fresh database populated with the given source text. Returns
-/// the `Database` and the allocated file id. Used by snapshot and
-/// compiletest suites to keep setup uniform.
-#[must_use]
-pub fn db_with_source(src: impl Into<String>) -> (Database, cypher_db::FileId) {
-    let db = Database::new();
-    let id = db.allocate_file();
-    db.set_source(id, src.into());
-    (db, id)
-}
+pub use fixture::{db_with_source, db_with_source_and_dialect};

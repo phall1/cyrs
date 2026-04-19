@@ -455,8 +455,20 @@ dependencies = [
 name = "cypher-testkit"
 version = "0.0.1"
 dependencies = [
+ "cypher-ast",
  "cypher-db",
+ "cypher-diag",
+ "cypher-fmt",
+ "cypher-hir",
+ "cypher-plan",
+ "cypher-schema",
+ "cypher-sema",
+ "cypher-syntax",
  "insta",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
