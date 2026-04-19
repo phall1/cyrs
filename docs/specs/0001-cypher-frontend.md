@@ -236,6 +236,13 @@ which tokens trigger virtual insertion. The table is a normative part of this
 spec and lives in `cypher-syntax/docs/recovery.md` (to be written as part of
 implementation).
 
+**Coverage invariant.** Every production named in `cypher-ast/cypher.ungrammar`
+MUST have an entry in `recovery.md`. Entries for productions that no longer
+exist in the grammar MUST be removed. This invariant is enforced structurally
+by `cargo xtask check-recovery`, which parses both files and fails with a
+diff on any asymmetry (§17.18). The check is a blocking PR gate; drift is not
+a "weekly cargo-mutants will catch it" problem.
+
 ### 4.4. CST
 
 Rowan green/red tree. `SyntaxKind` is a hand-enumerated non-exhaustive enum
@@ -694,6 +701,40 @@ IDE workflows where the user edits many files concurrently. A
 server uses one `Database` and issues a snapshot per request; the CLI uses
 one `Database` per process.
 
+### 11.6. Memoization bounds
+
+Long-running embedders (`cypher-lsp`, `cypher-agent`) field many queries
+over a single process lifetime. Unbounded Salsa memo tables leak. Three
+bounds are normative:
+
+- **Per-query LRU caps.** The expensive derived queries (`parse`, `hir`,
+  `sema`, `plan`, `formatted`) carry an explicit `lru = N` cap (Salsa's
+  `#[tracked(lru)]`). Defaults: `N = 256`. Configured via
+  `Database::options` at construction; not mutable after construction.
+  Cheap queries (`ast`, `diagnostics`) are uncapped (their memo cost is
+  dominated by their upstream, which is already capped).
+- **LSP FileId eviction.** `cypher-lsp` MUST evict a `FileId` on
+  `textDocument/didClose` when the document is not referenced by any
+  open document. Eviction calls Salsa's input-removal API; memoized
+  derived values keyed on that `FileId` are reclaimed on the next
+  revision bump.
+- **Agent FileId reuse.** `cypher-agent` is stateless-per-call: each
+  request carries `{text}` rather than a `FileId` handle. The server MUST
+  intern all requests onto a single `FileId` per dialect (the text
+  changes; the `FileId` does not), so memoization budget is bounded by
+  the LRU caps above rather than by request count. `schema_set` /
+  `schema_clear` trigger `schema_digest` invalidation, not `FileId`
+  churn.
+
+Not normative: the CLI, which runs one `Database` per process and exits.
+The bounds above prevent monotonic growth in daemonised embedders;
+the CLI has no such pressure.
+
+Benchmarked: `bench_incremental` (§17.10) includes a "10k edits" workload
+that asserts steady-state RSS stays within ±10% of the first-1k-edits
+baseline, under both LSP (FileId churn) and agent (single FileId)
+access patterns.
+
 ---
 
 ## 12. Plan IR (`cypher-plan`)
@@ -1058,7 +1099,10 @@ higher on semantic libraries because those are the correctness surface.
 - `bench_fmt` — same.
 - `bench_lsp_completion` — simulated LSP completion workload.
 - `bench_incremental` — 10,000-line file, sequence of small edits; measure
-  per-edit reanalysis cost.
+  per-edit reanalysis cost. Includes a long-horizon workload (10k edits,
+  with both LSP FileId-churn and agent single-FileId access patterns) that
+  asserts the §11.6 steady-state-RSS bound (within ±10% of first-1k-edits
+  baseline). RSS drift ≥ 10% is a blocking regression.
 
 Results are stored in the repo (`bench/baseline/`) and a CI job posts
 regressions ≥ 10% as blocking. Thresholds per-benchmark, documented in
@@ -1115,8 +1159,21 @@ Clippy at `-D warnings`; rustdoc with `-D warnings`.
 A release is permitted only if all of: unit tests green, snapshot corpus
 unchanged without review, TCK green for v1 scope, fuzz clean for 24h
 nightly, coverage thresholds met, benchmarks within gates, Miri clean,
-mutation kill rate met, `cargo audit` clean. Release workflow is
-`cargo xtask release`.
+mutation kill rate met, `cargo audit` clean, `cargo xtask check-recovery`
+clean. Release workflow is `cargo xtask release`.
+
+### 17.18. Grammar-recovery structural check (`cargo xtask check-recovery`)
+
+Enforces the §4.3 coverage invariant. The subcommand:
+
+1. Parses `cypher-ast/cypher.ungrammar` into its production set.
+2. Parses `cypher-syntax/docs/recovery.md` into its entry set (entries are
+   keyed by production name in stable H3 headings).
+3. Fails with a two-sided diff if either set contains names not in the
+   other.
+
+Runs on every PR as a blocking gate. Intended to be cheap (milliseconds),
+so it runs unconditionally, not matrix-gated.
 
 ---
 
