@@ -11,6 +11,7 @@ pub mod codes;
 pub mod render;
 
 pub use codes::DiagCode;
+pub use render::{render_text, render_text_stderr, render_text_string};
 
 use cypher_syntax::TextRange;
 use smol_str::SmolStr;
