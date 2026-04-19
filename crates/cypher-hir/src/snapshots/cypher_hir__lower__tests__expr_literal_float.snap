@@ -1,0 +1,8 @@
+---
+source: crates/cypher-hir/src/lower.rs
+expression: render(&stmt)
+---
+clauses: 1
+bindings: 0
+nodes_in_map: 1
+clause[0]: Return(distinct=false, items=1)
