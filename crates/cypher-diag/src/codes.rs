@@ -99,14 +99,36 @@ pub enum DiagCode {
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
     W6001 = 6001,
+    /// Identifier collides with a reserved keyword; needs backtick quoting.
+    W6002 = 6002,
+    /// Duplicate key in map literal — last write wins.
+    W6003 = 6003,
+    /// Variable bound but never read.
+    W6004 = 6004,
+    /// Redundant OPTIONAL MATCH — no bound variables escape the clause.
+    W6005 = 6005,
+    /// Pattern has no label or type restriction — will scan broadly.
+    W6006 = 6006,
+    /// Inconsistent keyword casing inside one query.
+    W6007 = 6007,
 
     // --- performance (7000..) ----------------------------------------
     /// Cartesian product between disconnected MATCH components.
     W7001 = 7001,
+    /// Expensive function call inside a row-wise filter.
+    W7002 = 7002,
+    /// Variable-length path without an upper bound.
+    W7003 = 7003,
+    /// Property access on an unindexed label in a selective filter.
+    W7004 = 7004,
 
     // --- notes (8000..) ----------------------------------------------
     /// Informational — pattern normalised to canonical direction.
     N8001 = 8001,
+    /// Informational — inferred type of an expression.
+    N8002 = 8002,
+    /// Informational — variable dropped from scope by this projection.
+    N8003 = 8003,
 }
 
 impl DiagCode {
@@ -144,8 +166,19 @@ impl DiagCode {
             Self::E5001 => "E5001",
             Self::E5002 => "E5002",
             Self::W6001 => "W6001",
+            Self::W6002 => "W6002",
+            Self::W6003 => "W6003",
+            Self::W6004 => "W6004",
+            Self::W6005 => "W6005",
+            Self::W6006 => "W6006",
+            Self::W6007 => "W6007",
             Self::W7001 => "W7001",
+            Self::W7002 => "W7002",
+            Self::W7003 => "W7003",
+            Self::W7004 => "W7004",
             Self::N8001 => "N8001",
+            Self::N8002 => "N8002",
+            Self::N8003 => "N8003",
         }
     }
 
@@ -200,8 +233,19 @@ impl DiagCode {
         Self::E5001,
         Self::E5002,
         Self::W6001,
+        Self::W6002,
+        Self::W6003,
+        Self::W6004,
+        Self::W6005,
+        Self::W6006,
+        Self::W6007,
         Self::W7001,
+        Self::W7002,
+        Self::W7003,
+        Self::W7004,
         Self::N8001,
+        Self::N8002,
+        Self::N8003,
     ];
 }
 
@@ -250,8 +294,19 @@ mod tests {
             DiagCode::E5001,
             DiagCode::E5002,
             DiagCode::W6001,
+            DiagCode::W6002,
+            DiagCode::W6003,
+            DiagCode::W6004,
+            DiagCode::W6005,
+            DiagCode::W6006,
+            DiagCode::W6007,
             DiagCode::W7001,
+            DiagCode::W7002,
+            DiagCode::W7003,
+            DiagCode::W7004,
             DiagCode::N8001,
+            DiagCode::N8002,
+            DiagCode::N8003,
         ];
         let mut strs: Vec<_> = all.iter().map(|c| c.as_str()).collect();
         strs.sort_unstable();
