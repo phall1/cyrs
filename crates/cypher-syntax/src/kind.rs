@@ -21,8 +21,13 @@
 /// Every syntactic category in Cypher: tokens, nodes, and meta.
 ///
 /// `repr(u16)` so it can be used directly as a rowan kind.
+///
+/// Marked `#[non_exhaustive]` per spec §4.4: consumers must use a
+/// wildcard arm when matching, so the grammar can grow without
+/// breaking every downstream match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u16)]
+#[non_exhaustive]
 pub enum SyntaxKind {
     // =====================================================================
     // Trivia (0..16)
@@ -407,27 +412,45 @@ impl SyntaxKind {
     }
 
     // ---------- partition predicates ----------
+    //
+    // These are the consumers' lens on the zones laid out above
+    // (spec §4.4). All are cheap range checks or `matches!` over a
+    // handful of variants, and all are `const fn` so callers can use
+    // them in const contexts (e.g. static tables).
 
+    /// Returns `true` for the trivia zone (whitespace and comments).
+    ///
+    /// ```
+    /// use cypher_syntax::SyntaxKind;
+    /// assert!(SyntaxKind::WHITESPACE.is_trivia());
+    /// assert!(!SyntaxKind::IDENT.is_trivia());
+    /// ```
     #[must_use]
-    pub fn is_trivia(self) -> bool {
+    pub const fn is_trivia(self) -> bool {
         matches!(
             self,
             Self::WHITESPACE | Self::LINE_COMMENT | Self::BLOCK_COMMENT
         )
     }
 
+    /// Returns `true` for the keyword zone (`MATCH_KW..=ALLSHORTESTPATHS_KW`).
     #[must_use]
-    pub fn is_keyword(self) -> bool {
-        (Self::MATCH_KW as u16..=Self::ALLSHORTESTPATHS_KW as u16).contains(&(self as u16))
+    pub const fn is_keyword(self) -> bool {
+        let k = self as u16;
+        k >= Self::MATCH_KW as u16 && k <= Self::ALLSHORTESTPATHS_KW as u16
     }
 
+    /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
     #[must_use]
-    pub fn is_punct(self) -> bool {
-        (Self::L_PAREN as u16..=Self::AMP as u16).contains(&(self as u16))
+    pub const fn is_punct(self) -> bool {
+        let k = self as u16;
+        k >= Self::L_PAREN as u16 && k <= Self::AMP as u16
     }
 
+    /// Returns `true` for literal-shaped tokens: numeric, string, boolean,
+    /// null, and parameter tokens (`$name` / `$0`).
     #[must_use]
-    pub fn is_literal(self) -> bool {
+    pub const fn is_literal(self) -> bool {
         matches!(
             self,
             Self::INT_LITERAL
@@ -435,18 +458,23 @@ impl SyntaxKind {
                 | Self::STRING_LITERAL
                 | Self::BOOL_LITERAL
                 | Self::NULL_LITERAL
+                | Self::PARAM
         )
     }
 
+    /// Returns `true` for composite syntax nodes (clauses, patterns,
+    /// expressions, etc. — every kind in `SOURCE_FILE..ERROR`).
     #[must_use]
-    pub fn is_token(self) -> bool {
-        (self as u16) < Self::SOURCE_FILE as u16
-    }
-
-    #[must_use]
-    pub fn is_node(self) -> bool {
+    pub const fn is_node(self) -> bool {
         let k = self as u16;
         k >= Self::SOURCE_FILE as u16 && k < Self::ERROR as u16
+    }
+
+    /// Returns `true` for any kind that is a token rather than a node or
+    /// meta sentinel. Equivalent to `!is_node() && !matches!(ERROR | EOF)`.
+    #[must_use]
+    pub const fn is_token(self) -> bool {
+        (self as u16) < Self::SOURCE_FILE as u16
     }
 }
 
