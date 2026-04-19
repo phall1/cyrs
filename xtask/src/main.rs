@@ -47,10 +47,7 @@ fn main() -> Result<()> {
             println!("[xtask bless] lands with the compiletest runner");
             Ok(())
         }
-        Cmd::Codegen => {
-            println!("[xtask codegen] lands with the ungrammar-driven generator");
-            Ok(())
-        }
+        Cmd::Codegen => xtask::codegen::run(),
         Cmd::Release => {
             println!("[xtask release] verifies gates per spec §17.17");
             Ok(())

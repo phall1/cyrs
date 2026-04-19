@@ -8,13 +8,18 @@ authors      = { workspace = true }
 publish      = false
 description  = "Developer tasks for the Cypher workspace: codegen, bless, release gates."
 
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
 [[bin]]
 name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { workspace = true }
-clap   = { workspace = true }
+anyhow    = { workspace = true }
+clap      = { workspace = true }
+ungrammar = "1.16"
 
 [lints]
 workspace = true

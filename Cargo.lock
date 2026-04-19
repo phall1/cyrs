@@ -351,6 +351,7 @@ dependencies = [
  "codespan-reporting",
  "cypher-syntax",
  "indexmap",
+ "lsp-types",
  "serde",
  "serde_json",
  "smol_str",
@@ -1368,6 +1369,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 
 [[package]]
+name = "ungrammar"
+version = "1.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3e5df347f0bf3ec1d670aad6ca5c6a1859cd9ea61d2113125794654ccced68f"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1588,6 +1595,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
+ "ungrammar",
 ]
 
 [[package]]
