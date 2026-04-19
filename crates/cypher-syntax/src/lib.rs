@@ -18,10 +18,12 @@
 
 pub mod kind;
 pub mod lexer;
+pub mod line_index;
 pub mod parser;
 
 pub use kind::SyntaxKind;
 pub use lexer::{LexToken, lex};
+pub use line_index::{LineCol, LineIndex, WideLineCol};
 pub use parser::{Parse, SyntaxError, parse};
 
 use rowan::Language;
