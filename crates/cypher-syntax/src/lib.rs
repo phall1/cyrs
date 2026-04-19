@@ -16,6 +16,7 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-syntax/0.0.1")]
 
+pub(crate) mod grammar;
 pub mod kind;
 pub mod lexer;
 pub mod line_index;

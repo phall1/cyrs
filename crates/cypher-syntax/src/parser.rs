@@ -1,4 +1,4 @@
-//! Event-based recovering parser (spec 0001 §4.2).
+//! Event-based recovering parser (spec 0001 §4.2, §4.3, §4.4, §4.6).
 //!
 //! # Architecture
 //!
@@ -11,25 +11,31 @@
 //!   (the `Start` event can be retroactively relocated via the
 //!   [`Marker::precede`] mechanism);
 //! - group or suppress spurious errors before they reach diagnostics;
-//! - emit trivia attached to the correct side of a significant token.
+//! - interleave trivia tokens (whitespace, comments) between significant
+//!   tokens so the constructed tree is byte-lossless per §4.4.
 //!
 //! # Error recovery
 //!
-//! Implementation of the recovery strategy in spec §4.3 lives alongside
-//! the grammar functions (one synchronisation set per clause). This file
-//! provides only the primitives — [`Parser::error`] (records a diag,
-//! produces an ERROR node), [`Parser::bump_any`], [`Parser::at_ts`]
-//! (token-set predicate), and [`Parser::expect`] — on which the grammar is
-//! built.
+//! Per spec §4.3 the recovering parser exposes two primitives the grammar
+//! builds on:
 //!
-//! # v1 status
+//! - **Synchronisation-set skip** ([`Parser::recover_until`]): when a
+//!   clause fails, tokens are bumped into an `ERROR` node until we see a
+//!   clause-level keyword, a `;`, or EOF.
+//! - **Virtual-token insertion** ([`Parser::expect`]): when a required
+//!   closer/keyword is missing, an `ERROR` node of zero width is recorded
+//!   at the expected position; the parser continues.
 //!
-//! The event machinery and builder are complete and lossless. The grammar
-//! entry [`parse`] currently walks the token stream without structural
-//! parsing; it produces a `SOURCE_FILE` containing the raw tokens as
-//! children. Replacing the walker with the full grammar is the next
-//! implementation step and is tracked against spec §4.3 + §19.
+//! Both primitives are shared across productions; per-production recovery
+//! tables (spec §4.3) land in a later bead (`cy-2vh`).
+//!
+//! # Losslessness invariant
+//!
+//! Spec §4.4: `parse(s).syntax().to_string() == s` for every input. Trivia
+//! and `ERROR` tokens are preserved in the tree; the property test
+//! `lossless_on_arbitrary_utf8` enforces the invariant.
 
+use drop_bomb::DropBomb;
 use rowan::{GreenNode, GreenNodeBuilder};
 use thiserror::Error;
 
@@ -70,17 +76,19 @@ impl Parse {
 #[must_use]
 pub fn parse(src: &str) -> Parse {
     let tokens = lex(src);
-    let mut builder = SyntaxTreeBuilder::new();
-    builder.start_node(SyntaxKind::SOURCE_FILE);
-    for tok in tokens {
-        builder.token(tok.kind, &tok.text);
-    }
-    builder.finish_node();
-    let (green, errors) = builder.finish();
+    let mut parser = Parser::new(&tokens);
+    crate::grammar::source_file(&mut parser);
+    let events = parser.into_events();
+    let (green, errors) = SyntaxTreeBuilder::build(&tokens, events);
     Parse { green, errors }
 }
 
 /// A single syntax error record. Spec §4.3 + §10.
+///
+/// `cypher-syntax` does not depend on `cypher-diag` (§3.1), so this is a
+/// local stand-in carrying just the minimum a later pass needs to lift it
+/// into a full `Diagnostic`: a human-readable message and the byte offset
+/// at which it was emitted.
 #[derive(Debug, Clone, Error)]
 #[error("{message}")]
 pub struct SyntaxError {
@@ -93,11 +101,10 @@ pub struct SyntaxError {
 // ========================================================================
 
 /// Events are emitted by the parser and consumed by [`SyntaxTreeBuilder`].
-/// The `Abandoned` variant lets the parser retract speculatively-started
-/// nodes; the `Forward` variant implements `Marker::precede` (re-parenting
-/// a started node inside a new outer node).
+/// `Start` carries an optional forward-parent index implementing
+/// `Marker::precede` (re-parenting a started node inside a new outer
+/// node); `Abandoned` retracts a speculatively-started node.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) enum Event {
     Start {
         kind: SyntaxKind,
@@ -109,17 +116,25 @@ pub(crate) enum Event {
     },
     Error {
         msg: String,
+        offset: text_size::TextSize,
     },
     Abandoned,
+}
+
+impl Event {
+    fn tombstone() -> Self {
+        Event::Abandoned
+    }
 }
 
 // ========================================================================
 // Green-tree builder
 // ========================================================================
 
-/// Wraps `rowan::GreenNodeBuilder` with domain-specific helpers and an
-/// error accumulator. Consuming an [`Event`] stream is a straightforward
-/// walk; that wiring lands with the grammar.
+/// Wraps `rowan::GreenNodeBuilder` with an error accumulator and trivia
+/// interleaving. Consumes the event stream + the original token slice,
+/// producing a green tree whose textual content equals the input byte-for-
+/// byte (spec §4.4).
 #[derive(Debug, Default)]
 pub(crate) struct SyntaxTreeBuilder {
     inner: GreenNodeBuilder<'static>,
@@ -127,94 +142,367 @@ pub(crate) struct SyntaxTreeBuilder {
 }
 
 impl SyntaxTreeBuilder {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
+    pub(crate) fn build(
+        tokens: &[LexToken],
+        mut events: Vec<Event>,
+    ) -> (GreenNode, Vec<SyntaxError>) {
+        // Resolve forward-parent chains: a Start with forward_parent=Some(i)
+        // means "re-parent me inside the node started at event i". Before
+        // emitting to rowan we linearise these chains so Start/Finish are
+        // properly nested. This is the rust-analyzer pattern.
+        let mut builder = SyntaxTreeBuilder::default();
+        let mut tok_idx: usize = 0;
 
-    pub(crate) fn start_node(&mut self, kind: SyntaxKind) {
-        self.inner.start_node(rowan::SyntaxKind(kind as u16));
-    }
+        // Pre-compute each event's effective start order so we can walk
+        // forward-parent chains without mutating the vector structure.
+        // We swap-remove forwarded children using Event::tombstone.
+        let mut forward_parents: Vec<SyntaxKind> = Vec::new();
 
-    pub(crate) fn finish_node(&mut self) {
-        self.inner.finish_node();
-    }
+        // Identify the last Finish event. Trailing trivia at EOF must be
+        // flushed INSIDE the enclosing node before that Finish so the
+        // rowan tree keeps a single root.
+        let last_finish_idx = events
+            .iter()
+            .rposition(|e| matches!(e, Event::Finish))
+            .unwrap_or(usize::MAX);
 
-    pub(crate) fn token(&mut self, kind: SyntaxKind, text: &str) {
-        self.inner.token(rowan::SyntaxKind(kind as u16), text);
-    }
+        for i in 0..events.len() {
+            match std::mem::replace(&mut events[i], Event::tombstone()) {
+                Event::Start {
+                    kind,
+                    forward_parent,
+                } => {
+                    // Walk forward-parent chain to collect outer wrappers.
+                    forward_parents.clear();
+                    forward_parents.push(kind);
+                    let mut idx = i;
+                    let mut fp = forward_parent;
+                    while let Some(rel) = fp {
+                        idx += rel as usize;
+                        match std::mem::replace(&mut events[idx], Event::tombstone()) {
+                            Event::Start {
+                                kind: outer_kind,
+                                forward_parent: next_fp,
+                            } => {
+                                forward_parents.push(outer_kind);
+                                fp = next_fp;
+                            }
+                            _ => unreachable!("forward parent at event {idx} must be a Start node"),
+                        }
+                    }
+                    // Start outer-to-inner.
+                    for &k in forward_parents.iter().rev() {
+                        // Before opening a structural node, flush any
+                        // pending trivia so it belongs to the enclosing
+                        // (parent) node rather than this fresh one. This
+                        // matches the spec §4.1 preference: trivia binds
+                        // to the following significant token — but the
+                        // start of a new node is not itself a significant
+                        // token, so we defer.
+                        builder.inner.start_node(rowan::SyntaxKind(k as u16));
+                    }
+                }
+                Event::Finish => {
+                    if i == last_finish_idx {
+                        // Flush trailing trivia INSIDE the root-closing
+                        // node so rowan sees a single sub-tree. Spec
+                        // §4.1 permits trailing trivia to attach to the
+                        // preceding significant token at EOF; placing it
+                        // under the source-file root still satisfies
+                        // §4.4 losslessness.
+                        while tok_idx < tokens.len() {
+                            builder.inner.token(
+                                rowan::SyntaxKind(tokens[tok_idx].kind as u16),
+                                &tokens[tok_idx].text,
+                            );
+                            tok_idx += 1;
+                        }
+                    }
+                    builder.inner.finish_node();
+                }
+                Event::Token { kind } => {
+                    // Emit all preceding trivia, then the significant
+                    // token itself.
+                    while tok_idx < tokens.len() && tokens[tok_idx].kind.is_trivia() {
+                        builder.inner.token(
+                            rowan::SyntaxKind(tokens[tok_idx].kind as u16),
+                            &tokens[tok_idx].text,
+                        );
+                        tok_idx += 1;
+                    }
+                    debug_assert!(
+                        tok_idx < tokens.len(),
+                        "Token event past end of token stream (kind={kind:?})"
+                    );
+                    debug_assert_eq!(
+                        tokens[tok_idx].kind, kind,
+                        "Token event kind mismatch: expected {:?}, saw {:?}",
+                        tokens[tok_idx].kind, kind
+                    );
+                    builder.inner.token(
+                        rowan::SyntaxKind(tokens[tok_idx].kind as u16),
+                        &tokens[tok_idx].text,
+                    );
+                    tok_idx += 1;
+                }
+                Event::Error { msg, offset } => {
+                    builder.errors.push(SyntaxError {
+                        message: msg,
+                        offset,
+                    });
+                }
+                Event::Abandoned => {}
+            }
+        }
 
-    #[allow(dead_code)]
-    pub(crate) fn error(&mut self, err: SyntaxError) {
-        self.errors.push(err);
-    }
+        // All trailing trivia was folded inside the final Finish event's
+        // enclosing node above; nothing should remain here. In the
+        // degenerate case of an empty event stream (e.g. empty input
+        // where source_file() never emits Finish — which it does), this
+        // loop is a harmless no-op.
+        debug_assert!(
+            tok_idx == tokens.len(),
+            "{} trivia token(s) unflushed after build",
+            tokens.len() - tok_idx
+        );
 
-    pub(crate) fn finish(self) -> (GreenNode, Vec<SyntaxError>) {
-        (self.inner.finish(), self.errors)
+        (builder.inner.finish(), builder.errors)
     }
 }
 
 // ========================================================================
-// Parser primitive (stub; grammar lands incrementally)
+// Parser engine
 // ========================================================================
 
-/// The recovering parser. Wraps a token slice with a cursor, an event
-/// buffer, and drop-bomb-protected markers.
-///
-/// Currently exposed only to the crate; the public entry point is
-/// [`parse`]. The parser surface will be stabilised once the grammar is
-/// implemented per spec §4.3.
-#[allow(dead_code)]
+/// Token-set bitmap used by `at_ts`/`recover_until`. Backed by an
+/// 8×u128 array so we can represent every [`SyntaxKind`] value in
+/// `0..1024` without collisions (the enum's high-water mark is
+/// [`SyntaxKind::EOF`] = 769). Every construction is `const`-friendly so
+/// grammar code can build sets at compile time.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct TokenSet([u128; TOKEN_SET_WORDS]);
+
+const TOKEN_SET_WORDS: usize = 8;
+#[allow(clippy::cast_possible_truncation)]
+const TOKEN_SET_CAPACITY: u16 = (TOKEN_SET_WORDS as u16) * 128;
+
+impl TokenSet {
+    pub(crate) const EMPTY: TokenSet = TokenSet([0; TOKEN_SET_WORDS]);
+
+    pub(crate) const fn new(kinds: &[SyntaxKind]) -> Self {
+        let mut mask = [0u128; TOKEN_SET_WORDS];
+        let mut i = 0;
+        while i < kinds.len() {
+            let raw = kinds[i] as u16;
+            assert!(raw < TOKEN_SET_CAPACITY, "TokenSet: kind out of range");
+            let word = (raw / 128) as usize;
+            let bit = raw % 128;
+            mask[word] |= 1u128 << bit;
+            i += 1;
+        }
+        TokenSet(mask)
+    }
+
+    pub(crate) const fn union(self, other: TokenSet) -> TokenSet {
+        let mut out = [0u128; TOKEN_SET_WORDS];
+        let mut i = 0;
+        while i < TOKEN_SET_WORDS {
+            out[i] = self.0[i] | other.0[i];
+            i += 1;
+        }
+        TokenSet(out)
+    }
+
+    pub(crate) const fn contains(self, kind: SyntaxKind) -> bool {
+        let raw = kind as u16;
+        if raw >= TOKEN_SET_CAPACITY {
+            return false;
+        }
+        let word = (raw / 128) as usize;
+        let bit = raw % 128;
+        (self.0[word] & (1u128 << bit)) != 0
+    }
+}
+
+impl Default for TokenSet {
+    fn default() -> Self {
+        TokenSet::EMPTY
+    }
+}
+
+/// The recovering parser. Owns the token slice plus an in-flight event
+/// buffer. A non-trivia cursor jumps over whitespace/comment tokens so
+/// grammar code never sees them — the builder reassembles trivia when
+/// consuming events.
 pub(crate) struct Parser<'a> {
     tokens: &'a [LexToken],
+    /// Position in `tokens` — the index of the next *significant* token.
+    /// Trivia between significant tokens is implicitly skipped.
     pos: usize,
     events: Vec<Event>,
 }
 
-#[allow(dead_code)]
 impl<'a> Parser<'a> {
     pub(crate) fn new(tokens: &'a [LexToken]) -> Self {
         Self {
             tokens,
-            pos: 0,
+            pos: skip_trivia(tokens, 0),
             events: Vec::new(),
         }
     }
 
+    /// Current significant token kind, or `EOF` if exhausted.
     pub(crate) fn current(&self) -> SyntaxKind {
-        self.nth(0)
-    }
-
-    pub(crate) fn nth(&self, n: usize) -> SyntaxKind {
         self.tokens
-            .iter()
-            .filter(|t| !t.kind.is_trivia())
-            .nth(self.non_trivia_pos() + n)
+            .get(self.pos)
             .map_or(SyntaxKind::EOF, |t| t.kind)
     }
 
-    fn non_trivia_pos(&self) -> usize {
-        self.tokens[..self.pos]
-            .iter()
-            .filter(|t| !t.kind.is_trivia())
-            .count()
+    /// Look ahead `n` significant tokens. `nth(0) == current()`.
+    #[allow(dead_code)]
+    pub(crate) fn nth(&self, n: usize) -> SyntaxKind {
+        let mut idx = self.pos;
+        let mut remaining = n;
+        loop {
+            if idx >= self.tokens.len() {
+                return SyntaxKind::EOF;
+            }
+            if self.tokens[idx].kind.is_trivia() {
+                idx += 1;
+                continue;
+            }
+            if remaining == 0 {
+                return self.tokens[idx].kind;
+            }
+            remaining -= 1;
+            idx += 1;
+        }
     }
 
     pub(crate) fn at(&self, kind: SyntaxKind) -> bool {
         self.current() == kind
     }
 
+    pub(crate) fn at_ts(&self, set: TokenSet) -> bool {
+        set.contains(self.current())
+    }
+
+    /// Case-insensitive match against a contextual keyword spelled as an
+    /// identifier. Cypher allows unreserved identifiers (e.g. `WITH` when
+    /// scoped by context); for v1 we only need this for the composite
+    /// operators `STARTS WITH` / `ENDS WITH`, which are handled via the
+    /// already-tokenised `STARTS_KW` / `ENDS_KW` and thus do not need the
+    /// hook. Left here as a single call site in case later beads do.
+    #[allow(dead_code)]
+    pub(crate) fn at_contextual(&self, ident: &str) -> bool {
+        self.current() == SyntaxKind::IDENT
+            && self
+                .tokens
+                .get(self.pos)
+                .is_some_and(|t| t.text.eq_ignore_ascii_case(ident))
+    }
+
+    /// Byte offset of the current token (or end-of-input if exhausted).
+    fn current_offset(&self) -> text_size::TextSize {
+        self.tokens.get(self.pos).map_or_else(
+            || {
+                self.tokens
+                    .last()
+                    .map_or(text_size::TextSize::from(0), |t| t.range.end())
+            },
+            |t| t.range.start(),
+        )
+    }
+
+    /// Consume whatever token is current (including EOF-no-op) and emit it
+    /// as a Token event. Use sparingly — prefer `bump(kind)` when the kind
+    /// is known for the debug assertion.
+    pub(crate) fn bump_any(&mut self) {
+        let kind = self.current();
+        if kind == SyntaxKind::EOF {
+            return;
+        }
+        self.events.push(Event::Token { kind });
+        self.pos += 1;
+        self.pos = skip_trivia(self.tokens, self.pos);
+    }
+
+    /// Consume the current token, asserting it has the given kind in debug.
     pub(crate) fn bump(&mut self, kind: SyntaxKind) {
         debug_assert!(
             self.at(kind),
             "bump: expected {kind:?}, got {:?}",
             self.current()
         );
-        self.events.push(Event::Token { kind });
-        self.pos += 1;
+        self.bump_any();
     }
 
+    /// Consume `kind` if present; return whether it was.
+    pub(crate) fn eat(&mut self, kind: SyntaxKind) -> bool {
+        if self.at(kind) {
+            self.bump(kind);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Record a diagnostic at the current position without consuming.
     pub(crate) fn error(&mut self, msg: impl Into<String>) {
-        self.events.push(Event::Error { msg: msg.into() });
+        let offset = self.current_offset();
+        self.events.push(Event::Error {
+            msg: msg.into(),
+            offset,
+        });
+    }
+
+    /// Consume one token and wrap it in an ERROR node alongside a message.
+    #[allow(dead_code)]
+    pub(crate) fn err_and_bump(&mut self, msg: impl Into<String>) {
+        let m = self.start();
+        self.error(msg);
+        self.bump_any();
+        m.complete(self, SyntaxKind::ERROR);
+    }
+
+    /// Require `kind`. If present, consume it; otherwise emit a diagnostic
+    /// at the expected position. The parser continues — the missing
+    /// closer acts as a zero-width `ERROR` in the event stream
+    /// (virtual-token insertion per spec §4.3).
+    #[allow(dead_code)]
+    pub(crate) fn expect(&mut self, kind: SyntaxKind) -> bool {
+        if self.eat(kind) {
+            true
+        } else {
+            self.error(format!("expected {kind:?}"));
+            false
+        }
+    }
+
+    /// Skip tokens until we hit one in `set`, an already-synchronising
+    /// clause keyword, a `;`, or EOF. Skipped tokens are wrapped in a
+    /// single `ERROR` node (spec §4.3 — synchronisation-set skip).
+    pub(crate) fn recover_until(&mut self, set: TokenSet) {
+        let stop = set.union(RECOVERY_STOP);
+        if stop.contains(self.current()) || self.current() == SyntaxKind::EOF {
+            return;
+        }
+        let m = self.start();
+        while !stop.contains(self.current()) && self.current() != SyntaxKind::EOF {
+            self.bump_any();
+        }
+        m.complete(self, SyntaxKind::ERROR);
+    }
+
+    /// Begin a new node. Returns a `Marker` that must be completed or
+    /// abandoned before it is dropped.
+    pub(crate) fn start(&mut self) -> Marker {
+        let pos = self.events.len();
+        self.events.push(Event::Start {
+            kind: SyntaxKind::ERROR, // placeholder; replaced by complete()
+            forward_parent: None,
+        });
+        Marker::new(pos)
     }
 
     pub(crate) fn into_events(self) -> Vec<Event> {
@@ -222,9 +510,118 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// Advance `idx` past any leading trivia tokens.
+fn skip_trivia(tokens: &[LexToken], mut idx: usize) -> usize {
+    while idx < tokens.len() && tokens[idx].kind.is_trivia() {
+        idx += 1;
+    }
+    idx
+}
+
+/// Clause-start keywords + statement terminators that always end recovery.
+/// Any clause recovery set is implicitly unioned with this.
+pub(crate) const RECOVERY_STOP: TokenSet = TokenSet::new(&[
+    SyntaxKind::MATCH_KW,
+    SyntaxKind::OPTIONAL_KW,
+    SyntaxKind::WHERE_KW,
+    SyntaxKind::WITH_KW,
+    SyntaxKind::RETURN_KW,
+    SyntaxKind::CREATE_KW,
+    SyntaxKind::MERGE_KW,
+    SyntaxKind::SET_KW,
+    SyntaxKind::REMOVE_KW,
+    SyntaxKind::DELETE_KW,
+    SyntaxKind::DETACH_KW,
+    SyntaxKind::UNWIND_KW,
+    SyntaxKind::CALL_KW,
+    SyntaxKind::UNION_KW,
+    SyntaxKind::SEMI,
+]);
+
+// ========================================================================
+// Marker / CompletedMarker (drop-bomb protected)
+// ========================================================================
+
+/// A pending node-open. Must be either `complete`d or `abandon`ed before
+/// it is dropped. The [`DropBomb`] panics in debug builds if dropped.
+#[must_use = "Marker must be completed or abandoned"]
+pub(crate) struct Marker {
+    pos: u32,
+    bomb: DropBomb,
+}
+
+impl Marker {
+    fn new(pos: usize) -> Self {
+        Self {
+            pos: u32::try_from(pos).expect("event index fits u32"),
+            bomb: DropBomb::new("Marker must be completed or abandoned"),
+        }
+    }
+
+    /// Close the node with the given kind, yielding a `CompletedMarker`
+    /// that can be used for Pratt-style re-parenting via [`CompletedMarker::precede`].
+    pub(crate) fn complete(mut self, p: &mut Parser<'_>, kind: SyntaxKind) -> CompletedMarker {
+        self.bomb.defuse();
+        let idx = self.pos as usize;
+        match &mut p.events[idx] {
+            Event::Start { kind: slot, .. } => *slot = kind,
+            _ => unreachable!("marker index does not point to a Start event"),
+        }
+        p.events.push(Event::Finish);
+        CompletedMarker {
+            pos: self.pos,
+            kind,
+        }
+    }
+
+    /// Drop the speculative node. If no events were emitted after the
+    /// marker's Start, we truncate; otherwise we tombstone the Start.
+    #[allow(dead_code)]
+    pub(crate) fn abandon(mut self, p: &mut Parser<'_>) {
+        self.bomb.defuse();
+        let idx = self.pos as usize;
+        if idx + 1 == p.events.len() {
+            p.events.pop();
+        } else {
+            p.events[idx] = Event::Abandoned;
+        }
+    }
+}
+
+/// A completed node handle. Can be retroactively re-parented via
+/// [`CompletedMarker::precede`] — central to Pratt expression parsing.
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct CompletedMarker {
+    pos: u32,
+    #[allow(dead_code)]
+    kind: SyntaxKind,
+}
+
+impl CompletedMarker {
+    /// Open a new outer node that will re-parent this completed node. The
+    /// returned `Marker` must be completed; the outer node's Start/Finish
+    /// will surround this node's Start/Finish in the emitted tree.
+    pub(crate) fn precede(self, p: &mut Parser<'_>) -> Marker {
+        let new_marker = p.start();
+        // Link this completed Start's forward_parent to the new marker.
+        let old_idx = self.pos as usize;
+        let new_idx = new_marker.pos as usize;
+        let delta = u32::try_from(new_idx - old_idx).expect("forward-parent delta fits u32");
+        match &mut p.events[old_idx] {
+            Event::Start { forward_parent, .. } => {
+                debug_assert!(forward_parent.is_none(), "forward_parent already set");
+                *forward_parent = Some(delta);
+            }
+            _ => unreachable!("CompletedMarker pos does not point to a Start"),
+        }
+        new_marker
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse;
+    use crate::SyntaxKind;
 
     #[test]
     fn parse_empty_is_lossless() {
@@ -246,6 +643,12 @@ mod tests {
         assert_eq!(p.syntax().to_string(), src);
     }
 
+    #[test]
+    fn root_kind_is_source_file() {
+        let p = parse("MATCH (n) RETURN n");
+        assert_eq!(p.syntax().kind(), SyntaxKind::SOURCE_FILE);
+    }
+
     use proptest::prelude::*;
 
     proptest! {
@@ -254,6 +657,12 @@ mod tests {
         fn lossless_on_arbitrary_utf8(s in ".*") {
             let p = parse(&s);
             prop_assert_eq!(p.syntax().to_string(), s);
+        }
+
+        /// Property P17.3.1 — parser totality: no panic, bounded time.
+        #[test]
+        fn parser_is_total_on_random_utf8(s in ".*") {
+            let _ = parse(&s);
         }
     }
 }
