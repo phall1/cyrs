@@ -12,5 +12,9 @@ description  = "Typed AST wrappers over the Cypher CST. Spec 0001 §5."
 cypher-syntax = { workspace = true }
 smol_str      = { workspace = true }
 
+[dev-dependencies]
+insta  = { workspace = true }
+rowan  = { workspace = true }
+
 [lints]
 workspace = true

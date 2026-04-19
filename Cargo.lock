@@ -310,6 +310,8 @@ name = "cypher-ast"
 version = "0.0.1"
 dependencies = [
  "cypher-syntax",
+ "insta",
+ "rowan",
  "smol_str",
 ]
 
