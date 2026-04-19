@@ -8,9 +8,11 @@
 #![doc(html_root_url = "https://docs.rs/cypher-diag/0.0.1")]
 
 pub mod codes;
+pub mod json;
 pub mod render;
 
 pub use codes::DiagCode;
+pub use json::{to_json, to_json_string, to_ndjson};
 pub use render::{render_text, render_text_stderr, render_text_string};
 
 use cypher_syntax::TextRange;
