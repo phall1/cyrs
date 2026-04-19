@@ -352,6 +352,7 @@ dependencies = [
  "cypher-syntax",
  "indexmap",
  "serde",
+ "serde_json",
  "smol_str",
  "thiserror",
 ]
@@ -408,6 +409,7 @@ version = "0.0.1"
 dependencies = [
  "indexmap",
  "serde",
+ "sha2",
  "smol_str",
 ]
 
