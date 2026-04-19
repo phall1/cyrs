@@ -6,6 +6,7 @@
 //!
 //! Spec 0001 §3.1.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher/0.0.1")]
 
 pub use cypher_ast as ast;

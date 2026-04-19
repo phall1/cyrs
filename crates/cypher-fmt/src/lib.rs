@@ -11,6 +11,7 @@
 //! The formatter walks the CST — not the AST — so it preserves malformed
 //! fragments and never asserts.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-fmt/0.0.1")]
 
 use cypher_syntax::{SyntaxNode, parse};

@@ -6,6 +6,7 @@
 //! grammar description by a dev-only `xtask`; a small handwritten core
 //! lives here until the generator is in place.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-ast/0.0.1")]
 
 use cypher_syntax::{SyntaxKind, SyntaxNode};

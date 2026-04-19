@@ -10,6 +10,7 @@
 //! The facade currently re-runs each query on every call. Replacing the
 //! internals with Salsa is an invariant-preserving change.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-db/0.0.1")]
 
 use std::sync::{Arc, Mutex};

@@ -9,6 +9,7 @@
 //! v1 scaffolding: exposes [`FeatureGate`] + [`run_all`] stubs. Scenario
 //! fetching and per-tag conformance tracking land alongside the grammar.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-tck/0.0.1")]
 
 /// A named openCypher TCK feature tag. Kept as a string so new tags can

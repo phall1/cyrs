@@ -6,6 +6,7 @@
 //! crate imposes no runtime contract on that executor beyond the shape
 //! of the plan itself.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-plan/0.0.1")]
 
 use smol_str::SmolStr;

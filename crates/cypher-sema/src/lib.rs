@@ -13,6 +13,7 @@
 //! `Any` is the universal subtype: queries without schema produce Any-
 //! typed property reads; only structural errors surface.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
 
 use cypher_diag::DiagnosticsSink;

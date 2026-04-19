@@ -5,6 +5,7 @@
 //! hand property matching, map projection) is desugared. The AST ↔ HIR
 //! map is preserved for span-accurate diagnostics.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
 
 use cypher_syntax::TextRange;

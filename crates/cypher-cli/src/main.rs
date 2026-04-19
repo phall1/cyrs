@@ -1,5 +1,7 @@
 //! `cypher` CLI. Spec 0001 §16.
 
+#![forbid(unsafe_code)]
+
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;

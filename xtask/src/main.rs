@@ -4,6 +4,7 @@
 //! `cargo test`. This binary hosts them. Tasks land alongside the pieces
 //! they automate.
 
+#![forbid(unsafe_code)]
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::Result;

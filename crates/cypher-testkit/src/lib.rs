@@ -4,6 +4,7 @@
 //! crate is where that runner will live, alongside helper setup for the
 //! incremental database and insta snapshot plumbing shared across crates.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-testkit/0.0.1")]
 
 use cypher_db::Database;

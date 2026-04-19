@@ -4,6 +4,8 @@
 //! operations synchronous. No network, no subprocess, no filesystem
 //! writes (sandbox-safe per §15.3).
 
+#![forbid(unsafe_code)]
+
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 

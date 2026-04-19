@@ -13,6 +13,7 @@
 //! Everything in this crate is domain-free (spec §2). There are no
 //! references to any consumer-specific concept.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-syntax/0.0.1")]
 
 pub mod kind;

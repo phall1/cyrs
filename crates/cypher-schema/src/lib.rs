@@ -17,6 +17,7 @@
 //! - Label, relationship-type, and property names are Cypher-identifier
 //!   strings. Escaping is the caller's responsibility.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-schema/0.0.1")]
 
 use smol_str::SmolStr;

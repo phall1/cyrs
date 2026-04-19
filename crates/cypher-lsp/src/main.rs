@@ -5,6 +5,8 @@
 //! file establishes the process shape, logging, and server loop so the
 //! binary can be driven by an editor today.
 
+#![forbid(unsafe_code)]
+
 use anyhow::Result;
 use lsp_server::{Connection, Message};
 use lsp_types::{

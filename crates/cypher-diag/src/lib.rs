@@ -4,6 +4,7 @@
 //! with stable [`DiagCode`] identifiers. Rendering backends (plain text,
 //! JSON, LSP) live here so no downstream crate reinvents them.
 
+#![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-diag/0.0.1")]
 
 pub mod codes;
