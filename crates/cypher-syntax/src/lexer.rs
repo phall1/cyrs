@@ -364,6 +364,7 @@ impl RawToken {
 #[cfg(test)]
 mod tests {
     use super::{SyntaxKind, lex};
+    use text_size::{TextRange, TextSize};
 
     fn kinds(src: &str) -> Vec<SyntaxKind> {
         lex(src).into_iter().map(|t| t.kind).collect()
@@ -372,6 +373,13 @@ mod tests {
     #[test]
     fn lex_empty() {
         assert!(lex("").is_empty());
+    }
+
+    #[test]
+    fn tokenises_empty_input_to_zero_tokens() {
+        // §4.1: empty input yields no tokens (EOF is synthesised by the
+        // parser, not the lexer).
+        assert_eq!(lex("").len(), 0);
     }
 
     #[test]
@@ -400,9 +408,32 @@ mod tests {
     }
 
     #[test]
+    fn keywords_case_insensitive_preserves_case() {
+        // §4.1: case-insensitive match, original casing preserved in `text`.
+        let toks = lex("match MATCH Match");
+        let kw_toks: Vec<_> = toks
+            .iter()
+            .filter(|t| t.kind == SyntaxKind::MATCH_KW)
+            .collect();
+        assert_eq!(kw_toks.len(), 3);
+        assert_eq!(kw_toks[0].text.as_str(), "match");
+        assert_eq!(kw_toks[1].text.as_str(), "MATCH");
+        assert_eq!(kw_toks[2].text.as_str(), "Match");
+    }
+
+    #[test]
     fn identifier_not_shadowed_by_keyword_prefix() {
         // `MATCHING` must lex as a single IDENT, not MATCH_KW + ING.
         assert_eq!(kinds("MATCHING"), vec![SyntaxKind::IDENT]);
+    }
+
+    #[test]
+    fn identifiers_vs_keywords() {
+        // `matching` is a single IDENT; word-boundary prevents MATCH_KW + ing.
+        let toks = lex("matching");
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, SyntaxKind::IDENT);
+        assert_eq!(toks[0].text.as_str(), "matching");
     }
 
     #[test]
@@ -410,6 +441,12 @@ mod tests {
         assert_eq!(kinds("42"), vec![SyntaxKind::INT_LITERAL]);
         assert_eq!(kinds("3.14"), vec![SyntaxKind::FLOAT_LITERAL]);
         assert_eq!(kinds("0xFF"), vec![SyntaxKind::INT_LITERAL]);
+        assert_eq!(kinds("0x1f"), vec![SyntaxKind::INT_LITERAL]);
+        assert_eq!(kinds("0o17"), vec![SyntaxKind::INT_LITERAL]);
+        assert_eq!(kinds("0b10"), vec![SyntaxKind::INT_LITERAL]);
+        // Float with exponent.
+        assert_eq!(kinds("1.5e10"), vec![SyntaxKind::FLOAT_LITERAL]);
+        assert_eq!(kinds("2e-5"), vec![SyntaxKind::FLOAT_LITERAL]);
     }
 
     #[test]
@@ -419,15 +456,91 @@ mod tests {
     }
 
     #[test]
+    fn string_literal_with_escapes() {
+        // Single literal covering the full range; escape sequences are
+        // syntactically consumed but not decoded at lex time (§4.1).
+        let src = "'a\\nb'";
+        let toks = lex(src);
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, SyntaxKind::STRING_LITERAL);
+        assert_eq!(toks[0].text.as_str(), src);
+        let end = TextSize::try_from(src.len()).expect("len fits u32");
+        assert_eq!(toks[0].range, TextRange::new(TextSize::from(0), end));
+        // Double-quoted variant with several escapes also lexes as one token.
+        let src2 = r#""tab:\t quote:\" backslash:\\""#;
+        let toks2 = lex(src2);
+        assert_eq!(toks2.len(), 1);
+        assert_eq!(toks2[0].kind, SyntaxKind::STRING_LITERAL);
+        assert_eq!(toks2[0].text.as_str(), src2);
+    }
+
+    #[test]
     fn parameters() {
         assert_eq!(kinds("$foo"), vec![SyntaxKind::PARAM]);
         assert_eq!(kinds("$0"), vec![SyntaxKind::PARAM]);
     }
 
     #[test]
+    fn param_forms() {
+        // `$ident` and `$<decimal>` both lex as a single PARAM token.
+        let a = lex("$name");
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].kind, SyntaxKind::PARAM);
+        assert_eq!(a[0].text.as_str(), "$name");
+        let b = lex("$0");
+        assert_eq!(b.len(), 1);
+        assert_eq!(b[0].kind, SyntaxKind::PARAM);
+        assert_eq!(b[0].text.as_str(), "$0");
+    }
+
+    #[test]
+    fn quoted_identifier_with_escaped_backtick() {
+        // Backtick-delimited, escape by doubling per spec §4.1.
+        let src = "`weird``name`";
+        let toks = lex(src);
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, SyntaxKind::QUOTED_IDENT);
+        assert_eq!(toks[0].text.as_str(), src);
+    }
+
+    #[test]
+    fn punctuation_composite() {
+        // Each composite operator must lex as exactly ONE token.
+        for (src, expected) in [
+            ("<>", SyntaxKind::NEQ),
+            ("!=", SyntaxKind::BANG_EQ),
+            ("<=", SyntaxKind::LE),
+            (">=", SyntaxKind::GE),
+            ("->", SyntaxKind::ARROW_R),
+            ("<-", SyntaxKind::ARROW_L),
+            ("::", SyntaxKind::DOUBLE_COLON),
+            ("..", SyntaxKind::DOT_DOT),
+            ("=~", SyntaxKind::REGEX_EQ),
+        ] {
+            let toks = lex(src);
+            assert_eq!(toks.len(), 1, "expected 1 token for {src:?}");
+            assert_eq!(toks[0].kind, expected, "wrong kind for {src:?}");
+            assert_eq!(toks[0].text.as_str(), src);
+        }
+    }
+
+    #[test]
     fn comments() {
         assert_eq!(kinds("// hi"), vec![SyntaxKind::LINE_COMMENT]);
         assert_eq!(kinds("/* hi */"), vec![SyntaxKind::BLOCK_COMMENT]);
+    }
+
+    #[test]
+    fn block_comment_and_line_comment() {
+        // Each comment is a single trivia token spanning its full range.
+        let line = lex("// a comment");
+        assert_eq!(line.len(), 1);
+        assert_eq!(line[0].kind, SyntaxKind::LINE_COMMENT);
+        assert_eq!(line[0].text.as_str(), "// a comment");
+        let block = lex("/* multi\nline */");
+        assert_eq!(block.len(), 1);
+        assert_eq!(block[0].kind, SyntaxKind::BLOCK_COMMENT);
+        assert_eq!(block[0].text.as_str(), "/* multi\nline */");
     }
 
     #[test]
@@ -438,10 +551,37 @@ mod tests {
     }
 
     #[test]
+    fn lossless_concat() {
+        // §4.4 losslessness invariant at the lexer level: concatenating
+        // every token's text reproduces the source byte-for-byte.
+        let src = "MATCH (n:Person {name: 'a\\nb', age: 42})\n// trailing\nRETURN n.age + 1";
+        let reassembled: String = lex(src).into_iter().map(|t| t.text.to_string()).collect();
+        assert_eq!(reassembled, src);
+    }
+
+    #[test]
     fn error_token_for_unknown_bytes() {
         // A stray `@` is not a valid token in v1.
         let toks = lex("@");
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].kind, SyntaxKind::ERROR);
+    }
+
+    #[test]
+    fn unknown_byte_becomes_error_token() {
+        // A stray multi-byte codepoint (`§`, U+00A7) is not consumable by
+        // the DFA; the lexer emits an ERROR token spanning its bytes and
+        // does not panic. Losslessness is preserved: text + range round-trip.
+        let src = "§";
+        let toks = lex(src);
+        assert!(!toks.is_empty());
+        assert!(toks.iter().all(|t| t.kind == SyntaxKind::ERROR));
+        let reassembled: String = toks.iter().map(|t| t.text.to_string()).collect();
+        assert_eq!(reassembled, src);
+        // First token starts at offset 0.
+        assert_eq!(u32::from(toks[0].range.start()), 0);
+        // Final token ends at end of input.
+        let last_end = usize::from(toks.last().unwrap().range.end());
+        assert_eq!(last_end, src.len());
     }
 }
