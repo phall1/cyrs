@@ -45,11 +45,16 @@ pub struct Label {
     pub caption: SmolStr,
 }
 
+/// A cross-reference to another span, possibly in another file.
+///
+/// `file` is a no-op in v1 (§10.6) but the field is carried so future
+/// multi-file workflows don't require a breaking change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Related {
     pub range: TextRange,
     pub message: SmolStr,
+    pub file: Option<SmolStr>,
 }
 
 /// A suggested edit. Multiple `edits` are applied atomically.
