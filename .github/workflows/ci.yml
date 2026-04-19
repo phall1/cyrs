@@ -54,7 +54,8 @@ jobs:
         run: bash scripts/check-noncoupling.sh
 
   # ---------------------------------------------------------------
-  # Test matrix: stable + beta × linux/macos/windows
+  # Test matrix: stable + beta + nightly × linux/macos/windows
+  # Nightly is informational only (continue-on-error), per §17.15.
   # ---------------------------------------------------------------
   test:
     name: test / ${{ matrix.os }} / ${{ matrix.toolchain }}
@@ -63,7 +64,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        toolchain: [stable, beta]
+        toolchain: [stable, beta, nightly]
+    continue-on-error: ${{ matrix.toolchain == 'nightly' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
