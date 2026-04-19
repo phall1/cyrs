@@ -1,0 +1,44 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 186
+expression: "format_with_errors(\"MATCH (a)-[r]-(b) RETURN a, b\")"
+---
+SOURCE_FILE@0..29
+  STATEMENT@0..29
+    MATCH_CLAUSE@0..17
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..17
+        PATTERN_PART@5..17
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+          REL_PATTERN@9..14
+            MINUS@9..10 "-"
+            REL_DETAIL@10..13
+              L_BRACK@10..11 "["
+              NAME@11..12
+                IDENT@11..12 "r"
+              R_BRACK@12..13 "]"
+            MINUS@13..14 "-"
+          NODE_PATTERN@14..17
+            L_PAREN@14..15 "("
+            NAME@15..16
+              IDENT@15..16 "b"
+            R_PAREN@16..17 ")"
+    RETURN_CLAUSE@17..29
+      WHITESPACE@17..18 " "
+      RETURN_KW@18..24 "RETURN"
+      RETURN_BODY@24..29
+        RETURN_ITEMS@24..29
+          RETURN_ITEM@24..26
+            VAR_EXPR@24..26
+              WHITESPACE@24..25 " "
+              IDENT@25..26 "a"
+          COMMA@26..27 ","
+          RETURN_ITEM@27..29
+            VAR_EXPR@27..29
+              WHITESPACE@27..28 " "
+              IDENT@28..29 "b"

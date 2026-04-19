@@ -1,0 +1,31 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 376
+expression: "format_with_errors(\"MATCH (n) WHERE RETURN n\")"
+---
+SOURCE_FILE@0..24
+  STATEMENT@0..24
+    MATCH_CLAUSE@0..15
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..15
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+    RETURN_CLAUSE@15..24
+      WHITESPACE@15..16 " "
+      RETURN_KW@16..22 "RETURN"
+      RETURN_BODY@22..24
+        RETURN_ITEMS@22..24
+          RETURN_ITEM@22..24
+            VAR_EXPR@22..24
+              WHITESPACE@22..23 " "
+              IDENT@23..24 "n"
+---errors---
+@16: expected expression after WHERE

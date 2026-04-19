@@ -1,0 +1,18 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 396
+expression: "format_with_errors(\"RETURN 'oops\")"
+---
+SOURCE_FILE@0..12
+  STATEMENT@0..6
+    RETURN_CLAUSE@0..6
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..6
+        RETURN_ITEMS@6..6
+          RETURN_ITEM@6..6
+  ERROR@6..12
+    WHITESPACE@6..7 " "
+    ERROR@7..12 "'oops"
+---errors---
+@7: expected expression in RETURN item
+@7: expected ';' or end of input

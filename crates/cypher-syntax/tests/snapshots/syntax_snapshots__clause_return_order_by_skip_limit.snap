@@ -1,0 +1,55 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 131
+expression: "format_with_errors(\"MATCH (n) RETURN n.name ORDER BY n.age DESC SKIP 1 LIMIT 5\")"
+---
+SOURCE_FILE@0..58
+  STATEMENT@0..58
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..58
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..58
+        RETURN_ITEMS@16..23
+          RETURN_ITEM@16..23
+            PROP_ACCESS_EXPR@16..23
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              DOT@18..19 "."
+              IDENT@19..23 "name"
+        ORDER_BY@23..43
+          WHITESPACE@23..24 " "
+          ORDER_KW@24..29 "ORDER"
+          WHITESPACE@29..30 " "
+          BY_KW@30..32 "BY"
+          ORDER_ITEM@32..43
+            PROP_ACCESS_EXPR@32..38
+              VAR_EXPR@32..34
+                WHITESPACE@32..33 " "
+                IDENT@33..34 "n"
+              DOT@34..35 "."
+              IDENT@35..38 "age"
+            WHITESPACE@38..39 " "
+            DESC_KW@39..43 "DESC"
+        SKIP_SUBCLAUSE@43..50
+          WHITESPACE@43..44 " "
+          SKIP_KW@44..48 "SKIP"
+          LITERAL_EXPR@48..50
+            WHITESPACE@48..49 " "
+            INT_LITERAL@49..50 "1"
+        LIMIT_SUBCLAUSE@50..58
+          WHITESPACE@50..51 " "
+          LIMIT_KW@51..56 "LIMIT"
+          LITERAL_EXPR@56..58
+            WHITESPACE@56..57 " "
+            INT_LITERAL@57..58 "5"

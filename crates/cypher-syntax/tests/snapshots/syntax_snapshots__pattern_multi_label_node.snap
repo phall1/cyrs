@@ -1,0 +1,31 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 172
+expression: "format_with_errors(\"MATCH (n:Person:Employee) RETURN n\")"
+---
+SOURCE_FILE@0..34
+  STATEMENT@0..34
+    MATCH_CLAUSE@0..25
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..25
+        PATTERN_PART@5..25
+          NODE_PATTERN@5..25
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..24
+              COLON@8..9 ":"
+              IDENT@9..15 "Person"
+              COLON@15..16 ":"
+              IDENT@16..24 "Employee"
+            R_PAREN@24..25 ")"
+    RETURN_CLAUSE@25..34
+      WHITESPACE@25..26 " "
+      RETURN_KW@26..32 "RETURN"
+      RETURN_BODY@32..34
+        RETURN_ITEMS@32..34
+          RETURN_ITEM@32..34
+            VAR_EXPR@32..34
+              WHITESPACE@32..33 " "
+              IDENT@33..34 "n"
