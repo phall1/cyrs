@@ -115,6 +115,20 @@ ongoing work the same way `intel/` tracks adapter traces.
 
 ---
 
+## Development
+
+After cloning, install the pre-commit hook so `cargo xtask gate`
+runs automatically on every commit:
+
+```sh
+bash cypher/scripts/install-hooks.sh
+```
+
+The gate runs `cargo fmt --check`, `cargo clippy -D warnings`,
+`cargo test`, and `cargo deny check` against the workspace.
+
+---
+
 ## License
 
 Dual-licensed under either of
