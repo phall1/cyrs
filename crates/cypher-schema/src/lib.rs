@@ -108,7 +108,13 @@ pub enum PropertyType {
     /// Spec §8.2 shape: `Enum(SmolStr, Vec<SmolStr>)` — tuple variant.
     Enum(SmolStr, Vec<SmolStr>),
     /// An opaque typed value the consumer chooses not to model
-    /// structurally. Unifies only with itself and with `Any`.
+    /// structurally.
+    ///
+    /// **Unification invariant (spec §8.2):** `Opaque(n)` unifies with
+    /// `Opaque(n)` (same symbolic name) and with [`PropertyType::Any`];
+    /// every other pairing is a type error. This rule lives in the
+    /// unification layer (`cypher-sema`); the shape here only carries the
+    /// symbolic name. Two opaque types with different names never unify.
     Opaque(SmolStr),
     /// Fallback: any property value. Equivalent to "type unknown".
     ///
@@ -141,6 +147,12 @@ pub enum Cardinality {
 /// The return type is modelled as a closure so consumers can express
 /// signature-dependent return inference (e.g., `coalesce(T, T) -> T`).
 /// Signature-independent functions return a constant.
+///
+/// **Spec deviation note (§8.2):** the spec's shorthand is
+/// `variadic: Option<Type>`; we use [`ParamDecl`] so the trailing
+/// variadic parameter can carry a name and default consistently with
+/// `params`. Only `variadic.ty` is semantically significant; `name` is
+/// diagnostic-only and `default` is unused.
 pub struct FunctionSignature {
     pub name: SmolStr,
     pub params: Vec<ParamDecl>,
@@ -304,5 +316,166 @@ mod tests {
         assert!(s.labels().is_empty());
         assert!(!s.has_label("Person"));
         assert_eq!(s.schema_digest(), [0u8; 32]);
+    }
+
+    #[test]
+    fn property_type_spec_variants_construct() {
+        // Spec §8.2: nine normative variants must exist and be
+        // constructible. Any additional variants (e.g., `Any`) are
+        // implementation-internal fallbacks.
+        let specs: [PropertyType; 9] = [
+            PropertyType::String,
+            PropertyType::Int,
+            PropertyType::Float,
+            PropertyType::Bool,
+            PropertyType::Date,
+            PropertyType::Datetime,
+            PropertyType::List(Box::new(PropertyType::Int)),
+            PropertyType::Enum(SmolStr::new("Color"), vec![SmolStr::new("Red")]),
+            PropertyType::Opaque(SmolStr::new("Uuid")),
+        ];
+        assert_eq!(specs.len(), 9);
+        // Round-trip clone + equality on each.
+        for t in &specs {
+            assert_eq!(t, &t.clone());
+        }
+    }
+
+    #[test]
+    fn property_type_any_fallback_distinct_from_spec_variants() {
+        let any = PropertyType::Any;
+        assert_ne!(any, PropertyType::String);
+        assert_ne!(any, PropertyType::Opaque(SmolStr::new("X")));
+    }
+
+    #[test]
+    fn cardinality_has_exactly_four_variants() {
+        // Exhaustive match: adding a variant without updating this test
+        // is a signal that spec §8.2 has grown.
+        let all: [Cardinality; 4] = [
+            Cardinality::OneToOne,
+            Cardinality::OneToMany,
+            Cardinality::ManyToOne,
+            Cardinality::ManyToMany,
+        ];
+        for (i, c) in all.iter().enumerate() {
+            match c {
+                Cardinality::OneToOne
+                | Cardinality::OneToMany
+                | Cardinality::ManyToOne
+                | Cardinality::ManyToMany => {}
+            }
+            assert_eq!(*c, all[i]);
+        }
+    }
+
+    #[test]
+    fn proc_mode_has_exactly_three_variants() {
+        let all: [ProcMode; 3] = [ProcMode::Read, ProcMode::Write, ProcMode::Schema];
+        for m in &all {
+            match m {
+                ProcMode::Read | ProcMode::Write | ProcMode::Schema => {}
+            }
+        }
+        assert_eq!(all[0], ProcMode::Read);
+        assert_ne!(ProcMode::Read, ProcMode::Write);
+    }
+
+    #[test]
+    fn procedure_signature_read_mode_clones_and_compares_on_mode() {
+        let sig = ProcedureSignature {
+            name: SmolStr::new("db.ping"),
+            params: vec![],
+            yields: vec![YieldDecl {
+                name: SmolStr::new("ok"),
+                ty: PropertyType::Bool,
+            }],
+            mode: ProcMode::Read,
+        };
+        let cloned = sig.clone();
+        assert_eq!(cloned.mode, ProcMode::Read);
+        assert_eq!(cloned.yields.len(), 1);
+        assert_eq!(cloned.yields[0].ty, PropertyType::Bool);
+    }
+
+    #[test]
+    fn endpoint_decl_shape() {
+        let e = EndpointDecl {
+            from: SmolStr::new("Person"),
+            to: SmolStr::new("Company"),
+            cardinality: Cardinality::ManyToMany,
+        };
+        assert_eq!(e.clone(), e);
+    }
+
+    #[test]
+    fn property_decl_shape() {
+        let p = PropertyDecl {
+            name: SmolStr::new("age"),
+            ty: PropertyType::Int,
+            required: true,
+        };
+        assert!(p.required);
+        assert_eq!(p.clone(), p);
+    }
+
+    #[test]
+    fn function_signature_clone_preserves_params_and_categories() {
+        // Constant-return path.
+        let c = FunctionSignature {
+            name: SmolStr::new("size"),
+            params: vec![ParamDecl {
+                name: SmolStr::new("x"),
+                ty: PropertyType::List(Box::new(PropertyType::Any)),
+                default: None,
+            }],
+            variadic: None,
+            return_ty: ReturnTy::Constant(PropertyType::Int),
+            categories: FnCategories {
+                pure: true,
+                aggregate: false,
+                deterministic: true,
+            },
+        };
+        let cloned = c.clone();
+        assert_eq!(cloned.name, c.name);
+        assert_eq!(cloned.params, c.params);
+        assert_eq!(cloned.categories, c.categories);
+        match cloned.return_ty {
+            ReturnTy::Constant(PropertyType::Int) => {}
+            _ => panic!("expected Constant(Int)"),
+        }
+    }
+
+    #[test]
+    fn function_signature_clone_dynamic_collapses_to_any() {
+        // Documented Clone path: ReturnTy::Dynamic cannot clone its
+        // closure, so it collapses to Constant(Any). Schema lookups
+        // should avoid cloning dynamic signatures on the hot path.
+        let d = FunctionSignature {
+            name: SmolStr::new("coalesce"),
+            params: vec![],
+            variadic: Some(ParamDecl {
+                name: SmolStr::new("args"),
+                ty: PropertyType::Any,
+                default: None,
+            }),
+            return_ty: ReturnTy::Dynamic(Box::new(|tys| {
+                tys.first().cloned().unwrap_or(PropertyType::Any)
+            })),
+            categories: FnCategories {
+                pure: true,
+                aggregate: false,
+                deterministic: true,
+            },
+        };
+        let cloned = d.clone();
+        assert_eq!(cloned.params, d.params);
+        assert_eq!(cloned.variadic, d.variadic);
+        assert_eq!(cloned.categories, d.categories);
+        match cloned.return_ty {
+            ReturnTy::Constant(PropertyType::Any) => {}
+            _ => panic!("Dynamic clone must collapse to Constant(Any)"),
+        }
     }
 }
