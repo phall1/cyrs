@@ -1,8 +1,17 @@
 # CI for the cyrs workspace (spec 0001 §17.15).
 #
-# Matrix: stable/beta × Linux/macOS/Windows. Nightly-only jobs (Miri,
-# fuzz) run on the linux-nightly leg. clippy/rustfmt/doc are gates at
-# `-D warnings`. cargo-audit and cargo-deny run on every PR.
+# Matrix dimensions (§17.15):
+#   toolchain : stable | beta | nightly
+#   os        : ubuntu-latest (x86_64) | ubuntu-latest-arm (aarch64)
+#             | macos-latest (x86_64)  | macos-14 (aarch64, Apple Silicon)
+#             | windows-latest (x86_64)
+#   features  : default | no-default-features | lsp-only | fmt-only | schema-only
+#
+# Policy (§17.15):
+#   - nightly is non-blocking (continue-on-error: true)
+#   - stable + beta are fully blocking
+#   - clippy / rustfmt / doc run at -D warnings
+#   - cargo-audit + cargo-deny are in a separate supply-chain job (bead cy-fju)
 
 name: ci
 
@@ -65,28 +74,160 @@ jobs:
         run: bash scripts/check-noncoupling.sh
 
   # ---------------------------------------------------------------
-  # Test matrix: stable + beta + nightly × linux/macos/windows
-  # Nightly is informational only (continue-on-error), per §17.15.
+  # Full CI matrix (spec §17.15):
+  #   toolchain × OS × feature-set
+  #
+  # The "default" feature set runs `cargo test`; all other feature
+  # sets run `cargo check` (they test compilation in isolation).
+  #
+  # Nightly legs are non-blocking per §17.15 policy.
+  #
+  # ARM runners:
+  #   ubuntu-latest-arm  — GitHub-hosted Linux aarch64
+  #   macos-14           — Apple M1 (aarch64); macos-latest is x86_64
   # ---------------------------------------------------------------
-  test:
-    name: test / ${{ matrix.os }} / ${{ matrix.toolchain }}
+  matrix:
+    name: >-
+      ${{ matrix.toolchain }} / ${{ matrix.os }} / ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.toolchain == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        toolchain: [stable, beta, nightly]
-    continue-on-error: ${{ matrix.toolchain == 'nightly' }}
+        include:
+          # ── stable × ubuntu-latest (x86_64) ────────────────────
+          - { toolchain: stable,  os: ubuntu-latest,     features: default             }
+          - { toolchain: stable,  os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: stable,  os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: stable,  os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: stable,  os: ubuntu-latest,     features: schema-only         }
+          # ── stable × ubuntu-latest-arm (aarch64) ───────────────
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: default             }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: schema-only         }
+          # ── stable × macos-latest (x86_64) ─────────────────────
+          - { toolchain: stable,  os: macos-latest,      features: default             }
+          - { toolchain: stable,  os: macos-latest,      features: no-default-features }
+          - { toolchain: stable,  os: macos-latest,      features: lsp-only            }
+          - { toolchain: stable,  os: macos-latest,      features: fmt-only            }
+          - { toolchain: stable,  os: macos-latest,      features: schema-only         }
+          # ── stable × macos-14 (aarch64 / Apple Silicon) ────────
+          - { toolchain: stable,  os: macos-14,          features: default             }
+          - { toolchain: stable,  os: macos-14,          features: no-default-features }
+          - { toolchain: stable,  os: macos-14,          features: lsp-only            }
+          - { toolchain: stable,  os: macos-14,          features: fmt-only            }
+          - { toolchain: stable,  os: macos-14,          features: schema-only         }
+          # ── stable × windows-latest (x86_64) ───────────────────
+          - { toolchain: stable,  os: windows-latest,    features: default             }
+          - { toolchain: stable,  os: windows-latest,    features: no-default-features }
+          - { toolchain: stable,  os: windows-latest,    features: lsp-only            }
+          - { toolchain: stable,  os: windows-latest,    features: fmt-only            }
+          - { toolchain: stable,  os: windows-latest,    features: schema-only         }
+          # ── beta × ubuntu-latest (x86_64) ──────────────────────
+          - { toolchain: beta,    os: ubuntu-latest,     features: default             }
+          - { toolchain: beta,    os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: beta,    os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: beta,    os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: beta,    os: ubuntu-latest,     features: schema-only         }
+          # ── beta × ubuntu-latest-arm (aarch64) ─────────────────
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: default             }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: schema-only         }
+          # ── beta × macos-latest (x86_64) ───────────────────────
+          - { toolchain: beta,    os: macos-latest,      features: default             }
+          - { toolchain: beta,    os: macos-latest,      features: no-default-features }
+          - { toolchain: beta,    os: macos-latest,      features: lsp-only            }
+          - { toolchain: beta,    os: macos-latest,      features: fmt-only            }
+          - { toolchain: beta,    os: macos-latest,      features: schema-only         }
+          # ── beta × macos-14 (aarch64) ──────────────────────────
+          - { toolchain: beta,    os: macos-14,          features: default             }
+          - { toolchain: beta,    os: macos-14,          features: no-default-features }
+          - { toolchain: beta,    os: macos-14,          features: lsp-only            }
+          - { toolchain: beta,    os: macos-14,          features: fmt-only            }
+          - { toolchain: beta,    os: macos-14,          features: schema-only         }
+          # ── beta × windows-latest (x86_64) ─────────────────────
+          - { toolchain: beta,    os: windows-latest,    features: default             }
+          - { toolchain: beta,    os: windows-latest,    features: no-default-features }
+          - { toolchain: beta,    os: windows-latest,    features: lsp-only            }
+          - { toolchain: beta,    os: windows-latest,    features: fmt-only            }
+          - { toolchain: beta,    os: windows-latest,    features: schema-only         }
+          # ── nightly × ubuntu-latest (x86_64) — non-blocking ────
+          - { toolchain: nightly, os: ubuntu-latest,     features: default             }
+          - { toolchain: nightly, os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: nightly, os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: nightly, os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: nightly, os: ubuntu-latest,     features: schema-only         }
+          # ── nightly × ubuntu-latest-arm — non-blocking ─────────
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: default             }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: schema-only         }
+          # ── nightly × macos-latest — non-blocking ──────────────
+          - { toolchain: nightly, os: macos-latest,      features: default             }
+          - { toolchain: nightly, os: macos-latest,      features: no-default-features }
+          - { toolchain: nightly, os: macos-latest,      features: lsp-only            }
+          - { toolchain: nightly, os: macos-latest,      features: fmt-only            }
+          - { toolchain: nightly, os: macos-latest,      features: schema-only         }
+          # ── nightly × macos-14 — non-blocking ──────────────────
+          - { toolchain: nightly, os: macos-14,          features: default             }
+          - { toolchain: nightly, os: macos-14,          features: no-default-features }
+          - { toolchain: nightly, os: macos-14,          features: lsp-only            }
+          - { toolchain: nightly, os: macos-14,          features: fmt-only            }
+          - { toolchain: nightly, os: macos-14,          features: schema-only         }
+          # ── nightly × windows-latest — non-blocking ────────────
+          - { toolchain: nightly, os: windows-latest,    features: default             }
+          - { toolchain: nightly, os: windows-latest,    features: no-default-features }
+          - { toolchain: nightly, os: windows-latest,    features: lsp-only            }
+          - { toolchain: nightly, os: windows-latest,    features: fmt-only            }
+          - { toolchain: nightly, os: windows-latest,    features: schema-only         }
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
+
+      # Cache keyed on (os, toolchain) so each combination gets its own
+      # warm cache — avoids cross-contamination between toolchain ABI changes.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-      - name: cargo test
-        run: cargo test --workspace --all-features --no-fail-fast
+          key: ${{ matrix.os }}-${{ matrix.toolchain }}
+
+      # ── default features: run the full test suite ───────────────
+      - name: cargo test (default features)
+        if: matrix.features == 'default'
+        run: cargo test --workspace --no-fail-fast
+
+      # ── no-default-features: check only (no std entry-points) ──
+      - name: cargo check (no-default-features)
+        if: matrix.features == 'no-default-features'
+        run: cargo check -p cypher --no-default-features
+
+      # ── lsp-only: check the meta crate lsp-only slice + the LSP binary
+      # cypher-lsp has no lib target so we verify both the slice feature
+      # on the meta crate and the binary crate itself.
+      - name: cargo check (lsp-only)
+        if: matrix.features == 'lsp-only'
+        run: |
+          cargo check -p cypher --no-default-features --features lsp-only
+          cargo check -p cypher-lsp
+
+      # ── fmt-only: check the formatter slice compiles in isolation
+      - name: cargo check (fmt-only)
+        if: matrix.features == 'fmt-only'
+        run: cargo check -p cypher --no-default-features --features fmt-only
+
+      # ── schema-only: check the schema slice compiles in isolation
+      - name: cargo check (schema-only)
+        if: matrix.features == 'schema-only'
+        run: cargo check -p cypher --no-default-features --features schema-only
 
   # ---------------------------------------------------------------
   # Docs: rustdoc passes at -D warnings
@@ -126,7 +267,10 @@ jobs:
           path: lcov.info
 
   # ---------------------------------------------------------------
-  # Supply chain: cargo-audit + cargo-deny (spec §17.16)
+  # Supply chain: cargo-audit + cargo-deny (spec §17.16, bead cy-fju)
+  # NOTE: Do not merge audit/deny changes here — they are owned by
+  # bead cy-fju running in parallel. This job is intentionally left
+  # as-is to avoid a conflict zone.
   # ---------------------------------------------------------------
   supply-chain:
     name: audit + deny
