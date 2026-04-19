@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WHERE n.age > 21 RETURN n\")"
+---
+MATCH (n)
+WHERE n.age > 21
+RETURN n

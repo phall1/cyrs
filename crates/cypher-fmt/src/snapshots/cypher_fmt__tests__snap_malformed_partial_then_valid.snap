@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"WHERE MATCH (n) RETURN n\")"
+---
+WHERE
+MATCH (n)
+RETURN n

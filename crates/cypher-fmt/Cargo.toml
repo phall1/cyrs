@@ -10,6 +10,7 @@ description  = "CST-driven idempotent formatter for Cypher. Spec 0001 §13."
 
 [dependencies]
 cypher-syntax = { workspace = true }
+rowan         = { workspace = true }
 smol_str      = { workspace = true }
 
 [dev-dependencies]
