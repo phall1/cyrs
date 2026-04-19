@@ -112,7 +112,7 @@ pub enum DiagCode {
 impl DiagCode {
     /// Render as the stable wire-format string: `E0001`, `W6001`, `N8001`.
     #[must_use]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::E0001 => "E0001",
             Self::E0002 => "E0002",
@@ -148,6 +148,61 @@ impl DiagCode {
             Self::N8001 => "N8001",
         }
     }
+
+    /// Severity letter derived from the numeric range (spec §10.2).
+    ///
+    /// `0..=5999` → `'E'`, `6000..=7999` → `'W'`, `8000..=8999` → `'N'`.
+    /// Panics if the discriminant falls outside any registered range —
+    /// the [`ALL`](Self::ALL) invariants enforced by `tests/registry.rs`
+    /// make this unreachable at runtime.
+    #[must_use]
+    pub const fn severity_char(self) -> char {
+        match self as u32 {
+            0..=5999 => 'E',
+            6000..=7999 => 'W',
+            8000..=8999 => 'N',
+            _ => panic!("DiagCode discriminant outside any registered range"),
+        }
+    }
+
+    /// Canonical enumeration of every registered diagnostic code, in
+    /// numeric order. This is THE registry used by
+    /// `tests/registry.rs` to enforce spec §10.2 invariants — every
+    /// variant added to [`DiagCode`] must also be appended here.
+    pub const ALL: &'static [DiagCode] = &[
+        Self::E0001,
+        Self::E0002,
+        Self::E0003,
+        Self::E0004,
+        Self::E0005,
+        Self::E0006,
+        Self::E1001,
+        Self::E1002,
+        Self::E1003,
+        Self::E1004,
+        Self::E1005,
+        Self::E2001,
+        Self::E2002,
+        Self::E2003,
+        Self::E2004,
+        Self::E2005,
+        Self::E2006,
+        Self::E3001,
+        Self::E3002,
+        Self::E3003,
+        Self::E3004,
+        Self::E3005,
+        Self::E3006,
+        Self::E3007,
+        Self::E3008,
+        Self::E4001,
+        Self::E4002,
+        Self::E5001,
+        Self::E5002,
+        Self::W6001,
+        Self::W7001,
+        Self::N8001,
+    ];
 }
 
 impl fmt::Display for DiagCode {
