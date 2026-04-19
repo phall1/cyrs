@@ -8,4 +8,5 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::unnecessary_wraps)]
 
+pub mod check_recovery;
 pub mod codegen;

@@ -37,6 +37,8 @@ enum Cmd {
     },
     /// Fetch and vendor the openCypher TCK corpus (spec §17.5).
     TckFetch,
+    /// Grammar <-> recovery.md symmetry gate (spec §4.3, §17.18).
+    CheckRecovery,
 }
 
 fn main() -> Result<()> {
@@ -57,6 +59,7 @@ fn main() -> Result<()> {
             println!("[xtask tck-fetch] lands with the TCK harness");
             Ok(())
         }
+        Cmd::CheckRecovery => xtask::check_recovery::run(),
     }
 }
 

@@ -2,26 +2,23 @@
 // Source: crates/cypher-ast/cypher.ungrammar (spec 0001 §5.2).
 //
 // Typed AST wrappers are zero-cost views over `cypher_syntax::SyntaxNode`
-// (spec §5.1). Each wrapper has a `cast` that succeeds iff the underlying
-// node's `SyntaxKind` matches, plus `Option`-returning accessors per
-// child (spec §5.3).
+// (spec §5.1). Each struct wrapper has a `cast` that succeeds iff the
+// underlying node's `SyntaxKind` matches, plus `Option`-returning
+// accessors per child (spec §5.3). Sum-type enum wrappers cover
+// alternation-only productions (spec §5.4) and cast by cascading into
+// their variants — first successful arm cast wins.
 //
 // SKIPPED (no wrapper emitted — productions listed below):
-//   - Statement: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
 //   - SingleQuery: no `SyntaxKind::SINGLE_QUERY` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - Union: no `SyntaxKind::UNION` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - Clause: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - ReturnItems: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - ReturnItems: alternation contains a sequence arm (not a single-node shape)
 //   - Skip: no `SyntaxKind::SKIP` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - Limit: no `SyntaxKind::LIMIT` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - Expr: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - NameDef: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - NameDef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - QualifiedName: no `SyntaxKind::QUALIFIED_NAME` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - YieldClause: no `SyntaxKind::YIELD_CLAUSE` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - SetItem: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - RemoveItem: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
 //   - SortItem: no `SyntaxKind::SORT_ITEM` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - NameRef: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - NameRef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - PropertyAssign: no `SyntaxKind::PROPERTY_ASSIGN` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - LabelAdd: no `SyntaxKind::LABEL_ADD` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - NodeReplace: no `SyntaxKind::NODE_REPLACE` variant in cypher-syntax::kind (see cy-nom follow-ups)
@@ -29,18 +26,17 @@
 //   - PropertyAccess: no `SyntaxKind::PROPERTY_ACCESS` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - PropertyRemove: no `SyntaxKind::PROPERTY_REMOVE` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - LabelRemove: no `SyntaxKind::LABEL_REMOVE` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - PathPattern: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - PathPattern: alternation contains a sequence arm (not a single-node shape)
 //   - ShortestPathPattern: no `SyntaxKind::SHORTEST_PATH_PATTERN` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - PathElement: no `SyntaxKind::PATH_ELEMENT` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - RelPattern: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - RelPattern: alternation contains a sequence arm (not a single-node shape)
 //   - TypeExpr: no `SyntaxKind::TYPE_EXPR` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - RangeHops: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - RangeHops: alternation contains a sequence arm (not a single-node shape)
 //   - IntLiteral: no `SyntaxKind::INT_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - Label: no `SyntaxKind::LABEL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - RelType: no `SyntaxKind::REL_TYPE` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - PropertyKV: no `SyntaxKind::PROPERTY_K_V` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - PropertyKey: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - Literal: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - PropertyKey: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - ParameterExpr: no `SyntaxKind::PARAMETER_EXPR` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - VariableRef: no `SyntaxKind::VARIABLE_REF` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - IndexAccess: no `SyntaxKind::INDEX_ACCESS` variant in cypher-syntax::kind (see cy-nom follow-ups)
@@ -51,12 +47,16 @@
 //   - MembershipExpr: no `SyntaxKind::MEMBERSHIP_EXPR` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - FloatLiteral: no `SyntaxKind::FLOAT_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - StringLiteral: no `SyntaxKind::STRING_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - BoolLiteral: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - BoolLiteral: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NullLiteral: no `SyntaxKind::NULL_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - WhenArm: no `SyntaxKind::WHEN_ARM` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - BinaryOp: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - UnaryOp: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
-//   - StringPatternOp: alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)
+//   - BinaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
+//   - UnaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
+//   - StringPatternOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
+//   - Statement: alternation arms all reference types that aren't emitted yet (will light up as `SyntaxKind` variants land)
+//   - SetItem: alternation arms all reference types that aren't emitted yet (will light up as `SyntaxKind` variants land)
+//   - RemoveItem: alternation arms all reference types that aren't emitted yet (will light up as `SyntaxKind` variants land)
+//   - Literal: alternation arms all reference types that aren't emitted yet (will light up as `SyntaxKind` variants land)
 
 #![forbid(unsafe_code)]
 #![allow(clippy::wildcard_imports)]
@@ -230,6 +230,10 @@ impl UnwindClause {
         &self.syntax
     }
 
+    pub fn expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
     pub fn unwind_token(&self) -> Option<SyntaxToken> {
         self.syntax
             .children_with_tokens()
@@ -385,6 +389,10 @@ impl DeleteClause {
         &self.syntax
     }
 
+    pub fn expr(&self) -> impl Iterator<Item = Expr> + '_ {
+        self.syntax.children().filter_map(Expr::cast)
+    }
+
     pub fn detach_token(&self) -> Option<SyntaxToken> {
         self.syntax
             .children_with_tokens()
@@ -427,6 +435,10 @@ impl WhereClause {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
     }
 
     pub fn where_token(&self) -> Option<SyntaxToken> {
@@ -478,6 +490,10 @@ impl ArgList {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn expr(&self) -> impl Iterator<Item = Expr> + '_ {
+        self.syntax.children().filter_map(Expr::cast)
     }
 }
 
@@ -555,6 +571,10 @@ impl ReturnItem {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
     }
 
     pub fn as_token(&self) -> Option<SyntaxToken> {
@@ -676,6 +696,10 @@ impl ParenExpr {
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
     }
+
+    pub fn expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -690,6 +714,10 @@ impl ListLiteral {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn expr(&self) -> impl Iterator<Item = Expr> + '_ {
+        self.syntax.children().filter_map(Expr::cast)
     }
 }
 
@@ -722,8 +750,16 @@ impl ListComprehension {
         &self.syntax
     }
 
+    pub fn source(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
     pub fn where_clause(&self) -> Option<WhereClause> {
         self.syntax.children().find_map(WhereClause::cast)
+    }
+
+    pub fn projection(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
     }
 
     pub fn in_token(&self) -> Option<SyntaxToken> {
@@ -751,6 +787,10 @@ impl PatternComprehension {
     pub fn where_clause(&self) -> Option<WhereClause> {
         self.syntax.children().find_map(WhereClause::cast)
     }
+
+    pub fn projection(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -765,6 +805,14 @@ impl CaseExpr {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn scrutinee(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn else_branch(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
     }
 
     pub fn case_token(&self) -> Option<SyntaxToken> {
@@ -802,6 +850,14 @@ impl BinaryExpr {
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
     }
+
+    pub fn lhs(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn rhs(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -817,6 +873,10 @@ impl UnaryExpr {
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
     }
+
+    pub fn operand(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -831,5 +891,135 @@ impl PatternPredicate {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Clause {
+    MatchClause(MatchClause),
+    WithClause(WithClause),
+    ReturnClause(ReturnClause),
+    UnwindClause(UnwindClause),
+    CallClause(CallClause),
+    CreateClause(CreateClause),
+    MergeClause(MergeClause),
+    SetClause(SetClause),
+    RemoveClause(RemoveClause),
+    DeleteClause(DeleteClause),
+}
+
+impl Clause {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if let Some(inner) = MatchClause::cast(syntax.clone()) {
+            return Some(Self::MatchClause(inner));
+        }
+        if let Some(inner) = WithClause::cast(syntax.clone()) {
+            return Some(Self::WithClause(inner));
+        }
+        if let Some(inner) = ReturnClause::cast(syntax.clone()) {
+            return Some(Self::ReturnClause(inner));
+        }
+        if let Some(inner) = UnwindClause::cast(syntax.clone()) {
+            return Some(Self::UnwindClause(inner));
+        }
+        if let Some(inner) = CallClause::cast(syntax.clone()) {
+            return Some(Self::CallClause(inner));
+        }
+        if let Some(inner) = CreateClause::cast(syntax.clone()) {
+            return Some(Self::CreateClause(inner));
+        }
+        if let Some(inner) = MergeClause::cast(syntax.clone()) {
+            return Some(Self::MergeClause(inner));
+        }
+        if let Some(inner) = SetClause::cast(syntax.clone()) {
+            return Some(Self::SetClause(inner));
+        }
+        if let Some(inner) = RemoveClause::cast(syntax.clone()) {
+            return Some(Self::RemoveClause(inner));
+        }
+        if let Some(inner) = DeleteClause::cast(syntax) {
+            return Some(Self::DeleteClause(inner));
+        }
+        None
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        match self {
+            Self::MatchClause(inner) => inner.syntax(),
+            Self::WithClause(inner) => inner.syntax(),
+            Self::ReturnClause(inner) => inner.syntax(),
+            Self::UnwindClause(inner) => inner.syntax(),
+            Self::CallClause(inner) => inner.syntax(),
+            Self::CreateClause(inner) => inner.syntax(),
+            Self::MergeClause(inner) => inner.syntax(),
+            Self::SetClause(inner) => inner.syntax(),
+            Self::RemoveClause(inner) => inner.syntax(),
+            Self::DeleteClause(inner) => inner.syntax(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Expr {
+    FunctionCall(FunctionCall),
+    ParenExpr(ParenExpr),
+    ListLiteral(ListLiteral),
+    MapLiteral(MapLiteral),
+    ListComprehension(ListComprehension),
+    PatternComprehension(PatternComprehension),
+    CaseExpr(CaseExpr),
+    BinaryExpr(BinaryExpr),
+    UnaryExpr(UnaryExpr),
+    PatternPredicate(PatternPredicate),
+}
+
+impl Expr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if let Some(inner) = FunctionCall::cast(syntax.clone()) {
+            return Some(Self::FunctionCall(inner));
+        }
+        if let Some(inner) = ParenExpr::cast(syntax.clone()) {
+            return Some(Self::ParenExpr(inner));
+        }
+        if let Some(inner) = ListLiteral::cast(syntax.clone()) {
+            return Some(Self::ListLiteral(inner));
+        }
+        if let Some(inner) = MapLiteral::cast(syntax.clone()) {
+            return Some(Self::MapLiteral(inner));
+        }
+        if let Some(inner) = ListComprehension::cast(syntax.clone()) {
+            return Some(Self::ListComprehension(inner));
+        }
+        if let Some(inner) = PatternComprehension::cast(syntax.clone()) {
+            return Some(Self::PatternComprehension(inner));
+        }
+        if let Some(inner) = CaseExpr::cast(syntax.clone()) {
+            return Some(Self::CaseExpr(inner));
+        }
+        if let Some(inner) = BinaryExpr::cast(syntax.clone()) {
+            return Some(Self::BinaryExpr(inner));
+        }
+        if let Some(inner) = UnaryExpr::cast(syntax.clone()) {
+            return Some(Self::UnaryExpr(inner));
+        }
+        if let Some(inner) = PatternPredicate::cast(syntax) {
+            return Some(Self::PatternPredicate(inner));
+        }
+        None
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        match self {
+            Self::FunctionCall(inner) => inner.syntax(),
+            Self::ParenExpr(inner) => inner.syntax(),
+            Self::ListLiteral(inner) => inner.syntax(),
+            Self::MapLiteral(inner) => inner.syntax(),
+            Self::ListComprehension(inner) => inner.syntax(),
+            Self::PatternComprehension(inner) => inner.syntax(),
+            Self::CaseExpr(inner) => inner.syntax(),
+            Self::BinaryExpr(inner) => inner.syntax(),
+            Self::UnaryExpr(inner) => inner.syntax(),
+            Self::PatternPredicate(inner) => inner.syntax(),
+        }
     }
 }

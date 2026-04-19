@@ -43,6 +43,21 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   # ---------------------------------------------------------------
+  # Grammar <-> recovery.md coverage invariant (spec §4.3, §17.18)
+  # ---------------------------------------------------------------
+  check-recovery:
+    name: check-recovery (spec §4.3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "cypher -> target"
+      - name: cargo xtask check-recovery
+        run: cargo run -p xtask -- check-recovery
+
+  # ---------------------------------------------------------------
   # Non-coupling gate (spec §2.C1, §2.C2)
   # ---------------------------------------------------------------
   non-coupling:

@@ -19,9 +19,13 @@
 //! parser fill in.
 //!
 //! Scope notes:
-//! - This bead (cy-dpq) emits plain wrapper structs only. Sum-type enums
-//!   for alternations (e.g. `Expr = Literal | BinaryExpr | …`) are cy-pbx
-//!   territory; alternation-only productions are skipped here.
+//! - cy-dpq emitted plain wrapper structs for productions whose rule is a
+//!   sequence / repetition / single-node shape.
+//! - cy-pbx extends the generator to emit sum-type enum wrappers for
+//!   alternation-only productions whose arms are all named nodes, e.g.
+//!   `Expr = Literal | BinaryExpr | …`. Alternations containing tokens,
+//!   sequences, or repetitions are left skipped — those are rare and the
+//!   parser flattens them anyway.
 //! - Token accessors are emitted for meaningfully-typed tokens (keywords,
 //!   literals, `IDENT`/`QUOTED_IDENT`). Generic punctuation like `(`, `,`
 //!   is ignored — clients never ask for "the comma child".
@@ -56,9 +60,11 @@ pub fn run() -> Result<()> {
     }
 
     eprintln!(
-        "[xtask codegen] parsed {} productions; emitted {} wrappers; skipped {}.",
+        "[xtask codegen] parsed {} productions; emitted {} struct wrappers, \
+         {} enum wrappers; skipped {}.",
         report.parsed,
         report.emitted,
+        report.emitted_enums,
         report.skipped.len()
     );
 
@@ -86,6 +92,8 @@ pub struct CodegenReport {
     pub parsed: usize,
     /// Number of wrapper structs emitted.
     pub emitted: usize,
+    /// Number of sum-type enum wrappers emitted.
+    pub emitted_enums: usize,
     /// Productions skipped, with a one-line reason each.
     pub skipped: Vec<SkippedProduction>,
 }
@@ -118,10 +126,15 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
 
     let kind_variants = known_syntax_node_kinds();
 
-    // Pass 1: decide which productions get wrappers. We need this up front
-    // so the child-accessor pass can drop references to unemitted types.
+    // Pass 1: classify every production as struct-shaped, enum-shaped
+    // (alternation over named nodes), or skipped. Struct-shaped
+    // productions still need a live `SyntaxKind` variant in
+    // `cypher-syntax::kind` to be emittable; enum-shaped productions have
+    // no `SyntaxKind` of their own and cast by cascading into their arm
+    // wrappers, so they don't gate on `kind.rs`.
     let mut skipped: Vec<SkippedProduction> = Vec::new();
-    let mut emitted_names: BTreeSet<String> = BTreeSet::new();
+    let mut struct_names: BTreeSet<String> = BTreeSet::new();
+    let mut enum_candidates: Vec<EnumCandidate> = Vec::new();
     let mut parsed_count = 0usize;
 
     for node_ref in grammar.iter() {
@@ -131,11 +144,20 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
         let kind = pascal_to_screaming_snake(&name);
 
         if is_pure_alternation(&node.rule) {
-            skipped.push(SkippedProduction {
-                name: name.clone(),
-                reason: "alternation-only production (sum-type enum deferred to cy-pbx, spec §5.4)"
-                    .to_string(),
-            });
+            match classify_alternation(&grammar, &node.rule) {
+                AlternationShape::NodesOnly(arm_names) => {
+                    enum_candidates.push(EnumCandidate {
+                        name: name.clone(),
+                        arm_names,
+                    });
+                }
+                AlternationShape::Mixed(reason) => {
+                    skipped.push(SkippedProduction {
+                        name: name.clone(),
+                        reason,
+                    });
+                }
+            }
             continue;
         }
 
@@ -149,23 +171,53 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
             continue;
         }
 
-        emitted_names.insert(name);
+        struct_names.insert(name);
     }
 
-    // Pass 2: for every emitted production, collect child accessors whose
-    // wrapper target is also emitted. Accessors pointing at skipped types
-    // are omitted — the generated file must compile.
+    // Iterate to fixed point: an enum survives iff it has at least one
+    // arm whose target type is a struct wrapper we're emitting, or
+    // another enum that itself survived. Enums that lose all their arms
+    // get demoted to skipped entries below (they'll light up as more
+    // `SyntaxKind` variants land in `kind.rs`).
+    let mut live_enum_names: BTreeSet<String> =
+        enum_candidates.iter().map(|c| c.name.clone()).collect();
+    loop {
+        let before = live_enum_names.len();
+        live_enum_names = enum_candidates
+            .iter()
+            .filter(|cand| live_enum_names.contains(&cand.name))
+            .filter(|cand| {
+                cand.arm_names
+                    .iter()
+                    .any(|arm| struct_names.contains(arm) || live_enum_names.contains(arm))
+            })
+            .map(|cand| cand.name.clone())
+            .collect();
+        if live_enum_names.len() == before {
+            break;
+        }
+    }
+
+    // The set of type names that will appear in the generated module.
+    // Child accessors / enum arms referring to anything else are dropped
+    // so the file compiles.
+    let mut emittable_type_names: BTreeSet<String> = struct_names.clone();
+    emittable_type_names.extend(live_enum_names.iter().cloned());
+
+    // Pass 2: for every emitted struct production, collect child accessors
+    // whose wrapper target is also emitted. Accessors pointing at skipped
+    // types are omitted — the generated file must compile.
     let mut emitted_wrappers: Vec<EmittedWrapper> = Vec::new();
     for node_ref in grammar.iter() {
         let node = &grammar[node_ref];
-        if !emitted_names.contains(node.name.as_str()) {
+        if !struct_names.contains(node.name.as_str()) {
             continue;
         }
         let kind = pascal_to_screaming_snake(&node.name);
         let mut children = collect_children(&grammar, &node.rule);
         children
             .nodes
-            .retain(|c| emitted_names.contains(c.ty.as_str()));
+            .retain(|c| emittable_type_names.contains(c.ty.as_str()));
         emitted_wrappers.push(EmittedWrapper {
             name: node.name.clone(),
             kind,
@@ -173,7 +225,33 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
         });
     }
 
-    let source = render_file(&emitted_wrappers, &skipped);
+    // Pass 3: materialise sum-type enums. Candidates that lost all their
+    // arms during the fixed-point loop above get moved to `skipped`;
+    // survivors keep only the arms whose target type is emittable.
+    let mut emitted_enums: Vec<EmittedEnum> = Vec::new();
+    for cand in enum_candidates {
+        if !live_enum_names.contains(&cand.name) {
+            skipped.push(SkippedProduction {
+                name: cand.name,
+                reason: "alternation arms all reference types that aren't emitted yet \
+                         (will light up as `SyntaxKind` variants land)"
+                    .to_string(),
+            });
+            continue;
+        }
+        let variants: Vec<String> = cand
+            .arm_names
+            .iter()
+            .filter(|arm| emittable_type_names.contains(arm.as_str()))
+            .cloned()
+            .collect();
+        emitted_enums.push(EmittedEnum {
+            name: cand.name,
+            variants,
+        });
+    }
+
+    let source = render_file(&emitted_wrappers, &emitted_enums, &skipped);
     let formatted = rustfmt(&source).unwrap_or_else(|err| {
         eprintln!("[xtask codegen] rustfmt unavailable ({err}); writing unformatted output");
         source
@@ -183,8 +261,36 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
         source: formatted,
         parsed: parsed_count,
         emitted: emitted_wrappers.len(),
+        emitted_enums: emitted_enums.len(),
         skipped,
     })
+}
+
+/// Convenience alias used by the unit tests in this module: identical to
+/// [`build_generated_rs_from`] but returns just the rendered source string.
+#[cfg(test)]
+pub(crate) fn build_generated_from_str(src: &str) -> Result<String> {
+    Ok(build_generated_rs_from(src)?.source)
+}
+
+/// A production we plan to emit as a sum-type enum: all alternation arms
+/// resolved to `Rule::Node` references, yielding the given named arms.
+#[derive(Debug)]
+struct EnumCandidate {
+    /// PascalCase production name.
+    name: String,
+    /// PascalCase type name of each alternation arm, in source order.
+    arm_names: Vec<String>,
+}
+
+/// What an alternation's arms look like once we inspect them.
+#[derive(Debug)]
+enum AlternationShape {
+    /// Every arm is a bare named node reference. `Vec` is in source order.
+    NodesOnly(Vec<String>),
+    /// Something else — a token, a sequence, a repetition, a labelled rule,
+    /// or an option. We skip these and leave the reason for the report.
+    Mixed(String),
 }
 
 // =====================================================================
@@ -199,6 +305,15 @@ struct EmittedWrapper {
     kind: String,
     /// Child accessors (nodes + tokens).
     children: Children,
+}
+
+#[derive(Debug)]
+struct EmittedEnum {
+    /// PascalCase production name, used as the Rust enum name.
+    name: String,
+    /// PascalCase arm type names, in source order. Each becomes a
+    /// tuple-variant wrapping the arm's typed wrapper.
+    variants: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -222,15 +337,21 @@ struct TokenChild {
     kind: String,
 }
 
-fn render_file(wrappers: &[EmittedWrapper], skipped: &[SkippedProduction]) -> String {
+fn render_file(
+    wrappers: &[EmittedWrapper],
+    enums: &[EmittedEnum],
+    skipped: &[SkippedProduction],
+) -> String {
     let mut out = String::new();
     out.push_str("// @generated by `cargo xtask codegen`. DO NOT EDIT.\n");
     out.push_str("// Source: crates/cypher-ast/cypher.ungrammar (spec 0001 §5.2).\n");
     out.push_str("//\n");
     out.push_str("// Typed AST wrappers are zero-cost views over `cypher_syntax::SyntaxNode`\n");
-    out.push_str("// (spec §5.1). Each wrapper has a `cast` that succeeds iff the underlying\n");
-    out.push_str("// node's `SyntaxKind` matches, plus `Option`-returning accessors per\n");
-    out.push_str("// child (spec §5.3).\n");
+    out.push_str("// (spec §5.1). Each struct wrapper has a `cast` that succeeds iff the\n");
+    out.push_str("// underlying node's `SyntaxKind` matches, plus `Option`-returning\n");
+    out.push_str("// accessors per child (spec §5.3). Sum-type enum wrappers cover\n");
+    out.push_str("// alternation-only productions (spec §5.4) and cast by cascading into\n");
+    out.push_str("// their variants — first successful arm cast wins.\n");
     out.push_str("//\n");
     if skipped.is_empty() {
         out.push_str("// All productions in the ungrammar were emitted.\n");
@@ -252,6 +373,11 @@ fn render_file(wrappers: &[EmittedWrapper], skipped: &[SkippedProduction]) -> St
 
     for w in wrappers {
         render_wrapper(&mut out, w);
+        out.push('\n');
+    }
+
+    for e in enums {
+        render_enum(&mut out, e);
         out.push('\n');
     }
 
@@ -317,6 +443,47 @@ fn render_wrapper(out: &mut String, w: &EmittedWrapper) {
         out.push_str("    }\n");
     }
 
+    out.push_str("}\n");
+}
+
+fn render_enum(out: &mut String, e: &EmittedEnum) {
+    out.push_str("#[derive(Debug, Clone, PartialEq, Eq, Hash)]\n");
+    out.push_str(&format!("pub enum {} {{\n", e.name));
+    for v in &e.variants {
+        out.push_str(&format!("    {v}({v}),\n"));
+    }
+    out.push_str("}\n");
+    out.push('\n');
+
+    out.push_str(&format!("impl {} {{\n", e.name));
+    out.push_str("    pub fn cast(syntax: SyntaxNode) -> Option<Self> {\n");
+    // Try each variant's cast in source order; first match wins. Clone
+    // the syntax handle for every try except the last — cheap, it's an
+    // Rc — so each `cast` gets a fresh owned value.
+    for (i, v) in e.variants.iter().enumerate() {
+        let arg = if i + 1 == e.variants.len() {
+            "syntax".to_string()
+        } else {
+            "syntax.clone()".to_string()
+        };
+        out.push_str(&format!(
+            "        if let Some(inner) = {v}::cast({arg}) {{\n"
+        ));
+        out.push_str(&format!("            return Some(Self::{v}(inner));\n"));
+        out.push_str("        }\n");
+    }
+    out.push_str("        None\n");
+    out.push_str("    }\n");
+    out.push('\n');
+    out.push_str("    pub fn syntax(&self) -> &SyntaxNode {\n");
+    out.push_str("        match self {\n");
+    for v in &e.variants {
+        out.push_str(&format!(
+            "            Self::{v}(inner) => inner.syntax(),\n"
+        ));
+    }
+    out.push_str("        }\n");
+    out.push_str("    }\n");
     out.push_str("}\n");
 }
 
@@ -509,11 +676,69 @@ fn extract_trailing_token(buf: &str) -> String {
 // Rule analysis
 // =====================================================================
 
-/// Is this rule a top-level alternation of named nodes?
-/// e.g. `Clause = MatchClause | WithClause | …`. Those become sum-type
-/// enums in cy-pbx, not structs here.
+/// Is this rule a top-level alternation?
+///
+/// Top-level `Rule::Alt` nodes get classified further by
+/// [`classify_alternation`] to decide whether they yield a sum-type enum
+/// (every arm is a named node) or get skipped (token / sequence / rep
+/// arms — rare, always land in a dedicated follow-up).
 fn is_pure_alternation(rule: &Rule) -> bool {
     matches!(rule, Rule::Alt(_))
+}
+
+/// Inspect a top-level alternation and decide whether every arm is a
+/// bare `Rule::Node` (in which case we can emit a clean sum-type enum)
+/// or something richer. Call only on rules that already passed
+/// [`is_pure_alternation`].
+fn classify_alternation(grammar: &Grammar, rule: &Rule) -> AlternationShape {
+    let Rule::Alt(arms) = rule else {
+        return AlternationShape::Mixed(
+            "classify_alternation called on non-alternation (codegen bug)".to_string(),
+        );
+    };
+
+    let mut names = Vec::with_capacity(arms.len());
+    for arm in arms {
+        match arm {
+            Rule::Node(n) => {
+                names.push(grammar[*n].name.clone());
+            }
+            Rule::Token(_) => {
+                return AlternationShape::Mixed(
+                    "alternation contains a token arm \
+                     (sum-type-over-tokens emitter not in cy-pbx scope)"
+                        .to_string(),
+                );
+            }
+            Rule::Seq(_) => {
+                return AlternationShape::Mixed(
+                    "alternation contains a sequence arm (not a single-node shape)".to_string(),
+                );
+            }
+            Rule::Rep(_) => {
+                return AlternationShape::Mixed(
+                    "alternation contains a repetition arm (not a single-node shape)".to_string(),
+                );
+            }
+            Rule::Opt(_) => {
+                return AlternationShape::Mixed(
+                    "alternation contains an optional arm (not a single-node shape)".to_string(),
+                );
+            }
+            Rule::Labeled { .. } => {
+                return AlternationShape::Mixed(
+                    "alternation contains a labelled arm (not a bare node reference)".to_string(),
+                );
+            }
+            Rule::Alt(_) => {
+                return AlternationShape::Mixed(
+                    "alternation contains a nested alternation arm (ungrammar should flatten)"
+                        .to_string(),
+                );
+            }
+        }
+    }
+    AlternationShape::NodesOnly(names)
 }
 
 /// Walk a rule and collect accessor specs for every reachable node / token
@@ -911,6 +1136,62 @@ mod tests {
     fn pascal_snake_basics() {
         assert_eq!(pascal_to_snake("NodePattern"), "node_pattern");
         assert_eq!(pascal_to_snake("Expr"), "expr");
+    }
+
+    #[test]
+    fn emits_sum_type_enum_for_alternation_of_nodes() {
+        // Use arm names that already have live `SyntaxKind` variants so
+        // the struct wrappers they reference actually get emitted; the
+        // enum then picks them up.
+        let src = "Clause = MatchClause | WithClause\n\
+                   MatchClause = 'MATCH'\n\
+                   WithClause = 'WITH'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(
+            out.contains("pub enum Clause"),
+            "expected enum Clause in output:\n{out}"
+        );
+        assert!(
+            out.contains("MatchClause(MatchClause)"),
+            "expected MatchClause arm in output:\n{out}"
+        );
+        assert!(
+            out.contains("WithClause(WithClause)"),
+            "expected WithClause arm in output:\n{out}"
+        );
+        assert!(out.contains("pub fn cast"));
+        assert!(out.contains("pub fn syntax"));
+    }
+
+    #[test]
+    fn still_emits_struct_for_pure_sequence() {
+        let src = "MatchClause = 'MATCH' WithClause\nWithClause = 'WITH'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(
+            out.contains("pub struct MatchClause"),
+            "expected struct MatchClause in output:\n{out}"
+        );
+        assert!(
+            !out.contains("pub enum MatchClause"),
+            "did not expect enum MatchClause in output:\n{out}"
+        );
+    }
+
+    #[test]
+    fn skips_alternation_with_token_arms() {
+        // `BinaryOp = '+' | '-'` — tokens in arms, not a clean node-sum.
+        // The enum should NOT be emitted; the production lands in the
+        // skipped list for a follow-up.
+        let src = "MatchClause = 'MATCH'\nBinaryOp = '+' | '-'\n";
+        let out = build_generated_from_str(src).expect("gen");
+        assert!(
+            !out.contains("pub enum BinaryOp"),
+            "did not expect enum BinaryOp in output:\n{out}"
+        );
+        assert!(
+            out.contains("token arm"),
+            "expected a token-arm skip reason for BinaryOp:\n{out}"
+        );
     }
 
     /// Drift gate: running the generator against the canonical ungrammar
