@@ -1,34 +1,110 @@
 # cargo-deny configuration. Spec §17.16.
+#
+# Governs four supply-chain gates run on every PR (see .github/workflows/ci.yml
+# job `supply-chain`):
+#   1. cargo deny check licenses  — only approved SPDX identifiers
+#   2. cargo deny check bans      — duplicate-version policy
+#   3. cargo deny check advisories — known vulnerabilities / yanked crates
+#   4. cargo deny check sources   — only crates.io; no unvetted git sources
+#
+# All four gates are run together via `cargo deny check`.
 
 [graph]
 all-features = true
 
+# ---------------------------------------------------------------------------
+# Advisories (spec §17.16: unresolved advisory blocks merge)
+#
+# In cargo-deny ≥0.15 (config version 2), vulnerability/unmaintained/yanked
+# are no longer per-field lint-levels; the tool denies known vulnerabilities
+# by default.  Only explicitly ignored advisory IDs appear here.
+# ---------------------------------------------------------------------------
 [advisories]
 version = 2
-yanked  = "deny"
-ignore  = []
+# Use the system git binary to fetch the advisory DB.  This avoids a
+# cargo-deny / libgit2 issue where running inside a git worktree can cause
+# the advisory DB clone to incorrectly inherit the worktree's index,
+# producing false advisory-parse failures on workspace files.
+git-fetch-with-cli = true
+ignore = []
 
+# ---------------------------------------------------------------------------
+# License allowlist (spec §17.16)
+#
+# Only permissive / non-copyleft licenses are allowed.  Every SPDX expression
+# in the dependency graph must resolve to at least one identifier from this
+# list.  When a crate offers multiple license options (e.g. "MIT OR Apache-2.0
+# OR LGPL-2.1-or-later") cargo-deny picks the first matching option, so LGPL
+# crates that also offer MIT/Apache-2.0 are fine.
+#
+# Licenses present in this workspace's dependency tree (bead cy-fju audit):
+#   MIT, Apache-2.0, Apache-2.0 WITH LLVM-exception, BSD-2-Clause,
+#   Unicode-3.0, Unlicense, Zlib
+#   (LGPL-2.1-or-later on r-efi is bypassed by the MIT/Apache-2.0 option)
+# ---------------------------------------------------------------------------
 [licenses]
 version = 2
 allow = [
     "MIT",
     "Apache-2.0",
+    # LLVM sub-projects (e.g. rustix, linux-raw-sys, wasm-encoder)
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
+    # Unicode character-data libraries (e.g. unicode-ident, unicode-normalization)
     "Unicode-DFS-2016",
     "Unicode-3.0",
+    # aho-corasick, memchr, termcolor, winapi-util
+    "Unlicense",
+    # foldhash
     "Zlib",
-    "MPL-2.0",
+    # Public-domain-equivalent; rare but acceptable
     "CC0-1.0",
+    # Mozilla Public License 2.0 (weak copyleft, file-level only); acceptable
+    # for library dependencies that we do not modify.
+    "MPL-2.0",
 ]
+# Require high confidence before accepting a detected SPDX expression.
 confidence-threshold = 0.9
 
+# ---------------------------------------------------------------------------
+# Bans (duplicate / wildcard versions)
+# ---------------------------------------------------------------------------
 [bans]
+# Warn on duplicate crate versions so maintainers are aware; not all
+# duplicates are avoidable (e.g. transitive deps from separate ecosystems).
 multiple-versions = "warn"
-wildcards         = "deny"
+# Wildcard version requirements (`*`) for external deps are forbidden.
+# NOTE: cargo-deny treats `workspace = true` path deps as wildcards; we
+# set this to "warn" so internal workspace member deps are not erroneously
+# blocked.  True external wildcard deps will still surface as warnings.
+wildcards = "warn"
 
+# Intentional duplicates (transitive, not directly controllable):
+#
+# bitflags 1.x vs 2.x: lsp-types (via fluent-uri) still requires v1;
+#   proptest and rustix have upgraded to v2.  Deduplicate when lsp-types
+#   releases a v2-compatible version.
+[[bans.skip]]
+name    = "bitflags"
+version = "1"
+
+# hashbrown 0.14 vs 0.17: rowan uses 0.14; indexmap (our direct dep) uses 0.17.
+#   Deduplicate once rowan upgrades.
+[[bans.skip]]
+name    = "hashbrown"
+version = "0.14"
+
+# wit-bindgen 0.51 vs 0.57: pulled transitively through wasip2/wasip3 via
+#   getrandom→tempfile.  No direct control.
+[[bans.skip]]
+name    = "wit-bindgen"
+version = "0.51"
+
+# ---------------------------------------------------------------------------
+# Sources (only crates.io; no unvetted registries or git sources)
+# ---------------------------------------------------------------------------
 [sources]
 unknown-registry = "deny"
 unknown-git      = "deny"

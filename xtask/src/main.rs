@@ -120,7 +120,7 @@ fn gate() -> Result<()> {
     )?;
 
     if has_binary("cargo-deny") {
-        run("cargo", &["deny", "check"])?;
+        run_deny_check()?;
     } else {
         println!(
             "==> cargo deny check [skipped: `cargo-deny` not on PATH; \
@@ -134,6 +134,42 @@ fn gate() -> Result<()> {
     // the sibling bead A3; invoke it here once it exists.
 
     println!("==> gate OK");
+    Ok(())
+}
+
+/// Run `cargo deny check`, unsetting `GIT_DIR` / `GIT_WORK_TREE` first.
+///
+/// When invoked from a git pre-commit hook, git sets `GIT_DIR` to the
+/// worktree's git-dir (e.g. `.git/worktrees/<name>`). cargo-deny uses
+/// libgit2 to clone the RUSTSEC advisory DB; libgit2 respects the
+/// `GIT_DIR` env var and incorrectly initialises the advisory DB repo
+/// to point at the worktree's work-tree, causing it to scan workspace
+/// source files as RUSTSEC advisories (panic).  Clearing these vars
+/// lets libgit2 discover the correct git context for the advisory DB.
+fn run_deny_check() -> Result<()> {
+    println!("==> cargo deny check");
+    let status = Command::new("cargo")
+        .args(["deny", "check"])
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_COMMON_DIR")
+        .status()
+        .map_err(|err| {
+            if err.kind() == io::ErrorKind::NotFound {
+                anyhow!("`cargo` not found on PATH: {err}")
+            } else {
+                anyhow!("failed to spawn `cargo deny check`: {err}")
+            }
+        })?;
+    if !status.success() {
+        bail!(
+            "`cargo deny check` exited with {}",
+            status
+                .code()
+                .map_or_else(|| "signal".to_string(), |c| c.to_string())
+        );
+    }
     Ok(())
 }
 
