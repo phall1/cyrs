@@ -35,7 +35,7 @@
 //! `EXISTS(...)`, `COUNT(*)` standalone form.
 
 use crate::SyntaxKind;
-use crate::parser::{CompletedMarker, Marker, Parser, TokenSet};
+use crate::parser::{CompletedMarker, Marker, Parser, TokenSet, syntax_codes as sc};
 
 /// Parse an expression and return a handle to the completed root node.
 /// Returns `None` if the current token starts nothing expression-like —
@@ -57,7 +57,10 @@ fn expr_bp(p: &mut Parser<'_>, min_bp: u8) -> Option<CompletedMarker> {
 
 fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<CompletedMarker> {
     if depth > MAX_EXPR_DEPTH {
-        p.error("expression nesting exceeds parser limit");
+        p.error_code(
+            sc::EXPR_NESTING_LIMIT,
+            "expression nesting exceeds parser limit",
+        );
         return None;
     }
 
@@ -68,7 +71,10 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
         p.bump_any();
         // Right binding power drives recursion. Unary is right-associative.
         if expr_bp_depth(p, prefix_bp, depth + 1).is_none() {
-            p.error(format!("expected operand after unary {op_kind:?}"));
+            p.error_code(
+                sc::EXPECTED_UNARY_OPERAND,
+                format!("expected operand after unary {op_kind:?}"),
+            );
         }
         m.complete(p, SyntaxKind::UNARY_EXPR)
     } else {
@@ -96,7 +102,7 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
             p.bump(SyntaxKind::IS_KW);
             p.eat(SyntaxKind::NOT_KW);
             if !p.eat(SyntaxKind::NULL_KW) {
-                p.error("expected NULL after IS");
+                p.error_code(sc::EXPECTED_NULL_AFTER_IS, "expected NULL after IS");
             }
             lhs = m.complete(p, SyntaxKind::IS_NULL_EXPR);
             continue;
@@ -112,7 +118,10 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
             consume_infix_op(p, op.kind);
             // Right-hand side parses at right_bp.
             if expr_bp_depth(p, op.right_bp, depth + 1).is_none() {
-                p.error("expected right-hand side of binary expression");
+                p.error_code(
+                    sc::EXPECTED_BINOP_RHS,
+                    "expected right-hand side of binary expression",
+                );
             }
             lhs = m.complete(p, op.node);
             continue;
@@ -176,11 +185,14 @@ fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     let m = p.start();
     p.bump(SyntaxKind::L_PAREN);
     if expr_bp_depth(p, 0, depth + 1).is_none() {
-        p.error("expected expression inside parentheses");
+        p.error_code(
+            sc::EXPECTED_EXPR_IN_PARENS,
+            "expected expression inside parentheses",
+        );
     }
     if !p.eat(SyntaxKind::R_PAREN) {
         // Virtual-token insertion per spec §4.3.
-        p.error("expected ')' to close expression");
+        p.error_code(sc::EXPECTED_RPAREN_EXPR, "expected ')' to close expression");
     }
     m.complete(p, SyntaxKind::PAREN_EXPR)
 }
@@ -324,13 +336,13 @@ fn consume_infix_op(p: &mut Parser<'_>, kind: InfixKind) {
         InfixKind::StartsWith => {
             p.bump(SyntaxKind::STARTS_KW);
             if !p.eat(SyntaxKind::WITH_KW) {
-                p.error("expected WITH after STARTS");
+                p.error_code(sc::EXPECTED_WITH_AFTER_STARTS, "expected WITH after STARTS");
             }
         }
         InfixKind::EndsWith => {
             p.bump(SyntaxKind::ENDS_KW);
             if !p.eat(SyntaxKind::WITH_KW) {
-                p.error("expected WITH after ENDS");
+                p.error_code(sc::EXPECTED_WITH_AFTER_ENDS, "expected WITH after ENDS");
             }
         }
     }
@@ -393,7 +405,10 @@ fn apply_postfix(
             let m = lhs.precede(p);
             p.bump(SyntaxKind::DOT);
             if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-                p.error("expected property key after '.'");
+                p.error_code(
+                    sc::EXPECTED_PROP_KEY_AFTER_DOT,
+                    "expected property key after '.'",
+                );
             }
             m.complete(p, SyntaxKind::PROP_ACCESS_EXPR)
         }
@@ -401,10 +416,13 @@ fn apply_postfix(
             let m = lhs.precede(p);
             p.bump(SyntaxKind::L_BRACK);
             if expr_bp_depth(p, 0, depth + 1).is_none() {
-                p.error("expected index expression");
+                p.error_code(sc::EXPECTED_INDEX_EXPR, "expected index expression");
             }
             if !p.eat(SyntaxKind::R_BRACK) {
-                p.error("expected ']' to close index expression");
+                p.error_code(
+                    sc::EXPECTED_RBRACK_INDEX,
+                    "expected ']' to close index expression",
+                );
             }
             m.complete(p, SyntaxKind::SUBSCRIPT_EXPR)
         }
@@ -433,14 +451,17 @@ fn call_postfix(p: &mut Parser<'_>, lhs: CompletedMarker, depth: u32) -> Complet
         args.complete(p, SyntaxKind::ARG_LIST);
     }
     if !p.eat(SyntaxKind::R_PAREN) {
-        p.error("expected ')' to close function call");
+        p.error_code(
+            sc::EXPECTED_RPAREN_CALL,
+            "expected ')' to close function call",
+        );
     }
     m.complete(p, SyntaxKind::FUNCTION_CALL)
 }
 
 fn call_arg(p: &mut Parser<'_>, depth: u32) {
     if expr_bp_depth(p, 0, depth + 1).is_none() {
-        p.error("expected function argument");
+        p.error_code(sc::EXPECTED_CALL_ARG, "expected function argument");
     }
 }
 

@@ -89,11 +89,14 @@ pub fn parse(src: &str) -> Parse {
 ///
 /// `cypher-syntax` does not depend on `cypher-diag` (§3.1), so this is a
 /// local stand-in carrying just the minimum a later pass needs to lift it
-/// into a full `Diagnostic`: a human-readable message and the byte offset
-/// at which it was emitted.
+/// into a full `Diagnostic`: a stable numeric code (matching the
+/// `DiagCode` discriminants in `cypher-diag`), a human-readable message,
+/// and the byte offset at which it was emitted.
 #[derive(Debug, Clone, Error)]
-#[error("{message}")]
+#[error("[E{code:04}] {message}")]
 pub struct SyntaxError {
+    /// Numeric value of the `DiagCode` discriminant (e.g. 3 for E0003).
+    pub code: u16,
     pub message: String,
     pub offset: text_size::TextSize,
 }
@@ -123,6 +126,7 @@ pub(crate) enum Event {
         kind: SyntaxKind,
     },
     Error {
+        code: u16,
         msg: String,
         offset: text_size::TextSize,
     },
@@ -315,12 +319,25 @@ impl<'a> Parser<'a> {
     }
 
     /// Record a diagnostic at the current position without consuming.
-    pub(crate) fn error(&mut self, msg: impl Into<String>) {
+    ///
+    /// `code` is the numeric discriminant of the corresponding `DiagCode`
+    /// variant in `cypher-diag` (e.g. `3` for `E0003`). Use the
+    /// `syntax_codes` constants in this module for clarity.
+    pub(crate) fn error_code(&mut self, code: u16, msg: impl Into<String>) {
         let offset = self.current_offset();
         self.events.push(Event::Error {
+            code,
             msg: msg.into(),
             offset,
         });
+    }
+
+    /// Record a generic syntax error (E0001) at the current position.
+    ///
+    /// Prefer [`Parser::error_code`] with a specific code at every call
+    /// site that maps to a known error class.
+    pub(crate) fn error(&mut self, msg: impl Into<String>) {
+        self.error_code(syntax_codes::GENERIC_SYNTAX_ERROR, msg);
     }
 
     /// Consume one token and wrap it in an ERROR node alongside a message.
@@ -341,7 +358,7 @@ impl<'a> Parser<'a> {
         if self.eat(kind) {
             true
         } else {
-            self.error(format!("expected {kind:?}"));
+            self.error_code(syntax_codes::EXPECTED_TOKEN, format!("expected {kind:?}"));
             false
         }
     }
@@ -375,6 +392,111 @@ impl<'a> Parser<'a> {
     pub(crate) fn into_events(self) -> Vec<Event> {
         self.events
     }
+}
+
+// ========================================================================
+// Syntax error code constants (spec §10.2, E0001–E0999)
+// ========================================================================
+//
+// These numeric values MUST match the discriminants of the corresponding
+// `DiagCode` enum variants in `cypher-diag/src/codes.rs`.  `cypher-syntax`
+// cannot depend on `cypher-diag` (§3.1), so the codes are mirrored here
+// as plain `u16` constants.  CI enforces that each constant is actually
+// used at a call site and that its value exists in the registry.
+
+pub(crate) mod syntax_codes {
+    /// E0001 — generic / unclassified syntax error.
+    pub(crate) const GENERIC_SYNTAX_ERROR: u16 = 1;
+    /// E0002 — unexpected token.
+    pub(crate) const UNEXPECTED_TOKEN: u16 = 2;
+    /// E0003 — expected `<token>`, found `<token>`.
+    pub(crate) const EXPECTED_TOKEN: u16 = 3;
+    /// E0004 — unclosed string literal.
+    pub(crate) const UNCLOSED_STRING: u16 = 4;
+    /// E0005 — unclosed block comment.
+    pub(crate) const UNCLOSED_BLOCK_COMMENT: u16 = 5;
+    /// E0006 — invalid numeric literal.
+    pub(crate) const INVALID_NUMERIC_LITERAL: u16 = 6;
+    /// E0007 — expected statement.
+    pub(crate) const EXPECTED_STATEMENT: u16 = 7;
+    /// E0008 — expected `;` or end of input.
+    pub(crate) const EXPECTED_SEMICOLON_OR_EOF: u16 = 8;
+    /// E0009 — expected `(` to start a node pattern.
+    pub(crate) const EXPECTED_LPAREN_NODE: u16 = 9;
+    /// E0010 — expected node pattern after relationship.
+    pub(crate) const EXPECTED_NODE_AFTER_REL: u16 = 10;
+    /// E0011 — expected `)` to close node pattern.
+    pub(crate) const EXPECTED_RPAREN_NODE: u16 = 11;
+    /// E0012 — expected `-` at relationship start.
+    pub(crate) const EXPECTED_DASH_REL_START: u16 = 12;
+    /// E0013 — expected `-` to close relationship.
+    pub(crate) const EXPECTED_DASH_REL_CLOSE: u16 = 13;
+    /// E0014 — expected `-` or `->` to close relationship.
+    pub(crate) const EXPECTED_DASH_OR_ARROW: u16 = 14;
+    /// E0015 — expected `]` to close relationship detail.
+    pub(crate) const EXPECTED_RBRACK_REL: u16 = 15;
+    /// E0016 — expected label after `:`.
+    pub(crate) const EXPECTED_LABEL: u16 = 16;
+    /// E0017 — expected relationship type after `:`.
+    pub(crate) const EXPECTED_REL_TYPE: u16 = 17;
+    /// E0018 — expected `}` to close property map.
+    pub(crate) const EXPECTED_RBRACE_PROP: u16 = 18;
+    /// E0019 — expected property key.
+    pub(crate) const EXPECTED_PROP_KEY: u16 = 19;
+    /// E0020 — expected `:` in property entry.
+    pub(crate) const EXPECTED_COLON_PROP: u16 = 20;
+    /// E0021 — expected expression for property value.
+    pub(crate) const EXPECTED_PROP_VALUE: u16 = 21;
+    /// E0022 — expected identifier.
+    pub(crate) const EXPECTED_IDENT: u16 = 22;
+    /// E0023 — expression nesting limit exceeded.
+    pub(crate) const EXPR_NESTING_LIMIT: u16 = 23;
+    /// E0024 — expected operand after unary operator.
+    pub(crate) const EXPECTED_UNARY_OPERAND: u16 = 24;
+    /// E0025 — expected `NULL` after `IS`.
+    pub(crate) const EXPECTED_NULL_AFTER_IS: u16 = 25;
+    /// E0026 — expected right-hand side of binary expression.
+    pub(crate) const EXPECTED_BINOP_RHS: u16 = 26;
+    /// E0027 — expected expression inside parentheses.
+    pub(crate) const EXPECTED_EXPR_IN_PARENS: u16 = 27;
+    /// E0028 — expected `)` to close expression.
+    pub(crate) const EXPECTED_RPAREN_EXPR: u16 = 28;
+    /// E0029 — expected `WITH` after `STARTS`.
+    pub(crate) const EXPECTED_WITH_AFTER_STARTS: u16 = 29;
+    /// E0030 — expected `WITH` after `ENDS`.
+    pub(crate) const EXPECTED_WITH_AFTER_ENDS: u16 = 30;
+    /// E0031 — expected property key after `.`.
+    pub(crate) const EXPECTED_PROP_KEY_AFTER_DOT: u16 = 31;
+    /// E0032 — expected index expression.
+    pub(crate) const EXPECTED_INDEX_EXPR: u16 = 32;
+    /// E0033 — expected `]` to close index expression.
+    pub(crate) const EXPECTED_RBRACK_INDEX: u16 = 33;
+    /// E0034 — expected `)` to close function call.
+    pub(crate) const EXPECTED_RPAREN_CALL: u16 = 34;
+    /// E0035 — expected function argument.
+    pub(crate) const EXPECTED_CALL_ARG: u16 = 35;
+    /// E0036 — expected expression in `RETURN` item.
+    pub(crate) const EXPECTED_RETURN_EXPR: u16 = 36;
+    /// E0037 — expected identifier after `AS`.
+    pub(crate) const EXPECTED_IDENT_AFTER_AS: u16 = 37;
+    /// E0038 — expected `BY` after `ORDER`.
+    pub(crate) const EXPECTED_BY_AFTER_ORDER: u16 = 38;
+    /// E0039 — expected expression in `ORDER BY`.
+    pub(crate) const EXPECTED_ORDERBY_EXPR: u16 = 39;
+    /// E0040 — expected expression after `SKIP`.
+    pub(crate) const EXPECTED_SKIP_EXPR: u16 = 40;
+    /// E0041 — expected expression after `LIMIT`.
+    pub(crate) const EXPECTED_LIMIT_EXPR: u16 = 41;
+    /// E0042 — expected `MATCH` after `OPTIONAL`.
+    pub(crate) const EXPECTED_MATCH_AFTER_OPTIONAL: u16 = 42;
+    /// E0043 — expected expression after `WHERE`.
+    pub(crate) const EXPECTED_WHERE_EXPR: u16 = 43;
+    /// E0044 — clause not yet implemented (deferred construct).
+    pub(crate) const UNIMPLEMENTED_CLAUSE: u16 = 44;
+    /// E0045 — expected a clause keyword.
+    pub(crate) const EXPECTED_CLAUSE: u16 = 45;
+    /// E0046 — invalid escape sequence in string literal.
+    pub(crate) const INVALID_ESCAPE: u16 = 46;
 }
 
 /// Advance `idx` past any leading trivia tokens.

@@ -154,8 +154,9 @@ impl SyntaxTreeBuilder {
                     );
                     tok_idx += 1;
                 }
-                Event::Error { msg, offset } => {
+                Event::Error { code, msg, offset } => {
                     builder.errors.push(SyntaxError {
+                        code,
                         message: msg,
                         offset,
                     });

@@ -2,7 +2,7 @@
 //! `Statement`, `SingleQuery`.
 
 use crate::SyntaxKind;
-use crate::parser::Parser;
+use crate::parser::{Parser, syntax_codes as sc};
 
 use super::{CLAUSE_START, clause};
 
@@ -30,7 +30,10 @@ fn single_query(p: &mut Parser<'_>) {
             }
             // We promised a clause but see none — the outer statement
             // recoverer will handle it; just return empty.
-            p.error("expected a clause (MATCH/WITH/RETURN/...)");
+            p.error_code(
+                sc::EXPECTED_CLAUSE,
+                "expected a clause (MATCH/WITH/RETURN/...)",
+            );
             return;
         }
         clause::clause(p);

@@ -15,7 +15,7 @@
 //! patterns, pattern predicates in expression position.
 
 use crate::SyntaxKind;
-use crate::parser::Parser;
+use crate::parser::{Parser, syntax_codes as sc};
 
 use super::expression;
 
@@ -40,7 +40,10 @@ pub(crate) fn pattern(p: &mut Parser<'_>) {
 fn path_pattern(p: &mut Parser<'_>) {
     let m = p.start();
     if !p.at(SyntaxKind::L_PAREN) {
-        p.error("expected '(' to start a node pattern");
+        p.error_code(
+            sc::EXPECTED_LPAREN_NODE,
+            "expected '(' to start a node pattern",
+        );
         m.complete(p, SyntaxKind::PATTERN_PART);
         return;
     }
@@ -50,7 +53,10 @@ fn path_pattern(p: &mut Parser<'_>) {
         if p.at(SyntaxKind::L_PAREN) {
             node_pattern(p);
         } else {
-            p.error("expected node pattern after relationship");
+            p.error_code(
+                sc::EXPECTED_NODE_AFTER_REL,
+                "expected node pattern after relationship",
+            );
             break;
         }
     }
@@ -83,7 +89,10 @@ fn node_pattern(p: &mut Parser<'_>) {
     if !p.eat(SyntaxKind::R_PAREN) {
         // Virtual-token insertion per spec §4.3: emit diagnostic at the
         // expected position and continue. No bytes are consumed.
-        p.error("expected ')' to close node pattern");
+        p.error_code(
+            sc::EXPECTED_RPAREN_NODE,
+            "expected ')' to close node pattern",
+        );
     }
     m.complete(p, SyntaxKind::NODE_PATTERN);
 }
@@ -100,7 +109,10 @@ fn rel_pattern(p: &mut Parser<'_>) {
     } else {
         // `-` or `-[...]-*`
         if !p.eat(SyntaxKind::MINUS) {
-            p.error("expected '-' at relationship start");
+            p.error_code(
+                sc::EXPECTED_DASH_REL_START,
+                "expected '-' at relationship start",
+            );
         }
         false
     };
@@ -114,10 +126,16 @@ fn rel_pattern(p: &mut Parser<'_>) {
     // we accept either `-` or `->`.
     if left_arrow {
         if !p.eat(SyntaxKind::MINUS) {
-            p.error("expected '-' to close relationship");
+            p.error_code(
+                sc::EXPECTED_DASH_REL_CLOSE,
+                "expected '-' to close relationship",
+            );
         }
     } else if !(p.eat(SyntaxKind::ARROW_R) || p.eat(SyntaxKind::MINUS)) {
-        p.error("expected '-' or '->' to close relationship");
+        p.error_code(
+            sc::EXPECTED_DASH_OR_ARROW,
+            "expected '-' or '->' to close relationship",
+        );
     }
 
     m.complete(p, SyntaxKind::REL_PATTERN);
@@ -145,7 +163,10 @@ fn rel_detail(p: &mut Parser<'_>) {
     }
 
     if !p.eat(SyntaxKind::R_BRACK) {
-        p.error("expected ']' to close relationship detail");
+        p.error_code(
+            sc::EXPECTED_RBRACK_REL,
+            "expected ']' to close relationship detail",
+        );
     }
     m.complete(p, SyntaxKind::REL_DETAIL);
 }
@@ -157,7 +178,7 @@ fn label_expr(p: &mut Parser<'_>) {
     while p.at(SyntaxKind::COLON) {
         p.bump(SyntaxKind::COLON);
         if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-            p.error("expected label after ':'");
+            p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
             break;
         }
     }
@@ -171,7 +192,10 @@ fn rel_type_expr(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::COLON);
     if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-        p.error("expected relationship type after ':'");
+        p.error_code(
+            sc::EXPECTED_REL_TYPE,
+            "expected relationship type after ':'",
+        );
     }
     // cy-nom: v1 scope — `A|B` rel-type disjunction lands in a follow-up bead.
     m.complete(p, SyntaxKind::REL_TYPE_EXPR);
@@ -192,20 +216,26 @@ fn property_map(p: &mut Parser<'_>) {
     }
 
     if !p.eat(SyntaxKind::R_BRACE) {
-        p.error("expected '}' to close property map");
+        p.error_code(
+            sc::EXPECTED_RBRACE_PROP,
+            "expected '}' to close property map",
+        );
     }
     m.complete(p, SyntaxKind::PROPERTY_MAP);
 }
 
 fn property_kv(p: &mut Parser<'_>) {
     if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-        p.error("expected property key");
+        p.error_code(sc::EXPECTED_PROP_KEY, "expected property key");
     }
     if !p.eat(SyntaxKind::COLON) {
-        p.error("expected ':' in property entry");
+        p.error_code(sc::EXPECTED_COLON_PROP, "expected ':' in property entry");
     }
     if expression::expr(p).is_none() {
-        p.error("expected expression for property value");
+        p.error_code(
+            sc::EXPECTED_PROP_VALUE,
+            "expected expression for property value",
+        );
     }
 }
 
@@ -214,7 +244,7 @@ fn property_kv(p: &mut Parser<'_>) {
 fn name_binder(p: &mut Parser<'_>) {
     let m = p.start();
     if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-        p.error("expected identifier");
+        p.error_code(sc::EXPECTED_IDENT, "expected identifier");
     }
     m.complete(p, SyntaxKind::NAME);
 }

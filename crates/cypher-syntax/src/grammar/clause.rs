@@ -7,7 +7,7 @@
 //! tagged with `cy-nom: v1 scope` at its stub site in the grammar module.
 
 use crate::SyntaxKind;
-use crate::parser::{Parser, TokenSet};
+use crate::parser::{Parser, TokenSet, syntax_codes as sc};
 
 use super::{expression, pattern};
 
@@ -50,7 +50,10 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
 fn deferred_clause_stub(p: &mut Parser<'_>) {
     let m = p.start();
     let kw = p.current();
-    p.error(format!("{kw:?} clause is not implemented in cy-nom"));
+    p.error_code(
+        sc::UNIMPLEMENTED_CLAUSE,
+        format!("{kw:?} clause is not implemented in cy-nom"),
+    );
     p.bump_any();
     p.recover_until(TokenSet::EMPTY);
     m.complete(p, SyntaxKind::ERROR);
@@ -75,7 +78,10 @@ fn optional_match_clause(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::OPTIONAL_KW);
     if !p.eat(SyntaxKind::MATCH_KW) {
-        p.error("expected MATCH after OPTIONAL");
+        p.error_code(
+            sc::EXPECTED_MATCH_AFTER_OPTIONAL,
+            "expected MATCH after OPTIONAL",
+        );
     }
     pattern::pattern_list(p);
     if p.at(SyntaxKind::WHERE_KW) {
@@ -90,7 +96,7 @@ fn where_clause(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::WHERE_KW);
     if expression::expr(p).is_none() {
-        p.error("expected expression after WHERE");
+        p.error_code(sc::EXPECTED_WHERE_EXPR, "expected expression after WHERE");
     }
     m.complete(p, SyntaxKind::WHERE_CLAUSE);
 }
@@ -142,12 +148,15 @@ fn return_clause(p: &mut Parser<'_>) {
 fn return_item(p: &mut Parser<'_>) {
     let m = p.start();
     if expression::expr(p).is_none() {
-        p.error("expected expression in RETURN item");
+        p.error_code(
+            sc::EXPECTED_RETURN_EXPR,
+            "expected expression in RETURN item",
+        );
     }
     if p.eat(SyntaxKind::AS_KW) {
         // Alias: IDENT or QUOTED_IDENT (the `NameDef` variants).
         if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-            p.error("expected identifier after AS");
+            p.error_code(sc::EXPECTED_IDENT_AFTER_AS, "expected identifier after AS");
         }
     }
     m.complete(p, SyntaxKind::RETURN_ITEM);
@@ -158,7 +167,7 @@ fn order_by(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::ORDER_KW);
     if !p.eat(SyntaxKind::BY_KW) {
-        p.error("expected BY after ORDER");
+        p.error_code(sc::EXPECTED_BY_AFTER_ORDER, "expected BY after ORDER");
     }
     order_item(p);
     while p.at(SyntaxKind::COMMA) {
@@ -171,7 +180,7 @@ fn order_by(p: &mut Parser<'_>) {
 fn order_item(p: &mut Parser<'_>) {
     let m = p.start();
     if expression::expr(p).is_none() {
-        p.error("expected expression in ORDER BY");
+        p.error_code(sc::EXPECTED_ORDERBY_EXPR, "expected expression in ORDER BY");
     }
     // Optional ordering direction.
     match p.current() {
@@ -189,7 +198,7 @@ fn skip_subclause(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::SKIP_KW);
     if expression::expr(p).is_none() {
-        p.error("expected expression after SKIP");
+        p.error_code(sc::EXPECTED_SKIP_EXPR, "expected expression after SKIP");
     }
     m.complete(p, SyntaxKind::SKIP_SUBCLAUSE);
 }
@@ -199,7 +208,7 @@ fn limit_subclause(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(SyntaxKind::LIMIT_KW);
     if expression::expr(p).is_none() {
-        p.error("expected expression after LIMIT");
+        p.error_code(sc::EXPECTED_LIMIT_EXPR, "expected expression after LIMIT");
     }
     m.complete(p, SyntaxKind::LIMIT_SUBCLAUSE);
 }

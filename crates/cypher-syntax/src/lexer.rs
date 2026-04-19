@@ -22,6 +22,157 @@ pub struct LexToken {
     pub range: TextRange,
 }
 
+/// A lexer-level diagnostic: a code (matching `DiagCode` discriminants in
+/// `cypher-diag`) plus a message and byte range. Emitted by
+/// [`validate_tokens`] for errors that can only be detected after the DFA
+/// run — unterminated literals, invalid escape sequences, etc.
+///
+/// `cypher-syntax` does not depend on `cypher-diag` (spec §3.1), so the
+/// code is carried as a plain `u16`.
+#[derive(Debug, Clone)]
+pub struct LexError {
+    /// Numeric discriminant of the corresponding `DiagCode` in
+    /// `cypher-diag` (e.g. `4` for `E0004`).
+    pub code: u16,
+    pub message: String,
+    pub range: TextRange,
+}
+
+/// Scan a token stream for lex-level errors that the DFA cannot express
+/// directly:
+///
+/// - **E0004** — unterminated string literal (a run of ERROR tokens that
+///   starts with a quote character but never closes).
+/// - **E0005** — unterminated block comment (a run of ERROR tokens that
+///   starts with `/*` but has no matching `*/`).
+/// - **E0046** — invalid escape sequence inside an otherwise-valid
+///   `STRING_LITERAL` token (`\q`, `\X`, etc.).
+///
+/// Returns a (possibly empty) list of [`LexError`]s in source order. The
+/// token stream itself is not modified — every byte remains in a token.
+#[must_use]
+pub fn validate_tokens(src: &str, tokens: &[LexToken]) -> Vec<LexError> {
+    let mut errors: Vec<LexError> = Vec::new();
+
+    // --- E0004 / E0005: unterminated string literal / block comment ---
+    //
+    // A logos `ERROR` token is produced for any byte (or byte sequence)
+    // the DFA cannot recognise. An unterminated string or block comment
+    // produces a run of ERROR tokens starting at the opening delimiter.
+    // We detect these by scanning error-token runs.
+    let mut i = 0;
+    while i < tokens.len() {
+        let tok = &tokens[i];
+        if tok.kind == SyntaxKind::ERROR {
+            let start = tok.range.start();
+            let start_usize = usize::from(start);
+
+            // Collect the contiguous run of ERROR tokens.
+            let mut run_end = tok.range.end();
+            let mut j = i + 1;
+            while j < tokens.len() && tokens[j].kind == SyntaxKind::ERROR {
+                run_end = tokens[j].range.end();
+                j += 1;
+            }
+            let run_src = &src[start_usize..usize::from(run_end)];
+
+            if run_src.starts_with("/*") {
+                // E0005 — unterminated block comment.
+                errors.push(LexError {
+                    code: super::parser::syntax_codes::UNCLOSED_BLOCK_COMMENT,
+                    message: "unterminated block comment".to_owned(),
+                    range: TextRange::new(start, run_end),
+                });
+            } else if run_src.starts_with('"') || run_src.starts_with('\'') {
+                // E0004 — unterminated string literal.
+                errors.push(LexError {
+                    code: super::parser::syntax_codes::UNCLOSED_STRING,
+                    message: "unterminated string literal".to_owned(),
+                    range: TextRange::new(start, run_end),
+                });
+            }
+            // E0002 / E0006 — unexpected / unrecognised token(s) that
+            // are not an unterminated literal.
+            if !run_src.starts_with("/*") && !run_src.starts_with('"') && !run_src.starts_with('\'')
+            {
+                // Heuristic: an error run starting with a digit that
+                // contains a base prefix (`0x`, `0o`, `0b`) followed by
+                // no valid digits is an invalid numeric literal (E0006).
+                let first = run_src.chars().next().unwrap_or('\0');
+                let is_bad_numeric = first.is_ascii_digit()
+                    && (run_src.starts_with("0x")
+                        || run_src.starts_with("0X")
+                        || run_src.starts_with("0o")
+                        || run_src.starts_with("0O")
+                        || run_src.starts_with("0b")
+                        || run_src.starts_with("0B"));
+                if is_bad_numeric {
+                    errors.push(LexError {
+                        code: super::parser::syntax_codes::INVALID_NUMERIC_LITERAL,
+                        message: format!("invalid numeric literal `{run_src}`"),
+                        range: TextRange::new(start, run_end),
+                    });
+                } else {
+                    errors.push(LexError {
+                        code: super::parser::syntax_codes::UNEXPECTED_TOKEN,
+                        message: format!("unexpected token `{first}`"),
+                        range: TextRange::new(start, run_end),
+                    });
+                }
+            }
+            i = j;
+            continue;
+        }
+        i += 1;
+    }
+
+    // --- E0046: invalid escape sequence in string literal ---------------
+    //
+    // The DFA matches any `\.` as a valid escape because verifying the
+    // escape character would require lookahead inside logos patterns. We
+    // perform the semantic check here.
+    let valid_escapes: &[char] = &['n', 't', 'r', '\\', '\'', '"', '0', 'b', 'f', 'u', 'U'];
+    for tok in tokens {
+        if tok.kind != SyntaxKind::STRING_LITERAL {
+            continue;
+        }
+        let text = tok.text.as_str();
+        // Strip surrounding quotes.
+        let inner = if (text.starts_with('"') && text.ends_with('"'))
+            || (text.starts_with('\'') && text.ends_with('\''))
+        {
+            &text[1..text.len() - 1]
+        } else {
+            continue;
+        };
+        let mut chars = inner.char_indices().peekable();
+        while let Some((byte_off, ch)) = chars.next() {
+            if ch == '\\'
+                && let Some(&(_, next_ch)) = chars.peek()
+            {
+                if !valid_escapes.contains(&next_ch) {
+                    let abs_start = usize::from(tok.range.start())
+                        + 1 // opening quote
+                        + byte_off;
+                    let abs_end = abs_start + 1 + next_ch.len_utf8();
+                    let range = TextRange::new(
+                        TextSize::try_from(abs_start).expect("offset fits u32"),
+                        TextSize::try_from(abs_end).expect("offset fits u32"),
+                    );
+                    errors.push(LexError {
+                        code: super::parser::syntax_codes::INVALID_ESCAPE,
+                        message: format!("invalid escape sequence `\\{next_ch}`"),
+                        range,
+                    });
+                }
+                chars.next(); // consume the escape character
+            }
+        }
+    }
+
+    errors
+}
+
 /// Tokenise an entire source string. Unknown bytes become [`SyntaxKind::ERROR`]
 /// tokens that preserve their range; the lexer never panics on input.
 #[must_use]

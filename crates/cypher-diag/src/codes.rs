@@ -25,20 +25,191 @@ use core::fmt;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(non_camel_case_types)]
 pub enum DiagCode {
-    // --- syntax ------------------------------------------------------
-    /// Reserved for tests; stands for "generic syntax error" until the
-    /// grammar lands and carves specific codes.
+    // --- syntax (E0001..=E0999) --------------------------------------
+    /// Generic / unclassified syntax error.
+    ///
+    /// Docs: `docs/errors/E0001.md`
     E0001 = 1,
-    /// Unexpected token.
+    /// Unexpected token encountered.
+    ///
+    /// Docs: `docs/errors/E0002.md`
     E0002 = 2,
     /// Expected `<token>`, found `<token>`.
+    ///
+    /// Docs: `docs/errors/E0003.md`
     E0003 = 3,
-    /// Unclosed string literal.
+    /// Unclosed string literal (missing closing quote).
+    ///
+    /// Docs: `docs/errors/E0004.md`
     E0004 = 4,
-    /// Unclosed block comment.
+    /// Unclosed block comment (missing `*/`).
+    ///
+    /// Docs: `docs/errors/E0005.md`
     E0005 = 5,
-    /// Invalid numeric literal.
+    /// Invalid numeric literal (bad digits or suffix).
+    ///
+    /// Docs: `docs/errors/E0006.md`
     E0006 = 6,
+    /// Expected a statement (clause keyword) but found something else.
+    ///
+    /// Docs: `docs/errors/E0007.md`
+    E0007 = 7,
+    /// Expected `;` or end of input after statement.
+    ///
+    /// Docs: `docs/errors/E0008.md`
+    E0008 = 8,
+    /// Expected `(` to start a node pattern.
+    ///
+    /// Docs: `docs/errors/E0009.md`
+    E0009 = 9,
+    /// Expected a node pattern after a relationship pattern.
+    ///
+    /// Docs: `docs/errors/E0010.md`
+    E0010 = 10,
+    /// Expected `)` to close a node pattern.
+    ///
+    /// Docs: `docs/errors/E0011.md`
+    E0011 = 11,
+    /// Expected `-` at the start of a relationship pattern.
+    ///
+    /// Docs: `docs/errors/E0012.md`
+    E0012 = 12,
+    /// Expected `-` to close a left-arrow relationship pattern.
+    ///
+    /// Docs: `docs/errors/E0013.md`
+    E0013 = 13,
+    /// Expected `-` or `->` to close a relationship pattern.
+    ///
+    /// Docs: `docs/errors/E0014.md`
+    E0014 = 14,
+    /// Expected `]` to close a relationship detail block.
+    ///
+    /// Docs: `docs/errors/E0015.md`
+    E0015 = 15,
+    /// Expected a label name after `:`.
+    ///
+    /// Docs: `docs/errors/E0016.md`
+    E0016 = 16,
+    /// Expected a relationship type name after `:`.
+    ///
+    /// Docs: `docs/errors/E0017.md`
+    E0017 = 17,
+    /// Expected `}` to close a property map.
+    ///
+    /// Docs: `docs/errors/E0018.md`
+    E0018 = 18,
+    /// Expected a property key identifier.
+    ///
+    /// Docs: `docs/errors/E0019.md`
+    E0019 = 19,
+    /// Expected `:` separating a property key from its value.
+    ///
+    /// Docs: `docs/errors/E0020.md`
+    E0020 = 20,
+    /// Expected an expression for a property value.
+    ///
+    /// Docs: `docs/errors/E0021.md`
+    E0021 = 21,
+    /// Expected an identifier.
+    ///
+    /// Docs: `docs/errors/E0022.md`
+    E0022 = 22,
+    /// Expression nesting depth exceeds the parser limit.
+    ///
+    /// Docs: `docs/errors/E0023.md`
+    E0023 = 23,
+    /// Expected an operand after a unary operator.
+    ///
+    /// Docs: `docs/errors/E0024.md`
+    E0024 = 24,
+    /// Expected `NULL` after `IS` (or `IS NOT`).
+    ///
+    /// Docs: `docs/errors/E0025.md`
+    E0025 = 25,
+    /// Expected a right-hand side operand for a binary expression.
+    ///
+    /// Docs: `docs/errors/E0026.md`
+    E0026 = 26,
+    /// Expected an expression inside parentheses.
+    ///
+    /// Docs: `docs/errors/E0027.md`
+    E0027 = 27,
+    /// Expected `)` to close a parenthesised expression.
+    ///
+    /// Docs: `docs/errors/E0028.md`
+    E0028 = 28,
+    /// Expected `WITH` after `STARTS` (i.e. `STARTS WITH`).
+    ///
+    /// Docs: `docs/errors/E0029.md`
+    E0029 = 29,
+    /// Expected `WITH` after `ENDS` (i.e. `ENDS WITH`).
+    ///
+    /// Docs: `docs/errors/E0030.md`
+    E0030 = 30,
+    /// Expected a property key name after `.`.
+    ///
+    /// Docs: `docs/errors/E0031.md`
+    E0031 = 31,
+    /// Expected an index expression inside `[…]`.
+    ///
+    /// Docs: `docs/errors/E0032.md`
+    E0032 = 32,
+    /// Expected `]` to close a subscript / index expression.
+    ///
+    /// Docs: `docs/errors/E0033.md`
+    E0033 = 33,
+    /// Expected `)` to close a function call argument list.
+    ///
+    /// Docs: `docs/errors/E0034.md`
+    E0034 = 34,
+    /// Expected a function call argument expression.
+    ///
+    /// Docs: `docs/errors/E0035.md`
+    E0035 = 35,
+    /// Expected an expression in a `RETURN` item.
+    ///
+    /// Docs: `docs/errors/E0036.md`
+    E0036 = 36,
+    /// Expected an identifier after `AS` (alias).
+    ///
+    /// Docs: `docs/errors/E0037.md`
+    E0037 = 37,
+    /// Expected `BY` after `ORDER` (i.e. `ORDER BY`).
+    ///
+    /// Docs: `docs/errors/E0038.md`
+    E0038 = 38,
+    /// Expected an expression in an `ORDER BY` item.
+    ///
+    /// Docs: `docs/errors/E0039.md`
+    E0039 = 39,
+    /// Expected an expression after `SKIP`.
+    ///
+    /// Docs: `docs/errors/E0040.md`
+    E0040 = 40,
+    /// Expected an expression after `LIMIT`.
+    ///
+    /// Docs: `docs/errors/E0041.md`
+    E0041 = 41,
+    /// Expected `MATCH` after `OPTIONAL`.
+    ///
+    /// Docs: `docs/errors/E0042.md`
+    E0042 = 42,
+    /// Expected an expression after `WHERE`.
+    ///
+    /// Docs: `docs/errors/E0043.md`
+    E0043 = 43,
+    /// Clause keyword encountered that is not yet implemented (deferred construct).
+    ///
+    /// Docs: `docs/errors/E0044.md`
+    E0044 = 44,
+    /// Expected a clause keyword (`MATCH`, `WITH`, `RETURN`, …).
+    ///
+    /// Docs: `docs/errors/E0045.md`
+    E0045 = 45,
+    /// Invalid escape sequence in a string literal.
+    ///
+    /// Docs: `docs/errors/E0046.md`
+    E0046 = 46,
 
     // --- name resolution (1000..) ------------------------------------
     /// Unresolved variable.
@@ -142,6 +313,46 @@ impl DiagCode {
             Self::E0004 => "E0004",
             Self::E0005 => "E0005",
             Self::E0006 => "E0006",
+            Self::E0007 => "E0007",
+            Self::E0008 => "E0008",
+            Self::E0009 => "E0009",
+            Self::E0010 => "E0010",
+            Self::E0011 => "E0011",
+            Self::E0012 => "E0012",
+            Self::E0013 => "E0013",
+            Self::E0014 => "E0014",
+            Self::E0015 => "E0015",
+            Self::E0016 => "E0016",
+            Self::E0017 => "E0017",
+            Self::E0018 => "E0018",
+            Self::E0019 => "E0019",
+            Self::E0020 => "E0020",
+            Self::E0021 => "E0021",
+            Self::E0022 => "E0022",
+            Self::E0023 => "E0023",
+            Self::E0024 => "E0024",
+            Self::E0025 => "E0025",
+            Self::E0026 => "E0026",
+            Self::E0027 => "E0027",
+            Self::E0028 => "E0028",
+            Self::E0029 => "E0029",
+            Self::E0030 => "E0030",
+            Self::E0031 => "E0031",
+            Self::E0032 => "E0032",
+            Self::E0033 => "E0033",
+            Self::E0034 => "E0034",
+            Self::E0035 => "E0035",
+            Self::E0036 => "E0036",
+            Self::E0037 => "E0037",
+            Self::E0038 => "E0038",
+            Self::E0039 => "E0039",
+            Self::E0040 => "E0040",
+            Self::E0041 => "E0041",
+            Self::E0042 => "E0042",
+            Self::E0043 => "E0043",
+            Self::E0044 => "E0044",
+            Self::E0045 => "E0045",
+            Self::E0046 => "E0046",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E1003 => "E1003",
@@ -209,6 +420,46 @@ impl DiagCode {
         Self::E0004,
         Self::E0005,
         Self::E0006,
+        Self::E0007,
+        Self::E0008,
+        Self::E0009,
+        Self::E0010,
+        Self::E0011,
+        Self::E0012,
+        Self::E0013,
+        Self::E0014,
+        Self::E0015,
+        Self::E0016,
+        Self::E0017,
+        Self::E0018,
+        Self::E0019,
+        Self::E0020,
+        Self::E0021,
+        Self::E0022,
+        Self::E0023,
+        Self::E0024,
+        Self::E0025,
+        Self::E0026,
+        Self::E0027,
+        Self::E0028,
+        Self::E0029,
+        Self::E0030,
+        Self::E0031,
+        Self::E0032,
+        Self::E0033,
+        Self::E0034,
+        Self::E0035,
+        Self::E0036,
+        Self::E0037,
+        Self::E0038,
+        Self::E0039,
+        Self::E0040,
+        Self::E0041,
+        Self::E0042,
+        Self::E0043,
+        Self::E0044,
+        Self::E0045,
+        Self::E0046,
         Self::E1001,
         Self::E1002,
         Self::E1003,
@@ -270,6 +521,46 @@ mod tests {
             DiagCode::E0004,
             DiagCode::E0005,
             DiagCode::E0006,
+            DiagCode::E0007,
+            DiagCode::E0008,
+            DiagCode::E0009,
+            DiagCode::E0010,
+            DiagCode::E0011,
+            DiagCode::E0012,
+            DiagCode::E0013,
+            DiagCode::E0014,
+            DiagCode::E0015,
+            DiagCode::E0016,
+            DiagCode::E0017,
+            DiagCode::E0018,
+            DiagCode::E0019,
+            DiagCode::E0020,
+            DiagCode::E0021,
+            DiagCode::E0022,
+            DiagCode::E0023,
+            DiagCode::E0024,
+            DiagCode::E0025,
+            DiagCode::E0026,
+            DiagCode::E0027,
+            DiagCode::E0028,
+            DiagCode::E0029,
+            DiagCode::E0030,
+            DiagCode::E0031,
+            DiagCode::E0032,
+            DiagCode::E0033,
+            DiagCode::E0034,
+            DiagCode::E0035,
+            DiagCode::E0036,
+            DiagCode::E0037,
+            DiagCode::E0038,
+            DiagCode::E0039,
+            DiagCode::E0040,
+            DiagCode::E0041,
+            DiagCode::E0042,
+            DiagCode::E0043,
+            DiagCode::E0044,
+            DiagCode::E0045,
+            DiagCode::E0046,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E1003,

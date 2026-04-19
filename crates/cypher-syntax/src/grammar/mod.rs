@@ -26,7 +26,7 @@
 //! (`cy-a4d`).
 
 use crate::SyntaxKind;
-use crate::parser::{Parser, TokenSet};
+use crate::parser::{Parser, TokenSet, syntax_codes as sc};
 
 pub(crate) mod clause;
 pub(crate) mod expression;
@@ -63,7 +63,7 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
     // clause keyword or `;`, skip until we see one (or EOF). This gives
     // the `garbage MATCH ...` case a usable tree.
     if p.current() != SyntaxKind::EOF && !p.at_ts(CLAUSE_START) && !p.at(SyntaxKind::SEMI) {
-        p.error("expected statement");
+        p.error_code(sc::EXPECTED_STATEMENT, "expected statement");
         p.recover_until(TokenSet::EMPTY);
     }
 
@@ -81,7 +81,10 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
             // No separator and more input: recover to the next clause or
             // semicolon so we don't loop forever.
             if !p.at_ts(CLAUSE_START) {
-                p.error("expected ';' or end of input");
+                p.error_code(
+                    sc::EXPECTED_SEMICOLON_OR_EOF,
+                    "expected ';' or end of input",
+                );
                 p.recover_until(TokenSet::EMPTY);
             }
         }
