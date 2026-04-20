@@ -168,8 +168,18 @@ impl Printer {
 
     fn emit_comment(&mut self, text: &str, kind: SyntaxKind) {
         if kind == SyntaxKind::LINE_COMMENT {
-            // Ensure we're on a fresh line or separate with space.
-            if self.at_line_start {
+            // Spec §13.2 I13.3: if there is at least one newline in the trivia
+            // BEFORE this comment token (pending == Newline), treat it as a
+            // *leading* comment for the next significant token — emit it on its
+            // own line. Otherwise (same-line trivia only), treat it as a
+            // trailing comment on the current line.
+            let is_leading = self.at_line_start || self.pending == Pending::Newline;
+            if is_leading {
+                if !self.at_line_start {
+                    // We have content on the current line; start a new one first.
+                    self.out.push('\n');
+                    self.at_line_start = true;
+                }
                 self.flush_pending_newlines();
             } else {
                 self.flush_pending_as_space();

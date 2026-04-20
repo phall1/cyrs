@@ -2,5 +2,6 @@
 source: crates/cypher-fmt/src/lib.rs
 expression: "fmt(\"MATCH (n:Person)\\n// project fields\\nRETURN n.name, n.age\")"
 ---
-MATCH (n:Person) // project fields
+MATCH (n:Person)
+// project fields
 RETURN n.name, n.age
