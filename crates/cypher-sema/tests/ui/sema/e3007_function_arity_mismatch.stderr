@@ -1,0 +1,6 @@
+error[E3007]: function `my_func` expects exactly 1 argument(s) but got 3
+  ┌─ e3007_function_arity_mismatch.cypher:1:1
+  │
+1 │ // E3007: function called with wrong number of arguments (schema-aware)
+  │ ^
+

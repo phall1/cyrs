@@ -1,0 +1,6 @@
+error[E1001]: unresolved variable `z`
+  ┌─ e1001_with_barrier_dropped.cypher:1:1
+  │
+1 │ // E1001: variable dropped by WITH barrier.
+  │ ^
+

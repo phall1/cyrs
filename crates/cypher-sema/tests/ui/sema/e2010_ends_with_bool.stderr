@@ -1,0 +1,6 @@
+error[E2010]: string operator requires `String` operands but found `Bool`
+  ┌─ e2010_ends_with_bool.cypher:1:1
+  │
+1 │ // E2010: boolean operand in ENDS WITH
+  │ ^
+

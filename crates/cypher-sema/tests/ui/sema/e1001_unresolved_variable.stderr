@@ -1,0 +1,6 @@
+error[E1001]: unresolved variable `z`
+  ┌─ e1001_unresolved_variable.cypher:1:1
+  │
+1 │ // E1001: unresolved variable
+  │ ^
+

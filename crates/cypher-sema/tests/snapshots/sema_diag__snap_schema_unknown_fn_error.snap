@@ -1,0 +1,9 @@
+---
+source: crates/cypher-sema/tests/sema_diag.rs
+expression: "render_diags_with_schema(src, \"e3006_unknown_function.cypher\", &schema)"
+---
+error[E3006]: unknown function ``
+  ┌─ e3006_unknown_function.cypher:1:1
+  │
+1 │ RETURN ghost.fn('hello')
+  │ ^

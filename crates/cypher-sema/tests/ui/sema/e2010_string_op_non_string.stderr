@@ -1,0 +1,6 @@
+error[E2010]: string operator requires `String` operands but found `Int`
+  ┌─ e2010_string_op_non_string.cypher:1:1
+  │
+1 │ // E2010: non-string operand in string operator
+  │ ^
+

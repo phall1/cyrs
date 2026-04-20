@@ -1,0 +1,9 @@
+---
+source: crates/cypher-sema/tests/sema_diag.rs
+expression: "render_diags(src, \"e2010_string_op_non_string.cypher\")"
+---
+error[E2010]: string operator requires `String` operands but found `Int`
+  ┌─ e2010_string_op_non_string.cypher:1:1
+  │
+1 │ RETURN 42 STARTS WITH 'hello'
+  │ ^

@@ -1,0 +1,12 @@
+error[E2007]: variable `r` has kind `Relationship` but is used in an arithmetic expression; only `Value` variables are valid here
+  ┌─ e2007_rel_in_arithmetic.cypher:1:1
+  │
+1 │ // E2007: relationship variable used in arithmetic context
+  │ ^
+
+error[E2009]: arithmetic operand must be numeric (`Int`, `Float`, or `Num`) but found `Relationship`
+  ┌─ e2007_rel_in_arithmetic.cypher:1:1
+  │
+1 │ // E2007: relationship variable used in arithmetic context
+  │ ^
+
