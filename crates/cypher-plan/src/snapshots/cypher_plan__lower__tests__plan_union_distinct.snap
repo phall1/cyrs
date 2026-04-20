@@ -1,0 +1,12 @@
+---
+source: crates/cypher-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 5
+write_ops: 0
+var_map_entries: 2
+op[0]: Source(label=["Person"], bind=0)
+op[1]: Project(input=0, cols=1)
+op[2]: Source(label=["Animal"], bind=0)
+op[3]: Project(input=0, cols=1)
+op[4]: Union(left=1, right=3, kind=Distinct)

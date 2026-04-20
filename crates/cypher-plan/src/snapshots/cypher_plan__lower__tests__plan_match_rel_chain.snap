@@ -1,0 +1,10 @@
+---
+source: crates/cypher-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 3
+write_ops: 0
+var_map_entries: 2
+op[0]: Source(label=None, bind=0)
+op[1]: Expand(from=0, bind_rel=2, bind_to=1)
+op[2]: Project(input=1, cols=2)

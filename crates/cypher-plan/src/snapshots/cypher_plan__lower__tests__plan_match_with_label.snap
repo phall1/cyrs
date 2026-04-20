@@ -1,0 +1,9 @@
+---
+source: crates/cypher-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 2
+write_ops: 0
+var_map_entries: 1
+op[0]: Source(label=["Person"], bind=0)
+op[1]: Project(input=0, cols=1)
