@@ -211,40 +211,38 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E0046.md`
     E0046 = 46,
 
-    // --- name resolution (1000..) ------------------------------------
-    /// Unresolved variable.
+    // --- name resolution (E1000–E1999) --------------------------------
+    /// Unresolved variable reference (spec §6.2).
+    ///
+    /// Emitted by `cypher-sema` resolve pass when a name that appears in
+    /// an expression position cannot be found in any enclosing scope.
+    ///
+    /// Docs: `docs/errors/E1001.md`
     E1001 = 1001,
-    /// Variable shadows an outer binding.
+    /// Variable shadows an outer binding (spec §6.2).
+    ///
+    /// Emitted as a **warning** when `SemaOptions::warn_shadowing` is set
+    /// and a new binding introduces a name already visible in an outer scope.
+    ///
+    /// Docs: `docs/errors/E1002.md`
     E1002 = 1002,
-    /// Variable used before binding.
-    E1003 = 1003,
-    /// Kind mismatch (e.g., path variable used as node).
-    E1004 = 1004,
-    /// Relationship variable repeated in same MATCH.
-    E1005 = 1005,
 
-    // --- semantic schema-free (2000..) -------------------------------
-    /// Aggregation outside a projection context.
-    E2001 = 2001,
-    /// Nested aggregation.
-    E2002 = 2002,
-    /// Illegal clause ordering.
-    E2003 = 2003,
-    /// ORDER BY over invisible variable.
-    E2004 = 2004,
-    /// Parameter used with incompatible types.
-    E2005 = 2005,
-    /// `RETURN *` with empty scope.
-    E2006 = 2006,
+    // --- semantic schema-free (E2000–E2999) --------------------------
     /// Variable used in arithmetic / numeric context but has non-Value kind
     /// (Node, Relationship, or Path). Schema-free kind-consistency check
     /// (spec §6.3).
     ///
+    /// Emitted by `cypher-sema` kinds pass when a Node/Relationship/Path
+    /// variable appears as an operand of an arithmetic expression.
+    ///
     /// Docs: `docs/errors/E2007.md`
     E2007 = 2007,
     /// Variable of incorrect kind used in pattern position (spec §6.3).
+    ///
     /// E.g., a `Value` variable where a node-pattern binder is expected, or
     /// a `Node` variable where a path binder is expected.
+    ///
+    /// Emitted by `cypher-sema` kinds pass.
     ///
     /// Docs: `docs/errors/E2008.md`
     E2008 = 2008,
@@ -284,31 +282,69 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E2013.md`
     E2013 = 2013,
 
-    // --- semantic schema-aware (3000..) ------------------------------
-    /// Unknown label.
+    // --- semantic schema-aware (E3000–E3999) -------------------------
+    /// Unknown node label (spec §7.5).
+    ///
+    /// Emitted by `cypher-sema` schema-aware pass when a label referenced in
+    /// a node pattern is not declared in the schema.
+    ///
+    /// Docs: `docs/errors/E3001.md`
     E3001 = 3001,
-    /// Unknown relationship type.
+    /// Unknown relationship type (spec §7.5).
+    ///
+    /// Emitted by `cypher-sema` schema-aware pass when a relationship type
+    /// referenced in a pattern is not declared in the schema.
+    ///
+    /// Docs: `docs/errors/E3002.md`
     E3002 = 3002,
-    /// Unknown property on label.
+    /// Unknown property on label or relationship type (spec §7.5).
+    ///
+    /// Emitted when a property key in an inline pattern map is not declared
+    /// on any of the node's labels or the relationship's type.
+    ///
+    /// Docs: `docs/errors/E3003.md`
     E3003 = 3003,
-    /// Property type mismatch.
+    /// Property type mismatch (spec §7.5).
+    ///
+    /// Emitted when a literal value in an inline property map cannot be
+    /// stored in the declared property type (e.g., `String` into an `Int`
+    /// slot).
+    ///
+    /// Docs: `docs/errors/E3004.md`
     E3004 = 3004,
-    /// Relationship endpoint mismatch.
-    E3005 = 3005,
-    /// Unknown function.
+    /// Unknown function name (spec §7.5).
+    ///
+    /// Emitted by `cypher-sema` schema-aware pass when a function call
+    /// references a name not present in the `SchemaProvider`'s catalog.
+    ///
+    /// Docs: `docs/errors/E3006.md`
     E3006 = 3006,
-    /// Function arity mismatch.
+    /// Function or procedure arity mismatch (spec §7.5).
+    ///
+    /// Emitted when a function or procedure call provides the wrong number
+    /// of arguments compared to the declared signature.
+    ///
+    /// Docs: `docs/errors/E3007.md`
     E3007 = 3007,
-    /// Unknown procedure.
+    /// Unknown procedure name (spec §7.5).
+    ///
+    /// Emitted by `cypher-sema` schema-aware pass when a `CALL` clause
+    /// references a procedure not present in the `SchemaProvider`'s catalog.
+    ///
+    /// Docs: `docs/errors/E3008.md`
     E3008 = 3008,
 
-    // --- dialect (4000..) --------------------------------------------
-    /// Feature requires a different dialect mode.
+    // --- dialect (E4000–E4999) ----------------------------------------
+    /// Dialect not supported (spec §9.3).
+    ///
+    /// Emitted by `cypher-sema::dialect::reject_neo4j_current` when the
+    /// caller attempts to use the `Neo4jCurrent` dialect, which is not
+    /// part of v1 (spec §9.3, §19–§20).
+    ///
+    /// Docs: `docs/errors/E4001.md`
     E4001 = 4001,
-    /// Construct is deferred (spec §19 out-of-scope).
-    E4002 = 4002,
 
-    // --- dialect gates (4010..) assigned by cy-z49 -------------------
+    // --- dialect gates (E4010–E4019) assigned by cy-z49 --------------
     /// `label_negation` — `!` in label expressions; `GqlAligned` only (spec §9.2).
     ///
     /// Docs: `docs/errors/E4010.md`
@@ -350,13 +386,12 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E4019.md`
     E4019 = 4019,
 
-    // --- type system (5000..) ----------------------------------------
-    /// Structural type error (e.g., indexing a boolean).
-    E5001 = 5001,
-    /// Arithmetic on non-numeric operands.
-    E5002 = 5002,
+    // --- type system (E5000–E5999) ------------------------------------
     /// Type mismatch in unification — two incompatible concrete types cannot
     /// be unified (spec §7.2, §7.3).
+    ///
+    /// Produced by `cypher-sema::unify::TypeMismatch::into_diagnostic`.
+    /// Call sites supply the source range; code is always `E5003`.
     ///
     /// Docs: `docs/errors/E5003.md`
     E5003 = 5003,
@@ -449,15 +484,6 @@ impl DiagCode {
             Self::E0046 => "E0046",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
-            Self::E1003 => "E1003",
-            Self::E1004 => "E1004",
-            Self::E1005 => "E1005",
-            Self::E2001 => "E2001",
-            Self::E2002 => "E2002",
-            Self::E2003 => "E2003",
-            Self::E2004 => "E2004",
-            Self::E2005 => "E2005",
-            Self::E2006 => "E2006",
             Self::E2007 => "E2007",
             Self::E2008 => "E2008",
             Self::E2009 => "E2009",
@@ -469,12 +495,10 @@ impl DiagCode {
             Self::E3002 => "E3002",
             Self::E3003 => "E3003",
             Self::E3004 => "E3004",
-            Self::E3005 => "E3005",
             Self::E3006 => "E3006",
             Self::E3007 => "E3007",
             Self::E3008 => "E3008",
             Self::E4001 => "E4001",
-            Self::E4002 => "E4002",
             Self::E4010 => "E4010",
             Self::E4011 => "E4011",
             Self::E4012 => "E4012",
@@ -485,8 +509,6 @@ impl DiagCode {
             Self::E4017 => "E4017",
             Self::E4018 => "E4018",
             Self::E4019 => "E4019",
-            Self::E5001 => "E5001",
-            Self::E5002 => "E5002",
             Self::E5003 => "E5003",
             Self::W6001 => "W6001",
             Self::W6002 => "W6002",
@@ -574,15 +596,6 @@ impl DiagCode {
         Self::E0046,
         Self::E1001,
         Self::E1002,
-        Self::E1003,
-        Self::E1004,
-        Self::E1005,
-        Self::E2001,
-        Self::E2002,
-        Self::E2003,
-        Self::E2004,
-        Self::E2005,
-        Self::E2006,
         Self::E2007,
         Self::E2008,
         Self::E2009,
@@ -594,12 +607,10 @@ impl DiagCode {
         Self::E3002,
         Self::E3003,
         Self::E3004,
-        Self::E3005,
         Self::E3006,
         Self::E3007,
         Self::E3008,
         Self::E4001,
-        Self::E4002,
         Self::E4010,
         Self::E4011,
         Self::E4012,
@@ -610,8 +621,6 @@ impl DiagCode {
         Self::E4017,
         Self::E4018,
         Self::E4019,
-        Self::E5001,
-        Self::E5002,
         Self::E5003,
         Self::W6001,
         Self::W6002,
@@ -693,15 +702,6 @@ mod tests {
             DiagCode::E0046,
             DiagCode::E1001,
             DiagCode::E1002,
-            DiagCode::E1003,
-            DiagCode::E1004,
-            DiagCode::E1005,
-            DiagCode::E2001,
-            DiagCode::E2002,
-            DiagCode::E2003,
-            DiagCode::E2004,
-            DiagCode::E2005,
-            DiagCode::E2006,
             DiagCode::E2007,
             DiagCode::E2008,
             DiagCode::E2009,
@@ -713,12 +713,10 @@ mod tests {
             DiagCode::E3002,
             DiagCode::E3003,
             DiagCode::E3004,
-            DiagCode::E3005,
             DiagCode::E3006,
             DiagCode::E3007,
             DiagCode::E3008,
             DiagCode::E4001,
-            DiagCode::E4002,
             DiagCode::E4010,
             DiagCode::E4011,
             DiagCode::E4012,
@@ -729,8 +727,6 @@ mod tests {
             DiagCode::E4017,
             DiagCode::E4018,
             DiagCode::E4019,
-            DiagCode::E5001,
-            DiagCode::E5002,
             DiagCode::E5003,
             DiagCode::W6001,
             DiagCode::W6002,
