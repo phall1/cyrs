@@ -1,0 +1,6 @@
+---
+source: crates/cypher-sema/src/infer.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E2012: `IN` operand type `Bool` is not compatible with list element type `Int`

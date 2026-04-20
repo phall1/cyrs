@@ -21,11 +21,13 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
 
+pub mod infer;
 pub mod kinds;
 pub mod resolve;
 pub mod ty;
 pub mod unify;
 
+pub use infer::infer_types;
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
 pub use ty::{LabelSet, Type};
@@ -46,7 +48,8 @@ pub struct SemaOptions {
 /// Entry point. Runs all passes against the statement, emitting into the
 /// sink. No pass short-circuits on first error (spec §10.4).
 ///
-/// Currently runs: name resolution (§6.2).
+/// Pass order: name resolution (§6.2) → kind-consistency (§6.3) →
+/// schema-free type inference (§7.4).
 pub fn analyse(
     stmt: &Statement,
     _schema: Option<&dyn SchemaProvider>,
@@ -58,6 +61,9 @@ pub fn analyse(
 
     // Pass 2: kind-consistency (§6.3).
     kinds::check_kinds(stmt, sink);
+
+    // Pass 3: schema-free type inference (§7.4).
+    infer::infer_types(stmt, sink);
 }
 
 #[cfg(test)]
