@@ -1,0 +1,9 @@
+---
+source: crates/cypher-sema/src/resolve.rs
+expression: "render_src(\"OPTIONAL MATCH (a:Person) RETURN a\")"
+---
+scopes: 3
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=OptionalMatch parent=Some(0) bindings=["a"]
+  scope[2] kind=Return parent=Some(1) bindings=[]
+diagnostics: 0

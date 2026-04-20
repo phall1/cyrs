@@ -1,0 +1,15 @@
+---
+source: crates/cypher-sema/src/resolve.rs
+expression: "render_result(&stmt, false)"
+---
+scopes: 9
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=Match parent=Some(0) bindings=["a"]
+  scope[2] kind=Match parent=Some(1) bindings=["b"]
+  scope[3] kind=WithBarrier[a] parent=Some(2) bindings=[]
+  scope[4] kind=Root parent=Some(3) bindings=["a"]
+  scope[5] kind=Match parent=Some(4) bindings=["c"]
+  scope[6] kind=WithBarrier[a,c] parent=Some(5) bindings=[]
+  scope[7] kind=Root parent=Some(6) bindings=["a", "c"]
+  scope[8] kind=Return parent=Some(7) bindings=[]
+diagnostics: 0

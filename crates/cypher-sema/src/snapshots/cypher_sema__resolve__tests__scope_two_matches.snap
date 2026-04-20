@@ -1,0 +1,10 @@
+---
+source: crates/cypher-sema/src/resolve.rs
+expression: "render_src(\"MATCH (a) MATCH (b) RETURN a\")"
+---
+scopes: 4
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=Match parent=Some(0) bindings=["a"]
+  scope[2] kind=Match parent=Some(1) bindings=["b"]
+  scope[3] kind=Return parent=Some(2) bindings=[]
+diagnostics: 0

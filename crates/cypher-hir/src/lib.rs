@@ -15,8 +15,18 @@
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
 
 pub mod lower;
+pub mod scope;
+
+pub use scope::{
+    BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
+    ScopeNode,
+};
 
 use cypher_syntax::{SyntaxNode, TextRange};
+
+// Re-export span types so downstream crates (cypher-sema) can use them
+// without adding a direct cypher-syntax dependency.
+pub use cypher_syntax::{TextRange as HirSpan, TextSize as HirOffset};
 use indexmap::IndexMap;
 use smol_str::SmolStr;
 

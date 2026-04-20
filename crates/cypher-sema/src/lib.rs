@@ -12,9 +12,17 @@
 //! The type system (§7.2) is a small unification engine over [`Type`].
 //! `Any` is the universal subtype: queries without schema produce Any-
 //! typed property reads; only structural errors surface.
+//!
+//! Name resolution (§6.2) lives in [`resolve`]: it produces a
+//! [`ScopeGraph`] + [`ResolvedNames`] table and emits `E1001`/`E1002`
+//! diagnostics.
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
+
+pub mod resolve;
+
+pub use resolve::{ResolveResult, resolve};
 
 use cypher_diag::DiagnosticsSink;
 use cypher_hir::Statement;
@@ -56,15 +64,16 @@ pub struct SemaOptions {
 
 /// Entry point. Runs all passes against the statement, emitting into the
 /// sink. No pass short-circuits on first error (spec §10.4).
+///
+/// Currently runs: name resolution (§6.2).
 pub fn analyse(
-    _stmt: &Statement,
+    stmt: &Statement,
     _schema: Option<&dyn SchemaProvider>,
-    _options: &SemaOptions,
+    options: &SemaOptions,
     sink: &mut DiagnosticsSink,
 ) {
-    // Passes land with the grammar. Until then, `analyse` is a no-op; the
-    // signature is committed so callers may depend on it.
-    let _ = sink;
+    // Pass 1: name resolution (§6.2).
+    let _result = resolve::resolve(stmt, options.warn_shadowing, sink);
 }
 
 #[cfg(test)]
