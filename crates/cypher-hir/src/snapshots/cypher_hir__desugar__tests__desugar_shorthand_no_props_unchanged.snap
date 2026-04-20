@@ -1,0 +1,5 @@
+---
+source: crates/cypher-hir/src/desugar.rs
+expression: "format!(\"before: {before_count}, after: {}\", desugared.clauses.len())"
+---
+before: 2, after: 2

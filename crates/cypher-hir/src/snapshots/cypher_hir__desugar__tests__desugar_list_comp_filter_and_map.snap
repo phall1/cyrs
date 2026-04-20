@@ -1,0 +1,5 @@
+---
+source: crates/cypher-hir/src/desugar.rs
+expression: render_expr(&expr)
+---
+ListComp(var=1, iterable=Var(0), filter=BinOp(Gt, Var(1), Int(0)), map=BinOp(Mul, Var(1), Int(2)))

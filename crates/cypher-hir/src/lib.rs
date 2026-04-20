@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
 
+pub mod desugar;
 pub mod lower;
 
 use cypher_syntax::{SyntaxNode, TextRange};
@@ -379,9 +380,45 @@ pub enum Expr {
         list: Box<Expr>,
     },
     PatternPredicate(Pattern),
+    /// Desugared list comprehension (spec §6.1).
+    ///
+    /// `[x IN xs WHERE p(x) | e(x)]` is lowered to this canonical form.
+    /// `filter_var` is the iteration variable, `iterable` is the source
+    /// list, `filter` is the optional predicate (present when `WHERE`
+    /// appears), and `map_expr` is the projection expression (the part
+    /// after `|`; equals `Expr::Var(filter_var)` when omitted).
+    ListComprehension {
+        filter_var: VarId,
+        iterable: Box<Expr>,
+        filter: Option<Box<Expr>>,
+        map_expr: Box<Expr>,
+    },
+    /// Desugared map projection (spec §6.1).
+    ///
+    /// `a { .name, .age, computed: f(a) }` is lowered to an explicit map
+    /// construction carrying the base expression and a list of named
+    /// fields. Each [`MapProjectionItem`] is either a property copy or a
+    /// computed key-value pair.
+    MapProjection {
+        base: Box<Expr>,
+        items: Vec<MapProjectionItem>,
+    },
     /// Unresolved variable reference surviving name resolution; carries
     /// the original name for diagnostic messages.
     Unresolved(SmolStr),
+}
+
+/// One item in a [`Expr::MapProjection`] (spec §6.1).
+#[derive(Debug, Clone)]
+pub enum MapProjectionItem {
+    /// `.prop` — copy property `prop` from the base expression.
+    PropCopy { prop: SmolStr },
+    /// `key: expr` — computed key-value pair.
+    Computed { key: SmolStr, value: Expr },
+    /// `varName` — include a variable as `{varName: varName}`.
+    VarShorthand { var: VarId, name: SmolStr },
+    /// `varName: expr` — aliased expression inside projection.
+    Aliased { key: SmolStr, value: Expr },
 }
 
 /// Binary operators (spec §5.6 / §7.2).

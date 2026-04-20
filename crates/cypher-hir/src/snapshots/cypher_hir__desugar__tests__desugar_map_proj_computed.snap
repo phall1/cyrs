@@ -1,0 +1,5 @@
+---
+source: crates/cypher-hir/src/desugar.rs
+expression: render_expr(&expr)
+---
+MapProj(Var(0), [computed: Call(f(Var(0)))])
