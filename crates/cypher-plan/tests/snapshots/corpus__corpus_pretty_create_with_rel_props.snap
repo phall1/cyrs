@@ -1,0 +1,9 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+WriteOps:
+  CreateNode (:Person AS $0) props={}
+  CreateNode (:Person AS $1) props={}
+  CreateRel ($0)-[:KNOWS AS $2]->($1)
+    props={since: 2020}
