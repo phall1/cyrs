@@ -65,8 +65,9 @@ fn all_covers_every_variant() {
 fn all_count_pinned() {
     // When you add a variant to `DiagCode`, append it to `ALL` and
     // bump this number. This ensures the registry stays exhaustive.
-    // Current count: 83 (46 syntax + 5 name-res + 6 sema-free + 8
+    // Current count: 85 (46 syntax + 5 name-res + 8 sema-free + 8
     // sema-aware + 2 dialect + 2 type + 7 style + 4 perf + 3 note).
-    const EXPECTED: usize = 83;
+    // Added E2007 (kind-in-arithmetic, §6.3) and E2008 (kind-in-pattern, §6.3).
+    const EXPECTED: usize = 85;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

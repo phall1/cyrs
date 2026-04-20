@@ -20,8 +20,10 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
 
+pub mod kinds;
 pub mod resolve;
 
+pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
 
 use cypher_diag::DiagnosticsSink;
@@ -74,6 +76,9 @@ pub fn analyse(
 ) {
     // Pass 1: name resolution (§6.2).
     let _result = resolve::resolve(stmt, options.warn_shadowing, sink);
+
+    // Pass 2: kind-consistency (§6.3).
+    kinds::check_kinds(stmt, sink);
 }
 
 #[cfg(test)]
