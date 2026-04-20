@@ -21,12 +21,14 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
 
+pub mod dialect;
 pub mod infer;
 pub mod kinds;
 pub mod resolve;
 pub mod ty;
 pub mod unify;
 
+pub use dialect::{DialectMode, check_dialect, reject_neo4j_current};
 pub use infer::infer_types;
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
@@ -43,13 +45,15 @@ use smol_str::SmolStr;
 pub struct SemaOptions {
     pub parameter_hints: Vec<(SmolStr, Type)>,
     pub warn_shadowing: bool,
+    /// Dialect to use for gate checks (§9). Defaults to [`DialectMode::GqlAligned`].
+    pub dialect: DialectMode,
 }
 
 /// Entry point. Runs all passes against the statement, emitting into the
 /// sink. No pass short-circuits on first error (spec §10.4).
 ///
 /// Pass order: name resolution (§6.2) → kind-consistency (§6.3) →
-/// schema-free type inference (§7.4).
+/// dialect gates (§9) → schema-free type inference (§7.4).
 pub fn analyse(
     stmt: &Statement,
     _schema: Option<&dyn SchemaProvider>,
@@ -62,7 +66,10 @@ pub fn analyse(
     // Pass 2: kind-consistency (§6.3).
     kinds::check_kinds(stmt, sink);
 
-    // Pass 3: schema-free type inference (§7.4).
+    // Pass 3: dialect gates (§9) — after resolution, before schema-aware.
+    dialect::check_dialect(stmt, options.dialect, sink);
+
+    // Pass 4: schema-free type inference (§7.4).
     infer::infer_types(stmt, sink);
 }
 

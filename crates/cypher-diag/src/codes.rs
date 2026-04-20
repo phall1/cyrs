@@ -308,6 +308,48 @@ pub enum DiagCode {
     /// Construct is deferred (spec §19 out-of-scope).
     E4002 = 4002,
 
+    // --- dialect gates (4010..) assigned by cy-z49 -------------------
+    /// `label_negation` — `!` in label expressions; `GqlAligned` only (spec §9.2).
+    ///
+    /// Docs: `docs/errors/E4010.md`
+    E4010 = 4010,
+    /// `label_union` — `A|B` label-union in patterns; allowed in both v1 dialects (spec §9.2).
+    ///
+    /// Docs: `docs/errors/E4011.md`
+    E4011 = 4011,
+    /// `integer_division` — `/` with integer operands; `OpenCypherV9` only (spec §9.2).
+    ///
+    /// Docs: `docs/errors/E4012.md`
+    E4012 = 4012,
+    /// `union_set` — plain `UNION` (set-semantics); allowed in both v1 dialects.
+    ///
+    /// Docs: `docs/errors/E4013.md`
+    E4013 = 4013,
+    /// `call_procedure` — `CALL proc YIELD …`; allowed in both v1 dialects.
+    ///
+    /// Docs: `docs/errors/E4014.md`
+    E4014 = 4014,
+    /// `load_csv` — `LOAD CSV` clause; deferred (spec §9.3).
+    ///
+    /// Docs: `docs/errors/E4015.md`
+    E4015 = 4015,
+    /// `apoc_functions` — APOC-prefixed functions; deferred (spec §9.3).
+    ///
+    /// Docs: `docs/errors/E4016.md`
+    E4016 = 4016,
+    /// `exists_subquery` — `EXISTS { }` subquery; deferred (spec §9.3).
+    ///
+    /// Docs: `docs/errors/E4017.md`
+    E4017 = 4017,
+    /// `cypher_prefix` — `CYPHER n MATCH …` header; deferred (spec §9.3).
+    ///
+    /// Docs: `docs/errors/E4018.md`
+    E4018 = 4018,
+    /// `call_in_transactions` — `CALL { } IN TRANSACTIONS`; deferred (spec §9.3).
+    ///
+    /// Docs: `docs/errors/E4019.md`
+    E4019 = 4019,
+
     // --- type system (5000..) ----------------------------------------
     /// Structural type error (e.g., indexing a boolean).
     E5001 = 5001,
@@ -433,6 +475,16 @@ impl DiagCode {
             Self::E3008 => "E3008",
             Self::E4001 => "E4001",
             Self::E4002 => "E4002",
+            Self::E4010 => "E4010",
+            Self::E4011 => "E4011",
+            Self::E4012 => "E4012",
+            Self::E4013 => "E4013",
+            Self::E4014 => "E4014",
+            Self::E4015 => "E4015",
+            Self::E4016 => "E4016",
+            Self::E4017 => "E4017",
+            Self::E4018 => "E4018",
+            Self::E4019 => "E4019",
             Self::E5001 => "E5001",
             Self::E5002 => "E5002",
             Self::E5003 => "E5003",
@@ -548,6 +600,16 @@ impl DiagCode {
         Self::E3008,
         Self::E4001,
         Self::E4002,
+        Self::E4010,
+        Self::E4011,
+        Self::E4012,
+        Self::E4013,
+        Self::E4014,
+        Self::E4015,
+        Self::E4016,
+        Self::E4017,
+        Self::E4018,
+        Self::E4019,
         Self::E5001,
         Self::E5002,
         Self::E5003,
@@ -657,6 +719,16 @@ mod tests {
             DiagCode::E3008,
             DiagCode::E4001,
             DiagCode::E4002,
+            DiagCode::E4010,
+            DiagCode::E4011,
+            DiagCode::E4012,
+            DiagCode::E4013,
+            DiagCode::E4014,
+            DiagCode::E4015,
+            DiagCode::E4016,
+            DiagCode::E4017,
+            DiagCode::E4018,
+            DiagCode::E4019,
             DiagCode::E5001,
             DiagCode::E5002,
             DiagCode::E5003,
