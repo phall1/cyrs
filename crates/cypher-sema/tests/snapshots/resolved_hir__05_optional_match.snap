@@ -1,0 +1,22 @@
+---
+source: crates/cypher-sema/tests/resolved_hir.rs
+expression: "pipeline(\"OPTIONAL MATCH (a:Person) RETURN a\")"
+---
+Statement {
+  span: 0..34
+  bindings: [
+    Var(0) 0: a (Node) @16..17
+  ]
+  clauses: [
+    OptionalMatch @0..25 {
+      Pattern {
+        part[0] [
+          Node(a[bind:Var(0)←Node@16..17]:Person) @14..25
+        ]
+      }
+    }
+    Return(distinct=false) @25..34 {
+      proj[0]: Var(0)[a←Node@16..17]
+    }
+  ]
+}

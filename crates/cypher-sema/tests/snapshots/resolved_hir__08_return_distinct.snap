@@ -1,0 +1,22 @@
+---
+source: crates/cypher-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (n) RETURN DISTINCT n.name\")"
+---
+Statement {
+  span: 0..32
+  bindings: [
+    Var(0) 0: n (Node) @7..8
+  ]
+  clauses: [
+    Match @0..9 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@7..8]) @5..9
+        ]
+      }
+    }
+    Return(distinct=true) @9..32 {
+      proj[0]: Var(0)[n←Node@7..8].name
+    }
+  ]
+}

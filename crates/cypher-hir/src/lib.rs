@@ -16,6 +16,7 @@
 
 pub mod desugar;
 pub mod lower;
+pub mod pretty;
 pub mod scope;
 
 pub use scope::{

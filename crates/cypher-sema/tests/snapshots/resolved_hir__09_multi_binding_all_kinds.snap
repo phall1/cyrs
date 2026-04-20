@@ -1,0 +1,32 @@
+---
+source: crates/cypher-sema/tests/resolved_hir.rs
+expression: "pipeline_stmt(stmt, false)"
+---
+Statement {
+  span: 0..0
+  bindings: [
+    Var(0) 0: n (Node) @0..0
+    Var(1) 1: r (Relationship) @0..0
+    Var(2) 2: x (Value) @0..0
+  ]
+  clauses: [
+    Match @0..0 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@0..0]) @0..0
+          Rel(-> r[bind:Var(1)←Relationship@0..0]:KNOWS) @0..0
+          Node(_anon) @0..0
+        ]
+      }
+    }
+    Unwind @0..0 {
+      list: [1, 2, 3]
+      bind: x[bind:Var(2)←Value@0..0]
+    }
+    Return(distinct=false) @0..0 {
+      proj[0]: Var(0)[n←Node@0..0]
+      proj[1]: Var(1)[r←Relationship@0..0]
+      proj[2]: Var(2)[x←Value@0..0]
+    }
+  ]
+}
