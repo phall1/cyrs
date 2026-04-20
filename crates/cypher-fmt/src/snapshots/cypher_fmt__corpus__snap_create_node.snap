@@ -1,0 +1,5 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"CREATE (n:Person {name: 'Bob', age: 25})\")"
+---
+CREATE (n:Person {name: 'Bob', age: 25})

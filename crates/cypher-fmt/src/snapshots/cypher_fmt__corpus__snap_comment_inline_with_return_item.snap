@@ -1,0 +1,6 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) RETURN n.name, /* the age */ n.age\")"
+---
+MATCH (n)
+RETURN n.name, /* the age */ n.age
