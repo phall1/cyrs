@@ -1,0 +1,38 @@
+[package]
+name    = "cyrs-benches"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+# This crate is intentionally excluded from the workspace (mirrors the fuzz/
+# pattern: spec §17.10). The empty [workspace] table below declares it as a
+# standalone package so that `cargo check --workspace` (the PR gate) does not
+# pull it in.
+[workspace]
+
+[[bench]]
+name    = "bench_parse"
+harness = false
+
+[[bench]]
+name    = "bench_format"
+harness = false
+
+[[bench]]
+name    = "bench_sema"
+harness = false
+
+[[bench]]
+name    = "bench_plan"
+harness = false
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[dependencies]
+cypher-syntax = { path = "../crates/cypher-syntax" }
+cypher-fmt    = { path = "../crates/cypher-fmt" }
+cypher-hir    = { path = "../crates/cypher-hir" }
+cypher-sema   = { path = "../crates/cypher-sema" }
+cypher-diag   = { path = "../crates/cypher-diag" }
+cypher-plan   = { path = "../crates/cypher-plan" }

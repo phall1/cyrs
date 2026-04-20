@@ -13,6 +13,10 @@ Cargo.lock.bak
 /coverage
 lcov.info
 
+# bench artefacts — criterion output and build cache are not checked in.
+benches/target
+benches/Cargo.lock
+
 # fuzz artefacts — generated corpus and crash inputs are not checked in.
 # Seed corpus files (fuzz/corpus/<target>/seed*) ARE checked in.
 fuzz/target
