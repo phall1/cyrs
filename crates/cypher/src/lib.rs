@@ -46,7 +46,9 @@ pub use cypher_schema as schema;
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "core")]
-pub use cypher_db::{Database, DialectMode, FileId};
+pub use cypher_db::{
+    CypherDatabase, CypherDb, Database, DialectMode, FileId, ParseOutput, SourceFile,
+};
 #[cfg(feature = "core")]
 pub use cypher_diag::{DiagCode, Diagnostic, Severity};
 #[cfg(feature = "core")]

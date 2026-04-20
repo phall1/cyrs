@@ -20,6 +20,7 @@ cypher-fmt    = { workspace = true }
 smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 tracing       = { workspace = true }
+salsa         = { workspace = true }
 
 [lints]
 workspace = true
