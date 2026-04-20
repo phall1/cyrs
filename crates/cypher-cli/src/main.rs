@@ -10,7 +10,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use cypher_db::{Database, DialectMode};
-use cypher_fmt::FmtOptions;
+use cypher_fmt::FormatOptions;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -107,7 +107,7 @@ fn run(cli: &Cli) -> Result<()> {
             in_place,
             files,
         } => {
-            let opts = FmtOptions::default();
+            let opts = FormatOptions::default();
             if files.is_empty() {
                 let src = read_source(None)?;
                 let id = db.allocate_file();

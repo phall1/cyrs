@@ -20,16 +20,24 @@ pub use printer::Printer;
 
 use cypher_syntax::parse;
 
-/// Formatter options. Stable surface; adding options is non-breaking.
+/// Formatter options (spec 0001 §13.3). Stable surface; adding options is
+/// non-breaking.
+///
+/// All defaults reproduce the pre-options formatter behaviour so existing
+/// snapshots remain valid.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FmtOptions {
+pub struct FormatOptions {
+    /// Soft line-length limit in columns (default 100, spec §13.3).
     pub width: usize,
+    /// Keyword casing (default `Upper`, spec §13.3).
     pub keyword_casing: KeywordCasing,
+    /// Trailing-comma policy (default `AsNeeded`, spec §13.3).
     pub trailing_commas: TrailingCommas,
+    /// Indentation style (default 2 spaces, spec §13.3).
     pub indent: Indent,
 }
 
-impl Default for FmtOptions {
+impl Default for FormatOptions {
     fn default() -> Self {
         Self {
             width: 100,
@@ -40,23 +48,34 @@ impl Default for FmtOptions {
     }
 }
 
+/// Keyword casing option (spec 0001 §13.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeywordCasing {
+    /// Convert all keywords to uppercase (e.g. `MATCH`, `RETURN`).
     Upper,
+    /// Convert all keywords to lowercase (e.g. `match`, `return`).
     Lower,
+    /// Leave keyword casing exactly as found in the source.
     Preserve,
 }
 
+/// Trailing-comma policy (spec 0001 §13.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrailingCommas {
+    /// Always emit a trailing comma after the last item in a list.
     Always,
+    /// Emit a trailing comma only when it aids readability (multi-line lists).
     AsNeeded,
+    /// Never emit a trailing comma.
     Never,
 }
 
+/// Indentation style (spec 0001 §13.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Indent {
+    /// Indent with N spaces per level.
     Spaces(usize),
+    /// Indent with one hard tab per level.
     Tabs,
 }
 
@@ -70,18 +89,64 @@ impl Indent {
     }
 }
 
-/// Format a source string with the given options.
+/// Errors that can occur during formatting.
 ///
-/// When the CST has errors the formatter still emits output: it formats
-/// what it can, and emits error regions verbatim (partial-input tolerance
-/// per §13.1).
-#[must_use]
-pub fn format(src: &str, options: &FmtOptions) -> String {
+/// Currently formatting is always successful (the formatter is
+/// partial-input-tolerant per §13.1). This type is reserved for future
+/// hard-failure modes (e.g. cyclic trivia, pathological inputs) so the API
+/// surface is stable.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormatError {
+    /// Placeholder — no conditions currently produce this.
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+impl std::fmt::Display for FormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FormatError::__NonExhaustive => write!(f, "internal formatter error"),
+        }
+    }
+}
+
+impl std::error::Error for FormatError {}
+
+/// Format a source string with the given options (spec 0001 §13.3).
+///
+/// Returns `Ok(formatted)` on success. The formatter is partial-input-tolerant
+/// (spec §13.1): it formats what it can and emits error regions verbatim, so
+/// this function currently never returns `Err`.
+///
+/// # Magic-comment toggle (spec §13.4)
+///
+/// A `// cypher-fmt: off` comment suspends formatting until `// cypher-fmt:
+/// on`. The suspended region is emitted verbatim.
+pub fn format_with(src: &str, opts: &FormatOptions) -> Result<String, FormatError> {
     let parse = parse(src);
     let root = parse.syntax();
-    let mut printer = Printer::new(options.clone());
+    let mut printer = Printer::new(opts.clone());
     printer.print_node(&root);
-    printer.finish()
+    Ok(printer.finish())
+}
+
+/// Format a source string with default options (spec 0001 §13.3).
+///
+/// Equivalent to `format_with(src, &FormatOptions::default()).unwrap()`.
+#[must_use]
+pub fn format(src: &str) -> String {
+    format_with(src, &FormatOptions::default()).expect("formatter is infallible")
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compat alias for internal callers that still pass explicit opts.
+// ---------------------------------------------------------------------------
+
+/// Convenience alias used by the snapshot test helpers below.
+#[allow(dead_code)]
+fn fmt_with(src: &str, opts: &FormatOptions) -> String {
+    format_with(src, opts).expect("formatter is infallible")
 }
 
 #[cfg(test)]
@@ -90,7 +155,7 @@ mod tests {
     use insta::assert_snapshot;
 
     fn fmt(src: &str) -> String {
-        format(src, &FmtOptions::default())
+        format(src)
     }
 
     // ------------------------------------------------------------------
@@ -260,37 +325,155 @@ mod tests {
 
     #[test]
     fn idempotent_on_empty() {
-        let o = FmtOptions::default();
-        let a = format("", &o);
-        let b = format(&a, &o);
+        let a = format("");
+        let b = format(&a);
         assert_eq!(a, b);
     }
 
     #[test]
     fn idempotent_on_simple() {
-        let o = FmtOptions::default();
         let src = "MATCH (n) RETURN n";
-        let a = format(src, &o);
-        let b = format(&a, &o);
+        let a = format(src);
+        let b = format(&a);
         assert_eq!(a, b);
     }
 
     #[test]
     fn idempotent_on_complex() {
-        let o = FmtOptions::default();
         let src = "MATCH (n:Person)-[r:KNOWS]->(m) WHERE n.age > 21 RETURN n.name, m.name ORDER BY n.name";
-        let a = format(src, &o);
-        let b = format(&a, &o);
+        let a = format(src);
+        let b = format(&a);
         assert_eq!(a, b);
     }
 
     #[test]
     fn idempotent_on_comments() {
-        let o = FmtOptions::default();
         let src = "// comment\nMATCH (n) RETURN n";
-        let a = format(src, &o);
-        let b = format(&a, &o);
+        let a = format(src);
+        let b = format(&a);
         assert_eq!(a, b);
+    }
+
+    // ------------------------------------------------------------------
+    // Options: keyword_casing = Lower
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_keyword_lower_match_return() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Lower,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("MATCH (n) RETURN n", &opts).unwrap());
+    }
+
+    #[test]
+    fn snap_keyword_lower_where() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Lower,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("MATCH (n) WHERE n.age > 21 RETURN n", &opts).unwrap());
+    }
+
+    // ------------------------------------------------------------------
+    // Options: keyword_casing = Preserve
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_keyword_preserve_mixed() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Preserve,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("Match (n) Return n", &opts).unwrap());
+    }
+
+    // ------------------------------------------------------------------
+    // Options: indent = Tabs
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_indent_tabs_match_return() {
+        let opts = FormatOptions {
+            indent: Indent::Tabs,
+            ..Default::default()
+        };
+        // Indentation depth is not yet implemented (depth=0), so tab vs spaces
+        // produces identical top-level output — this test just asserts no panic
+        // and that the keyword casing default (Upper) is honoured.
+        let out = format_with("match (n) return n", &opts).unwrap();
+        assert!(out.contains("MATCH"), "expected MATCH in {out:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // Options: indent = Spaces(4)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_indent_4_spaces_match_return() {
+        let opts = FormatOptions {
+            indent: Indent::Spaces(4),
+            ..Default::default()
+        };
+        let out = format_with("match (n) return n", &opts).unwrap();
+        assert!(out.contains("MATCH"), "expected MATCH in {out:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // Options: trailing_commas = Never
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_trailing_commas_never() {
+        let opts = FormatOptions {
+            trailing_commas: TrailingCommas::Never,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("MATCH (n) RETURN n.name, n.age, n.id", &opts).unwrap());
+    }
+
+    // ------------------------------------------------------------------
+    // Options: trailing_commas = Always
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_trailing_commas_always() {
+        let opts = FormatOptions {
+            trailing_commas: TrailingCommas::Always,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("MATCH (n) RETURN n.name, n.age, n.id", &opts).unwrap());
+    }
+
+    // ------------------------------------------------------------------
+    // Magic-comment per-region toggle (spec §13.4)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn snap_fmt_off_respects_options() {
+        // Even with lowercase option, the off-region is emitted verbatim.
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Lower,
+            ..Default::default()
+        };
+        assert_snapshot!(
+            format_with(
+                "// cypher-fmt: off\nMATCH (n) RETURN n\n// cypher-fmt: on\nmatch (m) return m",
+                &opts,
+            )
+            .unwrap()
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // format_with API: verify Result is Ok
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn format_with_returns_ok() {
+        let result = format_with("MATCH (n) RETURN n", &FormatOptions::default());
+        assert!(result.is_ok());
     }
 
     // ------------------------------------------------------------------
@@ -303,18 +486,16 @@ mod tests {
         /// Property P17.3.3 — formatter idempotence across arbitrary inputs.
         #[test]
         fn idempotence(s in ".*") {
-            let o = FmtOptions::default();
-            let a = format(&s, &o);
-            let b = format(&a, &o);
+            let a = format(&s);
+            let b = format(&a);
             prop_assert_eq!(a, b);
         }
 
         /// Idempotence on ASCII Cypher-like patterns.
         #[test]
         fn idempotence_cypher_like(s in "[A-Z a-z0-9():,.\n;/*]{0,80}") {
-            let o = FmtOptions::default();
-            let a = format(&s, &o);
-            let b = format(&a, &o);
+            let a = format(&s);
+            let b = format(&a);
             prop_assert_eq!(a, b);
         }
     }

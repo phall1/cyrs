@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use cypher_db::{Database, DialectMode};
-use cypher_fmt::FmtOptions;
+use cypher_fmt::FormatOptions;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -150,7 +150,7 @@ fn handle(db: &Database, req: Request) -> Response {
         Request::Format { text } => {
             let id = db.allocate_file();
             db.set_source(id, text);
-            let out = db.formatted(id, &FmtOptions::default());
+            let out = db.formatted(id, &FormatOptions::default());
             Response::Formatted {
                 text: out.to_string(),
             }

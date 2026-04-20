@@ -33,12 +33,12 @@
 use cypher_syntax::{SyntaxKind, SyntaxNode};
 use rowan::{NodeOrToken, WalkEvent};
 
-use crate::{FmtOptions, KeywordCasing};
+use crate::{FormatOptions, KeywordCasing};
 
 /// State carried while printing.
 #[derive(Debug)]
 pub struct Printer {
-    opts: FmtOptions,
+    opts: FormatOptions,
     /// Finished output.
     out: String,
     /// True when nothing has been emitted on the current line yet.
@@ -63,7 +63,7 @@ enum Pending {
 }
 
 impl Printer {
-    pub fn new(opts: FmtOptions) -> Self {
+    pub fn new(opts: FormatOptions) -> Self {
         Self {
             opts,
             out: String::new(),
@@ -354,25 +354,25 @@ fn trim_trailing_blank_lines(s: &str) -> String {
 
 #[cfg(test)]
 mod printer_tests {
-    use crate::{FmtOptions, format};
+    use crate::{FormatOptions, format, format_with};
 
     #[test]
     fn no_double_space() {
-        let out = format("MATCH  (n)   RETURN  n", &FmtOptions::default());
+        let out = format("MATCH  (n)   RETURN  n");
         // Should not have "  " in the output.
         assert!(!out.contains("  "), "double space in output: {out:?}");
     }
 
     #[test]
     fn clause_on_new_line() {
-        let out = format("MATCH (n) WHERE n.x > 1 RETURN n", &FmtOptions::default());
+        let out = format("MATCH (n) WHERE n.x > 1 RETURN n");
         let lines: Vec<_> = out.lines().collect();
         assert!(lines.len() >= 2, "expected multiple lines, got: {out:?}");
     }
 
     #[test]
     fn keyword_uppercase() {
-        let out = format("match (n) return n", &FmtOptions::default());
+        let out = format("match (n) return n");
         assert!(out.contains("MATCH"), "expected MATCH uppercase in {out:?}");
         assert!(
             out.contains("RETURN"),
@@ -382,11 +382,11 @@ mod printer_tests {
 
     #[test]
     fn keyword_lowercase_option() {
-        let opts = FmtOptions {
+        let opts = FormatOptions {
             keyword_casing: crate::KeywordCasing::Lower,
             ..Default::default()
         };
-        let out = format("MATCH (n) RETURN n", &opts);
+        let out = format_with("MATCH (n) RETURN n", &opts).unwrap();
         assert!(out.contains("match"), "expected lowercase match in {out:?}");
         assert!(
             out.contains("return"),
@@ -396,13 +396,13 @@ mod printer_tests {
 
     #[test]
     fn dot_is_tight() {
-        let out = format("MATCH (n) RETURN n.name", &FmtOptions::default());
+        let out = format("MATCH (n) RETURN n.name");
         assert!(out.contains("n.name"), "dot should be tight: {out:?}");
     }
 
     #[test]
     fn paren_is_tight() {
-        let out = format("MATCH (n) RETURN n", &FmtOptions::default());
+        let out = format("MATCH (n) RETURN n");
         assert!(out.contains("(n)"), "parens should be tight: {out:?}");
     }
 }
