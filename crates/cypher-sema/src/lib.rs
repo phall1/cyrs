@@ -9,8 +9,9 @@
 //!   supplied. Adds unknown labels/types/properties, endpoint mismatches,
 //!   function arity / type mismatches.
 //!
-//! The type system (§7.2) is a small unification engine over [`Type`].
-//! `Any` is the universal subtype: queries without schema produce Any-
+//! The type system (§7.2) is defined in [`ty`]: a small enum over Cypher
+//! value types with helper constructors and Union canonicalisation.
+//! `Any` is the universal super-type: queries without schema produce Any-
 //! typed property reads; only structural errors surface.
 //!
 //! Name resolution (§6.2) lives in [`resolve`]: it produces a
@@ -22,40 +23,16 @@
 
 pub mod kinds;
 pub mod resolve;
+pub mod ty;
 
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
+pub use ty::{LabelSet, Type};
 
 use cypher_diag::DiagnosticsSink;
 use cypher_hir::Statement;
 use cypher_schema::SchemaProvider;
 use smol_str::SmolStr;
-use std::collections::BTreeMap;
-
-/// The Cypher value-level type system. Spec §7.2.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
-    Any,
-    Null,
-    Bool,
-    Int,
-    Float,
-    /// Numeric — `Int | Float`. Produced by arithmetic inference.
-    Num,
-    String,
-    Date,
-    Datetime,
-    List(Box<Type>),
-    Map(BTreeMap<SmolStr, Type>),
-    Node(Option<LabelSet>),
-    Relationship(Option<SmolStr>),
-    Path,
-    Union(Vec<Type>),
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LabelSet(pub Vec<SmolStr>);
 
 /// Knobs exposed to consumers. Added rather than changed; never breaks.
 #[derive(Debug, Default, Clone)]
