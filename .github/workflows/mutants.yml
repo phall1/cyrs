@@ -1,0 +1,163 @@
+# Weekly mutation testing with cargo-mutants (spec §17.8).
+#
+# Runs once per week (Sunday 04:00 UTC) plus on-demand via workflow_dispatch.
+# One job per library crate; each job fails if the measured kill rate falls
+# below the §17.8 threshold.
+#
+# Thresholds (spec §17.8):
+#   cypher-sema   ≥ 90%
+#   cypher-hir    ≥ 90%
+#   cypher-syntax ≥ 85%
+#   cypher-plan   ≥ 80%
+#
+# Survivors must be triaged: converted into a test or annotated with
+# #[mutants::skip] and an "equivalent mutant" justification.
+#
+# Output JSON is uploaded as an artifact on failure for offline triage.
+
+name: mutants
+
+on:
+  schedule:
+    # Sunday 04:00 UTC — after fuzz-nightly (03:00), before business hours.
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  mutants:
+    name: mutants / ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+    # Threshold is load-bearing per spec §17.8; do not soften.
+    continue-on-error: false
+    strategy:
+      # Run all crates even if one fails so we get a full picture each week.
+      fail-fast: false
+      matrix:
+        include:
+          # crate: package name passed to --package
+          # threshold: minimum kill-rate percentage (integer) from §17.8
+          - crate: cypher-sema
+            threshold: 90
+          - crate: cypher-hir
+            threshold: 90
+          - crate: cypher-syntax
+            threshold: 85
+          - crate: cypher-plan
+            threshold: 80
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # cargo-mutants works with the stable toolchain; no nightly required.
+      - uses: dtolnay/rust-toolchain@stable
+
+      # taiki-e/install-action is used for all other heavy tools in this
+      # workspace (cargo-fuzz, cargo-llvm-cov).  Use it here for consistency
+      # and to avoid a full `cargo install` compile on every run.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      # Dedicated cache key so mutants build artifacts don't pollute the
+      # stable cache maintained by ci.yml.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: mutants-weekly-${{ matrix.crate }}
+
+      # ── 1. Run mutation testing ───────────────────────────────────────
+      #
+      # --no-shuffle: reproducible ordering aids week-over-week diff.
+      # --json-output: machine-readable results for the threshold check
+      #   and for artifact upload when triage is needed.
+      # mutants.toml (workspace root) configures examine_globs,
+      # exclude_re, and timeout_multiplier automatically.
+      - name: cargo mutants --package ${{ matrix.crate }}
+        id: mutants_run
+        run: |
+          cargo mutants \
+            --package "${{ matrix.crate }}" \
+            --json-output out.json \
+            --no-shuffle \
+            || true   # exit code non-zero when mutants survive; we check below
+
+      # ── 2. Enforce kill-rate threshold ────────────────────────────────
+      #
+      # out.json is a JSON array of mutant outcome objects.  Each object has
+      # a "status" field.  Possible values include:
+      #   "Killed"     — test suite caught the mutant (good)
+      #   "Survived"   — mutant was NOT caught (bad)
+      #   "Timeout"    — test timed out (counts as not-killed for thresholds)
+      #   "Unviable"   — mutant did not compile (neutral; excluded from rate)
+      #
+      # kill_rate = killed / (killed + survived + timeout)
+      # Unviable mutants are excluded from the denominator (standard practice).
+      - name: check kill-rate threshold (${{ matrix.threshold }}% for ${{ matrix.crate }})
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          THRESHOLD=${{ matrix.threshold }}
+          CRATE="${{ matrix.crate }}"
+
+          if [[ ! -f out.json ]]; then
+            echo "::error::out.json not found — cargo mutants may have crashed."
+            exit 1
+          fi
+
+          # Parse counts from the JSON output.
+          # out.json is a JSON array; each element has a "status" string.
+          KILLED=$(python3 -c "
+          import json, sys
+          data = json.load(open('out.json'))
+          print(sum(1 for m in data if m.get('status') == 'Killed'))
+          ")
+          SURVIVED=$(python3 -c "
+          import json, sys
+          data = json.load(open('out.json'))
+          print(sum(1 for m in data if m.get('status') == 'Survived'))
+          ")
+          TIMEOUT=$(python3 -c "
+          import json, sys
+          data = json.load(open('out.json'))
+          print(sum(1 for m in data if m.get('status') == 'Timeout'))
+          ")
+          TOTAL=$(( KILLED + SURVIVED + TIMEOUT ))
+
+          if [[ "$TOTAL" -eq 0 ]]; then
+            echo "::warning::No viable mutants found for $CRATE — skipping threshold check."
+            exit 0
+          fi
+
+          # Integer arithmetic: floor(killed * 100 / total)
+          KILL_RATE=$(( KILLED * 100 / TOTAL ))
+
+          echo "=== Mutation results for $CRATE ==="
+          echo "  Killed:   $KILLED"
+          echo "  Survived: $SURVIVED"
+          echo "  Timeout:  $TIMEOUT"
+          echo "  Total:    $TOTAL"
+          echo "  Kill rate: ${KILL_RATE}% (threshold: ${THRESHOLD}%)"
+
+          if [[ "$KILL_RATE" -lt "$THRESHOLD" ]]; then
+            echo ""
+            echo "::error::$CRATE kill rate ${KILL_RATE}% is below the §17.8 floor of ${THRESHOLD}%."
+            echo "Triage surviving mutants in out.json: each must become a test or"
+            echo "be annotated with #[mutants::skip] and an equivalent-mutant justification."
+            exit 1
+          fi
+
+          echo "$CRATE: ${KILL_RATE}% >= ${THRESHOLD}%  OK"
+
+      # ── 3. Upload JSON artifact on failure for triage ─────────────────
+      - name: upload mutants artifact (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-${{ matrix.crate }}-${{ github.run_id }}
+          path: out.json
+          if-no-files-found: ignore
+          retention-days: 30

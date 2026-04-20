@@ -1,0 +1,85 @@
+# mutants.toml — cargo-mutants workspace configuration (spec §17.8)
+#
+# HOW TO RUN LOCALLY
+# ------------------
+# Install (once):
+#   cargo install cargo-mutants --locked
+#
+# List mutants that *would* be generated (fast, no compilation):
+#   cargo mutants --list
+#
+# Run against a single library crate:
+#   cargo mutants --package cypher-sema
+#   cargo mutants --package cypher-hir
+#   cargo mutants --package cypher-syntax
+#   cargo mutants --package cypher-plan
+#
+# Run with JSON output for offline triage:
+#   cargo mutants --package cypher-sema --json-output out.json --no-shuffle
+#
+# HOW THRESHOLDS ARE ENFORCED IN CI
+# ----------------------------------
+# The weekly `.github/workflows/mutants.yml` workflow runs a matrix job
+# per library crate and fails the job when the measured kill rate falls
+# below the §17.8 floor:
+#
+#   cypher-sema   ≥ 90%
+#   cypher-hir    ≥ 90%
+#   cypher-syntax ≥ 85%
+#   cypher-plan   ≥ 80%
+#
+# Surviving mutants are not silently ignored: each is either converted
+# into a test or explicitly annotated with `#[mutants::skip]` and a
+# justification comment explaining why it is an equivalent mutant.
+#
+# Binaries (cypher-cli, cypher-lsp, cypher-agent) are excluded from
+# mutation testing because they contain only thin-shell wiring whose
+# correctness is covered by integration tests (§17.11).
+
+# ── Scope ──────────────────────────────────────────────────────────────────
+#
+# Only mutate the four library crates named in §17.8.  Everything else
+# (binaries, the meta-crate, testkit, db, schema, fmt, diag, ast, tck)
+# is omitted because the spec does not assign it a kill-rate target.
+examine_globs = [
+    "crates/cypher-syntax/src/**/*.rs",
+    "crates/cypher-hir/src/**/*.rs",
+    "crates/cypher-sema/src/**/*.rs",
+    "crates/cypher-plan/src/**/*.rs",
+]
+
+# ── Exclusions ─────────────────────────────────────────────────────────────
+#
+# Patterns matched against the relative file path of each mutant source.
+# We exclude:
+#   - test modules (the mutant runner compiles tests; mutating them is noise)
+#   - bench / criterion harness files
+#   - insta snapshot review helpers (generated content)
+#   - build-script and generated code
+#   - fuzz targets (live under fuzz/, already excluded by examine_globs,
+#     but belt-and-suspenders)
+exclude_re = [
+    # test files and inline #[cfg(test)] modules
+    "#\\[cfg\\(test\\)\\]",
+    "/tests/",
+    "_test\\.rs$",
+    "tests\\.rs$",
+    # benchmarks
+    "/benches/",
+    "_bench\\.rs$",
+    # insta snapshots (generated; mutating them adds no signal)
+    "/snapshots/",
+    # fuzz targets
+    "/fuzz/",
+    # generated code stubs (ungrammar codegen output)
+    "generated\\.rs$",
+    "\\.generated\\.rs$",
+]
+
+# ── Performance ────────────────────────────────────────────────────────────
+#
+# Mutants make the test suite run more slowly because each mutant requires
+# a full compilation + test run.  A multiplier of 2 gives the mutated
+# test suite twice the normal wall-clock budget before it is declared a
+# timeout (a missed kill rather than a test failure — still reported).
+timeout_multiplier = 2.0
