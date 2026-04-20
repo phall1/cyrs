@@ -39,8 +39,9 @@
 
 use cypher_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cypher_hir::{
-    Binding, Clause, Expr, HirOffset, HirSpan, Pattern, PatternElement, Projection, Resolution,
-    ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind, Statement, VarId, VarKind,
+    Binding, Clause, Expr, HirOffset, HirSpan, MapProjectionItem, Pattern, PatternElement,
+    Projection, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
+    Statement, VarId, VarKind,
 };
 use indexmap::IndexMap;
 use smol_str::SmolStr;
@@ -492,6 +493,31 @@ impl ResolveCtx<'_> {
                 }
                 if let Some(o) = otherwise {
                     self.resolve_expr(o, scope, sink);
+                }
+            }
+            Expr::ListComprehension {
+                iterable,
+                filter,
+                map_expr,
+                ..
+            } => {
+                self.resolve_expr(iterable, scope, sink);
+                if let Some(f) = filter {
+                    self.resolve_expr(f, scope, sink);
+                }
+                self.resolve_expr(map_expr, scope, sink);
+            }
+            Expr::MapProjection { base, items } => {
+                self.resolve_expr(base, scope, sink);
+                for item in items {
+                    match item {
+                        MapProjectionItem::Computed { value, .. }
+                        | MapProjectionItem::Aliased { value, .. } => {
+                            self.resolve_expr(value, scope, sink);
+                        }
+                        MapProjectionItem::PropCopy { .. }
+                        | MapProjectionItem::VarShorthand { .. } => {}
+                    }
                 }
             }
             // Literals, params, and pattern predicates (deferred in v1)
