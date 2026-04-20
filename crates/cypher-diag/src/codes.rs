@@ -248,6 +248,41 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E2008.md`
     E2008 = 2008,
+    /// Arithmetic operand has a non-numeric type (spec §7.4).
+    ///
+    /// Emitted when an operand of `+`, `-`, `*`, `/`, `%`, or `^` infers to
+    /// a type that cannot unify with `Num` (e.g., a boolean or a string).
+    ///
+    /// Docs: `docs/errors/E2009.md`
+    E2009 = 2009,
+    /// String-operator operand has a non-string type (spec §7.4).
+    ///
+    /// Emitted when an operand of `CONTAINS`, `STARTS WITH`, or `ENDS WITH`
+    /// infers to a type other than `String` or `Any`.
+    ///
+    /// Docs: `docs/errors/E2010.md`
+    E2010 = 2010,
+    /// Boolean-operator operand has a non-boolean type (spec §7.4).
+    ///
+    /// Emitted when an operand of `AND`, `OR`, `XOR`, or unary `NOT`
+    /// infers to a type other than `Bool` or `Any`.
+    ///
+    /// Docs: `docs/errors/E2011.md`
+    E2011 = 2011,
+    /// `IN` list element type mismatch (spec §7.4).
+    ///
+    /// Emitted when the left operand of `IN` infers to a type that cannot
+    /// unify with the element type of the right-hand list.
+    ///
+    /// Docs: `docs/errors/E2012.md`
+    E2012 = 2012,
+    /// `IN` right-hand operand is not a list (spec §7.4).
+    ///
+    /// Emitted when the right-hand side of `IN` infers to a non-list type
+    /// (e.g., `x IN 42`).
+    ///
+    /// Docs: `docs/errors/E2013.md`
+    E2013 = 2013,
 
     // --- semantic schema-aware (3000..) ------------------------------
     /// Unknown label.
@@ -383,6 +418,11 @@ impl DiagCode {
             Self::E2006 => "E2006",
             Self::E2007 => "E2007",
             Self::E2008 => "E2008",
+            Self::E2009 => "E2009",
+            Self::E2010 => "E2010",
+            Self::E2011 => "E2011",
+            Self::E2012 => "E2012",
+            Self::E2013 => "E2013",
             Self::E3001 => "E3001",
             Self::E3002 => "E3002",
             Self::E3003 => "E3003",
@@ -493,6 +533,11 @@ impl DiagCode {
         Self::E2006,
         Self::E2007,
         Self::E2008,
+        Self::E2009,
+        Self::E2010,
+        Self::E2011,
+        Self::E2012,
+        Self::E2013,
         Self::E3001,
         Self::E3002,
         Self::E3003,
@@ -597,6 +642,11 @@ mod tests {
             DiagCode::E2006,
             DiagCode::E2007,
             DiagCode::E2008,
+            DiagCode::E2009,
+            DiagCode::E2010,
+            DiagCode::E2011,
+            DiagCode::E2012,
+            DiagCode::E2013,
             DiagCode::E3001,
             DiagCode::E3002,
             DiagCode::E3003,

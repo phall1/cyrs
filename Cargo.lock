@@ -429,6 +429,7 @@ dependencies = [
  "cypher-syntax",
  "indexmap",
  "insta",
+ "proptest",
  "smol_str",
 ]
 

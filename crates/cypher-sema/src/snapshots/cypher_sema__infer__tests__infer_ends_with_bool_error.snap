@@ -1,0 +1,6 @@
+---
+source: crates/cypher-sema/src/infer.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E2010: string operator requires `String` operands but found `Bool`
