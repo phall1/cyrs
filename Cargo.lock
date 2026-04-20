@@ -427,6 +427,7 @@ dependencies = [
  "cypher-schema",
  "cypher-syntax",
  "indexmap",
+ "insta",
  "smol_str",
 ]
 

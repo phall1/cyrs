@@ -16,6 +16,7 @@ smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 
 [dev-dependencies]
+insta         = { workspace = true }
 cypher-syntax = { workspace = true }
 
 [lints]
