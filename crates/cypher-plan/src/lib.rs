@@ -13,9 +13,17 @@
 //! - [`Expr`] — plan-level expression IR (spec §12.2).
 //! - [`VarId`] — plan-scoped variable identity (spec §12.3).
 //! - [`OpId`] — operator identity within a plan graph.
+//!
+//! # HIR → Plan lowering
+//!
+//! The [`lower`] module provides the entry point [`lower::lower_statement`]
+//! which lowers a post-resolve, post-desugar HIR [`cypher_hir::Statement`]
+//! into a [`lower::PlanStatement`] (spec §12, bead cy-foy).
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-plan/0.0.1")]
+
+pub mod lower;
 
 use smol_str::SmolStr;
 

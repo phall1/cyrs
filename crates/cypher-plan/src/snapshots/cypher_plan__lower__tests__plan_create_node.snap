@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 0
+write_ops: 0
+var_map_entries: 0
