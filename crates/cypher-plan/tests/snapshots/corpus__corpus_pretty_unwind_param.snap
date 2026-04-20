@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0.name AS name]
+  Unwind $items AS $0
+    Source (AS $99)

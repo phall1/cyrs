@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+WriteOps:
+  CreateNode (:Person AS $0) props={name: "Alice"}
+  CreateNode (:Person AS $1) props={name: "Bob"}

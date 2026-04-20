@@ -1,0 +1,8 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Limit $count
+  Skip $offset
+    Project [$0 AS n]
+      Source (AS $0)

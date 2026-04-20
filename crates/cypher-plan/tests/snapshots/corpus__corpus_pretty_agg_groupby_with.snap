@@ -1,0 +1,8 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$2.name AS company, $3 AS headcount]
+  Aggregate keys=[$2.name] aggs=[count($0)]
+    Expand ($0)-[:WORKS_AT(->) $1]->(:Company AS $2)
+      Source (:Person AS $0)

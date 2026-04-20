@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS n]
+  With [$0 AS n] WHERE ($0.active = true)
+    Source (:Person AS $0)
