@@ -1,0 +1,14 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "op": "source"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

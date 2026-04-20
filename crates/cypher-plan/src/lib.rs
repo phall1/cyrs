@@ -24,6 +24,10 @@
 #![doc(html_root_url = "https://docs.rs/cypher-plan/0.0.1")]
 
 pub mod lower;
+pub mod pretty;
+
+#[cfg(feature = "serde")]
+pub mod ser;
 
 use smol_str::SmolStr;
 

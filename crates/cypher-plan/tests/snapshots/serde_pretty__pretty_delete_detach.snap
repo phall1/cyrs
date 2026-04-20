@@ -1,0 +1,6 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+WriteOps:
+  DetachDelete [$0]

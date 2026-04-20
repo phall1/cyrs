@@ -1,0 +1,6 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+Aggregate keys=[$0] aggs=[count(DISTINCT $0)]
+  Source (AS $0)

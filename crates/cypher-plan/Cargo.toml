@@ -8,13 +8,25 @@ authors      = { workspace = true }
 repository   = { workspace = true }
 description  = "Logical read/write plan IR for the Cypher front-end. Spec 0001 §12."
 
+[features]
+# The `serde` feature enables JSON serialisation/deserialisation of all plan
+# types (spec §12). Enable with --features cypher-plan/serde.
+# The feature is always enabled in test/dev builds via the dev-dep below.
+serde = ["dep:serde", "dep:serde_json", "indexmap/serde", "smol_str/serde"]
+
 [dependencies]
 cypher-hir = { workspace = true }
 smol_str   = { workspace = true }
 indexmap   = { workspace = true }
+serde      = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
-insta = { workspace = true }
+insta        = { workspace = true, features = ["json"] }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+indexmap     = { workspace = true }
+cypher-plan  = { path = ".", features = ["serde"] }
 
 [lints]
 workspace = true
