@@ -1,0 +1,12 @@
+error[E2011]: boolean operator requires `Bool` operands but found `Int`
+  ┌─ e2011_bool_op_non_bool.cypher:1:1
+  │
+1 │ // E2011: non-boolean operand in AND
+  │ ^
+
+error[E2011]: boolean operator requires `Bool` operands but found `Int`
+  ┌─ e2011_bool_op_non_bool.cypher:1:1
+  │
+1 │ // E2011: non-boolean operand in AND
+  │ ^
+

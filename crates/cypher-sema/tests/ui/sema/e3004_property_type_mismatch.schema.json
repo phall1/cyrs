@@ -1,0 +1,9 @@
+{
+  "labels": ["Person"],
+  "rel_types": [],
+  "node_properties": {
+    "Person": [{"name": "age", "type": "Int", "required": false}]
+  },
+  "functions": [],
+  "procedures": []
+}

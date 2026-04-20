@@ -1,0 +1,9 @@
+---
+source: crates/cypher-sema/tests/sema_diag.rs
+expression: "render_diags(src, \"e2011_bool_op_non_bool.cypher\")"
+---
+error[E2011]: boolean operator requires `Bool` operands but found `Int`
+  ┌─ e2011_bool_op_non_bool.cypher:1:1
+  │
+1 │ RETURN NOT 42
+  │ ^

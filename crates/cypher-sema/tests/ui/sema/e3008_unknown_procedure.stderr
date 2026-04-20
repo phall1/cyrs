@@ -1,0 +1,6 @@
+error[E1001]: unresolved variable `x`
+  ┌─ e3008_unknown_procedure.cypher:1:1
+  │
+1 │ // E3008: call to unknown procedure (schema-aware)
+  │ ^
+

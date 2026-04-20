@@ -1,0 +1,6 @@
+error[E2009]: arithmetic operand must be numeric (`Int`, `Float`, or `Num`) but found `String`
+  ┌─ e2009_arithmetic_type_mismatch.cypher:1:1
+  │
+1 │ // E2009: non-numeric operand in arithmetic
+  │ ^
+

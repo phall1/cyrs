@@ -1,0 +1,9 @@
+{
+  "labels": ["Person", "Dog", "Cat"],
+  "rel_types": ["KNOWS"],
+  "rel_endpoints": {
+    "KNOWS": [{"source": "Person", "target": "Person"}]
+  },
+  "functions": [],
+  "procedures": []
+}

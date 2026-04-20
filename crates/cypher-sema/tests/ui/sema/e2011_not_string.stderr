@@ -1,0 +1,6 @@
+error[E2011]: boolean operator requires `Bool` operands but found `String`
+  ┌─ e2011_not_string.cypher:1:1
+  │
+1 │ // E2011: NOT applied to a string
+  │ ^
+

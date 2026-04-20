@@ -25,7 +25,14 @@ enum Cmd {
     /// Pre-commit gate: fmt → clippy → test → deny (spec §17, AGENTS §4.3).
     Gate,
     /// Re-bless compiletest golden corpus (spec §17.6).
-    Bless,
+    ///
+    /// Runs `BLESS=1 cargo test --test ui` for the specified package (or all
+    /// sema packages when `--package` is omitted).
+    Bless {
+        /// Package to bless (e.g. `cypher-sema`). Omit to bless all.
+        #[arg(short, long)]
+        package: Option<String>,
+    },
     /// Regenerate `cypher-ast` from the grammar description (spec §5.2).
     Codegen,
     /// Verify release gates are green (spec §17.17).
@@ -45,10 +52,7 @@ fn main() -> Result<()> {
     let cli = Xtask::parse();
     match cli.cmd {
         Cmd::Gate => gate(),
-        Cmd::Bless => {
-            println!("[xtask bless] lands with the compiletest runner");
-            Ok(())
-        }
+        Cmd::Bless { package } => bless(package.as_deref()),
         Cmd::Codegen => xtask::codegen::run(),
         Cmd::Release => {
             println!("[xtask release] verifies gates per spec §17.17");
@@ -134,6 +138,37 @@ fn gate() -> Result<()> {
     // the sibling bead A3; invoke it here once it exists.
 
     println!("==> gate OK");
+    Ok(())
+}
+
+/// Re-bless compiletest golden sidecars for `package` (or all sema crates).
+///
+/// Runs `BLESS=1 cargo test --test ui` so the harness overwrites every
+/// `.stderr` sidecar with the actual diagnostic output.  When `package` is
+/// `None` the blessing is applied to every crate that has a `ui` test
+/// (currently only `cypher-sema`).
+fn bless(package: Option<&str>) -> Result<()> {
+    let packages: Vec<&str> = match package {
+        Some(p) => vec![p],
+        None => vec!["cypher-sema"],
+    };
+    for pkg in packages {
+        println!("[xtask bless] blessing {pkg}");
+        let status = Command::new("cargo")
+            .args(["test", "-p", pkg, "--test", "ui"])
+            .env("BLESS", "1")
+            .status()
+            .map_err(|err| anyhow!("failed to spawn `cargo test`: {err}"))?;
+        if !status.success() {
+            bail!(
+                "`cargo test -p {pkg} --test ui` exited with {}",
+                status
+                    .code()
+                    .map_or_else(|| "signal".to_string(), |c| c.to_string())
+            );
+        }
+    }
+    println!("[xtask bless] done");
     Ok(())
 }
 

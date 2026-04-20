@@ -1,0 +1,6 @@
+error[E1001]: unresolved variable `missing`
+  ┌─ e1001_unresolved_in_where.cypher:1:1
+  │
+1 │ // E1001: unresolved variable in WHERE predicate
+  │ ^
+

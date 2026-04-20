@@ -1,0 +1,6 @@
+error[E3002]: unknown relationship type `:FOLLOWS`
+  ┌─ e3002_unknown_rel_type.cypher:3:10
+  │
+3 │ MATCH (a)-[r:FOLLOWS]->(b) RETURN r
+  │          ^^^^^^^^^^^^^^
+

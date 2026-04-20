@@ -1,0 +1,6 @@
+error[E3006]: unknown function `nonexistent_fn`
+  ┌─ e3006_unknown_function.cypher:1:1
+  │
+1 │ // E3006: call to unknown function (schema-aware)
+  │ ^
+

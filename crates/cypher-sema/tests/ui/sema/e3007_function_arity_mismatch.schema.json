@@ -1,0 +1,6 @@
+{
+  "labels": [],
+  "rel_types": [],
+  "functions": [{"name": "my_func", "params": ["x"], "return_type": "Any", "variadic": null}],
+  "procedures": []
+}
