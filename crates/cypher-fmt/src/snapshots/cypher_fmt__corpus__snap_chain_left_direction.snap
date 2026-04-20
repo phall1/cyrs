@@ -1,0 +1,6 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (a:Movie)<-[r:ACTED_IN]-(b:Person) RETURN a.title, b.name\")"
+---
+MATCH (a:Movie)<-[r:ACTED_IN]-(b:Person)
+RETURN a.title, b.name

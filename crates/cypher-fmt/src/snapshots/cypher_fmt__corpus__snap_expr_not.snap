@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WHERE NOT n.active = false RETURN n\")"
+---
+MATCH (n)
+WHERE NOT n.active = FALSE
+RETURN n

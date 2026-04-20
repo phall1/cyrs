@@ -1,0 +1,5 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MERGE (n:Person {name: 'Alice'})\")"
+---
+MERGE (n:Person {name: 'Alice'})

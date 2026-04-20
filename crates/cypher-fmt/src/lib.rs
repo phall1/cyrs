@@ -500,3 +500,411 @@ mod tests {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// §17.2 Formatter snapshot corpus — extended coverage (cy-xbh)
+//
+// These tests exercise areas NOT covered by the 28 default-option snapshots
+// above: multi-clause pipelines, deep pattern chains, rich expression trees,
+// comment placement variety, and option combinations.
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod corpus {
+    use super::*;
+    use insta::assert_snapshot;
+
+    fn fmt(src: &str) -> String {
+        format(src)
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-clause pipeline: MATCH + WHERE + WITH + RETURN
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_match_where_with_return() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) WHERE n.age > 30 WITH n ORDER BY n.name RETURN n.name, n.age"
+        ));
+    }
+
+    #[test]
+    fn snap_match_with_where_return() {
+        assert_snapshot!(fmt("MATCH (n) WITH n WHERE n.active = true RETURN n"));
+    }
+
+    #[test]
+    fn snap_double_match_return() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Person) MATCH (b:Person) WHERE a.name <> b.name RETURN a, b"
+        ));
+    }
+
+    #[test]
+    fn snap_match_where_with_match_return() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) WHERE n.active = true WITH n MATCH (n)-[r:KNOWS]->(m) RETURN n, m"
+        ));
+    }
+
+    #[test]
+    fn snap_with_multiple_projections() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person)-[r:KNOWS]->(m:Person) WITH n.name AS name, m.name AS friend, r.since AS year RETURN name, friend, year"
+        ));
+    }
+
+    #[test]
+    fn snap_with_aggregation() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person)-[r:KNOWS]->(m) WITH n, count(m) AS friendCount RETURN n.name, friendCount ORDER BY friendCount DESC"
+        ));
+    }
+
+    #[test]
+    fn snap_pipeline_with_skip_limit() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Movie) WITH n ORDER BY n.year DESC SKIP 5 LIMIT 10 RETURN n.title, n.year"
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Deep pattern chains: nodes + relationships, mixed directions, labels, props
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_chain_three_nodes() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Person)-[r1:KNOWS]->(b:Person)-[r2:LIKES]->(c:Movie) RETURN a, b, c"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_undirected() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Person)-[r:FRIENDS]-(b:Person) RETURN a.name, b.name"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_left_direction() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Movie)<-[r:ACTED_IN]-(b:Person) RETURN a.title, b.name"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_multiple_labels() {
+        assert_snapshot!(fmt("MATCH (n:Person:Employee) RETURN n.name"));
+    }
+
+    #[test]
+    fn snap_chain_node_with_props() {
+        assert_snapshot!(fmt("MATCH (n:Person {name: 'Alice', age: 30}) RETURN n"));
+    }
+
+    #[test]
+    fn snap_chain_rel_with_props() {
+        assert_snapshot!(fmt(
+            "MATCH (a)-[r:KNOWS {since: 2020}]->(b) RETURN a, b, r.since"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_variable_length() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Person)-[r:KNOWS*1..3]->(b:Person) RETURN a.name, b.name"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_anonymous_nodes() {
+        assert_snapshot!(fmt(
+            "MATCH (:Person)-[:KNOWS]->(:Person)-[:LIKES]->(m:Movie) RETURN m.title"
+        ));
+    }
+
+    #[test]
+    fn snap_chain_mixed_directions() {
+        assert_snapshot!(fmt("MATCH (a)-[r1]->(b)<-[r2]-(c) RETURN a, b, c"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Rich expression trees
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_expr_nested_and_or() {
+        assert_snapshot!(fmt(
+            "MATCH (n) WHERE (n.a > 1 AND n.b < 10) OR (n.c = 'x' AND n.d IS NOT NULL) RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_expr_not() {
+        assert_snapshot!(fmt("MATCH (n) WHERE NOT n.active = false RETURN n"));
+    }
+
+    #[test]
+    fn snap_expr_is_null() {
+        assert_snapshot!(fmt("MATCH (n) WHERE n.email IS NULL RETURN n"));
+    }
+
+    #[test]
+    fn snap_expr_is_not_null() {
+        assert_snapshot!(fmt("MATCH (n) WHERE n.email IS NOT NULL RETURN n"));
+    }
+
+    #[test]
+    fn snap_expr_in_list() {
+        assert_snapshot!(fmt(
+            "MATCH (n) WHERE n.status IN ['active', 'pending', 'approved'] RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_expr_not_in_list() {
+        assert_snapshot!(fmt(
+            "MATCH (n) WHERE NOT n.status IN ['deleted', 'banned'] RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_expr_function_call_single_arg() {
+        assert_snapshot!(fmt("MATCH (n) RETURN toLower(n.name)"));
+    }
+
+    #[test]
+    fn snap_expr_function_call_multi_arg() {
+        assert_snapshot!(fmt("MATCH (n) RETURN substring(n.name, 0, 5)"));
+    }
+
+    #[test]
+    fn snap_expr_nested_function_calls() {
+        assert_snapshot!(fmt("MATCH (n) RETURN toLower(trim(n.name))"));
+    }
+
+    #[test]
+    fn snap_expr_arithmetic() {
+        assert_snapshot!(fmt(
+            "MATCH (n) RETURN n.price * n.quantity + n.tax AS total"
+        ));
+    }
+
+    #[test]
+    fn snap_expr_string_concat() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) RETURN n.firstName + ' ' + n.lastName AS fullName"
+        ));
+    }
+
+    #[test]
+    fn snap_expr_comparison_chain() {
+        assert_snapshot!(fmt("MATCH (n) WHERE n.age >= 18 AND n.age <= 65 RETURN n"));
+    }
+
+    #[test]
+    fn snap_expr_list_literal() {
+        assert_snapshot!(fmt("RETURN [1, 2, 3, 4, 5] AS nums"));
+    }
+
+    #[test]
+    fn snap_expr_map_literal() {
+        assert_snapshot!(fmt("RETURN {name: 'Alice', age: 30} AS person"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Comment placement variety (trivia preservation)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_comment_between_clauses() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person)\n// filter active users\nWHERE n.active = true\nRETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_comment_before_with() {
+        assert_snapshot!(fmt(
+            "MATCH (n)\n// aggregate\nWITH count(n) AS total\nRETURN total"
+        ));
+    }
+
+    #[test]
+    fn snap_comment_before_return() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person)\n// project fields\nRETURN n.name, n.age"
+        ));
+    }
+
+    #[test]
+    fn snap_multiple_line_comments() {
+        assert_snapshot!(fmt(
+            "// step 1: find nodes\nMATCH (n:Person)\n// step 2: filter\nWHERE n.age > 21\n// step 3: return\nRETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_block_comment_between_clauses() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) /* only active */ WHERE n.active = true RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_fmt_off_preserves_badly_formatted() {
+        assert_snapshot!(fmt(
+            "MATCH (n) RETURN n;\n// cypher-fmt: off\nmatch(n:Person{name:'Alice'})return n.name\n// cypher-fmt: on\nMATCH (m) RETURN m"
+        ));
+    }
+
+    #[test]
+    fn snap_blank_line_between_statements() {
+        assert_snapshot!(fmt("MATCH (n) RETURN n;\n\nMATCH (m) RETURN m"));
+    }
+
+    #[test]
+    fn snap_comment_inline_with_return_item() {
+        assert_snapshot!(fmt("MATCH (n) RETURN n.name, /* the age */ n.age"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Write clauses: CREATE, MERGE, SET, REMOVE, DELETE
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_create_node() {
+        assert_snapshot!(fmt("CREATE (n:Person {name: 'Bob', age: 25})"));
+    }
+
+    #[test]
+    fn snap_create_relationship() {
+        assert_snapshot!(fmt(
+            "MATCH (a:Person), (b:Person) WHERE a.name = 'Alice' AND b.name = 'Bob' CREATE (a)-[:KNOWS]->(b)"
+        ));
+    }
+
+    #[test]
+    fn snap_merge_node() {
+        assert_snapshot!(fmt("MERGE (n:Person {name: 'Alice'})"));
+    }
+
+    #[test]
+    fn snap_set_property() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person {name: 'Alice'}) SET n.age = 31 RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_set_multiple_properties() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person {name: 'Alice'}) SET n.age = 31, n.active = true RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_remove_property() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person {name: 'Alice'}) REMOVE n.age RETURN n"
+        ));
+    }
+
+    #[test]
+    fn snap_delete_node() {
+        assert_snapshot!(fmt("MATCH (n:Person {name: 'Temp'}) DELETE n"));
+    }
+
+    #[test]
+    fn snap_detach_delete() {
+        assert_snapshot!(fmt("MATCH (n:Person {name: 'Temp'}) DETACH DELETE n"));
+    }
+
+    // -----------------------------------------------------------------------
+    // OPTIONAL MATCH
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_optional_match() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) OPTIONAL MATCH (n)-[r:KNOWS]->(m) RETURN n, m"
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // ORDER BY multi-column, DESC
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_order_by_multi_desc() {
+        assert_snapshot!(fmt(
+            "MATCH (n:Person) RETURN n.name, n.age ORDER BY n.age DESC, n.name ASC"
+        ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Options combinations
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn snap_corpus_keyword_lower_pipeline() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Lower,
+            ..Default::default()
+        };
+        assert_snapshot!(
+            format_with(
+                "MATCH (n:Person) WHERE n.age > 30 WITH n RETURN n.name",
+                &opts
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn snap_corpus_keyword_preserve_pipeline() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Preserve,
+            ..Default::default()
+        };
+        assert_snapshot!(
+            format_with(
+                "match (n:Person) where n.age > 30 With n Return n.name",
+                &opts
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn snap_corpus_trailing_commas_always_multi_return() {
+        let opts = FormatOptions {
+            trailing_commas: TrailingCommas::Always,
+            ..Default::default()
+        };
+        assert_snapshot!(
+            format_with("MATCH (n:Person) RETURN n.name, n.age, n.email", &opts).unwrap()
+        );
+    }
+
+    #[test]
+    fn snap_corpus_trailing_commas_never_multi_return() {
+        let opts = FormatOptions {
+            trailing_commas: TrailingCommas::Never,
+            ..Default::default()
+        };
+        assert_snapshot!(
+            format_with("MATCH (n:Person) RETURN n.name, n.age, n.email", &opts).unwrap()
+        );
+    }
+
+    #[test]
+    fn snap_corpus_keyword_lower_write_clause() {
+        let opts = FormatOptions {
+            keyword_casing: KeywordCasing::Lower,
+            ..Default::default()
+        };
+        assert_snapshot!(format_with("CREATE (n:Person {name: 'Alice'}) RETURN n", &opts).unwrap());
+    }
+}

@@ -1,0 +1,6 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) RETURN substring(n.name, 0, 5)\")"
+---
+MATCH (n)
+RETURN substring(n.name, 0, 5)
