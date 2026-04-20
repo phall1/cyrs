@@ -12,7 +12,6 @@
 //! | Relationship pattern uses unknown type | [`E3002`] |
 //! | Property access on labeled/typed binding not declared in schema | [`E3003`] |
 //! | Property type conflicts with usage context | [`E3004`] |
-//! | Relationship endpoint type mismatch | [`E3005`] |
 //! | Function call to unknown function | [`E3006`] |
 //! | Function arity mismatch | [`E3007`] |
 //! | Procedure call to unknown procedure | [`E3008`] |
@@ -21,7 +20,6 @@
 //! [`E3002`]: cypher_diag::DiagCode::E3002
 //! [`E3003`]: cypher_diag::DiagCode::E3003
 //! [`E3004`]: cypher_diag::DiagCode::E3004
-//! [`E3005`]: cypher_diag::DiagCode::E3005
 //! [`E3006`]: cypher_diag::DiagCode::E3006
 //! [`E3007`]: cypher_diag::DiagCode::E3007
 //! [`E3008`]: cypher_diag::DiagCode::E3008
