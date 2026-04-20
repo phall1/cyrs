@@ -25,6 +25,7 @@ pub mod dialect;
 pub mod infer;
 pub mod kinds;
 pub mod resolve;
+pub mod schema_aware;
 pub mod ty;
 pub mod unify;
 
@@ -32,6 +33,7 @@ pub use dialect::{DialectMode, check_dialect, reject_neo4j_current};
 pub use infer::infer_types;
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
+pub use schema_aware::check_schema_aware;
 pub use ty::{LabelSet, Type};
 pub use unify::{TypeMismatch, unify};
 
@@ -53,10 +55,11 @@ pub struct SemaOptions {
 /// sink. No pass short-circuits on first error (spec §10.4).
 ///
 /// Pass order: name resolution (§6.2) → kind-consistency (§6.3) →
-/// dialect gates (§9) → schema-free type inference (§7.4).
+/// dialect gates (§9) → schema-free type inference (§7.4) →
+/// schema-aware checks (§7.5, only when `schema` is `Some`).
 pub fn analyse(
     stmt: &Statement,
-    _schema: Option<&dyn SchemaProvider>,
+    schema: Option<&dyn SchemaProvider>,
     options: &SemaOptions,
     sink: &mut DiagnosticsSink,
 ) {
@@ -71,6 +74,13 @@ pub fn analyse(
 
     // Pass 4: schema-free type inference (§7.4).
     infer::infer_types(stmt, sink);
+
+    // Pass 5: schema-aware checks (§7.1 / §7.5) — only when a schema is
+    // provided. E3xxx codes. Must run after schema-free so propagated types
+    // are available (currently only literal types are used).
+    if let Some(s) = schema {
+        schema_aware::check_schema_aware(stmt, s, sink);
+    }
 }
 
 #[cfg(test)]
