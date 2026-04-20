@@ -13,10 +13,13 @@ Cargo.lock.bak
 /coverage
 lcov.info
 
-# fuzz artefacts
+# fuzz artefacts — generated corpus and crash inputs are not checked in.
+# Seed corpus files (fuzz/corpus/<target>/seed*) ARE checked in.
 fuzz/target
-fuzz/corpus
 fuzz/artifacts
+# Ignore fuzzer-generated corpus entries but keep our seed files.
+# (cargo fuzz writes new inputs as hex-named files; seeds are named seed*)
+fuzz/corpus/**/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*
 
 # bv (beads viewer) local config and caches
 .bv/

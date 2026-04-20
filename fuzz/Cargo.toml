@@ -1,0 +1,65 @@
+[package]
+name    = "cyrs-fuzz"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+# This crate is intentionally excluded from the workspace (spec §17.4).
+# cargo fuzz manages it as a sub-package; the workspace resolver must not
+# pull it in so that `cargo check --workspace` (the PR gate) stays fast.
+#
+# The empty [workspace] table below declares this as a standalone package,
+# preventing Cargo from walking up to the parent workspace and pulling it
+# in as a member.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "fuzz_lexer"
+path = "fuzz_targets/fuzz_lexer.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_parser"
+path = "fuzz_targets/fuzz_parser.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_formatter"
+path = "fuzz_targets/fuzz_formatter.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_sema"
+path = "fuzz_targets/fuzz_sema.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_plan"
+path = "fuzz_targets/fuzz_plan.rs"
+test = false
+doc  = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+cypher-syntax = { path = "../crates/cypher-syntax" }
+cypher-fmt    = { path = "../crates/cypher-fmt" }
+cypher-hir    = { path = "../crates/cypher-hir" }
+cypher-sema   = { path = "../crates/cypher-sema" }
+cypher-diag   = { path = "../crates/cypher-diag" }
+cypher-plan   = { path = "../crates/cypher-plan" }
+
+[profile.release]
+debug         = true
+codegen-units = 1
+lto           = false
+opt-level     = 3
+
+# ASan + UBSan are injected by cargo-fuzz via RUSTFLAGS; no extra profile
+# knobs needed here (cargo fuzz appends -Zsanitizer=address,undefined).

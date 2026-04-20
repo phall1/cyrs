@@ -1,0 +1,1 @@
+match (a:Person)-[r:KNOWS]->(b) where a.age > 21 return a,b

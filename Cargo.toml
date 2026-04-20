@@ -18,6 +18,10 @@ members = [
     "crates/cypher",
     "xtask",
 ]
+# fuzz/ is a cargo-fuzz sub-package managed by `cargo fuzz`; it must NOT
+# be a workspace member so that `cargo check --workspace` (the PR gate)
+# does not touch it. cargo fuzz builds it with nightly + special RUSTFLAGS.
+exclude = ["fuzz"]
 default-members = ["crates/cypher-cli"]
 
 [workspace.package]
