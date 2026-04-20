@@ -116,7 +116,7 @@ fn three_requests_get_three_responses() {
 
 #[test]
 fn malformed_line_returns_error_not_crash() {
-    let reqs = [r#"this is not json at all"#];
+    let reqs = [r"this is not json at all"];
     let responses = run_requests(&reqs);
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0]["op"], "error");

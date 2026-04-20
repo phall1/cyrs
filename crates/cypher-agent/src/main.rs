@@ -100,7 +100,7 @@ enum AgentRequest {
     },
     /// format: source → formatted source
     Format { text: String },
-    /// rewrite: source + fix_ids → applied edits + resulting text (stub in v1)
+    /// rewrite: source + `fix_ids` → applied edits + resulting text (stub in v1)
     Rewrite {
         text: String,
         #[serde(default)]
@@ -121,9 +121,9 @@ enum AgentRequest {
         #[allow(dead_code)]
         dialect: Dialect,
     },
-    /// schema_set: schema JSON object → ok
+    /// `schema_set`: schema JSON object → ok
     SchemaSet { schema_json: Value },
-    /// schema_clear: → ok
+    /// `schema_clear`: → ok
     SchemaClear,
     /// shutdown: → exits the agent loop
     Shutdown,
@@ -158,9 +158,9 @@ enum AgentResponse {
     Plan { plan_json: Value },
     /// explain response
     Explain { markdown: String },
-    /// schema_set response
+    /// `schema_set` response
     SchemaSet { ok: bool },
-    /// schema_clear response
+    /// `schema_clear` response
     SchemaClear { ok: bool },
     /// shutdown response (sent before exit)
     Shutdown,
@@ -339,8 +339,7 @@ impl SchemaProvider for AgentSchema {
             let params = p
                 .params
                 .iter()
-                .enumerate()
-                .map(|(_i, param)| cypher_schema::ParamDecl {
+                .map(|param| cypher_schema::ParamDecl {
                     name: smol_str::SmolStr::new(param),
                     ty: cypher_schema::PropertyType::Any,
                     default: None,
@@ -461,11 +460,7 @@ fn handle(
             let id = db.open_file(Path::new("_"), text, dialect.into());
             match db.all_diagnostics(id) {
                 Ok(out) => AgentResponse::Check {
-                    diagnostics: out
-                        .diagnostics()
-                        .iter()
-                        .map(|d| diag_json::to_json(d))
-                        .collect(),
+                    diagnostics: out.diagnostics().iter().map(diag_json::to_json).collect(),
                 },
                 Err(e) => AgentResponse::Error {
                     message: e.to_string(),
