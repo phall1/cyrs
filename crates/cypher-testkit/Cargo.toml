@@ -24,6 +24,7 @@ pretty_assertions = { workspace = true }
 tempfile      = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
+smol_str      = { workspace = true }
 
 [lints]
 workspace = true

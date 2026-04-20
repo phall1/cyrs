@@ -1,0 +1,2 @@
+MATCH (n:Person)
+RETURN n.name
