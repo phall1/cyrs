@@ -1,0 +1,22 @@
+---
+source: crates/cypher-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (n) RETURN [x IN n.friends WHERE x.active | x.name]\")"
+---
+Statement {
+  span: 0..16
+  bindings: [
+    Var(0) 0: n (Node) @7..8
+  ]
+  clauses: [
+    Match @0..9 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@7..8]) @5..9
+        ]
+      }
+    }
+    Return(distinct=false) @9..16 {
+      proj[0]: null
+    }
+  ]
+}
