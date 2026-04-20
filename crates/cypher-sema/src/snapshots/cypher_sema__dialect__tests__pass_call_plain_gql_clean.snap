@@ -1,0 +1,5 @@
+---
+source: crates/cypher-sema/src/dialect.rs
+expression: "run_gate(&call_stmt(\"db.labels\"), DialectMode::GqlAligned)"
+---
+diagnostics: 0

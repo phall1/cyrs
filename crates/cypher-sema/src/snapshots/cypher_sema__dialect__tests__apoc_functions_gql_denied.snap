@@ -1,0 +1,5 @@
+---
+source: crates/cypher-sema/src/dialect.rs
+expression: "run_check(&GATE_APOC_FUNCTIONS, DialectMode::GqlAligned)"
+---
+denied: E4016: construct `apoc_functions` is not allowed in dialect `GqlAligned`; allowed in: no v1 dialect (deferred construct, see spec §9.3)

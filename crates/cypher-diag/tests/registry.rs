@@ -65,9 +65,9 @@ fn all_covers_every_variant() {
 fn all_count_pinned() {
     // When you add a variant to `DiagCode`, append it to `ALL` and
     // bump this number. This ensures the registry stays exhaustive.
-    // Current count: 91 (46 syntax + 5 name-res + 13 sema-free + 8
-    // sema-aware + 2 dialect + 3 type + 7 style + 4 perf + 3 note).
-    // Added E2009–E2013 for schema-free type-inference pass (cy-raq, §7.4).
-    const EXPECTED: usize = 91;
+    // Current count: 101 (46 syntax + 5 name-res + 13 sema-free + 8
+    // sema-aware + 12 dialect + 3 type + 7 style + 4 perf + 3 note).
+    // Added E4010–E4019 for DialectGate registry (cy-z49, §9).
+    const EXPECTED: usize = 101;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
