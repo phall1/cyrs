@@ -62,12 +62,21 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
     // Leading-junk recovery: if we start with something that is not a
     // clause keyword or `;`, skip until we see one (or EOF). This gives
     // the `garbage MATCH ...` case a usable tree.
-    if p.current() != SyntaxKind::EOF && !p.at_ts(CLAUSE_START) && !p.at(SyntaxKind::SEMI) {
+    if p.current() != SyntaxKind::EOF
+        && !p.at_ts(CLAUSE_START)
+        && !p.at(SyntaxKind::SEMI)
+        && !p.at(SyntaxKind::UNION_KW)
+    {
         p.error_code(sc::EXPECTED_STATEMENT, "expected statement");
         p.recover_until(TokenSet::EMPTY);
     }
 
+    // Defense-in-depth: track parser position across iterations. If the
+    // parser makes no progress (token cursor does not advance), force-bump
+    // the current token into an ERROR node and continue. This mirrors the
+    // rust-analyzer approach and guarantees the loop always terminates.
     while p.current() != SyntaxKind::EOF {
+        let pos_before = p.position();
         if p.at(SyntaxKind::SEMI) {
             // Stray semicolon at top level: consume as its own empty statement
             // boundary. We just bump it as punctuation directly under the root.
@@ -80,13 +89,22 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
         } else if p.current() != SyntaxKind::EOF {
             // No separator and more input: recover to the next clause or
             // semicolon so we don't loop forever.
-            if !p.at_ts(CLAUSE_START) {
+            if !p.at_ts(CLAUSE_START) && !p.at(SyntaxKind::UNION_KW) {
                 p.error_code(
                     sc::EXPECTED_SEMICOLON_OR_EOF,
                     "expected ';' or end of input",
                 );
                 p.recover_until(TokenSet::EMPTY);
             }
+        }
+        // No-progress guard: if this iteration consumed nothing, force-bump
+        // one token so the loop cannot spin. This is the last line of defence
+        // against any future grammar gap that would otherwise cause a hang.
+        if p.position() == pos_before {
+            let err = p.start();
+            p.error_code(sc::UNEXPECTED_TOKEN, "unexpected token");
+            p.bump_any();
+            err.complete(p, SyntaxKind::ERROR);
         }
     }
 

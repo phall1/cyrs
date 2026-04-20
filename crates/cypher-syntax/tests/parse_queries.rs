@@ -253,6 +253,48 @@ fn two_statements_missing_separator_error_recovery() {
 }
 
 // ---------------------------------------------------------------------------
+// 2b. UNION / UNION ALL — spec §19 (cy-2xm)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn union_simple() {
+    // `RETURN 1 UNION RETURN 2` must parse in bounded time and round-trip
+    // losslessly. Regression test for cy-2xm parser hang.
+    let tree = assert_ok("RETURN 1 UNION RETURN 2");
+    assert!(
+        find_first(&tree, SyntaxKind::UNION_TAIL).is_some(),
+        "expected a UNION_TAIL node"
+    );
+}
+
+#[test]
+fn union_all() {
+    let tree = assert_ok("RETURN 1 UNION ALL RETURN 2");
+    assert!(
+        find_first(&tree, SyntaxKind::UNION_TAIL).is_some(),
+        "expected a UNION_TAIL node for UNION ALL"
+    );
+}
+
+#[test]
+fn union_three_way() {
+    let tree = assert_ok("RETURN 1 UNION RETURN 2 UNION ALL RETURN 3");
+    // At least two UNION_TAIL nodes.
+    let tails = tree
+        .descendants()
+        .filter(|d| d.kind() == SyntaxKind::UNION_TAIL)
+        .count();
+    assert_eq!(tails, 2, "expected 2 UNION_TAIL nodes, got {tails}");
+}
+
+#[test]
+fn union_semicolon_separated_statements() {
+    // Two separate UNION queries divided by `;`.
+    let tree = assert_ok("RETURN 1 UNION RETURN 2; RETURN 3 UNION RETURN 4");
+    assert_eq!(count_statements(&tree), 2, "expected 2 statements");
+}
+
+// ---------------------------------------------------------------------------
 // 3. Error recovery
 // ---------------------------------------------------------------------------
 
