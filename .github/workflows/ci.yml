@@ -243,34 +243,11 @@ jobs:
           workspaces: ". -> target"
       - run: cargo doc --workspace --all-features --no-deps
 
-  # ---------------------------------------------------------------
-  # Coverage gates (spec §17.9)
-  # ---------------------------------------------------------------
-  coverage:
-    name: coverage (llvm-cov)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-      - uses: taiki-e/install-action@v2
-        with: { tool: cargo-llvm-cov }
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ". -> target"
-      - name: cargo llvm-cov
-        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: lcov.info
+  # Coverage (spec §17.9) lives in .github/workflows/coverage.yml (bead cy-1p9).
+  # Miri (spec §17.12) lives in .github/workflows/miri.yml (bead cy-tt1).
 
   # ---------------------------------------------------------------
-  # Supply chain: cargo-audit + cargo-deny (spec §17.16, bead cy-fju)
-  # NOTE: Do not merge audit/deny changes here — they are owned by
-  # bead cy-fju running in parallel. This job is intentionally left
-  # as-is to avoid a conflict zone.
+  # Supply chain: cargo-audit + cargo-deny (spec §17.16)
   # ---------------------------------------------------------------
   supply-chain:
     name: audit + deny
@@ -286,24 +263,8 @@ jobs:
         run: cargo deny check
 
   # ---------------------------------------------------------------
-  # Nightly: Miri + fuzz (spec §17.12, §17.4)
+  # Nightly: fuzz (spec §17.4)
   # ---------------------------------------------------------------
-  miri:
-    name: miri (nightly)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-        with: { components: miri }
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ". -> target"
-      - name: cargo miri test
-        run: cargo miri test --workspace --all-features
-        env:
-          MIRIFLAGS: "-Zmiri-strict-provenance"
-
   fuzz-smoke:
     name: fuzz smoke (5 min)
     runs-on: ubuntu-latest
