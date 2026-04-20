@@ -28,4 +28,7 @@ pub mod fixture;
 pub mod snapshot;
 
 pub use compiletest::{CorpusKind, run_ui_corpus};
-pub use fixture::{db_with_source, db_with_source_and_dialect};
+pub use fixture::{
+    db_with_source, db_with_source_and_dialect, legacy_db_with_source,
+    legacy_db_with_source_and_dialect,
+};

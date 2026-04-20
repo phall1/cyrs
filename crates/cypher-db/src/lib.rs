@@ -1,9 +1,24 @@
 //! `cypher-db` — incremental analysis database (spec 0001 §11).
 //!
 //! This crate builds on the Salsa skeleton from `cy-zx6` and adds the
-//! complete input-query surface from spec §11.2 (`cy-nk7`).
+//! complete input-query surface from spec §11.2 (`cy-nk7`), plus the
+//! `FileId` model, snapshot API, and workspace-scoped `SchemaProvider`
+//! wiring from spec §11.4–§11.5 (`cy-amr`).
 //!
-//! ## Salsa API
+//! ## Primary API (spec §11.4–§11.5)
+//!
+//! See [`workspace`] for the high-level `Database` + `FileId` + snapshot API
+//! intended for consumers (`cypher-lsp`, `cypher-agent`, `cypher-cli`,
+//! `cypher-tck`).
+//!
+//! - [`workspace::Database`] — workspace-scoped database.  Owns a
+//!   [`CypherDatabase`] plus a `FileId → SourceFile` registry.
+//! - [`workspace::FileId`] — stable u32 handle, the unit of caching (§11.4).
+//! - [`workspace::DatabaseSnapshot`] — `Send` read-only snapshot for
+//!   cross-thread queries (§11.5).
+//! - [`workspace::UnknownFileId`] — error returned for stale handles.
+//!
+//! ## Salsa internals (low-level, for crate authors)
 //!
 //! - [`SourceFile`] — Salsa `#[input]` for per-file `source` + `dialect`.
 //! - [`inputs::FileOptions`] — Salsa `#[input]` for per-file [`inputs::AnalysisOptions`].
@@ -28,8 +43,9 @@
 //!
 //! ## Legacy facade API (preserved for backward compat)
 //!
-//! [`Database`] / [`FileId`] remain.  They will be retired once all
-//! downstream callers migrate to [`CypherDatabase`].
+//! The legacy [`LegacyDatabase`] / legacy `FileId` (u32 newtype) remain
+//! exported under their old names for backward compatibility while binary
+//! crates migrate to the new [`workspace::Database`] API.
 //!
 //! ## Send + Sync / snapshot semantics (spec §11.5)
 //!
@@ -43,12 +59,14 @@
 
 pub mod inputs;
 pub mod queries;
+pub mod workspace;
 
 pub use inputs::{AnalysisOptions, FileOptions, WorkspaceInputs, options_digest};
 pub use queries::{
     Analysis, AstOutput, DiagnosticsOutput, PlanOutput, ResolvedNamesOutput, all_diagnostics,
     analyse_file, parse_ast, plan_of, resolved_names, sema_diagnostics,
 };
+pub use workspace::{Database, DatabaseSnapshot, FileId, UnknownFileId};
 
 use std::sync::Arc;
 
@@ -297,7 +315,7 @@ assert_send!(CypherDatabase);
 // Legacy thin facade — preserved for backward compatibility.
 //
 // Binary crates (cypher-cli, cypher-agent) and cypher-testkit depend on this
-// API.  They will migrate to CypherDatabase in subsequent beads.
+// API.  They will migrate to the new `workspace::Database` in subsequent beads.
 // ---------------------------------------------------------------------------
 
 use std::sync::Mutex as StdMutex;
@@ -306,39 +324,40 @@ use cypher_diag::{Diagnostic, DiagnosticsSink};
 use cypher_fmt::{FormatOptions, format_with as fmt_format_with};
 use cypher_schema::{EmptySchema, SchemaProvider};
 use cypher_sema::SemaOptions;
-use indexmap::IndexMap;
 use smol_str::SmolStr;
 
-/// File identity within the legacy [`Database`].
+/// File identity within the legacy [`LegacyDatabase`].
+///
+/// Deprecated: use [`workspace::FileId`] with [`workspace::Database`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileId(pub u32);
+pub struct LegacyFileId(pub u32);
 
 #[derive(Default)]
 struct LegacyInner {
-    sources: IndexMap<FileId, Arc<str>>,
-    dialects: IndexMap<FileId, DialectMode>,
+    sources: indexmap::IndexMap<LegacyFileId, Arc<str>>,
+    dialects: indexmap::IndexMap<LegacyFileId, DialectMode>,
     #[allow(dead_code)] // consumed when sema passes are wired in
     sema_opts: SemaOptions,
     next_file_id: u32,
 }
 
 /// Legacy analysis database (non-incremental).  Preserved for backward
-/// compatibility while binary crates migrate to [`CypherDatabase`].
+/// compatibility while binary crates migrate to [`workspace::Database`].
 ///
 /// `Send + Sync` via `Mutex`-guarded interior.  The incremental replacement
-/// is [`CypherDatabase`].
-pub struct Database {
+/// is [`workspace::Database`] / [`CypherDatabase`].
+pub struct LegacyDatabase {
     inner: StdMutex<LegacyInner>,
     schema: StdMutex<Arc<dyn SchemaProvider>>,
 }
 
-impl Default for Database {
+impl Default for LegacyDatabase {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Database {
+impl LegacyDatabase {
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -351,24 +370,24 @@ impl Database {
         *self.schema.lock().expect("db mutex") = schema;
     }
 
-    pub fn allocate_file(&self) -> FileId {
+    pub fn allocate_file(&self) -> LegacyFileId {
         let mut i = self.inner.lock().expect("db mutex");
-        let id = FileId(i.next_file_id);
+        let id = LegacyFileId(i.next_file_id);
         i.next_file_id += 1;
         id
     }
 
-    pub fn set_source(&self, file: FileId, src: impl Into<Arc<str>>) {
+    pub fn set_source(&self, file: LegacyFileId, src: impl Into<Arc<str>>) {
         let mut i = self.inner.lock().expect("db mutex");
         i.sources.insert(file, src.into());
     }
 
-    pub fn set_dialect(&self, file: FileId, d: DialectMode) {
+    pub fn set_dialect(&self, file: LegacyFileId, d: DialectMode) {
         let mut i = self.inner.lock().expect("db mutex");
         i.dialects.insert(file, d);
     }
 
-    fn source_of(&self, file: FileId) -> Arc<str> {
+    fn source_of_inner(&self, file: LegacyFileId) -> Arc<str> {
         let i = self.inner.lock().expect("db mutex");
         i.sources
             .get(&file)
@@ -377,30 +396,30 @@ impl Database {
     }
 
     #[must_use]
-    pub fn parse(&self, file: FileId) -> Parse {
-        let src = self.source_of(file);
+    pub fn parse(&self, file: LegacyFileId) -> Parse {
+        let src = self.source_of_inner(file);
         parse(&src)
     }
 
     #[must_use]
-    pub fn diagnostics(&self, file: FileId) -> Vec<Diagnostic> {
+    pub fn diagnostics(&self, file: LegacyFileId) -> Vec<Diagnostic> {
         let _parse = self.parse(file);
         let sink = DiagnosticsSink::new();
         sink.into_sorted()
     }
 
     #[must_use]
-    pub fn formatted(&self, file: FileId, opts: &FormatOptions) -> SmolStr {
-        let src = self.source_of(file);
+    pub fn formatted(&self, file: LegacyFileId, opts: &FormatOptions) -> SmolStr {
+        let src = self.source_of_inner(file);
         fmt_format_with(&src, opts)
             .expect("formatter is infallible")
             .into()
     }
 }
 
-impl std::fmt::Debug for Database {
+impl std::fmt::Debug for LegacyDatabase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Database").finish_non_exhaustive()
+        f.debug_struct("LegacyDatabase").finish_non_exhaustive()
     }
 }
 
@@ -522,11 +541,11 @@ mod tests {
         assert!(out.parse().errors().is_empty());
     }
 
-    // --- Legacy Database tests (backward compat) ---
+    // --- Legacy LegacyDatabase tests (backward compat) ---
 
     #[test]
     fn legacy_parse_through_db() {
-        let db = Database::new();
+        let db = LegacyDatabase::new();
         let f = db.allocate_file();
         db.set_source(f, "MATCH (n) RETURN n");
         let p = db.parse(f);
@@ -535,7 +554,7 @@ mod tests {
 
     #[test]
     fn legacy_empty_source_is_ok() {
-        let db = Database::new();
+        let db = LegacyDatabase::new();
         let f = db.allocate_file();
         assert_eq!(db.parse(f).syntax().to_string(), "");
         assert!(db.diagnostics(f).is_empty());
