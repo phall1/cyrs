@@ -58,10 +58,12 @@
 #![doc(html_root_url = "https://docs.rs/cypher-db/0.0.1")]
 
 pub mod inputs;
+pub mod options;
 pub mod queries;
 pub mod workspace;
 
 pub use inputs::{AnalysisOptions, FileOptions, WorkspaceInputs, options_digest};
+pub use options::DatabaseOptions;
 pub use queries::{
     Analysis, AstOutput, DiagnosticsOutput, PlanOutput, ResolvedNamesOutput, all_diagnostics,
     analyse_file, parse_ast, plan_of, resolved_names, sema_diagnostics,
@@ -191,10 +193,19 @@ pub struct SourceFile {
 ///
 /// The result is memoised; it is re-evaluated only when `source` or `dialect`
 /// changes.  See [`ParseOutput`] for equality semantics.
-#[salsa::tracked]
+#[salsa::tracked(lru = 256)]
 pub fn parse_cst(db: &dyn CypherDb, file: SourceFile) -> ParseOutput {
     let src = file.source(db);
     ParseOutput::new(parse(src))
+}
+
+/// Adjust the LRU capacity of [`parse_cst`] at runtime.
+///
+/// Called by [`workspace::Database::with_options`] to apply
+/// [`options::DatabaseOptions::parse_lru`].  Must be called before any
+/// queries are issued.
+pub fn set_parse_cst_lru(db: &mut impl CypherDb, cap: usize) {
+    parse_cst::set_lru_capacity(db, cap);
 }
 
 // ---------------------------------------------------------------------------

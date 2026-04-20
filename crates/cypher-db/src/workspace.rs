@@ -64,6 +64,7 @@ use indexmap::IndexMap;
 use cypher_schema::SchemaProvider;
 
 use crate::inputs::{AnalysisOptions, FileOptions, WorkspaceInputs};
+use crate::options::DatabaseOptions;
 use crate::queries::{
     AstOutput, DiagnosticsOutput, PlanOutput, ResolvedNamesOutput, all_diagnostics, analyse_file,
     parse_ast, plan_of, resolved_names, sema_diagnostics,
@@ -256,6 +257,9 @@ pub struct Database {
     workspace: Option<WorkspaceInputs>,
     /// Monotonically increasing `FileId` counter.
     next_id: u32,
+    /// LRU options captured at construction (immutable).
+    #[allow(dead_code)]
+    options: DatabaseOptions,
 }
 
 impl std::fmt::Debug for Database {
@@ -277,16 +281,48 @@ impl Database {
     // Construction
     // -----------------------------------------------------------------------
 
-    /// Create a new, empty workspace database.
+    /// Create a new, empty workspace database with default LRU caps (256).
     #[must_use]
     pub fn new() -> Self {
+        Self::with_options(DatabaseOptions::default())
+    }
+
+    /// Create a new, empty workspace database with the given [`DatabaseOptions`].
+    ///
+    /// LRU capacities in `opts` are applied via Salsa's runtime
+    /// `set_lru_capacity` API immediately after construction.  The options
+    /// are immutable after this point.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use cypher_db::{Database, DatabaseOptions};
+    ///
+    /// let db = Database::with_options(DatabaseOptions {
+    ///     parse_lru: 512,
+    ///     sema_lru: 128,
+    ///     ..DatabaseOptions::default()
+    /// });
+    /// ```
+    #[must_use]
+    pub fn with_options(opts: DatabaseOptions) -> Self {
         let mut inner = CypherDatabase::new();
+
+        // Apply runtime LRU capacity adjustments.
+        // The compile-time default is 256 (encoded in #[salsa::tracked(lru = 256)]).
+        // We always call set_lru_capacity so that non-default values take effect.
+        crate::set_parse_cst_lru(&mut inner, opts.parse_lru);
+        crate::queries::set_resolved_names_lru(&mut inner, opts.sema_lru);
+        crate::queries::set_sema_diagnostics_lru(&mut inner, opts.sema_lru);
+        crate::queries::set_plan_of_lru(&mut inner, opts.plan_lru);
+
         let workspace = Some(inner.new_workspace_inputs(None));
         Self {
             inner,
             files: IndexMap::new(),
             workspace,
             next_id: 0,
+            options: opts,
         }
     }
 
@@ -759,6 +795,104 @@ mod tests {
 
         assert_eq!(db.source_of(id).unwrap(), "RETURN 42");
         assert_eq!(db.path_of(id).unwrap(), p);
+    }
+
+    // -----------------------------------------------------------------------
+    // DatabaseOptions / with_options — bead cy-31b
+    // -----------------------------------------------------------------------
+
+    /// `Database::with_options` constructs successfully and the resulting DB
+    /// operates correctly (`parse_lru` = 2 stress test).
+    #[test]
+    fn with_options_parse_lru_2() {
+        use crate::DatabaseOptions;
+
+        // parse_lru = 2 means only 2 parse_cst results are kept.
+        // This test verifies the API compiles and the DB is functional.
+        let db = Database::with_options(DatabaseOptions {
+            parse_lru: 2,
+            sema_lru: 2,
+            plan_lru: 2,
+            formatted_lru: 2,
+        });
+
+        // Verify the DB is usable.
+        assert_eq!(db.files.len(), 0);
+    }
+
+    /// `Database::with_options` with `parse_lru` = 2: open 3 files, query each.
+    /// The LRU eviction will drop older cached values, so querying is still
+    /// correct (Salsa recomputes on cache miss) but the cache is bounded.
+    #[test]
+    fn with_options_lru_2_three_files() {
+        use crate::DatabaseOptions;
+
+        let mut db = Database::with_options(DatabaseOptions {
+            parse_lru: 2,
+            sema_lru: 2,
+            plan_lru: 2,
+            ..DatabaseOptions::default()
+        });
+
+        let a = db.open_file(
+            Path::new("a.cyp"),
+            "RETURN 1".into(),
+            DialectMode::GqlAligned,
+        );
+        let b = db.open_file(
+            Path::new("b.cyp"),
+            "RETURN 2".into(),
+            DialectMode::GqlAligned,
+        );
+        let c = db.open_file(
+            Path::new("c.cyp"),
+            "RETURN 3".into(),
+            DialectMode::GqlAligned,
+        );
+
+        // All three files parse correctly even with a tiny LRU cap.
+        assert_eq!(
+            db.parse_cst(a).unwrap().parse().syntax().to_string(),
+            "RETURN 1"
+        );
+        assert_eq!(
+            db.parse_cst(b).unwrap().parse().syntax().to_string(),
+            "RETURN 2"
+        );
+        assert_eq!(
+            db.parse_cst(c).unwrap().parse().syntax().to_string(),
+            "RETURN 3"
+        );
+
+        // Re-query all after the cap has been exceeded — Salsa recomputes on
+        // cache miss, so results must still be correct.
+        assert_eq!(
+            db.parse_cst(a).unwrap().parse().syntax().to_string(),
+            "RETURN 1"
+        );
+        assert_eq!(
+            db.parse_cst(b).unwrap().parse().syntax().to_string(),
+            "RETURN 2"
+        );
+        assert_eq!(
+            db.parse_cst(c).unwrap().parse().syntax().to_string(),
+            "RETURN 3"
+        );
+    }
+
+    /// `Database::new()` uses default options (`parse_lru` = 256).
+    #[test]
+    fn database_new_uses_default_options() {
+        use crate::DatabaseOptions;
+        let default_opts = DatabaseOptions::default();
+        assert_eq!(default_opts.parse_lru, 256);
+        assert_eq!(default_opts.sema_lru, 256);
+        assert_eq!(default_opts.plan_lru, 256);
+        assert_eq!(default_opts.formatted_lru, 256);
+
+        // Verify Database::new() still works.
+        let db = Database::new();
+        assert_eq!(db.files.len(), 0);
     }
 
     // -----------------------------------------------------------------------
