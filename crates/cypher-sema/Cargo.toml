@@ -12,12 +12,14 @@ description  = "Semantic analysis and type system for the Cypher front-end. Spec
 cypher-hir    = { workspace = true }
 cypher-schema = { workspace = true }
 cypher-diag   = { workspace = true }
+cypher-syntax = { workspace = true }
 smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 
 [dev-dependencies]
 insta         = { workspace = true }
 cypher-syntax = { workspace = true }
+proptest      = { workspace = true }
 
 [lints]
 workspace = true
