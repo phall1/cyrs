@@ -78,6 +78,7 @@ expect-test    = "1.5"
 tempfile       = "3"
 assert_cmd     = "2"
 predicates     = "3"
+toml           = "0.8"
 
 # incremental query engine (spec §11.1 — only cypher-db and above may use this)
 salsa = "0.26"
