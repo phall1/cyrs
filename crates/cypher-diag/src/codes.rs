@@ -236,6 +236,18 @@ pub enum DiagCode {
     E2005 = 2005,
     /// `RETURN *` with empty scope.
     E2006 = 2006,
+    /// Variable used in arithmetic / numeric context but has non-Value kind
+    /// (Node, Relationship, or Path). Schema-free kind-consistency check
+    /// (spec §6.3).
+    ///
+    /// Docs: `docs/errors/E2007.md`
+    E2007 = 2007,
+    /// Variable of incorrect kind used in pattern position (spec §6.3).
+    /// E.g., a `Value` variable where a node-pattern binder is expected, or
+    /// a `Node` variable where a path binder is expected.
+    ///
+    /// Docs: `docs/errors/E2008.md`
+    E2008 = 2008,
 
     // --- semantic schema-aware (3000..) ------------------------------
     /// Unknown label.
@@ -364,6 +376,8 @@ impl DiagCode {
             Self::E2004 => "E2004",
             Self::E2005 => "E2005",
             Self::E2006 => "E2006",
+            Self::E2007 => "E2007",
+            Self::E2008 => "E2008",
             Self::E3001 => "E3001",
             Self::E3002 => "E3002",
             Self::E3003 => "E3003",
@@ -471,6 +485,8 @@ impl DiagCode {
         Self::E2004,
         Self::E2005,
         Self::E2006,
+        Self::E2007,
+        Self::E2008,
         Self::E3001,
         Self::E3002,
         Self::E3003,
@@ -572,6 +588,8 @@ mod tests {
             DiagCode::E2004,
             DiagCode::E2005,
             DiagCode::E2006,
+            DiagCode::E2007,
+            DiagCode::E2008,
             DiagCode::E3001,
             DiagCode::E3002,
             DiagCode::E3003,
