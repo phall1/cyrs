@@ -42,8 +42,13 @@
 #![doc(html_root_url = "https://docs.rs/cypher-db/0.0.1")]
 
 pub mod inputs;
+pub mod queries;
 
 pub use inputs::{AnalysisOptions, FileOptions, WorkspaceInputs, options_digest};
+pub use queries::{
+    Analysis, AstOutput, DiagnosticsOutput, PlanOutput, ResolvedNamesOutput, all_diagnostics,
+    analyse_file, parse_ast, plan_of, resolved_names, sema_diagnostics,
+};
 
 use std::sync::Arc;
 
