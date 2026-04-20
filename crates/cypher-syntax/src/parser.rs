@@ -389,6 +389,12 @@ impl<'a> Parser<'a> {
         Marker::new(pos)
     }
 
+    /// Return the current token-cursor position. Used by the no-progress
+    /// guard in `source_file` to detect loops where no token is consumed.
+    pub(crate) fn position(&self) -> usize {
+        self.pos
+    }
+
     pub(crate) fn into_events(self) -> Vec<Event> {
         self.events
     }
