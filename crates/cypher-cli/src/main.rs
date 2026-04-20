@@ -148,13 +148,18 @@ fn run(cli: &Cli) -> Result<()> {
 }
 
 fn read_source(path: Option<&std::path::Path>) -> Result<String> {
-    if let Some(p) = path {
-        fs::read_to_string(p).with_context(|| format!("reading {}", p.display()))
-    } else {
+    let use_stdin = match path {
+        None => true,
+        Some(p) => p == std::path::Path::new("-"),
+    };
+    if use_stdin {
         let mut s = String::new();
         io::stdin()
             .read_to_string(&mut s)
             .context("reading stdin")?;
         Ok(s)
+    } else {
+        let p = path.expect("not stdin");
+        fs::read_to_string(p).with_context(|| format!("reading {}", p.display()))
     }
 }
