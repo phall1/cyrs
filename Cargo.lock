@@ -441,6 +441,7 @@ dependencies = [
  "cypher-db",
  "cypher-diag",
  "cypher-fmt",
+ "cypher-syntax",
  "lsp-server",
  "lsp-types",
  "serde",
