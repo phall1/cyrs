@@ -1,0 +1,8 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: out
+---
+MATCH (n)
+// comment about the WHERE
+WHERE n.active
+RETURN n

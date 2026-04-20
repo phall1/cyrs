@@ -276,6 +276,25 @@ mod tests {
         assert_snapshot!(fmt("MATCH (n) // get node\nRETURN n"));
     }
 
+    /// Regression test for cy-h0l: a line comment that appears alone between
+    /// two clauses (with a newline before it in the source) must be emitted on
+    /// its own line, not appended to the preceding clause (spec §13.2 I13.3).
+    #[test]
+    fn snap_leading_line_comment_not_glued_to_previous_clause() {
+        let src = "MATCH (n)\n// comment about the WHERE\nWHERE n.active\nRETURN n";
+        let out = fmt(src);
+        // The line containing "// comment" must NOT also contain "MATCH (n)".
+        for line in out.lines() {
+            if line.contains("// comment") {
+                assert!(
+                    !line.contains("MATCH"),
+                    "line comment was glued to preceding clause: {out:?}"
+                );
+            }
+        }
+        assert_snapshot!(out);
+    }
+
     #[test]
     fn snap_block_comment() {
         assert_snapshot!(fmt("/* find all */ MATCH (n) RETURN n"));
