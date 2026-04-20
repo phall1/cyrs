@@ -15,7 +15,10 @@ smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 
 [dev-dependencies]
-insta = { workspace = true }
+insta      = { workspace = true }
+proptest   = { workspace = true }
+rowan      = { workspace = true }
+cypher-fmt = { workspace = true }
 
 [lints]
 workspace = true

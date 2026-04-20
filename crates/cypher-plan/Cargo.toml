@@ -22,12 +22,14 @@ serde      = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
-insta           = { workspace = true, features = ["json"] }
-serde           = { workspace = true }
-serde_json      = { workspace = true }
-indexmap        = { workspace = true }
-cypher-plan     = { path = ".", features = ["serde"] }
-cypher-testkit  = { workspace = true }
+insta          = { workspace = true, features = ["json"] }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+indexmap       = { workspace = true }
+cypher-plan    = { path = ".", features = ["serde"] }
+cypher-testkit = { workspace = true }
+proptest       = { workspace = true }
+cypher-syntax  = { workspace = true }
 
 [lints]
 workspace = true
