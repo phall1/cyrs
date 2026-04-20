@@ -24,6 +24,7 @@ serde   = ["dep:serde", "smol_str/serde", "text-size/serde"]
 [dev-dependencies]
 expect-test       = { workspace = true }
 insta             = { workspace = true }
+cypher-testkit    = { workspace = true }
 proptest          = { workspace = true }
 pretty_assertions = { workspace = true }
 

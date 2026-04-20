@@ -17,11 +17,12 @@ smol_str      = { workspace = true }
 indexmap      = { workspace = true }
 
 [dev-dependencies]
-insta         = { workspace = true }
-cypher-syntax = { workspace = true }
-proptest      = { workspace = true }
-serde         = { workspace = true }
-serde_json    = { workspace = true }
+insta           = { workspace = true }
+cypher-syntax   = { workspace = true }
+cypher-testkit  = { workspace = true }
+proptest        = { workspace = true }
+serde           = { workspace = true }
+serde_json      = { workspace = true }
 
 [lints]
 workspace = true

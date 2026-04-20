@@ -365,6 +365,7 @@ name = "cypher-fmt"
 version = "0.0.1"
 dependencies = [
  "cypher-syntax",
+ "cypher-testkit",
  "insta",
  "pretty_assertions",
  "proptest",
@@ -405,6 +406,7 @@ version = "0.0.1"
 dependencies = [
  "cypher-hir",
  "cypher-plan",
+ "cypher-testkit",
  "indexmap",
  "insta",
  "serde",
@@ -430,6 +432,7 @@ dependencies = [
  "cypher-hir",
  "cypher-schema",
  "cypher-syntax",
+ "cypher-testkit",
  "indexmap",
  "insta",
  "proptest",
@@ -442,6 +445,7 @@ dependencies = [
 name = "cypher-syntax"
 version = "0.0.1"
 dependencies = [
+ "cypher-testkit",
  "drop_bomb",
  "expect-test",
  "insta",
@@ -480,6 +484,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+ "smol_str",
  "tempfile",
 ]
 

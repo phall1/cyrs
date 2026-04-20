@@ -27,11 +27,15 @@ enum Cmd {
     /// Re-bless compiletest golden corpus (spec §17.6).
     ///
     /// Runs `BLESS=1 cargo test --test ui` for the specified package (or all
-    /// sema packages when `--package` is omitted).
+    /// UI-test packages when `--package` is omitted).
     Bless {
         /// Package to bless (e.g. `cypher-sema`). Omit to bless all.
         #[arg(short, long)]
         package: Option<String>,
+        /// Corpus kind to bless (syntax/sema/schema/dialect/plan/fmt).
+        /// Omit to bless all kinds within the selected package(s).
+        #[arg(short, long)]
+        kind: Option<String>,
     },
     /// Regenerate `cypher-ast` from the grammar description (spec §5.2).
     Codegen,
@@ -52,7 +56,7 @@ fn main() -> Result<()> {
     let cli = Xtask::parse();
     match cli.cmd {
         Cmd::Gate => gate(),
-        Cmd::Bless { package } => bless(package.as_deref()),
+        Cmd::Bless { package, kind } => bless(package.as_deref(), kind.as_deref()),
         Cmd::Codegen => xtask::codegen::run(),
         Cmd::Release => {
             println!("[xtask release] verifies gates per spec §17.17");
@@ -141,17 +145,43 @@ fn gate() -> Result<()> {
     Ok(())
 }
 
-/// Re-bless compiletest golden sidecars for `package` (or all sema crates).
+/// All crates that have a `tests/ui.rs` integration test harness.
+const UI_CRATES: &[&str] = &["cypher-syntax", "cypher-sema", "cypher-fmt", "cypher-plan"];
+
+/// Re-bless compiletest golden sidecars (spec §17.6).
 ///
-/// Runs `BLESS=1 cargo test --test ui` so the harness overwrites every
-/// `.stderr` sidecar with the actual diagnostic output.  When `package` is
-/// `None` the blessing is applied to every crate that has a `ui` test
-/// (currently only `cypher-sema`).
-fn bless(package: Option<&str>) -> Result<()> {
+/// Runs `BLESS=1 cargo test --test ui` for every relevant crate (or the
+/// specified package) so the harness overwrites every sidecar with the
+/// actual pipeline output.
+///
+/// `--kind` is accepted for documentation / future filtering but currently
+/// blesses all corpus kinds within the selected package(s): the
+/// per-kind separation lives inside each crate's `tests/ui.rs` harness, and
+/// a single `--test ui` invocation blesses all kinds for that crate.
+fn bless(package: Option<&str>, kind: Option<&str>) -> Result<()> {
+    if let Some(k) = kind {
+        let valid_kinds = ["syntax", "sema", "schema", "dialect", "plan", "fmt"];
+        if !valid_kinds.contains(&k) {
+            bail!(
+                "unknown kind `{k}`; valid kinds: {}",
+                valid_kinds.join(", ")
+            );
+        }
+    }
+
     let packages: Vec<&str> = match package {
-        Some(p) => vec![p],
-        None => vec!["cypher-sema"],
+        Some(p) => {
+            if !UI_CRATES.contains(&p) {
+                bail!(
+                    "package `{p}` has no UI corpus; known packages: {}",
+                    UI_CRATES.join(", ")
+                );
+            }
+            vec![p]
+        }
+        None => UI_CRATES.to_vec(),
     };
+
     for pkg in packages {
         println!("[xtask bless] blessing {pkg}");
         let status = Command::new("cargo")
