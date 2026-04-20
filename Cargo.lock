@@ -339,8 +339,13 @@ dependencies = [
  "cypher-db",
  "cypher-diag",
  "cypher-fmt",
+ "cypher-hir",
+ "cypher-plan",
+ "cypher-schema",
+ "cypher-sema",
  "serde",
  "serde_json",
+ "smol_str",
  "tracing",
  "tracing-subscriber",
 ]
