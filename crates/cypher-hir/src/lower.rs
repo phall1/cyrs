@@ -29,8 +29,8 @@ use smol_str::SmolStr;
 use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
-    BinOp, Binding, Clause, Direction, Expr, HirId, Pattern, PatternElement, PatternPart,
-    Projection, RelLength, Statement, UnaryOp, VarId, VarKind,
+    BinOp, Binding, Clause, Direction, Expr, HirId, MapProjectionItem, Pattern, PatternElement,
+    PatternPart, Projection, RelLength, Statement, UnaryOp, VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -426,10 +426,9 @@ impl LowerCtx {
             SyntaxKind::LIST_LITERAL => Some(self.lower_list_literal(node)),
             SyntaxKind::MAP_LITERAL => Some(self.lower_property_map(node)),
             SyntaxKind::CASE_EXPR => Some(self.lower_case_expr(node)),
-            SyntaxKind::PATTERN_PREDICATE => {
-                // Stub: produce an empty pattern predicate.
-                Some(Expr::PatternPredicate(Pattern { parts: vec![] }))
-            }
+            SyntaxKind::LIST_COMPREHENSION => Some(self.lower_list_comprehension(node)),
+            SyntaxKind::MAP_PROJECTION => Some(self.lower_map_projection(node)),
+            SyntaxKind::PATTERN_PREDICATE => Some(self.lower_pattern_predicate(node)),
             _ => None,
         }
     }
@@ -642,6 +641,195 @@ impl LowerCtx {
             arms: vec![],
             otherwise: None,
         }
+    }
+
+    /// Lower a `LIST_COMPREHENSION` node into [`Expr::ListComprehension`].
+    ///
+    /// Expected AST shape (spec §6.1):
+    /// ```text
+    /// LIST_COMPREHENSION
+    ///   NAME          — the iteration variable (x in `[x IN xs WHERE p | e]`)
+    ///   IN_KW
+    ///   <iterable>    — expression for the source list (xs)
+    ///   WHERE_KW?
+    ///   <filter>?     — optional predicate expression (p)
+    ///   PIPE?
+    ///   <map_expr>?   — optional projection expression (e)
+    /// ```
+    fn lower_list_comprehension(&mut self, node: SyntaxNode) -> Expr {
+        // Iteration variable — NAME child.
+        let var_name = node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::NAME)
+            .and_then(|n| ident_text(&n))
+            .unwrap_or_else(|| "_".to_string());
+
+        // Allocate a VarId for the iteration variable.
+        let filter_var = self.bind_var(&var_name, VarKind::Value, node.text_range());
+
+        // Walk expression children in order to find iterable, filter, map_expr.
+        // Children order after NAME: iterable, [filter], [map_expr].
+        let expr_children: Vec<Expr> = node
+            .children()
+            .filter(|n| n.kind() != SyntaxKind::NAME)
+            .filter_map(|n| self.try_lower_expr(n))
+            .collect();
+
+        let has_where = has_token(&node, SyntaxKind::WHERE_KW);
+        let has_pipe = has_token(&node, SyntaxKind::PIPE);
+
+        let iterable = expr_children.first().cloned().unwrap_or(Expr::Null);
+
+        let (filter, map_expr) = match (has_where, has_pipe) {
+            (true, true) => {
+                // [x IN xs WHERE p | e] — 3 exprs: iterable, predicate, map
+                let filter = expr_children.get(1).cloned();
+                let map = expr_children
+                    .get(2)
+                    .cloned()
+                    .unwrap_or(Expr::Var(filter_var));
+                (filter.map(Box::new), Box::new(map))
+            }
+            (false, true) => {
+                // [x IN xs | e] — 2 exprs: iterable, map
+                let map = expr_children
+                    .get(1)
+                    .cloned()
+                    .unwrap_or(Expr::Var(filter_var));
+                (None, Box::new(map))
+            }
+            (true, false) => {
+                // [x IN xs WHERE p] — filter only, map = identity
+                let filter = expr_children.get(1).cloned();
+                (filter.map(Box::new), Box::new(Expr::Var(filter_var)))
+            }
+            (false, false) => {
+                // [x IN xs] — plain collect
+                (None, Box::new(Expr::Var(filter_var)))
+            }
+        };
+
+        Expr::ListComprehension {
+            filter_var,
+            iterable: Box::new(iterable),
+            filter,
+            map_expr,
+        }
+    }
+
+    /// Lower a `MAP_PROJECTION` node into [`Expr::MapProjection`].
+    ///
+    /// Expected AST shape (spec §6.1):
+    /// ```text
+    /// MAP_PROJECTION
+    ///   <base_expr>               — the base expression (e.g. variable `a`)
+    ///   L_BRACE
+    ///   MAP_PROJECTION_ITEM*
+    ///     DOT IDENT               → PropCopy
+    ///     IDENT COLON Expr        → Computed
+    ///     IDENT                   → VarShorthand
+    ///   R_BRACE
+    /// ```
+    fn lower_map_projection(&mut self, node: SyntaxNode) -> Expr {
+        // First expression child is the base.
+        let base = node
+            .children()
+            .find_map(|n| self.try_lower_expr(n))
+            .unwrap_or(Expr::Null);
+
+        let items = node
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::MAP_PROJECTION_ITEM)
+            .map(|item_node| self.lower_map_projection_item(item_node))
+            .collect();
+
+        Expr::MapProjection {
+            base: Box::new(base),
+            items,
+        }
+    }
+
+    fn lower_map_projection_item(&mut self, node: SyntaxNode) -> MapProjectionItem {
+        let has_dot = has_token(&node, SyntaxKind::DOT);
+        let has_colon = has_token(&node, SyntaxKind::COLON);
+
+        if has_dot {
+            // `.prop` — property copy shorthand.
+            let prop = node
+                .children_with_tokens()
+                .filter_map(SyntaxElement::into_token)
+                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .map(|t| SmolStr::new(t.text()))
+                .unwrap_or_default();
+            MapProjectionItem::PropCopy { prop }
+        } else if has_colon {
+            // `key: expr` — computed key-value pair.
+            let key = node
+                .children_with_tokens()
+                .filter_map(SyntaxElement::into_token)
+                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .map(|t| SmolStr::new(t.text()))
+                .unwrap_or_default();
+            let value = node
+                .children()
+                .find_map(|n| self.try_lower_expr(n))
+                .unwrap_or(Expr::Null);
+            MapProjectionItem::Computed { key, value }
+        } else {
+            // `varName` — variable shorthand.
+            let name = node
+                .children_with_tokens()
+                .filter_map(SyntaxElement::into_token)
+                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .map(|t| SmolStr::new(t.text()))
+                .unwrap_or_default();
+            let var = self
+                .resolve_var(name.as_str())
+                .unwrap_or_else(|| self.bind_var(name.as_str(), VarKind::Value, node.text_range()));
+            MapProjectionItem::VarShorthand { var, name }
+        }
+    }
+
+    /// Lower a `PATTERN_PREDICATE` node into [`Expr::PatternPredicate`].
+    ///
+    /// A pattern predicate in expression position — e.g. in
+    /// `WHERE (a)-->(:X)` — is lowered to an existential check on the
+    /// contained pattern. Downstream sema produces the actual existence
+    /// check; HIR just flags it as `PatternPredicate`.
+    fn lower_pattern_predicate(&mut self, node: SyntaxNode) -> Expr {
+        // PATTERN_PREDICATE wraps one or more PATTERN children.
+        let parts: Vec<PatternPart> = node
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::PATTERN || n.kind() == SyntaxKind::PATTERN_PART)
+            .flat_map(|pat| {
+                if pat.kind() == SyntaxKind::PATTERN {
+                    pat.children()
+                        .filter(|n| n.kind() == SyntaxKind::PATTERN_PART)
+                        .map(|pp| self.lower_pattern_part(pp))
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![self.lower_pattern_part(pat)]
+                }
+            })
+            .collect();
+
+        // If the parser emitted no inner PATTERN nodes (e.g. it's a stub),
+        // attempt to parse nested NODE_PATTERN elements directly.
+        let parts = if parts.is_empty() {
+            let elems = self.lower_pattern_elements(&node);
+            if elems.is_empty() {
+                vec![]
+            } else {
+                vec![PatternPart {
+                    named_as: None,
+                    elements: elems,
+                }]
+            }
+        } else {
+            parts
+        };
+
+        Expr::PatternPredicate(Pattern { parts })
     }
 }
 

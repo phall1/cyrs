@@ -1,0 +1,5 @@
+---
+source: crates/cypher-hir/src/desugar.rs
+expression: render_expr(&expr)
+---
+BinOp(And, BinOp(Gt, Var(0), Int(0)), BinOp(Lt, Var(0), Int(100)))
