@@ -236,7 +236,7 @@ pub fn parse_ast(db: &dyn CypherDb, file: SourceFile) -> AstOutput {
 /// `SyntaxNode` (which is `!Sync`) and therefore cannot be returned from a
 /// `#[salsa::tracked]` function.  The HIR lowering cost is dominated by the
 /// upstream `parse_cst`, which is cached.
-#[salsa::tracked]
+#[salsa::tracked(lru = 256)]
 pub fn resolved_names(
     db: &dyn CypherDb,
     file: SourceFile,
@@ -263,7 +263,7 @@ pub fn resolved_names(
 /// options or schema re-executes this query but leaves `parse_cst` cached.
 ///
 /// HIR lowering is performed inline (see module doc for rationale).
-#[salsa::tracked]
+#[salsa::tracked(lru = 256)]
 pub fn sema_diagnostics(
     db: &dyn CypherDb,
     file: SourceFile,
@@ -305,7 +305,7 @@ pub fn sema_diagnostics(
 /// dialect; options and schema do not affect the plan shape in v1).
 ///
 /// HIR lowering is performed inline (see module doc for rationale).
-#[salsa::tracked]
+#[salsa::tracked(lru = 256)]
 pub fn plan_of(db: &dyn CypherDb, file: SourceFile) -> PlanOutput {
     // Establish Salsa dependency on the parsed CST.
     let _cst = parse_cst(db, file);
@@ -433,6 +433,39 @@ fn find_diag_code(numeric: u16) -> DiagCode {
         .copied()
         .find(|&c| (c as u16) == numeric)
         .unwrap_or(DiagCode::E0001)
+}
+
+// ---------------------------------------------------------------------------
+// LRU capacity helpers (spec §11.X, bead cy-31b)
+//
+// Salsa 0.26 generates `set_lru_capacity` as an associated function on the
+// tracked-fn module, but it is private to the declaring module.  These thin
+// wrappers re-export the capability so that `workspace::Database::with_options`
+// can apply runtime LRU caps from [`crate::options::DatabaseOptions`].
+// ---------------------------------------------------------------------------
+
+/// Adjust the LRU capacity of [`resolved_names`] at runtime.
+///
+/// Must be called before any queries are issued.  Corresponds to the
+/// `sema_lru` field of [`crate::options::DatabaseOptions`].
+pub fn set_resolved_names_lru(db: &mut impl crate::CypherDb, cap: usize) {
+    resolved_names::set_lru_capacity(db, cap);
+}
+
+/// Adjust the LRU capacity of [`sema_diagnostics`] at runtime.
+///
+/// Must be called before any queries are issued.  Corresponds to the
+/// `sema_lru` field of [`crate::options::DatabaseOptions`].
+pub fn set_sema_diagnostics_lru(db: &mut impl crate::CypherDb, cap: usize) {
+    sema_diagnostics::set_lru_capacity(db, cap);
+}
+
+/// Adjust the LRU capacity of [`plan_of`] at runtime.
+///
+/// Must be called before any queries are issued.  Corresponds to the
+/// `plan_lru` field of [`crate::options::DatabaseOptions`].
+pub fn set_plan_of_lru(db: &mut impl crate::CypherDb, cap: usize) {
+    plan_of::set_lru_capacity(db, cap);
 }
 
 // ---------------------------------------------------------------------------
