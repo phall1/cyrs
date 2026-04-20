@@ -1,19 +1,30 @@
 //! `cypher-db` — incremental analysis database (spec 0001 §11).
 //!
-//! This bead (cy-zx6) installs the Salsa 2022-style skeleton alongside the
-//! existing thin facade.  The facade remains fully functional so that binary
-//! crates (`cypher-cli`, `cypher-agent`) and `cypher-testkit` continue to
-//! compile unchanged; their migration to the Salsa API lands in the pipeline
-//! beads (cy-nk7, cy-i6a, cy-amr).
+//! This crate builds on the Salsa skeleton from `cy-zx6` and adds the
+//! complete input-query surface from spec §11.2 (`cy-nk7`).
 //!
-//! ## Salsa API (new in cy-zx6)
+//! ## Salsa API
 //!
-//! - [`SourceFile`] — Salsa `#[input]` for a single source unit.
+//! - [`SourceFile`] — Salsa `#[input]` for per-file `source` + `dialect`.
+//! - [`inputs::FileOptions`] — Salsa `#[input]` for per-file [`inputs::AnalysisOptions`].
+//! - [`inputs::WorkspaceInputs`] — Salsa `#[input]` for workspace-scoped schema (§11.4).
+//! - [`inputs::options_digest`] — `#[salsa::tracked]` derived query: stable u64 hash
+//!   of `AnalysisOptions`, used to gate all analysis-dependent derived queries.
 //! - [`CypherDatabase`] — the concrete `salsa::Database` impl.
 //! - [`CypherDb`] — the database trait that all concrete DBs implement.
 //! - [`ParseOutput`] — memoised result of parsing a [`SourceFile`].
 //! - [`parse_cst`] — first derived query: lossless CST, re-evaluated only
 //!   when `source` changes.
+//!
+//! ## Input query surface (spec §11.2)
+//!
+//! | Query                             | Salsa kind        | Scope     |
+//! |-----------------------------------|-------------------|-----------|
+//! | `source_text(file) -> &str`       | `#[input]` field  | per-file  |
+//! | `dialect(file) -> DialectMode`    | `#[input]` field  | per-file  |
+//! | `options(file) -> AnalysisOptions`| `#[input]` field  | per-file  |
+//! | `options_digest(file) -> u64`     | `#[tracked]`      | per-file  |
+//! | `schema() -> Option<Arc<dyn …>>`  | `#[input]` field  | workspace |
 //!
 //! ## Legacy facade API (preserved for backward compat)
 //!
@@ -29,6 +40,10 @@
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-db/0.0.1")]
+
+pub mod inputs;
+
+pub use inputs::{AnalysisOptions, FileOptions, WorkspaceInputs, options_digest};
 
 use std::sync::Arc;
 
@@ -224,6 +239,42 @@ impl CypherDatabase {
     /// Update the dialect of an existing [`SourceFile`].
     pub fn set_dialect(&mut self, file: SourceFile, dialect: DialectMode) {
         file.set_dialect(self).to(dialect);
+    }
+
+    /// Create a new [`FileOptions`] input with the given [`AnalysisOptions`].
+    pub fn new_file_options(&mut self, options: AnalysisOptions) -> FileOptions {
+        FileOptions::new(self, options)
+    }
+
+    /// Update the [`AnalysisOptions`] of an existing [`FileOptions`] input.
+    ///
+    /// Bumps the Salsa revision for `file_opts`, which cascades through
+    /// `options_digest` and all derived queries that read it.
+    pub fn set_options(&mut self, file_opts: FileOptions, options: AnalysisOptions) {
+        file_opts.set_options(self).to(options);
+    }
+
+    /// Create a new [`WorkspaceInputs`] input.
+    ///
+    /// There should be exactly one `WorkspaceInputs` per database.
+    /// Call this once at database initialisation; update it with
+    /// [`set_schema`](Self::set_schema).
+    pub fn new_workspace_inputs(
+        &mut self,
+        schema: Option<Arc<dyn cypher_schema::SchemaProvider>>,
+    ) -> WorkspaceInputs {
+        WorkspaceInputs::new(self, schema)
+    }
+
+    /// Update the workspace-scoped schema.
+    ///
+    /// Invalidates all derived queries that depend on the schema.
+    pub fn set_schema(
+        &mut self,
+        ws: WorkspaceInputs,
+        schema: Option<Arc<dyn cypher_schema::SchemaProvider>>,
+    ) {
+        ws.set_schema(self).to(schema);
     }
 }
 
