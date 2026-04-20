@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+Project [$0 AS a, $2 AS b]
+  Expand ($0)-[:KNOWS(->) $1]->(:Person AS $2)
+    Source (:Person AS $0)

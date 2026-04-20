@@ -1,0 +1,10 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+WriteOps:
+  MergeNode (:Person AS $0) props={name: "Carol"}
+    ON CREATE:
+      SetProperty $0.created_at = 0
+    ON MATCH:
+      SetProperty $0.updated_at = 1

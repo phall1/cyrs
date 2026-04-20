@@ -1,0 +1,9 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+Union DISTINCT
+  Project [$0 AS n]
+    Source (:Person AS $0)
+  Project [$1 AS n]
+    Source (:Robot AS $1)
