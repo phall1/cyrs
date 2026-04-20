@@ -1,0 +1,64 @@
+# Miri CI (spec 0001 §17.12).
+#
+# Runs `cargo miri test -p <crate>` with MIRIFLAGS=-Zmiri-strict-provenance
+# for every first-party library crate in the workspace.  Binary-only crates
+# (cypher-lsp, cypher-agent, cypher-cli) and testkit helpers are excluded
+# because Miri requires a lib target.
+#
+# Policy (§17.12):
+#   - UB is a BLOCKING bug; continue-on-error is intentionally omitted.
+#   - Runs nightly (06:00 UTC) and on every push / PR to main.
+#   - Uses a dedicated Swatinem/rust-cache@v2 key ("miri-nightly") to avoid
+#     poisoning the stable cache maintained by ci.yml.
+
+name: miri
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  MIRIFLAGS: "-Zmiri-strict-provenance"
+
+jobs:
+  miri:
+    name: miri / ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+    # No continue-on-error: UB failures are blocking (spec §17.12).
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - cypher-syntax
+          - cypher-ast
+          - cypher-hir
+          - cypher-sema
+          - cypher-schema
+          - cypher-diag
+          - cypher-plan
+          - cypher-fmt
+          - cypher-db
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Miri requires nightly; component is "miri" on the nightly toolchain.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      # Dedicated cache key so miri sysroot artifacts don't collide with
+      # the stable/beta/nightly caches maintained by ci.yml.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: miri-nightly-${{ matrix.crate }}
+
+      - name: cargo miri test -p ${{ matrix.crate }}
+        run: cargo miri test -p ${{ matrix.crate }}
