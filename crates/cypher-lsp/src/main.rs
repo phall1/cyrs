@@ -6,6 +6,13 @@
 //! - documentFormattingProvider
 //! - hoverProvider (returns null for v1 — overlay lookup deferred)
 //! - definitionProvider (stub — returns null)
+//!
+//! ## `FileId` eviction (spec §15.X)
+//!
+//! - `textDocument/didClose`: evicts the `FileId` from `Database` so Salsa can
+//!   GC the cached analysis.  Unknown URIs are logged and silently ignored.
+//! - `shutdown`: evicts **all** open `FileId`s before the server exits so that
+//!   Salsa state is cleanly torn down.
 
 #![forbid(unsafe_code)]
 
@@ -104,6 +111,9 @@ fn main_loop(connection: &Connection) -> Result<()> {
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
+                    // Spec §15.X: evict all open FileIds before exiting so
+                    // Salsa's memoisation cache can be cleanly reclaimed.
+                    evict_all(&mut server);
                     return Ok(());
                 }
                 handle_request(connection, &mut server, req)?;
@@ -115,6 +125,21 @@ fn main_loop(connection: &Connection) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Evict all currently-open files from the database (spec §15.X).
+///
+/// Called on shutdown so that Salsa's memoisation tables can GC the cached
+/// analysis before the process exits.  Silently ignores any `remove_file`
+/// errors (the DB is being discarded anyway).
+fn evict_all(server: &mut Server) {
+    let ids: Vec<_> = server.open_files.values().copied().collect();
+    let count = ids.len();
+    server.open_files.clear();
+    for id in ids {
+        let _ = server.db.remove_file(id);
+    }
+    tracing::info!("shutdown eviction: removed {count} open file(s) from Salsa cache");
 }
 
 // ---------------------------------------------------------------------------
@@ -263,8 +288,16 @@ fn handle_notification(
             let uri = params.text_document.uri.clone();
             let uri_str = uri.to_string();
 
+            // Spec §15.X: evict FileId so Salsa can GC the cached analysis.
+            // Unknown URI → log and return; do not panic.
             if let Some(file_id) = server.open_files.remove(&uri_str) {
                 let _ = server.db.remove_file(file_id);
+                tracing::debug!("didClose: evicted {file_id} for {uri_str}");
+            } else {
+                tracing::warn!(
+                    "didClose: unknown URI {uri_str} — no FileId to evict (already closed?)"
+                );
+                return Ok(());
             }
 
             // Clear diagnostics on close.
@@ -324,4 +357,138 @@ where
         .sender
         .send(notif.into())
         .map_err(|e| anyhow!("{e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests — spec §15.X FileId eviction
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use cypher_db::{Database, DialectMode};
+
+    use super::{Server, evict_all};
+
+    /// Helper: open a file in the server's database and register it in
+    /// `open_files` the same way the `didOpen` handler does.
+    fn open(server: &mut Server, uri: &str, source: &str) -> cypher_db::workspace::FileId {
+        let file_id = server
+            .db
+            .open_file(Path::new(uri), source.into(), DialectMode::GqlAligned);
+        server.open_files.insert(uri.to_owned(), file_id);
+        file_id
+    }
+
+    // -----------------------------------------------------------------------
+    // didClose: eviction removes FileId from map and Database
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn did_close_removes_from_map_and_db() {
+        let mut server = Server::new();
+        let uri = "file:///tmp/a.cyp";
+        let file_id = open(&mut server, uri, "RETURN 1");
+
+        assert!(server.open_files.contains_key(uri));
+        assert!(server.db.is_open(file_id));
+
+        // Simulate the didClose eviction path.
+        let removed_id = server.open_files.remove(uri);
+        assert_eq!(removed_id, Some(file_id));
+        server.db.remove_file(file_id).expect("remove must succeed");
+
+        assert!(!server.open_files.contains_key(uri));
+        assert!(!server.db.is_open(file_id));
+
+        // Subsequent DB queries must return Err, not panic.
+        assert!(server.db.parse_cst(file_id).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // didClose: unknown URI → no panic, open_files unchanged
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn did_close_unknown_uri_is_noop() {
+        let mut server = Server::new();
+        let uri = "file:///tmp/real.cyp";
+        let unknown = "file:///tmp/ghost.cyp";
+        let file_id = open(&mut server, uri, "RETURN 2");
+
+        // Simulate the unknown-URI branch: remove returns None → log + return.
+        let result = server.open_files.remove(unknown);
+        assert!(result.is_none(), "unknown URI must not be in the map");
+
+        // The real file is unaffected.
+        assert!(server.open_files.contains_key(uri));
+        assert!(server.db.is_open(file_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // evict_all: shutdown clears all open files
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn evict_all_removes_all_files() {
+        let mut server = Server::new();
+        let a_id = open(&mut server, "file:///tmp/a.cyp", "RETURN 1");
+        let b_id = open(&mut server, "file:///tmp/b.cyp", "RETURN 2");
+        let c_id = open(&mut server, "file:///tmp/c.cyp", "RETURN 3");
+
+        assert_eq!(server.open_files.len(), 3);
+
+        evict_all(&mut server);
+
+        assert!(
+            server.open_files.is_empty(),
+            "open_files must be empty after evict_all"
+        );
+        assert!(!server.db.is_open(a_id));
+        assert!(!server.db.is_open(b_id));
+        assert!(!server.db.is_open(c_id));
+    }
+
+    // -----------------------------------------------------------------------
+    // evict_all: idempotent — second call does not panic
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn evict_all_idempotent() {
+        let mut server = Server::new();
+        open(&mut server, "file:///tmp/x.cyp", "RETURN 42");
+
+        evict_all(&mut server);
+        // Second call: open_files is already empty; Database has no entries.
+        // Must not panic.
+        evict_all(&mut server);
+
+        assert!(server.open_files.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Database round-trip: open → query → remove → error (spec §15.X)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn database_remove_file_makes_fileid_stale() {
+        let mut db = Database::new();
+        let id = db.open_file(
+            Path::new("t.cyp"),
+            "MATCH (n) RETURN n".into(),
+            DialectMode::GqlAligned,
+        );
+
+        // Query while open.
+        assert!(db.parse_cst(id).is_ok());
+
+        // Remove.
+        db.remove_file(id).expect("remove_file must succeed");
+
+        // All subsequent queries return Err, not panic.
+        assert!(db.parse_cst(id).is_err());
+        assert!(db.source_of(id).is_err());
+        assert!(db.remove_file(id).is_err(), "double-remove must return Err");
+    }
 }

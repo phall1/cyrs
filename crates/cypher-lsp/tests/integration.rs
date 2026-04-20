@@ -199,3 +199,150 @@ fn lsp_initialize_didopen_diagnostics() {
     let status = child.wait().expect("wait");
     assert!(status.success(), "cypher-lsp must exit cleanly: {status}");
 }
+
+/// Verify that `textDocument/didClose` causes the server to publish empty
+/// diagnostics (clearing client-side highlights) and does not crash.
+///
+/// Also verifies that closing an unknown URI is silently ignored (no crash,
+/// server continues to respond to subsequent requests).
+///
+/// Marked `#[ignore]` because spawning a stdio process hangs in the CI
+/// harness (see cy-9nr / existing test above).  Run manually with:
+///   cargo test -p cypher-lsp -- --ignored `lsp_did_close_eviction`
+#[test]
+#[ignore = "spawned-process LSP integration hangs in CI harness; manually verified. See cy-it7."]
+fn lsp_did_close_eviction() {
+    let bin_path = {
+        let output = Command::new("cargo")
+            .args(["build", "-p", "cypher-lsp", "--message-format=json"])
+            .output()
+            .expect("cargo build");
+
+        assert!(output.status.success(), "cargo build failed");
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut bin = None;
+        for line in stdout.lines() {
+            if let Ok(msg) = serde_json::from_str::<Value>(line)
+                && msg["reason"] == "compiler-artifact"
+                && msg["target"]["name"] == "cypher-lsp"
+                && msg["target"]["kind"]
+                    .as_array()
+                    .is_some_and(|k| k.contains(&json!("bin")))
+                && let Some(exe) = msg["executable"].as_str()
+            {
+                bin = Some(exe.to_owned());
+            }
+        }
+        bin.expect("could not find cypher-lsp binary")
+    };
+
+    let mut child = Command::new(&bin_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn cypher-lsp");
+
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let mut reader = BufReader::new(stdout);
+
+    // initialize
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "initialize",
+            "params": { "processId": null, "rootUri": null, "capabilities": {} }
+        })))
+        .unwrap();
+    let _init_resp = read_message(&mut reader);
+
+    // initialized
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        })))
+        .unwrap();
+
+    // didOpen
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/evict_test.cyp",
+                    "languageId": "cypher",
+                    "version": 1,
+                    "text": "RETURN 42"
+                }
+            }
+        })))
+        .unwrap();
+    // consume publishDiagnostics from didOpen
+    let _diag = read_message(&mut reader);
+
+    // didClose — must receive empty publishDiagnostics to clear client state
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": { "uri": "file:///tmp/evict_test.cyp" }
+            }
+        })))
+        .unwrap();
+    let close_diag = read_message(&mut reader);
+    assert_eq!(
+        close_diag["method"],
+        json!("textDocument/publishDiagnostics"),
+        "didClose must emit publishDiagnostics to clear client highlights"
+    );
+    assert!(
+        close_diag["params"]["diagnostics"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "didClose publishDiagnostics must be empty"
+    );
+
+    // didClose on unknown URI — server must NOT crash; subsequent shutdown works
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": {
+                "textDocument": { "uri": "file:///tmp/ghost.cyp" }
+            }
+        })))
+        .unwrap();
+    // No message expected (server logs warn and returns without publishing).
+
+    // shutdown + exit — server must still respond cleanly
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0", "id": 2,
+            "method": "shutdown",
+            "params": null
+        })))
+        .unwrap();
+    let shutdown_resp = read_message(&mut reader);
+    assert_eq!(shutdown_resp["id"], json!(2), "shutdown response id");
+
+    stdin
+        .write_all(&encode(&json!({
+            "jsonrpc": "2.0",
+            "method": "exit",
+            "params": null
+        })))
+        .unwrap();
+    drop(stdin);
+
+    let status = child.wait().expect("wait");
+    assert!(
+        status.success(),
+        "cypher-lsp must exit cleanly after eviction: {status}"
+    );
+}
