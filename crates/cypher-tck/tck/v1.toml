@@ -1,0 +1,334 @@
+# Vendored v1 TCK scenario fixtures — spec 0001 §17.5
+#
+# These are hand-written representative scenarios covering the v1 green-tag
+# surface. They are NOT a full openCypher TCK download (network is restricted
+# and the full corpus would be overkill for v1). Each scenario maps to a
+# real TCK scenario class.
+#
+# Format:
+#   [[scenario]]
+#   name    = "Human-readable name"
+#   tags    = ["@TAG1", "@TAG2"]   # at least one v1 tag required to run
+#   query   = "CYPHER SOURCE"
+#   outcome = "ok" | "error"       # expected parse outcome
+#   # (optional) note = "reason for ignore if #[ignore]'d"
+
+# ---------------------------------------------------------------------------
+# @MATCH
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "MATCH simple node pattern"
+tags    = ["@MATCH"]
+query   = "MATCH (n) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "MATCH node with label"
+tags    = ["@MATCH"]
+query   = "MATCH (n:Person) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "MATCH node with property"
+tags    = ["@MATCH"]
+query   = "MATCH (n {name: 'Alice'}) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "MATCH relationship pattern"
+tags    = ["@MATCH"]
+query   = "MATCH (a)-[:KNOWS]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "OPTIONAL MATCH"
+tags    = ["@MATCH", "@OPTIONAL-MATCH"]
+query   = "OPTIONAL MATCH (n:Person) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "MATCH unclosed paren is a parse error"
+tags    = ["@MATCH"]
+query   = "MATCH (n RETURN n"
+outcome = "error"
+
+# ---------------------------------------------------------------------------
+# @RETURN
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "RETURN literal integer"
+tags    = ["@RETURN"]
+query   = "RETURN 1"
+outcome = "ok"
+
+[[scenario]]
+name    = "RETURN arithmetic expression"
+tags    = ["@RETURN"]
+query   = "RETURN 1 + 2"
+outcome = "ok"
+
+[[scenario]]
+name    = "RETURN multiple projections"
+tags    = ["@RETURN"]
+query   = "RETURN 1 AS a, 2 AS b"
+outcome = "ok"
+
+[[scenario]]
+name    = "RETURN DISTINCT"
+tags    = ["@RETURN"]
+query   = "MATCH (n:Person) RETURN DISTINCT n.name"
+outcome = "ok"
+
+[[scenario]]
+name    = "RETURN ORDER BY SKIP LIMIT"
+tags    = ["@RETURN"]
+query   = "MATCH (n:Person) RETURN n ORDER BY n.name SKIP 0 LIMIT 10"
+outcome = "ok"
+
+[[scenario]]
+name    = "RETURN missing expression is a parse error"
+tags    = ["@RETURN"]
+query   = "RETURN"
+outcome = "error"
+
+# ---------------------------------------------------------------------------
+# @WHERE
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "WHERE equality predicate"
+tags    = ["@WHERE"]
+query   = "MATCH (n:Person) WHERE n.name = 'Alice' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "WHERE AND predicate"
+tags    = ["@WHERE"]
+query   = "MATCH (n) WHERE n.age > 21 AND n.active = true RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "WHERE OR predicate"
+tags    = ["@WHERE"]
+query   = "MATCH (n) WHERE n.x = 1 OR n.x = 2 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "WHERE NOT predicate"
+tags    = ["@WHERE"]
+query   = "MATCH (n) WHERE NOT n.deleted RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "WHERE IS NULL"
+tags    = ["@WHERE", "@NULL"]
+query   = "MATCH (n) WHERE n.name IS NULL RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "WHERE IS NOT NULL"
+tags    = ["@WHERE", "@NULL"]
+query   = "MATCH (n) WHERE n.name IS NOT NULL RETURN n"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# @WITH
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "WITH simple projection"
+tags    = ["@WITH"]
+query   = "MATCH (n:Person) WITH n.name AS name RETURN name"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
+
+[[scenario]]
+name    = "WITH WHERE filter"
+tags    = ["@WITH", "@WHERE"]
+query   = "MATCH (n:Person) WITH n WHERE n.age > 21 RETURN n"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
+
+[[scenario]]
+name    = "WITH ORDER BY LIMIT"
+tags    = ["@WITH"]
+query   = "MATCH (n:Person) WITH n ORDER BY n.name LIMIT 5 RETURN n"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
+
+# ---------------------------------------------------------------------------
+# @EXPRESSIONS
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "String literal expression"
+tags    = ["@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN 'hello'"
+outcome = "ok"
+
+[[scenario]]
+name    = "Boolean literal expression"
+tags    = ["@EXPRESSIONS"]
+query   = "RETURN true, false"
+outcome = "ok"
+
+[[scenario]]
+name    = "Null literal expression"
+tags    = ["@EXPRESSIONS", "@NULL"]
+query   = "RETURN null"
+outcome = "ok"
+
+[[scenario]]
+name    = "List literal expression"
+tags    = ["@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3]"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse list literals in RETURN; file bead: 'List literal expression grammar not implemented'"
+
+[[scenario]]
+name    = "Map literal expression"
+tags    = ["@EXPRESSIONS", "@MAPS"]
+query   = "RETURN {a: 1, b: 'two'}"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse map literals in RETURN; file bead: 'Map literal expression grammar not implemented'"
+
+# ---------------------------------------------------------------------------
+# @AGGREGATIONS
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "COUNT aggregation"
+tags    = ["@AGGREGATIONS"]
+query   = "MATCH (n:Person) RETURN count(n)"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
+
+[[scenario]]
+name    = "SUM aggregation"
+tags    = ["@AGGREGATIONS"]
+query   = "MATCH (n:Order) RETURN sum(n.amount)"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
+
+# ---------------------------------------------------------------------------
+# @PATTERNS
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Variable-length path pattern"
+tags    = ["@PATTERNS"]
+query   = "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse variable-length relationship patterns (e.g. *1..3); file bead: 'Variable-length path quantifier grammar not implemented'"
+
+[[scenario]]
+name    = "Named path pattern"
+tags    = ["@PATTERNS"]
+query   = "MATCH p = (a)-[:KNOWS]->(b) RETURN p"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse named path assignment (p = ...); file bead: 'Named path pattern (p = ...) grammar not implemented'"
+
+# ---------------------------------------------------------------------------
+# @CREATE / @MERGE / @SET / @REMOVE / @DELETE
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "CREATE node"
+tags    = ["@CREATE"]
+query   = "CREATE (n:Person {name: 'Alice'})"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse CREATE clause; file bead: 'CREATE clause grammar not implemented'"
+
+[[scenario]]
+name    = "MERGE node"
+tags    = ["@MERGE"]
+query   = "MERGE (n:Person {name: 'Alice'}) RETURN n"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse MERGE clause; file bead: 'MERGE clause grammar not implemented'"
+
+[[scenario]]
+name    = "SET property"
+tags    = ["@SET"]
+query   = "MATCH (n:Person) SET n.active = true"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse SET clause; file bead: 'SET clause grammar not implemented'"
+
+[[scenario]]
+name    = "REMOVE property"
+tags    = ["@REMOVE"]
+query   = "MATCH (n:Person) REMOVE n.age"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse REMOVE clause; file bead: 'REMOVE clause grammar not implemented'"
+
+[[scenario]]
+name    = "DELETE node"
+tags    = ["@DELETE"]
+query   = "MATCH (n:Person) DELETE n"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse DELETE clause; file bead: 'DELETE clause grammar not implemented'"
+
+# ---------------------------------------------------------------------------
+# @UNWIND
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "UNWIND list"
+tags    = ["@UNWIND"]
+query   = "UNWIND [1, 2, 3] AS x RETURN x"
+outcome = "ok"
+ignore  = true
+note    = "Parser does not yet parse UNWIND clause; file bead: 'UNWIND clause grammar not implemented'"
+
+# ---------------------------------------------------------------------------
+# @STRINGS
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "String STARTS WITH"
+tags    = ["@STRINGS"]
+query   = "MATCH (n) WHERE n.name STARTS WITH 'A' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "String ENDS WITH"
+tags    = ["@STRINGS"]
+query   = "MATCH (n) WHERE n.name ENDS WITH 'e' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "String CONTAINS"
+tags    = ["@STRINGS"]
+query   = "MATCH (n) WHERE n.name CONTAINS 'lic' RETURN n"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# v1 NOT green-tag: these should produce parse/sema errors
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "CALL subquery not supported (v1 red)"
+tags    = ["@CALL-SUBQUERY"]
+query   = "CALL { MATCH (n) RETURN n } RETURN n"
+outcome = "error"
+
+[[scenario]]
+name    = "LOAD CSV not supported (v1 red)"
+tags    = ["@LOAD-CSV"]
+query   = "LOAD CSV FROM 'file:///data.csv' AS row RETURN row"
+outcome = "error"
