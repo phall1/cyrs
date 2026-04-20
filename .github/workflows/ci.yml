@@ -263,7 +263,9 @@ jobs:
         run: cargo deny check
 
   # ---------------------------------------------------------------
-  # Nightly: fuzz (spec §17.4)
+  # PR gate: fuzz smoke (spec §17.4) — ~60 s per target, 5 targets total.
+  # Non-blocking (continue-on-error) so a new crash doesn't block the
+  # merge of unrelated PRs; nightly run is where new panics are blocking.
   # ---------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke (5 min)
@@ -272,14 +274,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-fuzz }
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-      # Fuzz targets land in a follow-up; keep this job as a gate.
-      - name: cargo fuzz list
-        run: cargo fuzz list || echo "(no fuzz targets registered yet)"
+          key: fuzz-smoke
+      - name: build fuzz targets
+        run: |
+          for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan; do
+            cargo +nightly fuzz build "$target"
+          done
+      - name: fuzz_lexer (60 s)
+        run: cargo +nightly fuzz run fuzz_lexer fuzz/corpus/fuzz_lexer -- -max_total_time=60
+      - name: fuzz_parser (60 s)
+        run: cargo +nightly fuzz run fuzz_parser fuzz/corpus/fuzz_parser -- -max_total_time=60
+      - name: fuzz_formatter (60 s)
+        run: cargo +nightly fuzz run fuzz_formatter fuzz/corpus/fuzz_formatter -- -max_total_time=60
+      - name: fuzz_sema (60 s)
+        run: cargo +nightly fuzz run fuzz_sema fuzz/corpus/fuzz_sema -- -max_total_time=60
+      - name: fuzz_plan (60 s)
+        run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -max_total_time=60
 
   # ---------------------------------------------------------------
   # MSRV check: spec §18 pins 1.94.
