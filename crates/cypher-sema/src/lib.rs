@@ -24,10 +24,12 @@
 pub mod kinds;
 pub mod resolve;
 pub mod ty;
+pub mod unify;
 
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
 pub use ty::{LabelSet, Type};
+pub use unify::{TypeMismatch, unify};
 
 use cypher_diag::DiagnosticsSink;
 use cypher_hir::Statement;

@@ -278,6 +278,11 @@ pub enum DiagCode {
     E5001 = 5001,
     /// Arithmetic on non-numeric operands.
     E5002 = 5002,
+    /// Type mismatch in unification — two incompatible concrete types cannot
+    /// be unified (spec §7.2, §7.3).
+    ///
+    /// Docs: `docs/errors/E5003.md`
+    E5003 = 5003,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -390,6 +395,7 @@ impl DiagCode {
             Self::E4002 => "E4002",
             Self::E5001 => "E5001",
             Self::E5002 => "E5002",
+            Self::E5003 => "E5003",
             Self::W6001 => "W6001",
             Self::W6002 => "W6002",
             Self::W6003 => "W6003",
@@ -499,6 +505,7 @@ impl DiagCode {
         Self::E4002,
         Self::E5001,
         Self::E5002,
+        Self::E5003,
         Self::W6001,
         Self::W6002,
         Self::W6003,
@@ -602,6 +609,7 @@ mod tests {
             DiagCode::E4002,
             DiagCode::E5001,
             DiagCode::E5002,
+            DiagCode::E5003,
             DiagCode::W6001,
             DiagCode::W6002,
             DiagCode::W6003,
