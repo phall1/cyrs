@@ -1,0 +1,10 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "format_with(\"// cypher-fmt: off\\nMATCH (n) RETURN n\\n// cypher-fmt: on\\nmatch (m) return m\",\n&opts,).unwrap()"
+---
+// cypher-fmt: off
+
+MATCH (n) RETURN n
+// cypher-fmt: on
+match (m)
+return m

@@ -16,7 +16,7 @@
 use std::sync::{Arc, Mutex};
 
 use cypher_diag::{Diagnostic, DiagnosticsSink};
-use cypher_fmt::{FmtOptions, format as fmt_format};
+use cypher_fmt::{FormatOptions, format_with as fmt_format_with};
 use cypher_schema::{EmptySchema, SchemaProvider};
 use cypher_sema::SemaOptions;
 use cypher_syntax::{Parse, parse};
@@ -109,9 +109,11 @@ impl Database {
     }
 
     #[must_use]
-    pub fn formatted(&self, file: FileId, opts: &FmtOptions) -> SmolStr {
+    pub fn formatted(&self, file: FileId, opts: &FormatOptions) -> SmolStr {
         let src = self.source_of(file);
-        fmt_format(&src, opts).into()
+        fmt_format_with(&src, opts)
+            .expect("formatter is infallible")
+            .into()
     }
 }
 
