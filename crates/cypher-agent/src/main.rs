@@ -10,7 +10,7 @@ use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
 use anyhow::Result;
-use cypher_db::{Database, DialectMode};
+use cypher_db::{DialectMode, LegacyDatabase};
 use cypher_fmt::FormatOptions;
 use serde::{Deserialize, Serialize};
 
@@ -87,7 +87,7 @@ fn main() -> Result<()> {
         )
         .init();
 
-    let db = Arc::new(Database::new());
+    let db = Arc::new(LegacyDatabase::new());
     let stdin = io::stdin();
     let mut stdout = io::stdout().lock();
 
@@ -114,7 +114,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle(db: &Database, req: Request) -> Response {
+fn handle(db: &LegacyDatabase, req: Request) -> Response {
     match req {
         Request::Parse { text, dialect } => {
             let id = db.allocate_file();

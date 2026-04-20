@@ -9,7 +9,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use cypher_db::{Database, DialectMode};
+use cypher_db::{DialectMode, LegacyDatabase};
 use cypher_fmt::FormatOptions;
 
 #[derive(Parser, Debug)]
@@ -83,7 +83,7 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: &Cli) -> Result<()> {
-    let db = Database::new();
+    let db = LegacyDatabase::new();
     match &cli.command {
         Cmd::Parse { file } => {
             let src = read_source(file.as_deref())?;
