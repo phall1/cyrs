@@ -22,12 +22,13 @@
 
 #![forbid(unsafe_code)]
 
+use std::collections::VecDeque;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use cypher_db::{Database, DialectMode};
+use cypher_db::{Database, DialectMode, FileId};
 use cypher_diag::json as diag_json;
 use cypher_fmt::{FormatOptions, format_with};
 use cypher_hir::desugar::desugar_statement;
@@ -56,6 +57,112 @@ impl From<Dialect> for DialectMode {
             Dialect::GqlAligned => Self::GqlAligned,
             Dialect::OpenCypherV9 => Self::OpenCypherV9,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FileCache — source+dialect interning (spec §15.X)
+// ---------------------------------------------------------------------------
+
+/// Maximum number of interned files kept in the cache before eviction.
+const FILE_CACHE_CEILING: usize = 64;
+
+/// FNV-1a 64-bit inline hasher (same algorithm as cypher-db/inputs.rs).
+fn fnv1a(data: &[u8]) -> u64 {
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+    let mut h = OFFSET;
+    for &b in data {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(PRIME);
+    }
+    h
+}
+
+/// Cache key: FNV-1a digest of `source` bytes followed by dialect discriminant byte.
+fn cache_key(source: &str, dialect: Dialect) -> u64 {
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+    // hash source bytes first
+    let mut h = OFFSET;
+    for &b in source.as_bytes() {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(PRIME);
+    }
+    // mix in dialect discriminant
+    let d: u8 = match dialect {
+        Dialect::GqlAligned => 0,
+        Dialect::OpenCypherV9 => 1,
+    };
+    h ^= u64::from(d);
+    h = h.wrapping_mul(PRIME);
+    let _ = fnv1a; // suppress dead-code warning on the standalone fn
+    h
+}
+
+/// In-session `FileId` intern cache with LRU eviction.
+///
+/// Maps `(source_digest, dialect)` → `FileId`.  When the ceiling is reached,
+/// the least-recently-used entry is evicted and `Database::remove_file` is
+/// called so the Salsa cache releases that slot.
+struct FileCache {
+    /// key → `FileId` lookup
+    map: std::collections::HashMap<u64, FileId>,
+    /// LRU order: front = least-recently-used, back = most-recently-used.
+    order: VecDeque<u64>,
+}
+
+impl FileCache {
+    fn new() -> Self {
+        Self {
+            map: std::collections::HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    /// Look up an existing `FileId` for `key`, promoting it in the LRU order.
+    fn get(&mut self, key: u64) -> Option<FileId> {
+        if let Some(&id) = self.map.get(&key) {
+            // Promote: move key to the back (most-recently-used).
+            if let Some(pos) = self.order.iter().position(|&k| k == key) {
+                self.order.remove(pos);
+            }
+            self.order.push_back(key);
+            Some(id)
+        } else {
+            None
+        }
+    }
+
+    /// Insert a new `(key, id)` pair.  Returns the evicted key+id if the
+    /// ceiling was exceeded; caller must call `db.remove_file(evicted_id)`.
+    fn insert(&mut self, key: u64, id: FileId) -> Option<(u64, FileId)> {
+        let evicted = if self.map.len() >= FILE_CACHE_CEILING {
+            // Pop LRU entry (front of deque).
+            if let Some(old_key) = self.order.pop_front() {
+                let old_id = self.map.remove(&old_key);
+                old_id.map(|eid| (old_key, eid))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.map.insert(key, id);
+        self.order.push_back(key);
+        evicted
+    }
+
+    /// Number of cached entries.
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    /// Return the LRU (oldest) key, if any.
+    #[cfg(test)]
+    fn lru_key(&self) -> Option<u64> {
+        self.order.front().copied()
     }
 }
 
@@ -397,6 +504,9 @@ fn main() -> Result<()> {
     let mut stdout = io::stdout().lock();
     // In-session schema, set/cleared by schema_set/schema_clear ops.
     let mut session_schema: Option<Arc<dyn SchemaProvider>> = None;
+    // Shared database and FileId intern cache (spec §15.X).
+    let mut db = Database::new();
+    let mut file_cache = FileCache::new();
 
     for line in stdin.lock().lines() {
         let line = line?;
@@ -404,7 +514,7 @@ fn main() -> Result<()> {
             continue;
         }
         let response = match serde_json::from_str::<AgentRequest>(&line) {
-            Ok(req) => handle(req, &mut session_schema),
+            Ok(req) => handle(req, &mut session_schema, &mut db, &mut file_cache),
             Err(e) => AgentResponse::Error {
                 message: e.to_string(),
             },
@@ -424,17 +534,43 @@ fn main() -> Result<()> {
 // Dispatch
 // ---------------------------------------------------------------------------
 
+/// Intern `source` + `dialect` into the `FileCache`, returning a stable `FileId`.
+///
+/// On cache hit the existing `FileId` is returned immediately (LRU promoted).
+/// On cache miss a new file is opened in `db`, inserted into the cache, and if
+/// the ceiling was exceeded the evicted file is removed from `db` to release
+/// its Salsa cache slot.
+fn intern_file(
+    db: &mut Database,
+    cache: &mut FileCache,
+    source: String,
+    dialect: Dialect,
+) -> FileId {
+    let key = cache_key(&source, dialect);
+    if let Some(id) = cache.get(key) {
+        return id;
+    }
+    // Cache miss: open a new file.
+    let id = db.open_file(Path::new("_"), source, dialect.into());
+    // Insert and evict LRU if over ceiling.
+    if let Some((_evicted_key, evicted_id)) = cache.insert(key, id) {
+        let _ = db.remove_file(evicted_id); // ignore UnknownFileId (shouldn't happen)
+    }
+    id
+}
+
 fn handle(
     req: AgentRequest,
     session_schema: &mut Option<Arc<dyn SchemaProvider>>,
+    db: &mut Database,
+    file_cache: &mut FileCache,
 ) -> AgentResponse {
     match req {
         // ------------------------------------------------------------------
         // parse: CST pretty-print + syntax errors
         // ------------------------------------------------------------------
         AgentRequest::Parse { text, dialect } => {
-            let mut db = Database::new();
-            let id = db.open_file(Path::new("_"), text, dialect.into());
+            let id = intern_file(db, file_cache, text, dialect);
             match db.parse_cst(id) {
                 Ok(out) => {
                     let parse = out.parse();
@@ -453,11 +589,10 @@ fn handle(
         // check: all diagnostics (parse + sema)
         // ------------------------------------------------------------------
         AgentRequest::Check { text, dialect } => {
-            let mut db = Database::new();
             if let Some(schema) = session_schema.clone() {
                 db.set_schema(Some(schema));
             }
-            let id = db.open_file(Path::new("_"), text, dialect.into());
+            let id = intern_file(db, file_cache, text, dialect);
             match db.all_diagnostics(id) {
                 Ok(out) => AgentResponse::Check {
                     diagnostics: out.diagnostics().iter().map(diag_json::to_json).collect(),
@@ -707,14 +842,18 @@ mod tests {
 
     fn dispatch(json: &str) -> Value {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
         let req: AgentRequest = serde_json::from_str(json).unwrap();
-        let resp = handle(req, &mut schema);
+        let resp = handle(req, &mut schema, &mut db, &mut cache);
         serde_json::to_value(resp).unwrap()
     }
 
     fn dispatch_with_schema(json: &str, schema: &mut Option<Arc<dyn SchemaProvider>>) -> Value {
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
         let req: AgentRequest = serde_json::from_str(json).unwrap();
-        let resp = handle(req, schema);
+        let resp = handle(req, schema, &mut db, &mut cache);
         serde_json::to_value(resp).unwrap()
     }
 
@@ -810,9 +949,11 @@ mod tests {
     #[test]
     fn malformed_input_returns_error() {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
         let bad = "not valid json {{{";
         let resp: Value = match serde_json::from_str::<AgentRequest>(bad) {
-            Ok(req) => serde_json::to_value(handle(req, &mut schema)).unwrap(),
+            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut cache)).unwrap(),
             Err(e) => serde_json::to_value(AgentResponse::Error {
                 message: e.to_string(),
             })
@@ -824,9 +965,11 @@ mod tests {
     #[test]
     fn unknown_op_returns_error() {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
         let unknown = r#"{"op":"nonexistent","text":"x"}"#;
         let resp: Value = match serde_json::from_str::<AgentRequest>(unknown) {
-            Ok(req) => serde_json::to_value(handle(req, &mut schema)).unwrap(),
+            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut cache)).unwrap(),
             Err(e) => serde_json::to_value(AgentResponse::Error {
                 message: e.to_string(),
             })
@@ -843,5 +986,69 @@ mod tests {
         let overlay = resolve_overlay(SIMPLE);
         // Just check it doesn't panic and returns non-empty.
         assert!(!overlay.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // FileCache / intern_file tests (spec §15.X)
+    // -----------------------------------------------------------------------
+
+    /// Same source + same dialect → same `FileId` (cache hit).
+    #[test]
+    fn file_cache_same_source_same_dialect_same_id() {
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
+        let source = "MATCH (n) RETURN n".to_string();
+        let id1 = intern_file(&mut db, &mut cache, source.clone(), Dialect::GqlAligned);
+        let id2 = intern_file(&mut db, &mut cache, source, Dialect::GqlAligned);
+        assert_eq!(id1, id2, "same source + dialect must reuse the same FileId");
+        assert_eq!(cache.len(), 1, "only one entry in cache");
+    }
+
+    /// Same source + different dialect → different `FileId`.
+    #[test]
+    fn file_cache_same_source_different_dialect_different_id() {
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
+        let source = "MATCH (n) RETURN n".to_string();
+        let id_gql = intern_file(&mut db, &mut cache, source.clone(), Dialect::GqlAligned);
+        let id_oc = intern_file(&mut db, &mut cache, source, Dialect::OpenCypherV9);
+        assert_ne!(
+            id_gql, id_oc,
+            "different dialects must produce different FileIds"
+        );
+        assert_eq!(cache.len(), 2, "two entries in cache");
+    }
+
+    /// After 65 unique sources the first entry is evicted (ceiling = 64).
+    #[test]
+    fn file_cache_evicts_at_ceiling() {
+        let mut db = Database::new();
+        let mut cache = FileCache::new();
+
+        // Insert FILE_CACHE_CEILING unique sources.
+        let mut first_key = 0u64;
+        for i in 0..FILE_CACHE_CEILING {
+            let src = format!("RETURN {i}");
+            let key = cache_key(&src, Dialect::GqlAligned);
+            if i == 0 {
+                first_key = key;
+            }
+            intern_file(&mut db, &mut cache, src, Dialect::GqlAligned);
+        }
+        assert_eq!(cache.len(), FILE_CACHE_CEILING);
+        // The first key is still LRU (it was inserted first and never re-accessed).
+        assert_eq!(cache.lru_key(), Some(first_key));
+
+        // Inserting one more unique entry triggers eviction of the first key.
+        let extra = format!("RETURN {FILE_CACHE_CEILING}");
+        intern_file(&mut db, &mut cache, extra, Dialect::GqlAligned);
+
+        // Still at ceiling.
+        assert_eq!(cache.len(), FILE_CACHE_CEILING);
+        // First key was evicted.
+        assert!(
+            cache.lru_key() != Some(first_key),
+            "first entry must have been evicted"
+        );
     }
 }
