@@ -34,6 +34,7 @@
 
 #![forbid(unsafe_code)]
 
+mod completion;
 mod definition;
 mod hover;
 
@@ -70,6 +71,15 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         document_formatting_provider: Some(OneOf::Left(true)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
+        completion_provider: Some(lsp_types::CompletionOptions {
+            resolve_provider: Some(true),
+            // Spec §14.2: trigger chars per the v1 completion engine
+            // (cy-zod) — `:` for labels / rel-types, `.` reserved for
+            // future property-key completion (handler returns the
+            // generic keyword set today), `$` for parameters.
+            trigger_characters: Some(vec![":".into(), ".".into(), "$".into()]),
+            ..Default::default()
+        }),
         ..Default::default()
     })?)
 }
@@ -185,6 +195,30 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::Completion::METHOD => {
+            let params: lsp_types::CompletionParams = serde_json::from_value(req.params)?;
+            let resp = handle_completion(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::ResolveCompletionItem::METHOD => {
+            let item: lsp_types::CompletionItem = serde_json::from_value(req.params)?;
+            let resolved = completion::resolve(item);
+            let resp = match serde_json::to_value(resolved) {
+                Ok(v) => Response::new_ok(req.id, v),
+                Err(e) => Response::new_err(
+                    req.id,
+                    lsp_server::ErrorCode::InternalError as i32,
+                    e.to_string(),
+                ),
+            };
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         lsp_types::request::GotoDefinition::METHOD => {
             let params: lsp_types::GotoDefinitionParams = serde_json::from_value(req.params)?;
             let resp = handle_definition(server, req.id, &params);
@@ -221,6 +255,27 @@ fn handle_definition(
             ),
         },
         None => Response::new_ok(id, serde_json::Value::Null),
+    }
+}
+
+fn handle_completion(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::CompletionParams,
+) -> Response {
+    let uri_str = params.text_document_position.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let position = params.text_document_position.position;
+    let response = completion::compute(&server.db, file_id, position);
+    match serde_json::to_value(response) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
     }
 }
 

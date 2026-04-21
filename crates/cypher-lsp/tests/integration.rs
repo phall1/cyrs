@@ -146,6 +146,20 @@ impl TestHarness {
             caps["definitionProvider"].as_bool().unwrap_or(false),
             "definitionProvider must be true"
         );
+        assert!(
+            caps["completionProvider"].is_object(),
+            "completionProvider must be advertised"
+        );
+        let triggers = caps["completionProvider"]["triggerCharacters"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for ch in [":", ".", "$"] {
+            assert!(
+                triggers.contains(&ch),
+                "completionProvider must list {ch:?} as a trigger character"
+            );
+        }
 
         self.send_notification("initialized", json!({}));
     }
@@ -205,6 +219,19 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "definition error: {:?}", resp.error);
         resp.result.expect("definition result present")
+    }
+
+    fn completion(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/completion",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
+        resp.result.expect("completion result present")
     }
 
     fn shutdown_exit(&mut self) {
@@ -422,6 +449,92 @@ fn lsp_definition_on_keyword_returns_null() {
     );
 
     h.shutdown_exit();
+}
+
+#[test]
+fn lsp_completion_default_returns_keywords() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_kw.cyp";
+    h.did_open(uri, "");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor at column 0 of an empty doc → keyword context.
+    let result = h.completion(uri, 0, 0);
+    let items = result
+        .as_array()
+        .expect("completion items must be an array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    for kw in ["MATCH", "WHERE", "RETURN", "WITH"] {
+        assert!(
+            labels.contains(&kw),
+            "keyword completion must include {kw:?}; got {labels:?}"
+        );
+    }
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_completion_after_dollar_returns_parameter_placeholder() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_param.cyp";
+    // Buffer where the user has typed "RETURN $" — cursor right after $.
+    h.did_open(uri, "RETURN $");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 8);
+    let items = result.as_array().expect("array");
+    assert!(!items.is_empty(), "parameter completion must not be empty");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"param"),
+        "fresh buffer must surface a generic `param` placeholder; got {labels:?}"
+    );
+}
+
+#[test]
+fn lsp_completion_after_dollar_lists_existing_parameters() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_param2.cyp";
+    // Buffer references $name + $age earlier; user typing $ at the end.
+    h.did_open(uri, "MATCH (n {name: $name, age: $age}) RETURN $");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let cursor: u32 = u32::try_from("MATCH (n {name: $name, age: $age}) RETURN $".len())
+        .expect("test fixture fits in u32");
+    let result = h.completion(uri, 0, cursor);
+    let items = result.as_array().expect("array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"name"),
+        "must surface $name; got {labels:?}"
+    );
+    assert!(labels.contains(&"age"), "must surface $age; got {labels:?}");
+}
+
+#[test]
+fn lsp_completion_after_colon_empty_without_schema() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_label.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // No schema loaded → label completion returns no items rather than
+    // guessing.  Spec §14.3 (cy-0ls) is the user-visible knob.
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "label completion without schema must be empty; got {items:?}"
+    );
 }
 
 #[test]
