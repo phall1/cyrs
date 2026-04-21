@@ -165,6 +165,15 @@ impl TestHarness {
             );
         }
         assert!(
+            caps["renameProvider"].is_object(),
+            "renameProvider must be advertised with prepareProvider=true"
+        );
+        assert_eq!(
+            caps["renameProvider"]["prepareProvider"],
+            json!(true),
+            "renameProvider.prepareProvider must be true so clients call prepareRename first"
+        );
+        assert!(
             caps["signatureHelpProvider"].is_object(),
             "signatureHelpProvider must be advertised"
         );
@@ -270,6 +279,35 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
         resp.result.expect("completion result present")
+    }
+
+    fn prepare_rename(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/prepareRename",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "prepareRename error: {:?}",
+            resp.error
+        );
+        resp.result.expect("prepareRename result present")
+    }
+
+    fn rename(&mut self, uri: &str, line: u32, character: u32, new_name: &str) -> Response {
+        let id = self.send_request(
+            "textDocument/rename",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+                "newName": new_name,
+            }),
+        );
+        self.recv_response(&id)
     }
 
     fn signature_help(&mut self, uri: &str, line: u32, character: u32) -> Value {
@@ -737,6 +775,92 @@ fn lsp_signature_help_outside_call_returns_null() {
     assert!(
         result.is_null(),
         "signatureHelp outside any paren group must be null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_prepare_rename_on_variable_returns_range() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_prep_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing n.
+    let result = h.prepare_rename(uri, 0, 17);
+    assert!(
+        result.is_object(),
+        "prepareRename on a variable must return a range; got {result}"
+    );
+    assert_eq!(result["start"]["line"], json!(0));
+    assert_eq!(result["start"]["character"], json!(17));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_prepare_rename_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_prep_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.prepare_rename(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "prepareRename on a keyword must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_rename_variable_produces_workspace_edit() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_rename_var.cyp";
+    h.did_open(uri, "MATCH (n) WHERE n.x = 1 RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Rename the trailing n → nn.
+    let resp = h.rename(uri, 0, 31, "nn");
+    assert!(resp.error.is_none(), "rename error: {:?}", resp.error);
+    let value = resp.result.expect("rename result present");
+    let edits = value["documentChanges"][0]["edits"]
+        .as_array()
+        .expect("documentChanges[0].edits must be an array");
+    assert_eq!(
+        edits.len(),
+        3,
+        "rename of `n` must emit one edit per occurrence (3); got {edits:?}"
+    );
+    for e in edits {
+        assert_eq!(e["newText"], json!("nn"));
+    }
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_rename_with_invalid_new_name_returns_error() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_rename_bad.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Numeric new name is not a valid identifier.
+    let resp = h.rename(uri, 0, 7, "1bad");
+    assert!(
+        resp.error.is_some(),
+        "invalid new name must surface an error so the client rejects the edit"
     );
 
     h.shutdown_exit();

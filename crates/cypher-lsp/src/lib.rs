@@ -38,6 +38,7 @@ mod completion;
 mod definition;
 mod hover;
 mod references;
+mod rename;
 mod signature_help;
 
 use std::collections::HashMap;
@@ -74,6 +75,10 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
+        rename_provider: Some(OneOf::Right(lsp_types::RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
+        })),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
             // Spec §14.2: signatureHelp triggers when the user types
             // `(` to open a call or `,` to advance to the next
@@ -254,11 +259,76 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::PrepareRenameRequest::METHOD => {
+            let params: lsp_types::TextDocumentPositionParams = serde_json::from_value(req.params)?;
+            let resp = handle_prepare_rename(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::Rename::METHOD => {
+            let params: lsp_types::RenameParams = serde_json::from_value(req.params)?;
+            let resp = handle_rename(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         _ => {
             tracing::debug!("unhandled request: {}", req.method);
         }
     }
     Ok(())
+}
+
+fn handle_prepare_rename(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::TextDocumentPositionParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    match rename::prepare_rename(&server.db, file_id, params.position) {
+        Some(r) => match serde_json::to_value(r) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        // Spec §14.2: returning null (not an error) tells the client
+        // "the cursor is not on something you can rename", which
+        // suppresses the rename UI without a scary popup.
+        None => Response::new_ok(id, serde_json::Value::Null),
+    }
+}
+
+fn handle_rename(server: &mut Server, id: RequestId, params: &lsp_types::RenameParams) -> Response {
+    let uri = &params.text_document_position.text_document.uri;
+    let uri_str = uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let position = params.text_document_position.position;
+    match rename::compute(&server.db, file_id, uri, position, &params.new_name) {
+        Some(edit) => match serde_json::to_value(edit) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        None => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InvalidParams as i32,
+            "cannot rename at this location or the new name is not a valid identifier".into(),
+        ),
+    }
 }
 
 fn handle_references(
