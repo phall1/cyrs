@@ -191,6 +191,15 @@ impl TestHarness {
             "documentRangeFormattingProvider must be advertised"
         );
         assert!(
+            caps["semanticTokensProvider"].is_object(),
+            "semanticTokensProvider must be advertised"
+        );
+        assert!(
+            caps["inlayHintProvider"].as_bool().unwrap_or(false)
+                || caps["inlayHintProvider"].is_object(),
+            "inlayHintProvider must be advertised"
+        );
+        assert!(
             caps["renameProvider"].is_object(),
             "renameProvider must be advertised with prepareProvider=true"
         );
@@ -324,6 +333,43 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
         self.send_notification("initialized", json!({}));
+    }
+
+    fn semantic_tokens_full(&mut self, uri: &str) -> Value {
+        let id = self.send_request(
+            "textDocument/semanticTokens/full",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "semanticTokens/full error: {:?}",
+            resp.error
+        );
+        resp.result.expect("semanticTokens/full result present")
+    }
+
+    fn inlay_hint(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "inlayHint error: {:?}", resp.error);
+        resp.result.expect("inlayHint result present")
     }
 
     fn execute_command(&mut self, command: &str, args: Value) -> Response {
@@ -1315,6 +1361,76 @@ fn lsp_init_options_malformed_schema_json_falls_back_to_no_schema() {
         items.is_empty(),
         "malformed schema JSON falls back to no schema; got {items:?}"
     );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_semantic_tokens_full_emits_tokens() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sem_full.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.semantic_tokens_full(uri);
+    let data = result["data"]
+        .as_array()
+        .expect("semanticTokens data array");
+    // MATCH (kw), (, n (variable), ), RETURN (kw), n (variable) → at
+    // least 4 emitted 5-tuples; tuple count is data.len() / 5.
+    assert!(
+        data.len() >= 20,
+        "expected ≥4 tokens (=20 u32s); got {} entries",
+        data.len()
+    );
+    assert_eq!(
+        data.len() % 5,
+        0,
+        "semantic-tokens array length must be a multiple of 5"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_inlay_hint_emits_hint_for_bound_variable() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_inlay.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Request covers the whole single-line query.
+    let result = h.inlay_hint(uri, 0, 0, 0, 18);
+    let hints = result.as_array().expect("inlayHint returns an array");
+    assert!(
+        !hints.is_empty(),
+        "a bound MATCH (n) must produce at least one inlay hint; got {hints:?}"
+    );
+    let first = &hints[0];
+    assert!(
+        first["label"].as_str().is_some_and(|s| s.contains("Node")),
+        "first inlay hint must name the Node kind; got {first}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_inlay_hint_empty_query_has_no_hints() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_inlay_empty.cyp";
+    h.did_open(uri, "");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.inlay_hint(uri, 0, 0, 0, 0);
+    let hints = result.as_array().expect("array");
+    assert!(hints.is_empty(), "empty query has no bindings");
 
     h.shutdown_exit();
 }

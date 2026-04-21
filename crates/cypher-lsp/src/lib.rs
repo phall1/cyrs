@@ -40,8 +40,10 @@ mod definition;
 mod folding;
 mod hover;
 mod init_options;
+mod inlay_hint;
 mod references;
 mod rename;
+mod semantic_tokens;
 mod signature_help;
 
 use std::collections::HashMap;
@@ -80,6 +82,17 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         references_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
         folding_range_provider: Some(lsp_types::FoldingRangeProviderCapability::Simple(true)),
+        semantic_tokens_provider: Some(
+            lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(
+                lsp_types::SemanticTokensOptions {
+                    work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
+                    legend: semantic_tokens::legend(),
+                    range: Some(true),
+                    full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
+                },
+            ),
+        ),
+        inlay_hint_provider: Some(lsp_types::OneOf::Left(true)),
         document_range_formatting_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Right(lsp_types::RenameOptions {
             prepare_provider: Some(true),
@@ -347,6 +360,30 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::SemanticTokensFullRequest::METHOD => {
+            let params: lsp_types::SemanticTokensParams = serde_json::from_value(req.params)?;
+            let resp = handle_semantic_tokens_full(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::SemanticTokensRangeRequest::METHOD => {
+            let params: lsp_types::SemanticTokensRangeParams = serde_json::from_value(req.params)?;
+            let resp = handle_semantic_tokens_range(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::InlayHintRequest::METHOD => {
+            let params: lsp_types::InlayHintParams = serde_json::from_value(req.params)?;
+            let resp = handle_inlay_hint(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         lsp_types::request::ExecuteCommand::METHOD => {
             let params: lsp_types::ExecuteCommandParams = serde_json::from_value(req.params)?;
             let resp = handle_execute_command(server, req.id, &params);
@@ -369,6 +406,68 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
         }
     }
     Ok(())
+}
+
+fn handle_semantic_tokens_full(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::SemanticTokensParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let tokens = semantic_tokens::compute_full(&server.db, file_id);
+    let result = lsp_types::SemanticTokensResult::Tokens(tokens);
+    match serde_json::to_value(result) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
+}
+
+fn handle_semantic_tokens_range(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::SemanticTokensRangeParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let tokens = semantic_tokens::compute_range(&server.db, file_id, params.range);
+    let result = lsp_types::SemanticTokensRangeResult::Tokens(tokens);
+    match serde_json::to_value(result) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
+}
+
+fn handle_inlay_hint(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::InlayHintParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let hints = inlay_hint::compute(&server.db, file_id, params.range);
+    match serde_json::to_value(hints) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
 }
 
 /// v1 `workspace/executeCommand` dispatch (spec §14.2, bead cy-dsi).
