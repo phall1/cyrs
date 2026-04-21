@@ -10,15 +10,25 @@
 //! |----------------|-----------------------------------------|----------------------------------------|
 //! | `parse`        | `text`, `dialect?`                      | `cst_string`, `syntax_errors`          |
 //! | `check`        | `text`, `dialect?`                      | `diagnostics`                          |
-//! | `complete`     | `text`, `offset`, `dialect?`            | `items` (stub: `[]`)                   |
-//! | `hover`        | `text`, `offset`, `dialect?`            | `markdown`, `range` (stub: empty)      |
+//! | `complete`     | `text`, `offset`, `dialect?`            | `items`, `deferred`, `deferred_reason` |
+//! | `hover`        | `text`, `offset`, `dialect?`            | `markdown`, `range`, `deferred`, `deferred_reason` |
 //! | `format`       | `text`                                  | `formatted`                            |
-//! | `rewrite`      | `text`, `fix_ids`                       | `applied_edits`, `resulting_text`      |
+//! | `rewrite`      | `text`, `fix_ids`                       | `applied_edits`, `resulting_text`, `deferred`, `deferred_reason` |
 //! | `plan`         | `text`, `dialect?`                      | `plan_json`                            |
 //! | `explain`      | `text`, `dialect?`                      | `markdown`                             |
 //! | `schema_set`   | `schema_json`                           | `ok: true`                             |
 //! | `schema_clear` | —                                       | `ok: true`                             |
 //! | `shutdown`     | —                                       | (exits loop)                           |
+//!
+//! ## v1 deferrals
+//!
+//! `complete`, `hover`, and `rewrite` accept requests and return a
+//! well-formed response, but the underlying engine is deferred to v2.  Each
+//! response carries `deferred: true` and `deferred_reason` so callers can
+//! detect the deferral programmatically rather than by inspecting whether
+//! an empty list was "no matches" or "not implemented".  Body fields
+//! (`items`, `markdown`, `applied_edits`, …) are populated with empty /
+//! identity values so clients that ignore the flag continue to work.
 
 #![forbid(unsafe_code)]
 
@@ -59,6 +69,18 @@ impl From<Dialect> for DialectMode {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// v1 deferral reasons — surfaced on `complete`/`hover`/`rewrite` responses
+// so callers can distinguish "no matches" from "engine not yet implemented"
+// (spec §15.2; see top-level docs).
+// ---------------------------------------------------------------------------
+
+const DEFERRAL_COMPLETE: &str =
+    "v1: completion engine deferred (spec §15.2 complete); planned for v2.";
+const DEFERRAL_HOVER: &str = "v1: hover engine deferred (spec §15.2 hover); planned for v2.";
+const DEFERRAL_REWRITE: &str =
+    "v1: fix-application engine deferred (spec §15.2 rewrite); planned for v2.";
 
 // ---------------------------------------------------------------------------
 // FileCache — source+dialect interning (spec §15.X)
@@ -250,16 +272,27 @@ enum AgentResponse {
     },
     /// check response
     Check { diagnostics: Vec<Value> },
-    /// complete response (stub)
-    Complete { items: Vec<Value> },
-    /// hover response (stub)
-    Hover { markdown: String, range: [u32; 2] },
+    /// complete response (v1: engine deferred; see top-level docs).
+    Complete {
+        items: Vec<Value>,
+        deferred: bool,
+        deferred_reason: String,
+    },
+    /// hover response (v1: engine deferred; see top-level docs).
+    Hover {
+        markdown: String,
+        range: [u32; 2],
+        deferred: bool,
+        deferred_reason: String,
+    },
     /// format response
     Format { formatted: String },
-    /// rewrite response (stub)
+    /// rewrite response (v1: fix-application engine deferred; see top-level docs).
     Rewrite {
         applied_edits: Vec<Value>,
         resulting_text: String,
+        deferred: bool,
+        deferred_reason: String,
     },
     /// plan response
     Plan { plan_json: Value },
@@ -604,16 +637,21 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // complete: stub (v1 — no completion engine yet)
+        // complete: v1 deferral — completion engine ships in v2.  Callers
+        // should key off `deferred` rather than `items.is_empty()`.
         // ------------------------------------------------------------------
         AgentRequest::Complete {
             text: _,
             offset: _,
             dialect: _,
-        } => AgentResponse::Complete { items: vec![] },
+        } => AgentResponse::Complete {
+            items: vec![],
+            deferred: true,
+            deferred_reason: DEFERRAL_COMPLETE.to_owned(),
+        },
 
         // ------------------------------------------------------------------
-        // hover: stub (v1 — no hover engine yet)
+        // hover: v1 deferral — hover engine ships in v2.
         // ------------------------------------------------------------------
         AgentRequest::Hover {
             text: _,
@@ -622,6 +660,8 @@ fn handle(
         } => AgentResponse::Hover {
             markdown: String::new(),
             range: [0, 0],
+            deferred: true,
+            deferred_reason: DEFERRAL_HOVER.to_owned(),
         },
 
         // ------------------------------------------------------------------
@@ -635,11 +675,15 @@ fn handle(
         },
 
         // ------------------------------------------------------------------
-        // rewrite: stub (v1 — no fix application engine yet)
+        // rewrite: v1 deferral — fix-application engine ships in v2.
+        // We echo the input text unchanged and return an empty edit list
+        // so callers that ignore `deferred` still get a sensible response.
         // ------------------------------------------------------------------
         AgentRequest::Rewrite { text, fix_ids: _ } => AgentResponse::Rewrite {
             applied_edits: vec![],
             resulting_text: text,
+            deferred: true,
+            deferred_reason: DEFERRAL_REWRITE.to_owned(),
         },
 
         // ------------------------------------------------------------------
@@ -880,17 +924,33 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_complete_stub() {
+    fn dispatch_complete_deferred() {
         let v = dispatch(r#"{"op":"complete","text":"RETURN 1","offset":3}"#);
         assert_eq!(v["op"], "complete");
         assert_eq!(v["items"], Value::Array(vec![]));
+        assert_eq!(v["deferred"], Value::Bool(true));
+        assert!(
+            v["deferred_reason"]
+                .as_str()
+                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
+            "complete deferred_reason must name both v1 and v2: got {}",
+            v["deferred_reason"]
+        );
     }
 
     #[test]
-    fn dispatch_hover_stub() {
+    fn dispatch_hover_deferred() {
         let v = dispatch(r#"{"op":"hover","text":"RETURN 1","offset":3}"#);
         assert_eq!(v["op"], "hover");
         assert!(v["markdown"].is_string());
+        assert_eq!(v["deferred"], Value::Bool(true));
+        assert!(
+            v["deferred_reason"]
+                .as_str()
+                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
+            "hover deferred_reason must name both v1 and v2: got {}",
+            v["deferred_reason"]
+        );
     }
 
     #[test]
@@ -902,10 +962,18 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_rewrite_stub() {
+    fn dispatch_rewrite_deferred() {
         let v = dispatch(r#"{"op":"rewrite","text":"RETURN 1","fix_ids":[]}"#);
         assert_eq!(v["op"], "rewrite");
         assert_eq!(v["resulting_text"], "RETURN 1");
+        assert_eq!(v["deferred"], Value::Bool(true));
+        assert!(
+            v["deferred_reason"]
+                .as_str()
+                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
+            "rewrite deferred_reason must name both v1 and v2: got {}",
+            v["deferred_reason"]
+        );
     }
 
     #[test]
