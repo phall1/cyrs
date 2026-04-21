@@ -38,6 +38,7 @@ mod completion;
 mod definition;
 mod hover;
 mod references;
+mod signature_help;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -73,6 +74,14 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
+        signature_help_provider: Some(lsp_types::SignatureHelpOptions {
+            // Spec §14.2: signatureHelp triggers when the user types
+            // `(` to open a call or `,` to advance to the next
+            // parameter (cy-f2e).
+            trigger_characters: Some(vec!["(".into(), ",".into()]),
+            retrigger_characters: Some(vec![",".into()]),
+            work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
+        }),
         completion_provider: Some(lsp_types::CompletionOptions {
             resolve_provider: Some(true),
             // Spec §14.2: trigger chars per the v1 completion engine
@@ -229,6 +238,14 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::SignatureHelpRequest::METHOD => {
+            let params: lsp_types::SignatureHelpParams = serde_json::from_value(req.params)?;
+            let resp = handle_signature_help(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         lsp_types::request::References::METHOD => {
             let params: lsp_types::ReferenceParams = serde_json::from_value(req.params)?;
             let resp = handle_references(server, req.id, &params);
@@ -258,6 +275,33 @@ fn handle_references(
     let include_declaration = params.context.include_declaration;
     match references::compute(&server.db, file_id, uri, position, include_declaration) {
         Some(locations) => match serde_json::to_value(locations) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        None => Response::new_ok(id, serde_json::Value::Null),
+    }
+}
+
+fn handle_signature_help(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::SignatureHelpParams,
+) -> Response {
+    let uri_str = params
+        .text_document_position_params
+        .text_document
+        .uri
+        .to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let position = params.text_document_position_params.position;
+    match signature_help::compute(&server.db, file_id, position) {
+        Some(sig) => match serde_json::to_value(sig) {
             Ok(v) => Response::new_ok(id, v),
             Err(e) => Response::new_err(
                 id,

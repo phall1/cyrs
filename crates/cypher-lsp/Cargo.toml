@@ -21,6 +21,7 @@ cypher-db     = { workspace = true }
 cypher-diag   = { workspace = true, features = ["lsp"] }
 cypher-fmt    = { workspace = true }
 cypher-hir    = { workspace = true }
+cypher-schema = { workspace = true }
 cypher-syntax = { workspace = true }
 lsp-server    = { workspace = true }
 lsp-types     = { workspace = true }
@@ -38,6 +39,9 @@ anyhow          = { workspace = true }
 # harness owns one side and needs the type in scope to construct a dummy
 # sender during teardown (mem::replace trick in Drop).
 crossbeam-channel = "0.5"
+# Used by the signature_help unit-test fixture to build a minimal
+# SchemaProvider without pulling in cypher-testkit (dev-cycle).
+smol_str          = { workspace = true }
 
 [lints]
 workspace = true

@@ -164,6 +164,20 @@ impl TestHarness {
                 "completionProvider must list {ch:?} as a trigger character"
             );
         }
+        assert!(
+            caps["signatureHelpProvider"].is_object(),
+            "signatureHelpProvider must be advertised"
+        );
+        let sig_triggers = caps["signatureHelpProvider"]["triggerCharacters"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for ch in ["(", ","] {
+            assert!(
+                sig_triggers.contains(&ch),
+                "signatureHelpProvider must list {ch:?} as a trigger character"
+            );
+        }
 
         self.send_notification("initialized", json!({}));
     }
@@ -256,6 +270,23 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
         resp.result.expect("completion result present")
+    }
+
+    fn signature_help(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/signatureHelp",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "signatureHelp error: {:?}",
+            resp.error
+        );
+        resp.result.expect("signatureHelp result present")
     }
 
     fn shutdown_exit(&mut self) {
@@ -641,6 +672,74 @@ fn lsp_completion_after_colon_empty_without_schema() {
         items.is_empty(),
         "label completion without schema must be empty; got {items:?}"
     );
+}
+
+#[test]
+fn lsp_signature_help_inside_call_returns_shape() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_inside.cyp";
+    // Cursor sits right after the opening paren of a call — classic
+    // signatureHelp trigger.  With no schema loaded, the engine still
+    // returns a well-formed SignatureHelp (empty signatures list).
+    h.did_open(uri, "RETURN count(");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 13);
+    assert!(
+        result.is_object(),
+        "signatureHelp must return an object inside a call; got {result}"
+    );
+    assert_eq!(
+        result["activeParameter"],
+        json!(0),
+        "cursor immediately after `(` is parameter 0"
+    );
+    assert!(
+        result["signatures"].is_array(),
+        "signatures must be an array; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_signature_help_tracks_active_parameter() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_commas.cyp";
+    // Two commas before the cursor → activeParameter 2.
+    h.did_open(uri, "RETURN foo(a, b, ");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 17);
+    assert_eq!(
+        result["activeParameter"],
+        json!(2),
+        "after two commas activeParameter must be 2; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_signature_help_outside_call_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_outside.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "signatureHelp outside any paren group must be null; got {result}"
+    );
+
+    h.shutdown_exit();
 }
 
 #[test]
