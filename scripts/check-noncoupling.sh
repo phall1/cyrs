@@ -66,6 +66,19 @@ compound='([A-Z][a-z0-9]+)(Event|Operation|Capability|Branch)\b|\b(Event|Operati
 # protocol types); see header comment.
 compound_no_lsp='([A-Z][a-z0-9]+)(Event|Operation|Branch)\b|\b(Event|Operation|Branch)([A-Z][a-z0-9]+)'
 
+# External-type allowlist: PascalCase compounds defined by third-party
+# crates that we merely re-use.  These are not domain leakage — we do
+# not control their naming and aliasing them hurts readability.  Each
+# entry is a regex alternation matched with `-w` semantics (extended by
+# the \b anchors in `compound`).
+#
+#   rowan::WalkEvent  — parser tree-walk iterator variant (cypher-fmt).
+#
+# The anchors around each entry prevent false negatives: an identifier
+# such as `ActorWalkEvent` would still be flagged by the main regex
+# because it does not match `\bWalkEvent\b`.
+external_allow='\bWalkEvent\b'
+
 echo "==> cy-kc9: checking for domain-name denylist in .rs files"
 bad_unambiguous="$(
   find . -name '*.rs' \
@@ -83,7 +96,9 @@ bad_compound="$(
     -not -path '*/fixtures/*' \
     -not -path './crates/cypher-lsp/*' \
     -print0 \
-  | xargs -0 grep -n -E "$compound" 2>/dev/null || true
+  | xargs -0 grep -n -E "$compound" 2>/dev/null \
+  | grep -v -E "$external_allow" \
+  || true
 )"
 # Inside cypher-lsp: compound check minus `Capability` suffix.
 bad_compound_lsp="$(
@@ -92,7 +107,9 @@ bad_compound_lsp="$(
     -not -path '*/tests/*' \
     -not -path '*/fixtures/*' \
     -print0 2>/dev/null \
-  | xargs -0 grep -n -E "$compound_no_lsp" 2>/dev/null || true
+  | xargs -0 grep -n -E "$compound_no_lsp" 2>/dev/null \
+  | grep -v -E "$external_allow" \
+  || true
 )"
 
 if [ -n "$bad_unambiguous" ] || [ -n "$bad_compound" ] || [ -n "$bad_compound_lsp" ]; then
