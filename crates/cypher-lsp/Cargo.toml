@@ -8,6 +8,10 @@ authors      = { workspace = true }
 repository   = { workspace = true }
 description  = "Language server for Cypher / GQL. Spec 0001 §14."
 
+[lib]
+name = "cypher_lsp"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cypher-lsp"
 path = "src/main.rs"
@@ -26,7 +30,12 @@ tracing       = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
+serde_json      = { workspace = true }
+anyhow          = { workspace = true }
+# `Connection::memory()` returns a pair of crossbeam channels; the test
+# harness owns one side and needs the type in scope to construct a dummy
+# sender during teardown (mem::replace trick in Drop).
+crossbeam-channel = "0.5"
 
 [lints]
 workspace = true

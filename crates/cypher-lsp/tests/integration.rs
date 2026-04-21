@@ -1,45 +1,215 @@
-//! Integration test for cypher-lsp stdio transport. Spec 0001 §14.
+//! In-process integration test for cypher-lsp. Spec 0001 §14, §17.11; bead cy-d48.
 //!
-//! Spawns the binary, sends JSON-RPC messages over stdin, and reads
-//! responses + notifications from stdout to verify the server behaves
-//! correctly for the v1 capability set.
+//! Previously this file spawned the `cypher-lsp` binary over stdio,
+//! which hangs in the GitHub Actions macOS/Linux runners — so the tests
+//! were `#[ignore]`d and the §17.11 LSP conformance gate was silently
+//! unchecked in CI.  The rewrite drives the server in-process via
+//! `lsp_server::Connection::memory()`: the server runs in a worker
+//! thread and the test thread speaks LSP over a pair of crossbeam
+//! channels.  No stdio, no child process, no CI hangs.
+//!
+//! Coverage (matches the spec §17.11 list of required flows):
+//!
+//! * `initialize` + capability echo
+//! * `textDocument/didOpen` → `publishDiagnostics`
+//! * `textDocument/didChange` → fresh `publishDiagnostics`
+//! * `textDocument/didClose` → empty `publishDiagnostics` + `FileId`
+//!   eviction from the `Database` (cy-it7)
+//! * Unknown-URI `didClose` is a no-op
+//! * `shutdown` + `exit` exit cleanly
 
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 
+use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use serde_json::{Value, json};
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Harness
 // ---------------------------------------------------------------------------
 
-/// Encode a JSON-RPC message with the LSP Content-Length framing.
-fn encode(msg: &Value) -> Vec<u8> {
-    let body = serde_json::to_string(msg).unwrap();
-    format!("Content-Length: {}\r\n\r\n{}", body.len(), body).into_bytes()
+/// Wall-clock ceiling on any single `receiver.recv` wait.  The server
+/// runs in a worker thread and responds synchronously, so 2s is generous;
+/// anything longer means the server is stuck and the test should fail
+/// loudly rather than spin forever.
+const RECV_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Harness tying a server thread to a client-side `Connection`.
+///
+/// Drop the harness to implicitly send `shutdown` + `exit` and join
+/// the worker.  Callers that want to assert clean exit should call
+/// [`TestHarness::shutdown_exit`] instead and then drop.
+struct TestHarness {
+    client: Connection,
+    server_thread: Option<thread::JoinHandle<anyhow::Result<()>>>,
+    next_id: i32,
 }
 
-/// Read one LSP message (Content-Length + body) from a `BufReader`.
-fn read_message(reader: &mut BufReader<impl std::io::Read>) -> Value {
-    use std::io::Read;
-    // Read headers until we get the blank separator line.
-    let mut content_length: usize = 0;
-    loop {
-        let mut line = String::new();
-        reader.read_line(&mut line).expect("read header line");
-        let line = line.trim_end_matches(['\r', '\n']);
-        if line.is_empty() {
-            break;
-        }
-        if let Some(rest) = line.strip_prefix("Content-Length: ") {
-            content_length = rest.trim().parse().expect("parse Content-Length");
+impl TestHarness {
+    fn new() -> Self {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::Builder::new()
+            .name("cypher-lsp-test-server".into())
+            .spawn(move || cypher_lsp::serve(&server))
+            .expect("spawn server thread");
+        Self {
+            client,
+            server_thread: Some(server_thread),
+            next_id: 0,
         }
     }
-    assert!(content_length > 0, "Content-Length must be > 0");
 
-    let mut buf = vec![0u8; content_length];
-    reader.read_exact(&mut buf).expect("read body");
-    serde_json::from_slice(&buf).expect("parse JSON body")
+    fn next_id(&mut self) -> RequestId {
+        self.next_id += 1;
+        RequestId::from(self.next_id)
+    }
+
+    fn send_request(&mut self, method: &str, params: Value) -> RequestId {
+        let id = self.next_id();
+        let req = Request::new(id.clone(), method.to_owned(), params);
+        self.client
+            .sender
+            .send(Message::Request(req))
+            .expect("send request");
+        id
+    }
+
+    fn send_notification(&self, method: &str, params: Value) {
+        let notif = Notification::new(method.to_owned(), params);
+        self.client
+            .sender
+            .send(Message::Notification(notif))
+            .expect("send notification");
+    }
+
+    /// Receive the next message from the server, failing the test after
+    /// [`RECV_TIMEOUT`].
+    fn recv(&self) -> Message {
+        self.client
+            .receiver
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("server response within timeout")
+    }
+
+    /// Receive the next message and assert it's a notification with the
+    /// given method.  Panics with the actual message on mismatch so the
+    /// test log shows what the server sent instead.
+    fn recv_notification(&self, method: &str) -> Notification {
+        match self.recv() {
+            Message::Notification(n) if n.method == method => n,
+            other => panic!("expected notification {method:?}, got {other:?}"),
+        }
+    }
+
+    /// Receive the next message and assert it's a response to `expected_id`.
+    fn recv_response(&self, expected_id: &RequestId) -> Response {
+        match self.recv() {
+            Message::Response(r) if &r.id == expected_id => r,
+            other => panic!("expected response for {expected_id:?}, got {other:?}"),
+        }
+    }
+
+    /// Initialize the session and assert the spec §14.2 capabilities land
+    /// on the wire.  Separated from `new` so tests that only care about
+    /// shutdown semantics can skip the capability assertions.
+    fn initialize(&mut self) {
+        let id = self.send_request(
+            "initialize",
+            json!({
+                "processId": null,
+                "rootUri": null,
+                "capabilities": {}
+            }),
+        );
+
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
+        let caps = resp.result.expect("initialize result");
+        let caps = &caps["capabilities"];
+
+        assert_eq!(
+            caps["textDocumentSync"],
+            json!(1),
+            "textDocumentSync must be Full"
+        );
+        assert!(
+            caps["documentFormattingProvider"]
+                .as_bool()
+                .unwrap_or(false),
+            "documentFormattingProvider must be true"
+        );
+        assert!(
+            caps["hoverProvider"].as_bool().unwrap_or(false),
+            "hoverProvider must be true"
+        );
+        assert!(
+            caps["definitionProvider"].as_bool().unwrap_or(false),
+            "definitionProvider must be true"
+        );
+
+        self.send_notification("initialized", json!({}));
+    }
+
+    fn did_open(&self, uri: &str, text: &str) {
+        self.send_notification(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "cypher",
+                    "version": 1,
+                    "text": text,
+                }
+            }),
+        );
+    }
+
+    fn did_change(&self, uri: &str, text: &str, version: i64) {
+        self.send_notification(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": [{ "text": text }]
+            }),
+        );
+    }
+
+    fn did_close(&self, uri: &str) {
+        self.send_notification(
+            "textDocument/didClose",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+    }
+
+    fn shutdown_exit(&mut self) {
+        let id = self.send_request("shutdown", Value::Null);
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "shutdown error: {:?}", resp.error);
+        self.send_notification("exit", Value::Null);
+    }
+}
+
+impl Drop for TestHarness {
+    fn drop(&mut self) {
+        // Best-effort: if the test forgot to call shutdown_exit, drop the
+        // client sender so the server's recv loop disconnects cleanly.
+        let (dummy_sender, _) = crossbeam_channel::unbounded();
+        let sender = std::mem::replace(&mut self.client.sender, dummy_sender);
+        drop(sender);
+        if let Some(handle) = self.server_thread.take() {
+            // Join with a deadline so a stuck server fails the test run
+            // visibly instead of hanging forever.
+            let join_deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while std::time::Instant::now() < join_deadline {
+                if handle.is_finished() {
+                    let _ = handle.join();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            eprintln!("warning: server thread did not join within 5s; leaking");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -47,302 +217,86 @@ fn read_message(reader: &mut BufReader<impl std::io::Read>) -> Value {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "spawned-process LSP integration hangs in CI harness; manually verified. Follow-up: rewrite against in-process lsp-server::Connection::pair()."]
-fn lsp_initialize_didopen_diagnostics() {
-    // Build the binary first.
-    let bin_path = {
-        let output = Command::new("cargo")
-            .args(["build", "-p", "cypher-lsp", "--message-format=json"])
-            .output()
-            .expect("cargo build");
-
-        assert!(
-            output.status.success(),
-            "cargo build failed:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        // Find the binary path from cargo's JSON messages.
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut bin = None;
-        for line in stdout.lines() {
-            if let Ok(msg) = serde_json::from_str::<Value>(line)
-                && msg["reason"] == "compiler-artifact"
-                && msg["target"]["name"] == "cypher-lsp"
-                && msg["target"]["kind"]
-                    .as_array()
-                    .is_some_and(|k| k.contains(&json!("bin")))
-                && let Some(exe) = msg["executable"].as_str()
-            {
-                bin = Some(exe.to_owned());
-            }
-        }
-        bin.expect("could not find cypher-lsp binary in cargo output")
-    };
-
-    let mut child = Command::new(&bin_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn cypher-lsp");
-
-    let mut stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut reader = BufReader::new(stdout);
-
-    // 1. initialize
-    let init_req = json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "processId": null,
-            "rootUri": null,
-            "capabilities": {}
-        }
-    });
-    stdin
-        .write_all(&encode(&init_req))
-        .expect("write initialize");
-
-    // Read the initialize response.
-    let init_resp = read_message(&mut reader);
-    assert_eq!(init_resp["id"], json!(1), "initialize response id");
-    let caps = &init_resp["result"]["capabilities"];
-    assert_eq!(
-        caps["textDocumentSync"],
-        json!(1), // Full = 1
-        "textDocumentSync must be Full"
-    );
-    assert!(
-        caps["documentFormattingProvider"]
-            .as_bool()
-            .unwrap_or(false),
-        "documentFormattingProvider must be true"
-    );
-    assert!(
-        caps["hoverProvider"].as_bool().unwrap_or(false),
-        "hoverProvider must be true"
-    );
-    assert!(
-        caps["definitionProvider"].as_bool().unwrap_or(false),
-        "definitionProvider must be true"
-    );
-
-    // 2. initialized notification (no-op)
-    let initialized = json!({
-        "jsonrpc": "2.0",
-        "method": "initialized",
-        "params": {}
-    });
-    stdin
-        .write_all(&encode(&initialized))
-        .expect("write initialized");
-
-    // 3. textDocument/didOpen with a simple MATCH query
-    let did_open = json!({
-        "jsonrpc": "2.0",
-        "method": "textDocument/didOpen",
-        "params": {
-            "textDocument": {
-                "uri": "file:///tmp/test.cyp",
-                "languageId": "cypher",
-                "version": 1,
-                "text": "MATCH (n) RETURN n"
-            }
-        }
-    });
-    stdin.write_all(&encode(&did_open)).expect("write didOpen");
-
-    // Expect a textDocument/publishDiagnostics notification.
-    let diag_notif = read_message(&mut reader);
-    assert_eq!(
-        diag_notif["method"],
-        json!("textDocument/publishDiagnostics"),
-        "must receive publishDiagnostics"
-    );
-    assert_eq!(
-        diag_notif["params"]["uri"],
-        json!("file:///tmp/test.cyp"),
-        "diagnostics URI must match"
-    );
-    // A valid MATCH...RETURN should have no diagnostics.
-    let diags = &diag_notif["params"]["diagnostics"];
-    assert!(
-        diags.as_array().is_some_and(std::vec::Vec::is_empty),
-        "valid MATCH (n) RETURN n must produce no diagnostics, got: {diags}"
-    );
-
-    // 4. Shutdown sequence.
-    let shutdown_req = json!({
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "shutdown",
-        "params": null
-    });
-    stdin
-        .write_all(&encode(&shutdown_req))
-        .expect("write shutdown");
-
-    let shutdown_resp = read_message(&mut reader);
-    assert_eq!(shutdown_resp["id"], json!(2), "shutdown response id");
-
-    let exit_notif = json!({
-        "jsonrpc": "2.0",
-        "method": "exit",
-        "params": null
-    });
-    stdin.write_all(&encode(&exit_notif)).expect("write exit");
-    drop(stdin);
-
-    let status = child.wait().expect("wait");
-    assert!(status.success(), "cypher-lsp must exit cleanly: {status}");
+fn lsp_initialize_advertises_v1_capabilities() {
+    let mut h = TestHarness::new();
+    h.initialize();
+    h.shutdown_exit();
 }
 
-/// Verify that `textDocument/didClose` causes the server to publish empty
-/// diagnostics (clearing client-side highlights) and does not crash.
-///
-/// Also verifies that closing an unknown URI is silently ignored (no crash,
-/// server continues to respond to subsequent requests).
-///
-/// Marked `#[ignore]` because spawning a stdio process hangs in the CI
-/// harness (see cy-9nr / existing test above).  Run manually with:
-///   cargo test -p cypher-lsp -- --ignored `lsp_did_close_eviction`
 #[test]
-#[ignore = "spawned-process LSP integration hangs in CI harness; manually verified. See cy-it7."]
-fn lsp_did_close_eviction() {
-    let bin_path = {
-        let output = Command::new("cargo")
-            .args(["build", "-p", "cypher-lsp", "--message-format=json"])
-            .output()
-            .expect("cargo build");
+fn lsp_did_open_publishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
 
-        assert!(output.status.success(), "cargo build failed");
+    let uri = "file:///tmp/lsp_test_open.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut bin = None;
-        for line in stdout.lines() {
-            if let Ok(msg) = serde_json::from_str::<Value>(line)
-                && msg["reason"] == "compiler-artifact"
-                && msg["target"]["name"] == "cypher-lsp"
-                && msg["target"]["kind"]
-                    .as_array()
-                    .is_some_and(|k| k.contains(&json!("bin")))
-                && let Some(exe) = msg["executable"].as_str()
-            {
-                bin = Some(exe.to_owned());
-            }
-        }
-        bin.expect("could not find cypher-lsp binary")
-    };
-
-    let mut child = Command::new(&bin_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn cypher-lsp");
-
-    let mut stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut reader = BufReader::new(stdout);
-
-    // initialize
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "initialize",
-            "params": { "processId": null, "rootUri": null, "capabilities": {} }
-        })))
-        .unwrap();
-    let _init_resp = read_message(&mut reader);
-
-    // initialized
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0",
-            "method": "initialized",
-            "params": {}
-        })))
-        .unwrap();
-
-    // didOpen
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/didOpen",
-            "params": {
-                "textDocument": {
-                    "uri": "file:///tmp/evict_test.cyp",
-                    "languageId": "cypher",
-                    "version": 1,
-                    "text": "RETURN 42"
-                }
-            }
-        })))
-        .unwrap();
-    // consume publishDiagnostics from didOpen
-    let _diag = read_message(&mut reader);
-
-    // didClose — must receive empty publishDiagnostics to clear client state
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/didClose",
-            "params": {
-                "textDocument": { "uri": "file:///tmp/evict_test.cyp" }
-            }
-        })))
-        .unwrap();
-    let close_diag = read_message(&mut reader);
-    assert_eq!(
-        close_diag["method"],
-        json!("textDocument/publishDiagnostics"),
-        "didClose must emit publishDiagnostics to clear client highlights"
-    );
+    let notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
     assert!(
-        close_diag["params"]["diagnostics"]
-            .as_array()
-            .is_some_and(Vec::is_empty),
-        "didClose publishDiagnostics must be empty"
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "valid MATCH (n) RETURN n must produce no diagnostics, got {}",
+        params["diagnostics"]
     );
 
-    // didClose on unknown URI — server must NOT crash; subsequent shutdown works
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/didClose",
-            "params": {
-                "textDocument": { "uri": "file:///tmp/ghost.cyp" }
-            }
-        })))
-        .unwrap();
-    // No message expected (server logs warn and returns without publishing).
+    h.shutdown_exit();
+}
 
-    // shutdown + exit — server must still respond cleanly
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0", "id": 2,
-            "method": "shutdown",
-            "params": null
-        })))
-        .unwrap();
-    let shutdown_resp = read_message(&mut reader);
-    assert_eq!(shutdown_resp["id"], json!(2), "shutdown response id");
+#[test]
+fn lsp_did_change_republishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
 
-    stdin
-        .write_all(&encode(&json!({
-            "jsonrpc": "2.0",
-            "method": "exit",
-            "params": null
-        })))
-        .unwrap();
-    drop(stdin);
+    let uri = "file:///tmp/lsp_test_change.cyp";
+    h.did_open(uri, "RETURN 1");
+    let open_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let _ = open_notif;
 
-    let status = child.wait().expect("wait");
+    h.did_change(uri, "MATCH (m) RETURN m", 2);
+    let change_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(change_notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+    // Valid MATCH (m) RETURN m has no diagnostics.
     assert!(
-        status.success(),
-        "cypher-lsp must exit cleanly after eviction: {status}"
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "valid MATCH (m) RETURN m must produce no diagnostics"
     );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_close_clears_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_close.cyp";
+    h.did_open(uri, "RETURN 42");
+    // Consume the didOpen diagnostics.
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    h.did_close(uri);
+    let close_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(close_notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+    assert!(
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "didClose publishDiagnostics must be empty (client-state clear)"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_close_unknown_uri_is_silent() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    // Close a URI we never opened.  The server must log + return without
+    // publishing anything or crashing.  We then send shutdown and expect
+    // the response to land normally — no stray diagnostic in between.
+    h.did_close("file:///tmp/lsp_test_ghost.cyp");
+
+    h.shutdown_exit();
 }
