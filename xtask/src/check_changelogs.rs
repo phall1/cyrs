@@ -24,6 +24,9 @@ use anyhow::{Context, Result, bail};
 /// pivot `[Unreleased]` into a versioned section.
 const UNRELEASED_MARKER: &str = "## [Unreleased]";
 
+/// Entry point for `cargo xtask check-changelogs`.  Returns `Ok(())` iff
+/// every workspace crate plus the workspace root has a `CHANGELOG.md`
+/// containing an `## [Unreleased]` marker.
 pub fn run() -> Result<()> {
     let workspace_root = workspace_root()?;
     let mut failures: Vec<String> = Vec::new();

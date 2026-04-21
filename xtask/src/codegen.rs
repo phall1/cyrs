@@ -98,9 +98,16 @@ pub struct CodegenReport {
     pub skipped: Vec<SkippedProduction>,
 }
 
+/// A grammar production that `build_generated` intentionally did not emit
+/// a typed AST wrapper for, along with the human-readable reason why.
+/// Emitted in the codegen report so the generated file's header can
+/// surface the list verbatim.
 #[derive(Debug, Clone)]
 pub struct SkippedProduction {
+    /// The production name as it appears in `cypher.ungrammar`.
     pub name: String,
+    /// Why the production was skipped (e.g. "alternation contains a
+    /// token arm; sum-type-over-tokens emitter not yet wired up").
     pub reason: String,
 }
 
@@ -367,6 +374,12 @@ fn render_file(
     out.push_str("#![allow(clippy::wildcard_imports)]\n");
     out.push_str("#![allow(clippy::return_self_not_must_use)]\n");
     out.push_str("#![allow(dead_code)]\n");
+    // Each struct / enum / accessor mirrors a grammar production whose
+    // semantics are the ungrammar source (§5.2); per-item docstrings
+    // would duplicate that source and bitrot as the grammar evolves.
+    // Suppress missing_docs here rather than emit boilerplate
+    // docstrings (spec §C2.4, bead cy-6so).
+    out.push_str("#![allow(missing_docs)]\n");
     out.push('\n');
     out.push_str("use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};\n");
     out.push('\n');

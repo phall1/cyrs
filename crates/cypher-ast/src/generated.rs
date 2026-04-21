@@ -62,6 +62,7 @@
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::return_self_not_must_use)]
 #![allow(dead_code)]
+#![allow(missing_docs)]
 
 use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken};
 

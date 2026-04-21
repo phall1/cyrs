@@ -44,8 +44,12 @@ jobs:
           workspaces: ". -> target"
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
+      # `-A missing-docs` keeps the workspace-wide `missing_docs = "warn"`
+      # lint visible during development (cargo build prints warnings) while
+      # the legacy undocumented backlog (cy-p47) is being written down.
+      # Promote to a hard deny once cy-p47 lands.
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings -A missing-docs
 
   # ---------------------------------------------------------------
   # Grammar <-> recovery.md coverage invariant (spec §4.3, §17.18)

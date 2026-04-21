@@ -17,6 +17,12 @@
 //! these partitions.
 
 #![allow(non_camel_case_types)]
+// Every variant of `SyntaxKind` is a grammar-production name whose
+// semantics live in spec §4.4 (tokens) and the `cypher.ungrammar` source
+// (nodes).  Per-variant doc strings would duplicate those sources and
+// add boilerplate without informational value; exempt the whole file
+// from `missing_docs` rather than paper them all over.
+#![allow(missing_docs)]
 
 /// Every syntactic category in Cypher: tokens, nodes, and meta.
 ///
