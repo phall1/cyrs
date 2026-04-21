@@ -19,8 +19,7 @@ fn bench_plan(c: &mut Criterion) {
 
     c.bench_function("plan", |b| {
         b.iter(|| {
-            let _plan =
-                cypher_plan::lower::lower_statement(std::hint::black_box(&stmt));
+            let _plan = cypher_plan::lower::lower_statement(std::hint::black_box(&stmt));
         });
     });
 }

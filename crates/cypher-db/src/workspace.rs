@@ -123,6 +123,27 @@ struct FileRecord {
     path: PathBuf,
 }
 
+/// A freed pair of Salsa input handles retained for reuse by a subsequent
+/// [`Database::open_file`] call.
+///
+/// Salsa 0.26 does not expose a public API for deleting input structs, so
+/// once a `SourceFile` / `FileOptions` is allocated its internal slot in
+/// the Salsa interner persists for the lifetime of the database.  Without
+/// recycling, an LSP-style workload that churns file IDs (open → edit →
+/// close) would grow Salsa's input table unboundedly and violate the
+/// spec §11.6 steady-state RSS bound.
+///
+/// To respect the spec bound we pool the handles: `remove_file` pushes
+/// the pair into [`Database::free_slots`] and resets the source to empty
+/// to free the backing `String`; `open_file` prefers to pop a free slot
+/// and reset its fields before allocating a fresh one.  The pool's
+/// steady-state size is bounded by the peak number of simultaneously-open
+/// files, which is naturally bounded by realistic client behaviour.
+struct FreeSlot {
+    source_file: SourceFile,
+    file_opts: FileOptions,
+}
+
 // ---------------------------------------------------------------------------
 // DatabaseSnapshot
 // ---------------------------------------------------------------------------
@@ -253,6 +274,13 @@ pub struct Database {
     inner: CypherDatabase,
     /// Registry: `FileId` → per-file Salsa inputs.
     files: IndexMap<FileId, FileRecord>,
+    /// Pool of Salsa input handles freed by [`remove_file`] and available
+    /// for reuse on the next [`open_file`].  See [`FreeSlot`] for rationale
+    /// (spec §11.6 steady-state RSS bound).
+    ///
+    /// [`remove_file`]: Database::remove_file
+    /// [`open_file`]: Database::open_file
+    free_slots: Vec<FreeSlot>,
     /// The single workspace-scoped input; created lazily on first use.
     workspace: Option<WorkspaceInputs>,
     /// Monotonically increasing `FileId` counter.
@@ -320,6 +348,7 @@ impl Database {
         Self {
             inner,
             files: IndexMap::new(),
+            free_slots: Vec::new(),
             workspace,
             next_id: 0,
             options: opts,
@@ -345,11 +374,25 @@ impl Database {
         let id = FileId(self.next_id);
         self.next_id += 1;
 
-        let source_file = self.inner.new_source_file_with(source, dialect, 0);
-        let file_opts = self.inner.new_file_options(AnalysisOptions {
+        let options = AnalysisOptions {
             dialect,
             ..Default::default()
-        });
+        };
+
+        let (source_file, file_opts) = if let Some(slot) = self.free_slots.pop() {
+            // Recycle the pooled Salsa handles: reset all fields so the slot
+            // behaves like a freshly-allocated input from the perspective of
+            // derived queries.  Keeps Salsa's input-struct interner bounded
+            // under LSP-style FileId churn (spec §11.6, bead cy-bh5).
+            self.inner.set_source(slot.source_file, source);
+            self.inner.set_dialect(slot.source_file, dialect);
+            self.inner.set_options(slot.file_opts, options);
+            (slot.source_file, slot.file_opts)
+        } else {
+            let source_file = self.inner.new_source_file_with(source, dialect, 0);
+            let file_opts = self.inner.new_file_options(options);
+            (source_file, file_opts)
+        };
 
         self.files.insert(
             id,
@@ -385,10 +428,21 @@ impl Database {
     ///
     /// Returns `Err(UnknownFileId)` if `id` was not open.
     pub fn remove_file(&mut self, id: FileId) -> Result<(), UnknownFileId> {
-        self.files
-            .swap_remove(&id)
-            .map(|_| ())
-            .ok_or(UnknownFileId(id))
+        let record = self.files.swap_remove(&id).ok_or(UnknownFileId(id))?;
+
+        // Release the backing source string immediately so a long-lived pool
+        // entry does not pin a large `String` allocation (spec §11.6).  The
+        // Salsa revision bump here is harmless: no derived query will read
+        // this `SourceFile` until the slot is recycled, at which point
+        // `open_file` sets the new source and bumps the revision again.
+        self.inner.set_source(record.source_file, String::new());
+
+        self.free_slots.push(FreeSlot {
+            source_file: record.source_file,
+            file_opts: record.file_opts,
+        });
+
+        Ok(())
     }
 
     // -----------------------------------------------------------------------

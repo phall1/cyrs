@@ -26,6 +26,10 @@ harness = false
 name    = "bench_plan"
 harness = false
 
+[[bench]]
+name    = "bench_incremental"
+harness = false
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 
@@ -36,3 +40,7 @@ cypher-hir    = { path = "../crates/cypher-hir" }
 cypher-sema   = { path = "../crates/cypher-sema" }
 cypher-diag   = { path = "../crates/cypher-diag" }
 cypher-plan   = { path = "../crates/cypher-plan" }
+cypher-db     = { path = "../crates/cypher-db" }
+# Cross-platform current-RSS sampling (linux /proc/self/statm, macos mach
+# task_info, windows GetProcessMemoryInfo). Used only by bench_incremental.
+memory-stats  = "1.2"
