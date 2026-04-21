@@ -34,6 +34,9 @@
 
 #![forbid(unsafe_code)]
 
+mod definition;
+mod hover;
+
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -175,17 +178,16 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .map_err(|e| anyhow!("{e}"))?;
         }
         lsp_types::request::HoverRequest::METHOD => {
-            let _params: HoverParams = serde_json::from_value(req.params)?;
-            // v1: binding-overlay lookup deferred; return null.
-            let resp = Response::new_ok(req.id, serde_json::Value::Null);
+            let params: HoverParams = serde_json::from_value(req.params)?;
+            let resp = handle_hover(server, req.id, &params);
             connection
                 .sender
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
         lsp_types::request::GotoDefinition::METHOD => {
-            // Stub: always returns null.
-            let resp = Response::new_ok(req.id, serde_json::Value::Null);
+            let params: lsp_types::GotoDefinitionParams = serde_json::from_value(req.params)?;
+            let resp = handle_definition(server, req.id, &params);
             connection
                 .sender
                 .send(resp.into())
@@ -196,6 +198,57 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
         }
     }
     Ok(())
+}
+
+fn handle_definition(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::GotoDefinitionParams,
+) -> Response {
+    let uri = &params.text_document_position_params.text_document.uri;
+    let uri_str = uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let position = params.text_document_position_params.position;
+    match definition::compute(&server.db, file_id, uri, position) {
+        Some(loc) => match serde_json::to_value(loc) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        None => Response::new_ok(id, serde_json::Value::Null),
+    }
+}
+
+fn handle_hover(server: &mut Server, id: RequestId, params: &HoverParams) -> Response {
+    let uri_str = params
+        .text_document_position_params
+        .text_document
+        .uri
+        .to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        // LSP allows null for "no info"; the client treats it as
+        // "nothing to show".  Returning an error here would surface as
+        // a popup in most clients, which is much louder than warranted
+        // for a stale URI.
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let position = params.text_document_position_params.position;
+    match hover::compute(&server.db, file_id, position) {
+        Some(h) => match serde_json::to_value(h) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        None => Response::new_ok(id, serde_json::Value::Null),
+    }
 }
 
 fn handle_formatting(

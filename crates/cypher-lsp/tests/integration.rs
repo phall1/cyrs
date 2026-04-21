@@ -181,6 +181,32 @@ impl TestHarness {
         );
     }
 
+    fn hover(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/hover",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "hover error: {:?}", resp.error);
+        resp.result.expect("hover result present")
+    }
+
+    fn definition(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/definition",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "definition error: {:?}", resp.error);
+        resp.result.expect("definition result present")
+    }
+
     fn shutdown_exit(&mut self) {
         let id = self.send_request("shutdown", Value::Null);
         let resp = self.recv_response(&id);
@@ -283,6 +309,116 @@ fn lsp_did_close_clears_diagnostics() {
     assert!(
         params["diagnostics"].as_array().is_some_and(Vec::is_empty),
         "didClose publishDiagnostics must be empty (client-state clear)"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_keyword_returns_markdown() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH (line 0, character 0).
+    let result = h.hover(uri, 0, 0);
+    let contents = &result["contents"];
+    let body = contents.as_str().unwrap_or_else(|| {
+        contents["value"]
+            .as_str()
+            .expect("hover contents must carry markdown")
+    });
+    assert!(
+        body.contains("MATCH"),
+        "MATCH keyword hover must mention MATCH; got {body:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_variable_returns_kind() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the n inside MATCH (n) — line 0, character 7.
+    let result = h.hover(uri, 0, 7);
+    let body = result["contents"]
+        .as_str()
+        .or_else(|| result["contents"]["value"].as_str())
+        .unwrap_or("");
+    assert!(
+        body.contains("variable") && body.contains("`n`"),
+        "variable hover must name the binding; got {body:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_whitespace_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_none.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor past the end of the document.
+    let result = h.hover(uri, 5, 0);
+    assert!(
+        result.is_null(),
+        "hover beyond EOF must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_definition_on_variable_returns_location() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_def_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing n in RETURN n — line 0, character 17.
+    let result = h.definition(uri, 0, 17);
+    assert_eq!(
+        result["uri"],
+        json!(uri),
+        "definition location must point at the same file"
+    );
+    let range = &result["range"];
+    assert_eq!(range["start"]["line"], json!(0));
+    // The defined-at range covers the n inside MATCH (n) — character 7.
+    assert_eq!(range["start"]["character"], json!(7));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_definition_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_def_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH — keyword, not an identifier.
+    let result = h.definition(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "definition on a keyword must return null; got {result}"
     );
 
     h.shutdown_exit();
