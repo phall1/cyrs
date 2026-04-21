@@ -174,6 +174,16 @@ impl TestHarness {
                 || caps["foldingRangeProvider"].is_object(),
             "foldingRangeProvider must be advertised"
         );
+        let commands = caps["executeCommandProvider"]["commands"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for c in ["cypher.explainPlan", "cypher.lowerToHir"] {
+            assert!(
+                commands.contains(&c),
+                "executeCommandProvider must list {c:?}; got {commands:?}"
+            );
+        }
         assert!(
             caps["documentRangeFormattingProvider"]
                 .as_bool()
@@ -314,6 +324,14 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
         self.send_notification("initialized", json!({}));
+    }
+
+    fn execute_command(&mut self, command: &str, args: Value) -> Response {
+        let id = self.send_request(
+            "workspace/executeCommand",
+            json!({ "command": command, "arguments": args }),
+        );
+        self.recv_response(&id)
     }
 
     fn folding_range(&mut self, uri: &str) -> Value {
@@ -1141,6 +1159,74 @@ fn lsp_did_save_without_text_is_silent_no_op() {
     // server emitted one, shutdown_exit's recv_response would see it
     // instead of the shutdown response and panic.
     h.did_save(uri, None);
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_explain_plan_returns_markdown() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_explain.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.explainPlan", json!([{ "uri": uri }]));
+    assert!(resp.error.is_none(), "explainPlan error: {:?}", resp.error);
+    let body = resp
+        .result
+        .expect("explainPlan result")
+        .as_str()
+        .map(str::to_owned)
+        .expect("explainPlan returns a JSON string");
+    assert!(
+        !body.is_empty(),
+        "explainPlan must return non-empty markdown"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_lower_to_hir_returns_overlay() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hir.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.lowerToHir", json!([{ "uri": uri }]));
+    assert!(resp.error.is_none(), "lowerToHir error: {:?}", resp.error);
+    let body = resp
+        .result
+        .expect("lowerToHir result")
+        .as_str()
+        .map(str::to_owned)
+        .expect("lowerToHir returns a JSON string");
+    assert!(
+        !body.is_empty(),
+        "lowerToHir must return non-empty overlay text"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_unknown_returns_error() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_exec_unknown.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.fakeCommand", json!([{ "uri": uri }]));
+    assert!(
+        resp.error.is_some(),
+        "unknown command must surface a JSON-RPC error"
+    );
 
     h.shutdown_exit();
 }

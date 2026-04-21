@@ -21,7 +21,9 @@ cypher-db     = { workspace = true }
 cypher-diag   = { workspace = true, features = ["lsp"] }
 cypher-fmt    = { workspace = true }
 cypher-hir    = { workspace = true }
+cypher-plan   = { workspace = true }
 cypher-schema = { workspace = true }
+cypher-sema   = { workspace = true }
 cypher-syntax = { workspace = true }
 smol_str      = { workspace = true }
 lsp-server    = { workspace = true }

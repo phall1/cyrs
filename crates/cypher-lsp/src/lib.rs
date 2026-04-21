@@ -93,6 +93,14 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
             retrigger_characters: Some(vec![",".into()]),
             work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
         }),
+        execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
+            // Spec §14.2: custom workspace commands (cy-dsi).  The
+            // client invokes these via `workspace/executeCommand`
+            // with `arguments: [{ "uri": "…" }]`.  See
+            // handle_execute_command for the per-command contract.
+            commands: vec!["cypher.explainPlan".into(), "cypher.lowerToHir".into()],
+            work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
+        }),
         completion_provider: Some(lsp_types::CompletionOptions {
             resolve_provider: Some(true),
             // Spec §14.2: trigger chars per the v1 completion engine
@@ -339,6 +347,14 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::ExecuteCommand::METHOD => {
+            let params: lsp_types::ExecuteCommandParams = serde_json::from_value(req.params)?;
+            let resp = handle_execute_command(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         lsp_types::request::RangeFormatting::METHOD => {
             let params: lsp_types::DocumentRangeFormattingParams =
                 serde_json::from_value(req.params)?;
@@ -353,6 +369,86 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
         }
     }
     Ok(())
+}
+
+/// v1 `workspace/executeCommand` dispatch (spec §14.2, bead cy-dsi).
+///
+/// Each command takes an argument object `{ "uri": "file:///…" }`
+/// referring to an open document; the response is a JSON string
+/// carrying the pretty-printed output the client can display in a
+/// scratch buffer.  Unknown commands return `MethodNotFound`;
+/// missing / malformed `arguments` return `InvalidParams`.
+fn handle_execute_command(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::ExecuteCommandParams,
+) -> Response {
+    // Extract the first argument's `uri` field.  Both commands share
+    // this shape so we parse it once up front.
+    let first_arg = params.arguments.first();
+    let uri_str = first_arg
+        .and_then(|v| v.get("uri"))
+        .and_then(|v| v.as_str())
+        .map(std::string::ToString::to_string);
+    let Some(uri_str) = uri_str else {
+        return Response::new_err(
+            id,
+            lsp_server::ErrorCode::InvalidParams as i32,
+            "executeCommand requires `arguments: [{ uri }]`".to_string(),
+        );
+    };
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_err(
+            id,
+            lsp_server::ErrorCode::InvalidParams as i32,
+            format!("file not open: {uri_str}"),
+        );
+    };
+
+    match params.command.as_str() {
+        "cypher.explainPlan" => {
+            // Pretty plan via the existing plan_of + pretty pipeline.
+            match server.db.plan_of(file_id) {
+                Ok(plan) => Response::new_ok(
+                    id,
+                    serde_json::Value::String(cypher_plan::pretty::pretty(plan.plan())),
+                ),
+                Err(e) => Response::new_err(
+                    id,
+                    lsp_server::ErrorCode::InternalError as i32,
+                    e.to_string(),
+                ),
+            }
+        }
+        "cypher.lowerToHir" => {
+            // HIR overlay via the lowering pipeline.  Re-lowers the
+            // source rather than reaching into the Salsa query for
+            // `Statement` (not exposed on the public workspace API).
+            let source = match server.db.source_of(file_id) {
+                Ok(s) => s,
+                Err(e) => {
+                    return Response::new_err(
+                        id,
+                        lsp_server::ErrorCode::InternalError as i32,
+                        e.to_string(),
+                    );
+                }
+            };
+            let stmt =
+                cypher_hir::desugar::desugar_statement(cypher_hir::lower::lower_statement(&source));
+            let mut sink = cypher_diag::DiagnosticsSink::new();
+            let resolved = cypher_sema::resolve::resolve(&stmt, false, &mut sink).resolved_names;
+            Response::new_ok(
+                id,
+                serde_json::Value::String(cypher_hir::pretty::print_overlay(&stmt, &resolved)),
+            )
+        }
+        other => Response::new_err(
+            id,
+            lsp_server::ErrorCode::MethodNotFound as i32,
+            format!("unknown command: {other}"),
+        ),
+    }
 }
 
 fn handle_folding_range(
