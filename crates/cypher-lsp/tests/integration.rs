@@ -170,6 +170,17 @@ impl TestHarness {
             "codeActionProvider must be advertised (Simple(true) or full options)"
         );
         assert!(
+            caps["foldingRangeProvider"].as_bool().unwrap_or(false)
+                || caps["foldingRangeProvider"].is_object(),
+            "foldingRangeProvider must be advertised"
+        );
+        assert!(
+            caps["documentRangeFormattingProvider"]
+                .as_bool()
+                .unwrap_or(false),
+            "documentRangeFormattingProvider must be advertised"
+        );
+        assert!(
             caps["renameProvider"].is_object(),
             "renameProvider must be advertised with prepareProvider=true"
         );
@@ -284,6 +295,56 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
         resp.result.expect("completion result present")
+    }
+
+    fn folding_range(&mut self, uri: &str) -> Value {
+        let id = self.send_request(
+            "textDocument/foldingRange",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "foldingRange error: {:?}", resp.error);
+        resp.result.expect("foldingRange result present")
+    }
+
+    fn range_formatting(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/rangeFormatting",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "rangeFormatting error: {:?}",
+            resp.error
+        );
+        resp.result.expect("rangeFormatting result present")
+    }
+
+    fn did_save(&self, uri: &str, text: Option<&str>) {
+        let params = if let Some(t) = text {
+            json!({
+                "textDocument": { "uri": uri },
+                "text": t
+            })
+        } else {
+            json!({ "textDocument": { "uri": uri } })
+        };
+        self.send_notification("textDocument/didSave", params);
     }
 
     fn code_action(
@@ -935,6 +996,132 @@ fn lsp_code_action_on_syntax_error_returns_empty_for_now() {
         actions.is_empty(),
         "no pass currently emits FixIts — expect empty; got {actions:?}"
     );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_folding_range_multi_line_query_yields_ranges() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_folding.cyp";
+    // Three-line query; every clause spans exactly one line, so no
+    // single-clause fold, but the enclosing statement node should
+    // span ≥ 2 lines.
+    h.did_open(uri, "MATCH (n)\nWHERE n.x = 1\nRETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.folding_range(uri);
+    let ranges = result.as_array().expect("foldingRange returns an array");
+    assert!(
+        !ranges.is_empty(),
+        "a 3-line query must produce at least one FoldingRange; got {result}"
+    );
+    let first = &ranges[0];
+    assert!(first["startLine"].as_u64().is_some());
+    assert!(first["endLine"].as_u64().is_some());
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_folding_range_single_line_returns_empty() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_folding_oneliner.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.folding_range(uri);
+    let ranges = result.as_array().expect("array");
+    assert!(
+        ranges.is_empty(),
+        "a one-line query produces no FoldingRanges; got {ranges:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_range_formatting_whole_doc_produces_edit() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_range_fmt.cyp";
+    // Lowercase `return` — formatter will uppercase it.
+    h.did_open(uri, "return 1");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Range covers the whole doc (line 0..=0 of the single-line file).
+    let result = h.range_formatting(uri, 0, 0, 0, 8);
+    let edits = result.as_array().expect("rangeFormatting returns array");
+    assert!(
+        !edits.is_empty(),
+        "whole-doc range request on an unformatted file must return edits"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_range_formatting_partial_range_returns_empty_v1() {
+    // v1 limitation: partial-range formatting isn't implemented;
+    // the handler returns an empty TextEdit list rather than a
+    // potentially-wrong slice.  Pinning the behaviour so a future
+    // upgrade flips this test red.
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_range_fmt_partial.cyp";
+    h.did_open(uri, "MATCH (n)\nWHERE n.x = 1\nRETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Request only the WHERE line.
+    let result = h.range_formatting(uri, 1, 0, 1, 13);
+    let edits = result.as_array().expect("array");
+    assert!(
+        edits.is_empty(),
+        "v1 partial rangeFormatting returns empty; got {edits:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_save_with_text_republishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_save.cyp";
+    h.did_open(uri, "RETURN 1");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // didSave with includeText=true delivers new content → server
+    // treats it as an implicit didChange and republishes diagnostics.
+    h.did_save(uri, Some("MATCH (n) RETURN n"));
+    let notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_save_without_text_is_silent_no_op() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_save_noop.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // didSave without includeText is a no-op — no additional
+    // publishDiagnostics should arrive before shutdown.  If the
+    // server emitted one, shutdown_exit's recv_response would see it
+    // instead of the shutdown response and panic.
+    h.did_save(uri, None);
 
     h.shutdown_exit();
 }

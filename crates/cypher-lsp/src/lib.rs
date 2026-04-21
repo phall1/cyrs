@@ -37,6 +37,7 @@
 mod code_action;
 mod completion;
 mod definition;
+mod folding;
 mod hover;
 mod references;
 mod rename;
@@ -77,6 +78,8 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
+        folding_range_provider: Some(lsp_types::FoldingRangeProviderCapability::Simple(true)),
+        document_range_formatting_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Right(lsp_types::RenameOptions {
             prepare_provider: Some(true),
             work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
@@ -285,11 +288,121 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::FoldingRangeRequest::METHOD => {
+            let params: lsp_types::FoldingRangeParams = serde_json::from_value(req.params)?;
+            let resp = handle_folding_range(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::RangeFormatting::METHOD => {
+            let params: lsp_types::DocumentRangeFormattingParams =
+                serde_json::from_value(req.params)?;
+            let resp = handle_range_formatting(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         _ => {
             tracing::debug!("unhandled request: {}", req.method);
         }
     }
     Ok(())
+}
+
+fn handle_folding_range(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::FoldingRangeParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let ranges = folding::compute(&server.db, file_id);
+    match serde_json::to_value(ranges) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
+}
+
+/// Range-formatting v1: formats the whole document and returns a
+/// single `TextEdit` covering the entire file when the request range
+/// covers the whole file; otherwise formats the whole doc and
+/// returns no edits.  This is the simplest correct behaviour (spec
+/// §13 is a whole-document formatter today) and keeps us honest
+/// about the limitation — a follow-up can produce clause-bounded
+/// partial edits.
+fn handle_range_formatting(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::DocumentRangeFormattingParams,
+) -> Response {
+    let uri_str = params.text_document.uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    let source = match server.db.source_of(file_id) {
+        Ok(s) => s,
+        Err(e) => {
+            return Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            );
+        }
+    };
+    let formatted = cypher_fmt::format(&source);
+    if formatted == source {
+        return Response::new_ok(id, serde_json::Value::Array(vec![]));
+    }
+
+    // Determine whether the requested range covers the whole doc.
+    // v1 only honours whole-doc requests — partial range formatting
+    // would need a clause-aware slicer the formatter doesn't yet
+    // expose.  Partial requests return no edits with an info log.
+    let line_index = LineIndex::new(&source);
+    let total_lines = line_index.line_count();
+    let covers_whole = params.range.start.line == 0
+        && params.range.start.character == 0
+        && params.range.end.line >= total_lines.saturating_sub(1);
+    if !covers_whole {
+        tracing::info!(
+            "rangeFormatting: partial-range formatting not implemented; returning 0 edits"
+        );
+        return Response::new_ok(id, serde_json::Value::Array(vec![]));
+    }
+
+    // Whole-doc edit.  Compute the end position from the trailing
+    // source; end_line is the last-line index and end_character is
+    // the last-line character count.
+    let mut last_line_char_count: u32 = 0;
+    let mut last_line: u32 = 0;
+    for (i, line) in source.lines().enumerate() {
+        last_line = u32::try_from(i).unwrap_or(u32::MAX);
+        last_line_char_count = u32::try_from(line.chars().count()).unwrap_or(u32::MAX);
+    }
+    let edit = TextEdit {
+        range: lsp_types::Range::new(
+            lsp_types::Position::new(0, 0),
+            lsp_types::Position::new(last_line, last_line_char_count),
+        ),
+        new_text: formatted,
+    };
+    match serde_json::to_value(vec![edit]) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
 }
 
 fn handle_code_action(
@@ -590,6 +703,27 @@ fn handle_notification(
             }
 
             publish_diagnostics(connection, server, &uri)?;
+        }
+        lsp_types::notification::DidSaveTextDocument::METHOD => {
+            // cy-1yb: under `TextDocumentSyncKind::FULL` the server
+            // already has the latest buffer via didChange, so didSave
+            // is a no-op unless the client opted in to
+            // `includeText: true`.  In that case we treat the
+            // delivered text as an implicit didChange so a
+            // reformat-on-save that didn't already push the new text
+            // via didChange still gets fresh diagnostics.
+            let params: lsp_types::DidSaveTextDocumentParams =
+                serde_json::from_value(notif.params)?;
+            let uri = params.text_document.uri.clone();
+            let uri_str = uri.to_string();
+            if let Some(text) = params.text
+                && let Some(&file_id) = server.open_files.get(&uri_str)
+            {
+                let _ = server.db.update_file(file_id, text);
+                publish_diagnostics(connection, server, &uri)?;
+            } else {
+                tracing::debug!("didSave: no-op for {uri_str}");
+            }
         }
         lsp_types::notification::DidCloseTextDocument::METHOD => {
             let params: DidCloseTextDocumentParams = serde_json::from_value(notif.params)?;
