@@ -62,9 +62,22 @@ vim.api.nvim_create_autocmd("FileType", {
       return
     end
 
+    -- If $CYPHER_SCHEMA_PATH is set, pass it through as
+    -- initializationOptions so the server loads a schema and
+    -- surfaces labels + function signatures via completion /
+    -- signatureHelp.  Spec §14.3; bead cy-0ls.
+    local init_options = nil
+    if vim.env.CYPHER_SCHEMA_PATH and vim.env.CYPHER_SCHEMA_PATH ~= "" then
+      init_options = {
+        schemaSource = "file",
+        schemaPath = vim.env.CYPHER_SCHEMA_PATH,
+      }
+    end
+
     vim.lsp.start({
       name = "cypher-lsp",
       cmd = { bin },
+      init_options = init_options,
       root_dir = vim.fs.root(args.buf, { "Cargo.toml", ".git" })
         or vim.fn.getcwd(),
     }, { bufnr = args.buf })
