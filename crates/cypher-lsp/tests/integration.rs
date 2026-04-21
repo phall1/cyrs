@@ -297,6 +297,25 @@ impl TestHarness {
         resp.result.expect("completion result present")
     }
 
+    /// Initialize with raw `initializationOptions` — used by the
+    /// schema-aware tests to drive spec §14.3.  Skips the default
+    /// capability assertions since those are covered by the other
+    /// tests already.
+    fn initialize_with_options(&mut self, options: Value) {
+        let id = self.send_request(
+            "initialize",
+            json!({
+                "processId": null,
+                "rootUri": null,
+                "capabilities": {},
+                "initializationOptions": options,
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
+        self.send_notification("initialized", json!({}));
+    }
+
     fn folding_range(&mut self, uri: &str) -> Value {
         let id = self.send_request(
             "textDocument/foldingRange",
@@ -1122,6 +1141,94 @@ fn lsp_did_save_without_text_is_silent_no_op() {
     // server emitted one, shutdown_exit's recv_response would see it
     // instead of the shutdown response and panic.
     h.did_save(uri, None);
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_schema_file_drives_completion() {
+    // Write a tiny schema JSON to a temp file and pass its path via
+    // `schemaSource: file`.  Completion after `:` then surfaces the
+    // schema's labels.
+    let tmp = tempfile::NamedTempFile::new().expect("create tmp file");
+    std::fs::write(
+        tmp.path(),
+        r#"{"labels": ["Person", "Movie"], "rel_types": ["ACTED_IN"]}"#,
+    )
+    .expect("write schema");
+
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "file",
+        "schemaPath": tmp.path().to_string_lossy(),
+        "dialect": "GqlAligned",
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"Person"),
+        "label completion must include Person from the loaded schema; got {labels:?}"
+    );
+    assert!(
+        labels.contains(&"Movie"),
+        "label completion must include Movie; got {labels:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_schema_none_means_no_labels() {
+    // Explicit `schemaSource: none` — equivalent to omitting options.
+    // Completion after `:` still returns empty (existing behaviour).
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "none",
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema_none.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "schemaSource=none → no label completion; got {items:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_malformed_schema_json_falls_back_to_no_schema() {
+    // Garbage JSON at the schemaPath.  The server must not fail
+    // initialize — it logs and keeps running with no schema.
+    let tmp = tempfile::NamedTempFile::new().expect("create tmp file");
+    std::fs::write(tmp.path(), "this is not json").expect("write garbage");
+
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "file",
+        "schemaPath": tmp.path().to_string_lossy(),
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema_bad.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "malformed schema JSON falls back to no schema; got {items:?}"
+    );
 
     h.shutdown_exit();
 }

@@ -23,6 +23,7 @@ cypher-fmt    = { workspace = true }
 cypher-hir    = { workspace = true }
 cypher-schema = { workspace = true }
 cypher-syntax = { workspace = true }
+smol_str      = { workspace = true }
 lsp-server    = { workspace = true }
 lsp-types     = { workspace = true }
 rowan         = { workspace = true }
@@ -35,13 +36,12 @@ tracing-subscriber = { workspace = true }
 [dev-dependencies]
 serde_json      = { workspace = true }
 anyhow          = { workspace = true }
+tempfile        = { workspace = true }
 # `Connection::memory()` returns a pair of crossbeam channels; the test
 # harness owns one side and needs the type in scope to construct a dummy
 # sender during teardown (mem::replace trick in Drop).
 crossbeam-channel = "0.5"
-# Used by the signature_help unit-test fixture to build a minimal
-# SchemaProvider without pulling in cypher-testkit (dev-cycle).
-smol_str          = { workspace = true }
+# (smol_str moved to runtime deps — used by init_options JsonSchema.)
 
 [lints]
 workspace = true

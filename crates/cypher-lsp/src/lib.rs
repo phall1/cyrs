@@ -39,6 +39,7 @@ mod completion;
 mod definition;
 mod folding;
 mod hover;
+mod init_options;
 mod references;
 mod rename;
 mod signature_help;
@@ -119,9 +120,24 @@ pub fn serve(connection: &Connection) -> Result<()> {
     let initialization_params = connection
         .initialize(capabilities)
         .map_err(|e| anyhow!("initialize failed: {e}"))?;
-    let _params: lsp_types::InitializeParams = serde_json::from_value(initialization_params)?;
+    let params: lsp_types::InitializeParams = serde_json::from_value(initialization_params)?;
 
-    main_loop(connection)
+    // Spec §14.3: the client may pass `initializationOptions` that
+    // select the schema source + dialect.  Failure to load the
+    // schema does not fail `initialize` — we log and run with no
+    // schema so the server stays usable even with a misconfigured
+    // client.
+    let init = init_options::InitOptions::from_value(params.initialization_options.as_ref());
+    let dialect = init.resolved_dialect();
+    let schema = match init_options::load_schema(&init) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("initializationOptions: load_schema failed: {e:#}");
+            None
+        }
+    };
+
+    main_loop(connection, dialect, schema)
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +148,9 @@ pub(crate) struct Server {
     pub(crate) db: Database,
     /// Map from URI string → `FileId` for open documents.
     pub(crate) open_files: HashMap<String, FileId>,
+    /// Dialect applied on every `didOpen` — set from the client's
+    /// `initializationOptions.dialect` (spec §14.3, bead cy-0ls).
+    pub(crate) dialect: DialectMode,
 }
 
 impl std::fmt::Debug for Server {
@@ -139,15 +158,35 @@ impl std::fmt::Debug for Server {
         f.debug_struct("Server")
             .field("db", &"<Database>")
             .field("open_files", &self.open_files.len())
+            .field("dialect", &self.dialect)
             .finish()
     }
 }
 
 impl Server {
+    /// Default test constructor: `GqlAligned`, no schema.  Used by the
+    /// unit tests under `#[cfg(test)]`; `serve` always goes through
+    /// `with_config` with values parsed from `initializationOptions`.
+    #[cfg(test)]
     pub(crate) fn new() -> Self {
+        Self::with_config(DialectMode::GqlAligned, None)
+    }
+
+    /// Construct a server with a specific dialect and optional
+    /// pre-loaded schema.  Called from `serve` after parsing
+    /// `initializationOptions`.
+    pub(crate) fn with_config(
+        dialect: DialectMode,
+        schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
+    ) -> Self {
+        let mut db = Database::new();
+        if let Some(s) = schema {
+            db.set_schema(Some(s));
+        }
         Self {
-            db: Database::new(),
+            db,
             open_files: HashMap::new(),
+            dialect,
         }
     }
 }
@@ -156,8 +195,12 @@ impl Server {
 // Main loop
 // ---------------------------------------------------------------------------
 
-fn main_loop(connection: &Connection) -> Result<()> {
-    let mut server = Server::new();
+fn main_loop(
+    connection: &Connection,
+    dialect: DialectMode,
+    schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
+) -> Result<()> {
+    let mut server = Server::with_config(dialect, schema);
 
     for msg in &connection.receiver {
         match msg {
@@ -682,10 +725,9 @@ fn handle_notification(
             let text = params.text_document.text;
             let uri_str = uri.to_string();
 
-            let file_id =
-                server
-                    .db
-                    .open_file(Path::new(uri_str.as_str()), text, DialectMode::GqlAligned);
+            let file_id = server
+                .db
+                .open_file(Path::new(uri_str.as_str()), text, server.dialect);
             server.open_files.insert(uri_str, file_id);
 
             publish_diagnostics(connection, server, &uri)?;
