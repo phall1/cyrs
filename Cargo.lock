@@ -368,6 +368,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "cypher-db",
+ "cypher-diag",
  "cypher-fmt",
  "predicates",
  "tracing",

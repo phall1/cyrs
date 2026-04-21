@@ -13,8 +13,9 @@ name = "cypher"
 path = "src/main.rs"
 
 [dependencies]
-cypher-db  = { workspace = true }
-cypher-fmt = { workspace = true }
+cypher-db   = { workspace = true }
+cypher-diag = { workspace = true }
+cypher-fmt  = { workspace = true }
 clap       = { workspace = true }
 anyhow     = { workspace = true }
 tracing    = { workspace = true }

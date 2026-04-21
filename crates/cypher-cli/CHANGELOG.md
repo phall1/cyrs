@@ -12,7 +12,16 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+- cy-atk (§16): `cypher check` now runs the full analysis pipeline via
+  `Database::all_diagnostics` and renders each diagnostic in rustc-style
+  with source underline (via `cypher-diag::render_text_stderr`). Exit
+  code `1` on any error-severity diagnostic; `0` on a clean query.
+
 ### Changed
+
+- cy-atk (§16): switched `cypher-cli` from `LegacyDatabase` to the
+  workspace `Database` API — same incremental backend the LSP uses.
+  `parse` and `fmt` behaviour is unchanged for well-formed input.
 
 ### Deprecated
 
