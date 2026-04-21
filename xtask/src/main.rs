@@ -50,6 +50,8 @@ enum Cmd {
     TckFetch,
     /// Grammar <-> recovery.md symmetry gate (spec §4.3, §17.18).
     CheckRecovery,
+    /// Verify every crate has a well-formed `CHANGELOG.md` (spec §18).
+    CheckChangelogs,
 }
 
 fn main() -> Result<()> {
@@ -68,6 +70,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cmd::CheckRecovery => xtask::check_recovery::run(),
+        Cmd::CheckChangelogs => xtask::check_changelogs::run(),
     }
 }
 

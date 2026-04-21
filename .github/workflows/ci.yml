@@ -74,6 +74,22 @@ jobs:
         run: bash scripts/check-noncoupling.sh
 
   # ---------------------------------------------------------------
+  # Changelog gate: every crate + workspace root has a well-formed
+  # CHANGELOG.md (spec §18, bead cy-urk).
+  # ---------------------------------------------------------------
+  check-changelogs:
+    name: check-changelogs (spec §18)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo xtask check-changelogs
+        run: cargo run -p xtask -- check-changelogs
+
+  # ---------------------------------------------------------------
   # Full CI matrix (spec §17.15):
   #   toolchain × OS × feature-set
   #
