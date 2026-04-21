@@ -34,6 +34,7 @@
 
 #![forbid(unsafe_code)]
 
+mod code_action;
 mod completion;
 mod definition;
 mod hover;
@@ -75,6 +76,7 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
+        code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
         rename_provider: Some(OneOf::Right(lsp_types::RenameOptions {
             prepare_provider: Some(true),
             work_done_progress_options: lsp_types::WorkDoneProgressOptions::default(),
@@ -275,11 +277,42 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                 .send(resp.into())
                 .map_err(|e| anyhow!("{e}"))?;
         }
+        lsp_types::request::CodeActionRequest::METHOD => {
+            let params: lsp_types::CodeActionParams = serde_json::from_value(req.params)?;
+            let resp = handle_code_action(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
         _ => {
             tracing::debug!("unhandled request: {}", req.method);
         }
     }
     Ok(())
+}
+
+fn handle_code_action(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::CodeActionParams,
+) -> Response {
+    let uri = &params.text_document.uri;
+    let uri_str = uri.to_string();
+    let Some(&file_id) = server.open_files.get(&uri_str) else {
+        return Response::new_ok(id, serde_json::Value::Null);
+    };
+    match code_action::compute(&server.db, file_id, uri, params.range) {
+        Some(actions) => match serde_json::to_value(actions) {
+            Ok(v) => Response::new_ok(id, v),
+            Err(e) => Response::new_err(
+                id,
+                lsp_server::ErrorCode::InternalError as i32,
+                e.to_string(),
+            ),
+        },
+        None => Response::new_ok(id, serde_json::Value::Null),
+    }
 }
 
 fn handle_prepare_rename(

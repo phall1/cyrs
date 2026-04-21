@@ -165,6 +165,11 @@ impl TestHarness {
             );
         }
         assert!(
+            caps["codeActionProvider"].as_bool().unwrap_or(false)
+                || caps["codeActionProvider"].is_object(),
+            "codeActionProvider must be advertised (Simple(true) or full options)"
+        );
+        assert!(
             caps["renameProvider"].is_object(),
             "renameProvider must be advertised with prepareProvider=true"
         );
@@ -279,6 +284,30 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
         resp.result.expect("completion result present")
+    }
+
+    fn code_action(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+                "context": { "diagnostics": [] }
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "codeAction error: {:?}", resp.error);
+        resp.result.expect("codeAction result present")
     }
 
     fn prepare_rename(&mut self, uri: &str, line: u32, character: u32) -> Value {
@@ -861,6 +890,50 @@ fn lsp_rename_with_invalid_new_name_returns_error() {
     assert!(
         resp.error.is_some(),
         "invalid new name must surface an error so the client rejects the edit"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_code_action_on_clean_query_returns_empty() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_code_action_clean.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // A clean query has no diagnostics, so no fix-its, so no actions.
+    let result = h.code_action(uri, 0, 0, 0, 18);
+    let actions = result.as_array().expect("codeAction must return an array");
+    assert!(
+        actions.is_empty(),
+        "clean query produces no code actions; got {actions:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_code_action_on_syntax_error_returns_empty_for_now() {
+    // Until the diagnostic-emitting passes start populating
+    // Diagnostic::fixes, the code-action endpoint returns an empty
+    // list even on a query with syntax errors.  Pinning this
+    // behaviour so the day a pass grows fix-its we get a visible
+    // (green-→-red) test delta.
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_code_action_err.cyp";
+    h.did_open(uri, "MATCH (n WHERE x");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.code_action(uri, 0, 0, 0, 16);
+    let actions = result.as_array().expect("codeAction must return an array");
+    assert!(
+        actions.is_empty(),
+        "no pass currently emits FixIts — expect empty; got {actions:?}"
     );
 
     h.shutdown_exit();
