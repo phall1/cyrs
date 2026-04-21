@@ -69,6 +69,21 @@ reference section numbers.
 
 ---
 
+## Try it
+
+A no-plugin Neovim walkthrough that spins up the language server,
+publishes diagnostics, and runs format-on-save against real queries:
+
+```sh
+cargo build --release -p cypher-lsp
+nvim -u demo/nvim/init.lua demo/samples/unclosed_paren.cyp
+```
+
+See [`demo/README.md`](./demo/README.md) for the full tour (samples,
+format-on-save, CLI comparison).
+
+---
+
 ## Crates
 
 | Crate            | Purpose                                                      |
