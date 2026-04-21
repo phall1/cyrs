@@ -9,5 +9,6 @@
 #![allow(clippy::unnecessary_wraps)]
 
 pub mod check_changelogs;
+pub mod check_diag_codes;
 pub mod check_recovery;
 pub mod codegen;

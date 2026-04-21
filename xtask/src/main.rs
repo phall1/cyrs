@@ -52,6 +52,8 @@ enum Cmd {
     CheckRecovery,
     /// Verify every crate has a well-formed `CHANGELOG.md` (spec §18).
     CheckChangelogs,
+    /// Verify diagnostic-code references are all registered (spec §10.2).
+    CheckDiagCodes,
 }
 
 fn main() -> Result<()> {
@@ -71,6 +73,7 @@ fn main() -> Result<()> {
         }
         Cmd::CheckRecovery => xtask::check_recovery::run(),
         Cmd::CheckChangelogs => xtask::check_changelogs::run(),
+        Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
     }
 }
 

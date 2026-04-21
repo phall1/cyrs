@@ -94,6 +94,23 @@ jobs:
         run: cargo run -p xtask -- check-changelogs
 
   # ---------------------------------------------------------------
+  # Diagnostic-code registry gate: every DiagCode::E1001-style
+  # reference in crates/**/*.rs must be registered in
+  # cypher-diag/src/codes.rs (spec §10.2, bead cy-wnm).
+  # ---------------------------------------------------------------
+  check-diag-codes:
+    name: check-diag-codes (spec §10.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo xtask check-diag-codes
+        run: cargo run -p xtask -- check-diag-codes
+
+  # ---------------------------------------------------------------
   # Full CI matrix (spec §17.15):
   #   toolchain × OS × feature-set
   #
