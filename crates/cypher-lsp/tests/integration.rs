@@ -147,6 +147,10 @@ impl TestHarness {
             "definitionProvider must be true"
         );
         assert!(
+            caps["referencesProvider"].as_bool().unwrap_or(false),
+            "referencesProvider must be true"
+        );
+        assert!(
             caps["completionProvider"].is_object(),
             "completionProvider must be advertised"
         );
@@ -219,6 +223,26 @@ impl TestHarness {
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "definition error: {:?}", resp.error);
         resp.result.expect("definition result present")
+    }
+
+    fn references(
+        &mut self,
+        uri: &str,
+        line: u32,
+        character: u32,
+        include_declaration: bool,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/references",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+                "context": { "includeDeclaration": include_declaration },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "references error: {:?}", resp.error);
+        resp.result.expect("references result present")
     }
 
     fn completion(&mut self, uri: &str, line: u32, character: u32) -> Value {
@@ -446,6 +470,88 @@ fn lsp_definition_on_keyword_returns_null() {
     assert!(
         result.is_null(),
         "definition on a keyword must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_references_on_variable_returns_all_sites() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_refs_var.cyp";
+    // Three occurrences of `n`: MATCH (n), WHERE n.x, RETURN n.
+    h.did_open(uri, "MATCH (n) WHERE n.x = 1 RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing `n` in `RETURN n`.
+    let fixture = "MATCH (n) WHERE n.x = 1 RETURN n";
+    let last_n = u32::try_from(fixture.len() - 1).expect("fixture fits in u32");
+
+    // include_declaration = true → all three sites.
+    let result = h.references(uri, 0, last_n, true);
+    let items = result.as_array().expect("references must be an array");
+    assert_eq!(
+        items.len(),
+        3,
+        "references with declaration must be 3; got {items:?}"
+    );
+    for item in items {
+        assert_eq!(item["uri"], json!(uri));
+    }
+    let starts: Vec<u64> = items
+        .iter()
+        .filter_map(|i| i["range"]["start"]["character"].as_u64())
+        .collect();
+    // MATCH (n) → col 7, WHERE n.x → col 16, RETURN n → col 31.
+    assert!(
+        starts.contains(&7),
+        "must include MATCH site; got {starts:?}"
+    );
+    assert!(
+        starts.contains(&16),
+        "must include WHERE site; got {starts:?}"
+    );
+    assert!(
+        starts.contains(&31),
+        "must include RETURN site; got {starts:?}"
+    );
+
+    // include_declaration = false → drops the MATCH (n) defined-at range.
+    let result = h.references(uri, 0, last_n, false);
+    let items = result.as_array().expect("array");
+    assert_eq!(
+        items.len(),
+        2,
+        "references without declaration must be 2; got {items:?}"
+    );
+    let starts: Vec<u64> = items
+        .iter()
+        .filter_map(|i| i["range"]["start"]["character"].as_u64())
+        .collect();
+    assert!(
+        !starts.contains(&7),
+        "defined-at site (col 7) must be excluded; got {starts:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_references_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_refs_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH — keyword, not an identifier.
+    let result = h.references(uri, 0, 0, true);
+    assert!(
+        result.is_null(),
+        "references on a keyword must return null; got {result}"
     );
 
     h.shutdown_exit();
