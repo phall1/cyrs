@@ -20,17 +20,20 @@
 //! | `schema_clear` | —                                       | `ok: true`                             |
 //! | `shutdown`     | —                                       | (exits loop)                           |
 //!
-//! ## v1 deferrals
+//! ## Engine status
 //!
-//! `complete`, `hover`, and `rewrite` accept requests and return a
-//! well-formed response, but the underlying engine is deferred to v2.  Each
-//! response carries `deferred: true` and `deferred_reason` so callers can
-//! detect the deferral programmatically rather than by inspecting whether
-//! an empty list was "no matches" or "not implemented".  Body fields
-//! (`items`, `markdown`, `applied_edits`, …) are populated with empty /
-//! identity values so clients that ignore the flag continue to work.
+//! `complete`, `hover`, and `rewrite` use real engines (cy-da0 /
+//! cy-o59 / cy-taz) that mirror the LSP v1 logic: keyword + label +
+//! parameter completion; keyword + binding hover; and FixIt-driven
+//! rewrite keyed off `Diagnostic.fixes`.  Responses still carry
+//! `deferred` / `deferred_reason` for backwards compatibility —
+//! `deferred` is now `false` except on rewrite, where
+//! `deferred_reason` may carry an `unknown fix_ids: …` note when a
+//! requested id does not match any `FixIt`.
 
 #![forbid(unsafe_code)]
+
+mod engine;
 
 use std::collections::VecDeque;
 use std::io::{self, BufRead, Write};
@@ -69,18 +72,6 @@ impl From<Dialect> for DialectMode {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// v1 deferral reasons — surfaced on `complete`/`hover`/`rewrite` responses
-// so callers can distinguish "no matches" from "engine not yet implemented"
-// (spec §15.2; see top-level docs).
-// ---------------------------------------------------------------------------
-
-const DEFERRAL_COMPLETE: &str =
-    "v1: completion engine deferred (spec §15.2 complete); planned for v2.";
-const DEFERRAL_HOVER: &str = "v1: hover engine deferred (spec §15.2 hover); planned for v2.";
-const DEFERRAL_REWRITE: &str =
-    "v1: fix-application engine deferred (spec §15.2 rewrite); planned for v2.";
 
 // ---------------------------------------------------------------------------
 // FileCache — source+dialect interning (spec §15.X)
@@ -207,33 +198,26 @@ enum AgentRequest {
         #[serde(default)]
         dialect: Dialect,
     },
-    /// complete: source + offset → completion items (stub in v1)
+    /// complete: source + offset → completion items (cy-da0).
     Complete {
-        #[allow(dead_code)]
         text: String,
-        #[allow(dead_code)]
         offset: u32,
         #[serde(default)]
-        #[allow(dead_code)]
         dialect: Dialect,
     },
-    /// hover: source + offset → hover markdown (stub in v1)
+    /// hover: source + offset → markdown + byte range (cy-o59).
     Hover {
-        #[allow(dead_code)]
         text: String,
-        #[allow(dead_code)]
         offset: u32,
         #[serde(default)]
-        #[allow(dead_code)]
         dialect: Dialect,
     },
     /// format: source → formatted source
     Format { text: String },
-    /// rewrite: source + `fix_ids` → applied edits + resulting text (stub in v1)
+    /// rewrite: source + `fix_ids` → applied edits + resulting text (cy-taz).
     Rewrite {
         text: String,
         #[serde(default)]
-        #[allow(dead_code)]
         fix_ids: Vec<String>,
     },
     /// plan: source → plan JSON
@@ -637,32 +621,42 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // complete: v1 deferral — completion engine ships in v2.  Callers
-        // should key off `deferred` rather than `items.is_empty()`.
+        // complete — engine ports the LSP v1 completion (cy-da0).
         // ------------------------------------------------------------------
         AgentRequest::Complete {
-            text: _,
-            offset: _,
-            dialect: _,
-        } => AgentResponse::Complete {
-            items: vec![],
-            deferred: true,
-            deferred_reason: DEFERRAL_COMPLETE.to_owned(),
-        },
+            text,
+            offset,
+            dialect,
+        } => {
+            if let Some(schema) = session_schema.clone() {
+                db.set_schema(Some(schema));
+            }
+            let id = intern_file(db, file_cache, text, dialect);
+            let items = engine::complete(db, id, offset);
+            AgentResponse::Complete {
+                items,
+                deferred: false,
+                deferred_reason: String::new(),
+            }
+        }
 
         // ------------------------------------------------------------------
-        // hover: v1 deferral — hover engine ships in v2.
+        // hover — engine ports the LSP v1 hover (cy-o59).
         // ------------------------------------------------------------------
         AgentRequest::Hover {
-            text: _,
-            offset: _,
-            dialect: _,
-        } => AgentResponse::Hover {
-            markdown: String::new(),
-            range: [0, 0],
-            deferred: true,
-            deferred_reason: DEFERRAL_HOVER.to_owned(),
-        },
+            text,
+            offset,
+            dialect,
+        } => {
+            let id = intern_file(db, file_cache, text, dialect);
+            let payload = engine::hover(db, id, offset);
+            AgentResponse::Hover {
+                markdown: payload.markdown,
+                range: payload.range,
+                deferred: false,
+                deferred_reason: String::new(),
+            }
+        }
 
         // ------------------------------------------------------------------
         // format: formatted source
@@ -675,16 +669,27 @@ fn handle(
         },
 
         // ------------------------------------------------------------------
-        // rewrite: v1 deferral — fix-application engine ships in v2.
-        // We echo the input text unchanged and return an empty edit list
-        // so callers that ignore `deferred` still get a sensible response.
+        // rewrite — engine applies FixIts matching the requested ids
+        // (cy-taz).  Input text is returned unchanged when no ids
+        // match; unknown ids are surfaced for the caller to diff.
         // ------------------------------------------------------------------
-        AgentRequest::Rewrite { text, fix_ids: _ } => AgentResponse::Rewrite {
-            applied_edits: vec![],
-            resulting_text: text,
-            deferred: true,
-            deferred_reason: DEFERRAL_REWRITE.to_owned(),
-        },
+        AgentRequest::Rewrite { text, fix_ids } => {
+            if let Some(schema) = session_schema.clone() {
+                db.set_schema(Some(schema));
+            }
+            let id = intern_file(db, file_cache, text.clone(), Dialect::default());
+            let payload = engine::rewrite(db, id, &text, &fix_ids);
+            AgentResponse::Rewrite {
+                applied_edits: payload.applied_edits,
+                resulting_text: payload.resulting_text,
+                deferred: false,
+                deferred_reason: if payload.unknown_fix_ids.is_empty() {
+                    String::new()
+                } else {
+                    format!("unknown fix_ids: {}", payload.unknown_fix_ids.join(", "))
+                },
+            }
+        }
 
         // ------------------------------------------------------------------
         // plan: plan JSON
@@ -924,33 +929,72 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_complete_deferred() {
-        let v = dispatch(r#"{"op":"complete","text":"RETURN 1","offset":3}"#);
+    fn dispatch_complete_returns_keywords() {
+        let v = dispatch(r#"{"op":"complete","text":"","offset":0}"#);
         assert_eq!(v["op"], "complete");
-        assert_eq!(v["items"], Value::Array(vec![]));
-        assert_eq!(v["deferred"], Value::Bool(true));
+        let items = v["items"].as_array().expect("items array");
+        let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+        for kw in ["MATCH", "RETURN", "WHERE"] {
+            assert!(labels.contains(&kw), "keyword {kw} missing: {labels:?}");
+        }
+        assert_eq!(v["deferred"], Value::Bool(false));
+    }
+
+    #[test]
+    fn dispatch_complete_after_dollar_scans_parameters() {
+        // "MATCH (n {name: $who}) RETURN $" — 31 bytes; offset 31
+        // sits immediately after the trailing `$` so the trigger
+        // classifier picks it up.
+        let v =
+            dispatch(r#"{"op":"complete","text":"MATCH (n {name: $who}) RETURN $","offset":31}"#);
+        let items = v["items"].as_array().expect("items array");
+        let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
         assert!(
-            v["deferred_reason"]
-                .as_str()
-                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
-            "complete deferred_reason must name both v1 and v2: got {}",
-            v["deferred_reason"]
+            labels.contains(&"who"),
+            "parameter scan must surface $who; got {labels:?}"
         );
     }
 
     #[test]
-    fn dispatch_hover_deferred() {
-        let v = dispatch(r#"{"op":"hover","text":"RETURN 1","offset":3}"#);
+    fn dispatch_hover_on_keyword_returns_markdown() {
+        // Offset 0 is the M of MATCH.
+        let v = dispatch(r#"{"op":"hover","text":"MATCH (n) RETURN n","offset":0}"#);
         assert_eq!(v["op"], "hover");
-        assert!(v["markdown"].is_string());
-        assert_eq!(v["deferred"], Value::Bool(true));
+        let md = v["markdown"].as_str().unwrap_or("");
         assert!(
-            v["deferred_reason"]
-                .as_str()
-                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
-            "hover deferred_reason must name both v1 and v2: got {}",
-            v["deferred_reason"]
+            md.contains("MATCH"),
+            "MATCH hover must mention MATCH; got {md:?}"
         );
+        assert_eq!(v["deferred"], Value::Bool(false));
+    }
+
+    #[test]
+    fn dispatch_hover_on_variable_returns_binding_info() {
+        // Offset 7 is the n inside MATCH (n).
+        let v = dispatch(r#"{"op":"hover","text":"MATCH (n) RETURN n","offset":7}"#);
+        let md = v["markdown"].as_str().unwrap_or("");
+        assert!(
+            md.contains("variable") && md.contains("`n`"),
+            "variable hover must name n; got {md:?}"
+        );
+    }
+
+    #[test]
+    fn dispatch_hover_on_punctuation_returns_empty_markdown() {
+        // Offset 6 lands on the `(` token — punctuation, not a
+        // keyword or IDENT → engine returns empty markdown.
+        let v = dispatch(r#"{"op":"hover","text":"MATCH (n) RETURN n","offset":6}"#);
+        assert_eq!(v["markdown"], Value::String(String::new()));
+        assert_eq!(v["deferred"], Value::Bool(false));
+    }
+
+    #[test]
+    fn dispatch_hover_past_eof_is_safe() {
+        // Offset past EOF must not panic — the engine clamps
+        // defensively (rowan panics on out-of-range token_at_offset).
+        let v = dispatch(r#"{"op":"hover","text":"MATCH (n) RETURN n","offset":999}"#);
+        assert_eq!(v["op"], "hover");
+        assert!(v["markdown"].is_string(), "markdown must be present");
     }
 
     #[test]
@@ -962,16 +1006,30 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_rewrite_deferred() {
+    fn dispatch_rewrite_no_fixes_echoes_text() {
+        // No diagnostic in the workspace currently populates
+        // `Diagnostic::fixes`, so the engine can't apply anything on
+        // real inputs.  Pinning the "no-op echo" behaviour: the
+        // resulting_text is the input, applied_edits is empty.
         let v = dispatch(r#"{"op":"rewrite","text":"RETURN 1","fix_ids":[]}"#);
         assert_eq!(v["op"], "rewrite");
         assert_eq!(v["resulting_text"], "RETURN 1");
-        assert_eq!(v["deferred"], Value::Bool(true));
+        assert_eq!(v["applied_edits"], Value::Array(vec![]));
+        assert_eq!(v["deferred"], Value::Bool(false));
+    }
+
+    #[test]
+    fn dispatch_rewrite_unknown_fix_id_surfaces_reason() {
+        // Request a fix id that does not exist.  The engine returns
+        // unchanged text but flags the unknown id in
+        // `deferred_reason` so the client can react.
+        let v = dispatch(r#"{"op":"rewrite","text":"RETURN 1","fix_ids":["cy-fix.nope"]}"#);
+        assert_eq!(v["resulting_text"], "RETURN 1");
         assert!(
             v["deferred_reason"]
                 .as_str()
-                .is_some_and(|s| s.contains("v1") && s.contains("v2")),
-            "rewrite deferred_reason must name both v1 and v2: got {}",
+                .is_some_and(|s| s.contains("cy-fix.nope")),
+            "rewrite must name the unknown fix_id; got {}",
             v["deferred_reason"]
         );
     }

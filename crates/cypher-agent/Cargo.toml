@@ -20,6 +20,8 @@ cypher-hir    = { workspace = true }
 cypher-plan   = { workspace = true, features = ["serde"] }
 cypher-schema = { workspace = true }
 cypher-sema   = { workspace = true }
+cypher-syntax = { workspace = true }
+rowan         = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
 anyhow        = { workspace = true }

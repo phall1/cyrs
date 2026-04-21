@@ -343,6 +343,8 @@ dependencies = [
  "cypher-plan",
  "cypher-schema",
  "cypher-sema",
+ "cypher-syntax",
+ "rowan",
  "serde",
  "serde_json",
  "smol_str",
