@@ -1901,4 +1901,80 @@ mod tests {
             plan.ops
         );
     }
+
+    // ── cy-wlr: precondition violations surface as Err, not panic ────────────
+
+    /// Build a skeletal statement whose single RETURN projects `expr`.
+    fn stmt_with_return_expr(expr: HirExpr) -> Statement {
+        use cypher_hir::HirSpan;
+        let span = HirSpan::default();
+        let mut stmt = Statement::new(span);
+        stmt.clauses.push(Clause::Return {
+            id: cypher_hir::HirId::DUMMY,
+            projections: vec![Projection {
+                expr,
+                alias: Some("x".into()),
+                span,
+            }],
+            distinct: false,
+            span,
+        });
+        stmt
+    }
+
+    /// An `Expr::Unresolved` surviving into `lower_statement` must not
+    /// panic — it must return `Err(UnresolvedName { name, .. })`.
+    #[test]
+    fn lower_statement_returns_err_on_unresolved_name() {
+        let stmt = stmt_with_return_expr(HirExpr::Unresolved("foo".into()));
+        let err = lower_statement(&stmt).expect_err("unresolved name must be rejected");
+        match err {
+            PlanLowerError::UnresolvedName { name, .. } => assert_eq!(name, "foo"),
+            other => panic!("expected UnresolvedName, got {other:?}"),
+        }
+    }
+
+    /// Un-desugared `ListComprehension` must surface as `UndesugaredExpr`.
+    #[test]
+    fn lower_statement_returns_err_on_listcomp() {
+        let expr = HirExpr::ListComprehension {
+            filter_var: HirVarId(0),
+            iterable: Box::new(HirExpr::List(vec![HirExpr::Int(1)])),
+            filter: None,
+            map_expr: Box::new(HirExpr::Var(HirVarId(0))),
+        };
+        let stmt = stmt_with_return_expr(expr);
+        let err = lower_statement(&stmt).expect_err("list comprehension must be rejected");
+        match err {
+            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "ListComprehension"),
+            other => panic!("expected UndesugaredExpr(ListComprehension), got {other:?}"),
+        }
+    }
+
+    /// Un-desugared `MapProjection` must surface as `UndesugaredExpr`.
+    #[test]
+    fn lower_statement_returns_err_on_mapprojection() {
+        let expr = HirExpr::MapProjection {
+            base: Box::new(HirExpr::Var(HirVarId(0))),
+            items: vec![],
+        };
+        let stmt = stmt_with_return_expr(expr);
+        let err = lower_statement(&stmt).expect_err("map projection must be rejected");
+        match err {
+            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "MapProjection"),
+            other => panic!("expected UndesugaredExpr(MapProjection), got {other:?}"),
+        }
+    }
+
+    /// Un-desugared `PatternPredicate` must surface as `UndesugaredExpr`.
+    #[test]
+    fn lower_statement_returns_err_on_patternpredicate() {
+        let expr = HirExpr::PatternPredicate(cypher_hir::Pattern { parts: vec![] });
+        let stmt = stmt_with_return_expr(expr);
+        let err = lower_statement(&stmt).expect_err("pattern predicate must be rejected");
+        match err {
+            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "PatternPredicate"),
+            other => panic!("expected UndesugaredExpr(PatternPredicate), got {other:?}"),
+        }
+    }
 }
