@@ -800,8 +800,7 @@ fn handle_completion(
     let Some(&file_id) = server.open_files.get(&uri_str) else {
         return Response::new_ok(id, serde_json::Value::Null);
     };
-    let position = params.text_document_position.position;
-    let response = completion::compute(&server.db, file_id, position);
+    let response = completion::compute(&server.db, file_id, params);
     match serde_json::to_value(response) {
         Ok(v) => Response::new_ok(id, v),
         Err(e) => Response::new_err(
