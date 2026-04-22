@@ -1,0 +1,6 @@
+error[E2011]: boolean operator requires `Bool` operands but found `String`
+  ┌─ e2011_list_comp_bad_predicate.cypher:1:1
+  │
+1 │ // E2011: list-comprehension WHERE predicate must be Bool (spec §7.4 /
+  │ ^
+

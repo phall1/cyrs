@@ -1,11 +1,13 @@
 ---
 source: crates/cypher-sema/tests/resolved_hir.rs
+assertion_line: 804
 expression: "pipeline(\"MATCH (n) RETURN [x IN n.friends WHERE x.active | x.name]\")"
 ---
 Statement {
-  span: 0..47
+  span: 0..57
   bindings: [
     Var(0) 0: n (Node) @7..8
+    Var(1) 1: x (Value) @16..57
   ]
   clauses: [
     Match @0..9 {
@@ -15,15 +17,8 @@ Statement {
         ]
       }
     }
-    Return(distinct=false) @9..32 {
-      proj[0]: [Unresolved("x") IN Var(0)[n←Node@7..8].friends]
-    }
-    Where @32..47 {
-      predicate: Unresolved("x").active
+    Return(distinct=false) @9..57 {
+      proj[0]: [x[bind:Var(1)←Value@16..57] IN Var(0)[n←Node@7..8].friends WHERE Var(1)[x←Value@16..57].active | Var(1)[x←Value@16..57].name]
     }
   ]
 }
-
-Diagnostics:
-  E1001: unresolved variable `x`
-  E1001: unresolved variable `x`

@@ -21,6 +21,7 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
 
+pub mod builtins;
 pub mod dialect;
 pub mod infer;
 pub mod kinds;

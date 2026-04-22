@@ -565,6 +565,18 @@ pub(crate) mod syntax_codes {
     /// E0067 — expected `)` to close a list-predicate expression
     /// (cy-8x5).
     pub(crate) const EXPECTED_RPAREN_LIST_PREDICATE: u16 = 67;
+    /// E0068 — expected `IN` in list comprehension.
+    ///
+    /// Emitted by the list-comprehension parse path when the first
+    /// token inside `[` is an identifier but is not followed by the
+    /// `IN` keyword — cy-5gh.
+    pub(crate) const EXPECTED_IN_LIST_COMP: u16 = 68;
+    /// E0069 — expected `|` or `]` in list comprehension.
+    ///
+    /// Emitted when a list comprehension's trailing segment is
+    /// malformed — either a missing `|` before the projection
+    /// expression or a missing `]` closer — cy-5gh.
+    pub(crate) const EXPECTED_PIPE_OR_RBRACK_LIST_COMP: u16 = 69;
 }
 
 /// Advance `idx` past any leading trivia tokens.

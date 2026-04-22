@@ -1,0 +1,301 @@
+//! Built-in function signatures for the schema-free sema pass (spec §7.4).
+//!
+//! The schema-free inference pass ([`crate::infer`]) needs to know the
+//! signatures of the standard-library functions the language defines
+//! without any schema input. `id(n)`, `size(x)`, `head(xs)`, `tail(xs)`,
+//! and `last(xs)` are the v1 cap — all other function calls fall through
+//! to the schema-aware pass, which queries the caller's
+//! [`cypher_schema::SchemaProvider`].
+//!
+//! The table is intentionally small and append-only: new entries land at
+//! the end. Each [`Builtin`] entry is a plain `struct` literal so the
+//! table can live in a `static` array without allocator contact.
+//!
+//! # Generics
+//!
+//! Cypher's stdlib is lightly polymorphic: `head`, `tail`, and `last`
+//! accept `LIST<T>` and return `T` / `LIST<T>`. Until the sema type
+//! system models a real generic `T` (a follow-up bead), we approximate
+//! with [`ArgShape::List`] for the parameter slot and
+//! [`ReturnShape::ListElement`] / [`ReturnShape::ListSelf`] to signal
+//! "element-of-the-input" / "same-as-the-input-list" at the call site.
+//! `size` is the only overloaded entry: it accepts either a list or a
+//! string and always returns [`Type::Int`].
+//!
+//! ```no_run
+//! use cypher_sema::builtins::{lookup, Builtin};
+//! let b: Option<&'static Builtin> = lookup("size");
+//! assert!(b.is_some());
+//! ```
+
+use smol_str::SmolStr;
+
+use crate::ty::Type;
+
+/// Parameter shape — what the call site's argument must conform to.
+///
+/// The variants are intentionally coarse: a full type-schema for
+/// built-ins requires generics, which the v1 sema does not yet model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArgShape {
+    /// Any concrete type (`Node`, `Relationship`, `Path`, `Int`, `String`, …).
+    Any,
+    /// Must be a `LIST<_>` of any element type.
+    List,
+    /// Must be a `STRING`.
+    String,
+    /// Overload of `List | String` — e.g. `size(x)`.
+    ListOrString,
+}
+
+/// Return shape — what the call site's result type is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnShape {
+    /// Concrete fixed type — used for `id: Int` and `size: Int`.
+    Fixed(FixedTy),
+    /// Element type of the first list argument. Used by `head` and `last`.
+    ListElement,
+    /// Same list type as the first argument. Used by `tail`.
+    ListSelf,
+}
+
+/// The subset of [`Type`] the builtin table needs to name.
+///
+/// A reduced mirror of [`Type`] that can sit inside a `const` context.
+/// When a richer signature is needed, extend this enum (or lift the
+/// table to a `OnceLock<Vec<…>>`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixedTy {
+    /// `INTEGER`.
+    Int,
+    /// `STRING`.
+    String,
+    /// `BOOLEAN`.
+    Bool,
+    /// `ANY` — the universal super-type.
+    Any,
+}
+
+impl FixedTy {
+    /// Lift into a full [`Type`].
+    #[must_use]
+    pub fn to_type(self) -> Type {
+        match self {
+            FixedTy::Int => Type::Int,
+            FixedTy::String => Type::String,
+            FixedTy::Bool => Type::Bool,
+            FixedTy::Any => Type::Any,
+        }
+    }
+}
+
+/// One built-in signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Builtin {
+    /// Canonical (lower-case) name used for lookup.
+    pub name: &'static str,
+    /// Parameter shapes, positionally.
+    pub params: &'static [ArgShape],
+    /// What the result type is.
+    pub ret: ReturnShape,
+    /// Doc string — one-liner, surfaces in LSP hovers.
+    pub doc: &'static str,
+}
+
+impl Builtin {
+    /// Number of positional parameters.
+    #[must_use]
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
+
+    /// Resolve the return type given the (already-inferred) argument
+    /// types. Falls back to [`Type::Any`] when the element / self shape
+    /// cannot be concretely recovered — the conservative default.
+    #[must_use]
+    pub fn resolve_return(&self, args: &[Type]) -> Type {
+        match self.ret {
+            ReturnShape::Fixed(ft) => ft.to_type(),
+            ReturnShape::ListElement => args.first().map_or(Type::Any, |t| match t {
+                Type::List(inner) => (**inner).clone(),
+                _ => Type::Any,
+            }),
+            ReturnShape::ListSelf => args.first().map_or_else(
+                || Type::List(Box::new(Type::Any)),
+                |t| match t {
+                    Type::List(_) => t.clone(),
+                    _ => Type::List(Box::new(Type::Any)),
+                },
+            ),
+        }
+    }
+}
+
+// ===========================================================================
+// The table
+// ===========================================================================
+
+/// The full built-in table. Ordering is append-only: new entries land at
+/// the end. Lookups use case-insensitive name comparison via [`lookup`].
+pub const BUILTINS: &[Builtin] = &[
+    // --- cy-zo9: graph-element identity -----------------------------------
+    //
+    // `id(n)` — opaque identifier of a node, relationship, or path.
+    // Placeholder ahead of cy-zo9 landing; if cy-zo9 brings a richer
+    // signature, the orchestrator resolves the merge at this entry.
+    Builtin {
+        name: "id",
+        params: &[ArgShape::Any],
+        ret: ReturnShape::Fixed(FixedTy::Int),
+        doc: "opaque identifier of a node, relationship, or path element",
+    },
+    // --- cy-5gh: list / string stdlib -------------------------------------
+    //
+    // `size(x)` — length of a list or character count of a string.
+    Builtin {
+        name: "size",
+        params: &[ArgShape::ListOrString],
+        ret: ReturnShape::Fixed(FixedTy::Int),
+        doc: "length of a list, or character count of a string",
+    },
+    // `head(xs)` — first element of a list, or `null` when empty.
+    Builtin {
+        name: "head",
+        params: &[ArgShape::List],
+        ret: ReturnShape::ListElement,
+        doc: "first element of a list, or null when empty",
+    },
+    // `tail(xs)` — all but the first element (a list).
+    Builtin {
+        name: "tail",
+        params: &[ArgShape::List],
+        ret: ReturnShape::ListSelf,
+        doc: "all elements of a list except the first (a list)",
+    },
+    // `last(xs)` — last element of a list, or `null` when empty.
+    Builtin {
+        name: "last",
+        params: &[ArgShape::List],
+        ret: ReturnShape::ListElement,
+        doc: "last element of a list, or null when empty",
+    },
+];
+
+/// Look up a builtin by case-insensitive name.
+///
+/// Returns the first matching entry, or `None` if no builtin with that
+/// name is registered. Names in [`BUILTINS`] are stored lower-case.
+#[must_use]
+pub fn lookup(name: &str) -> Option<&'static Builtin> {
+    BUILTINS.iter().find(|b| b.name.eq_ignore_ascii_case(name))
+}
+
+/// Look up a builtin by interned [`SmolStr`] name — convenience for call
+/// sites that already hold one. Forwards to [`lookup`].
+#[must_use]
+pub fn lookup_smol(name: &SmolStr) -> Option<&'static Builtin> {
+    lookup(name.as_str())
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lookup_id_is_present() {
+        let b = lookup("id").expect("id is a registered builtin");
+        assert_eq!(b.name, "id");
+        assert_eq!(b.arity(), 1);
+        assert_eq!(b.resolve_return(&[Type::Node(None)]), Type::Int);
+    }
+
+    #[test]
+    fn lookup_size_returns_int_for_list() {
+        let b = lookup("size").expect("size is a registered builtin");
+        assert_eq!(b.arity(), 1);
+        assert_eq!(
+            b.resolve_return(&[Type::List(Box::new(Type::Int))]),
+            Type::Int
+        );
+    }
+
+    #[test]
+    fn lookup_size_returns_int_for_string() {
+        let b = lookup("size").expect("size is a registered builtin");
+        assert_eq!(b.resolve_return(&[Type::String]), Type::Int);
+    }
+
+    #[test]
+    fn lookup_head_returns_element_type() {
+        let b = lookup("head").expect("head is a registered builtin");
+        assert_eq!(b.arity(), 1);
+        assert_eq!(
+            b.resolve_return(&[Type::List(Box::new(Type::Int))]),
+            Type::Int
+        );
+    }
+
+    #[test]
+    fn lookup_head_falls_back_to_any_on_non_list_input() {
+        let b = lookup("head").unwrap();
+        assert_eq!(b.resolve_return(&[Type::String]), Type::Any);
+    }
+
+    #[test]
+    fn lookup_tail_returns_list_self() {
+        let b = lookup("tail").expect("tail is a registered builtin");
+        let lst = Type::List(Box::new(Type::Bool));
+        assert_eq!(b.resolve_return(std::slice::from_ref(&lst)), lst);
+    }
+
+    #[test]
+    fn lookup_tail_defaults_to_list_any_on_non_list() {
+        let b = lookup("tail").unwrap();
+        assert_eq!(
+            b.resolve_return(&[Type::Bool]),
+            Type::List(Box::new(Type::Any))
+        );
+    }
+
+    #[test]
+    fn lookup_last_returns_element_type() {
+        let b = lookup("last").expect("last is a registered builtin");
+        assert_eq!(
+            b.resolve_return(&[Type::List(Box::new(Type::String))]),
+            Type::String
+        );
+    }
+
+    #[test]
+    fn lookup_is_case_insensitive() {
+        assert!(lookup("SIZE").is_some());
+        assert!(lookup("Head").is_some());
+        assert!(lookup("TAIL").is_some());
+        assert!(lookup("Last").is_some());
+    }
+
+    #[test]
+    fn lookup_unknown_is_none() {
+        assert!(lookup("not_a_builtin").is_none());
+        assert!(lookup("").is_none());
+    }
+
+    #[test]
+    fn smol_lookup_delegates() {
+        assert!(lookup_smol(&SmolStr::new("size")).is_some());
+        assert!(lookup_smol(&SmolStr::new("bogus")).is_none());
+    }
+
+    /// The table names are lower-case; preserve that invariant so
+    /// lookup-casing behavior is uniform.
+    #[test]
+    fn all_names_are_lowercase() {
+        for b in BUILTINS {
+            assert_eq!(b.name, b.name.to_ascii_lowercase(), "name: {}", b.name);
+        }
+    }
+}

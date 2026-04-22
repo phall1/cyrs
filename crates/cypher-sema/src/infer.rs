@@ -351,7 +351,10 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
-            // List comprehension — result is List(map_expr_type).
+            // List comprehension — result is List(map_expr_type). The
+            // optional predicate must be Bool; non-bool predicates fall
+            // under the usual boolean-operator diagnostic (E2011),
+            // consistent with WHERE-clause handling. cy-5gh.
             // ---------------------------------------------------------------
             Expr::ListComprehension {
                 iterable,
@@ -361,7 +364,8 @@ impl InferCtx<'_> {
             } => {
                 self.infer_expr(iterable);
                 if let Some(f) = filter {
-                    self.infer_expr(f);
+                    let ft = self.infer_expr(f);
+                    self.require_bool(&ft, dummy_span());
                 }
                 let elem_ty = self.infer_expr(map_expr);
                 Type::List(Box::new(elem_ty))

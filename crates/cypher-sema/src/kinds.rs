@@ -293,6 +293,12 @@ impl KindCtx<'_> {
                 map_expr,
                 ..
             } => {
+                // Structural guard: iterable must plausibly be a list.
+                // Non-list-shaped atoms (scalars, maps, Node/Rel/Path vars,
+                // pattern predicates) are rejected under the same E5010
+                // class used for list-indexing (cy-7s6.1) — the error class
+                // is identical: "this place requires a list". cy-5gh.
+                self.require_indexable(iterable, "iterate over", sink);
                 self.check_expr(iterable, ExprCtx::General, sink);
                 if let Some(f) = filter {
                     self.check_expr(f, ExprCtx::General, sink);

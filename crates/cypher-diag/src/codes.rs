@@ -513,6 +513,24 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0064.md`
     E0064 = 64,
+    /// Expected `IN` in list comprehension (spec §19 row
+    /// "List comprehensions").
+    ///
+    /// Emitted by the parser's list-comprehension production (cy-5gh)
+    /// when the iteration-variable identifier is not followed by the
+    /// `IN` keyword.
+    ///
+    /// Docs: `docs/errors/E0068.md`
+    E0068 = 68,
+    /// Expected `|` or `]` in list comprehension (spec §19 row
+    /// "List comprehensions").
+    ///
+    /// Emitted by the parser's list-comprehension production (cy-5gh)
+    /// when neither a projection pipe `|` nor the closing bracket `]`
+    /// follows the optional `WHERE` predicate / source expression.
+    ///
+    /// Docs: `docs/errors/E0069.md`
+    E0069 = 69,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -621,6 +639,8 @@ impl DiagCode {
             Self::E0065 => "E0065",
             Self::E0066 => "E0066",
             Self::E0067 => "E0067",
+            Self::E0068 => "E0068",
+            Self::E0069 => "E0069",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -756,6 +776,8 @@ impl DiagCode {
         Self::E0065,
         Self::E0066,
         Self::E0067,
+        Self::E0068,
+        Self::E0069,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -885,6 +907,8 @@ mod tests {
             DiagCode::E0065,
             DiagCode::E0066,
             DiagCode::E0067,
+            DiagCode::E0068,
+            DiagCode::E0069,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,

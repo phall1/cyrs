@@ -189,10 +189,24 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
 }
 
 /// `ListLiteral = '[' (Expr (',' Expr)*)? ']'` — spec `cypher.ungrammar`
-/// `ListLiteral`. Pure expression grammar; comprehensions (`[x IN xs | e]`)
-/// land in a follow-up bead and are detected by the `IN` keyword lookahead.
+/// `ListLiteral`. List comprehensions (`[x IN xs WHERE p | f(x)]`) share
+/// the opening `[` with literals and are disambiguated here: if the first
+/// element is an IDENT followed by `IN`, this parses as a
+/// [`SyntaxKind::LIST_COMPREHENSION`]; otherwise it is a
+/// [`SyntaxKind::LIST_LITERAL`].
 fn list_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     debug_assert!(p.at(SyntaxKind::L_BRACK));
+
+    // Comprehension lookahead: `[ IDENT IN ...`.
+    // The first significant token past `[` is at nth(1); the IN check sits
+    // at nth(2). We only dispatch to the comprehension parse path on an
+    // exact match to avoid regressing the list-literal grammar (cy-7s6.1).
+    if matches!(p.nth(1), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT)
+        && p.nth(2) == SyntaxKind::IN_KW
+    {
+        return list_comprehension(p, depth);
+    }
+
     let m = p.start();
     p.bump(SyntaxKind::L_BRACK);
     if !p.at(SyntaxKind::R_BRACK) {
@@ -220,6 +234,93 @@ fn list_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
         );
     }
     m.complete(p, SyntaxKind::LIST_LITERAL)
+}
+
+/// Parse a list comprehension (spec §19 row "List comprehensions",
+/// ungrammar `ListComprehension`):
+///
+/// ```text
+/// ListComprehension = '[' NameDef 'IN' Expr ( 'WHERE' Expr )? ( '|' Expr )? ']'
+/// ```
+///
+/// Every production is optional except the iteration variable binder and
+/// the source expression (`NameDef 'IN' Expr`). The four legal shapes:
+///
+/// - `[x IN xs]`                              — no predicate, no map
+/// - `[x IN xs WHERE p(x)]`                   — filter only (implicit identity map)
+/// - `[x IN xs | f(x)]`                       — map only
+/// - `[x IN xs WHERE p(x) | f(x)]`            — filter and map
+///
+/// Enters on the opening `[`; `nth(1)` / `nth(2)` lookahead already
+/// confirmed the `IDENT IN` prefix at the [`list_literal`] dispatch point.
+fn list_comprehension(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_BRACK));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACK);
+
+    // NameDef — wrap the identifier in a NAME node so lowering can find it.
+    {
+        let name = p.start();
+        if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+            // The dispatch lookahead guarantees we are at an IDENT here.
+            // Defensive fallback: emit and close an empty NAME so the tree
+            // still round-trips.
+            p.error_code(
+                sc::EXPECTED_IDENT,
+                "expected iteration variable in list comprehension",
+            );
+        }
+        name.complete(p, SyntaxKind::NAME);
+    }
+
+    // 'IN' — required.
+    if !p.eat(SyntaxKind::IN_KW) {
+        p.error_code(
+            sc::EXPECTED_IN_LIST_COMP,
+            "expected `IN` in list comprehension",
+        );
+    }
+
+    // Source expression (iterable) — required.
+    if expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(
+            sc::EXPECTED_LIST_ELEM,
+            "expected expression for list-comprehension source",
+        );
+    }
+
+    // Optional WHERE predicate.
+    if p.at(SyntaxKind::WHERE_KW) {
+        p.bump(SyntaxKind::WHERE_KW);
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_WHERE_EXPR,
+                "expected predicate expression after `WHERE` in list comprehension",
+            );
+        }
+    }
+
+    // Optional `|` projection. Matches openCypher §3.3 (list comprehension
+    // production). After the optional WHERE predicate the grammar accepts
+    // either `|` followed by the projection expression, or directly `]`.
+    if p.at(SyntaxKind::PIPE) {
+        p.bump(SyntaxKind::PIPE);
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_BINOP_RHS,
+                "expected projection expression after `|` in list comprehension",
+            );
+        }
+    }
+
+    if !p.eat(SyntaxKind::R_BRACK) {
+        p.error_code(
+            sc::EXPECTED_PIPE_OR_RBRACK_LIST_COMP,
+            "expected `|` or `]` in list comprehension",
+        );
+    }
+
+    m.complete(p, SyntaxKind::LIST_COMPREHENSION)
 }
 
 /// `MapLiteral = '{' (PropertyKV (',' PropertyKV)*)? '}'` — spec

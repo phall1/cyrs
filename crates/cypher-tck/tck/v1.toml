@@ -195,6 +195,26 @@ tags    = ["@EXPRESSIONS", "@MAPS"]
 query   = "RETURN {a: 1, b: 'two'}"
 outcome = "ok"
 
+# cy-5gh — list comprehensions (spec §19).
+
+[[scenario]]
+name    = "List comprehension filter"
+tags    = ["@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [x IN [1, 2, 3] WHERE x > 1]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List comprehension map"
+tags    = ["@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [x IN [1, 2, 3] | x + 1]"
+outcome = "ok"
+
+[[scenario]]
+name    = "Stdlib size of list"
+tags    = ["@EXPRESSIONS", "@LISTS"]
+query   = "RETURN size([1, 2, 3])"
+outcome = "ok"
+
 # ---------------------------------------------------------------------------
 # @AGGREGATIONS
 # ---------------------------------------------------------------------------
