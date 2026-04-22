@@ -1,0 +1,6 @@
+error[E0009]: expected '(' to start a node pattern
+ --> named_path_missing_eq.cypher:6
+
+error[E0008]: expected ';' or end of input
+ --> named_path_missing_eq.cypher:6
+

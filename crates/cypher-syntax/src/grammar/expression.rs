@@ -159,11 +159,94 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
         }
+        // `COUNT` / `EXISTS` lex as dedicated keyword tokens (lexer §4.1)
+        // but in expression position they still stand in for a function
+        // identifier — `count(n)`, `exists(n.prop)`. Accept the keyword as
+        // a VAR_EXPR so the postfix `(` loop can wrap it in a FUNCTION_CALL.
+        SyntaxKind::COUNT_KW | SyntaxKind::EXISTS_KW => {
+            let m = p.start();
+            p.bump_any();
+            m.complete(p, SyntaxKind::VAR_EXPR)
+        }
         SyntaxKind::L_PAREN => paren_expr(p, depth),
-        // cy-nom: v1 scope — list/map literals, comprehensions, CASE,
-        // pattern predicates, EXISTS(...) land in follow-up beads.
+        SyntaxKind::L_BRACK => list_literal(p, depth),
+        SyntaxKind::L_BRACE => map_literal(p, depth),
+        // cy-nom: v1 scope — comprehensions, CASE, pattern predicates,
+        // EXISTS(...) land in follow-up beads.
         _ => return None,
     })
+}
+
+/// `ListLiteral = '[' (Expr (',' Expr)*)? ']'` — spec `cypher.ungrammar`
+/// `ListLiteral`. Pure expression grammar; comprehensions (`[x IN xs | e]`)
+/// land in a follow-up bead and are detected by the `IN` keyword lookahead.
+fn list_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_BRACK));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACK);
+    if !p.at(SyntaxKind::R_BRACK) {
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_LIST_ELEM,
+                "expected expression in list literal",
+            );
+        }
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            if expr_bp_depth(p, 0, depth + 1).is_none() {
+                p.error_code(
+                    sc::EXPECTED_LIST_ELEM,
+                    "expected expression in list literal",
+                );
+                break;
+            }
+        }
+    }
+    if !p.eat(SyntaxKind::R_BRACK) {
+        p.error_code(
+            sc::EXPECTED_RBRACK_LIST,
+            "expected ']' to close list literal",
+        );
+    }
+    m.complete(p, SyntaxKind::LIST_LITERAL)
+}
+
+/// `MapLiteral = '{' (PropertyKV (',' PropertyKV)*)? '}'` — spec
+/// `cypher.ungrammar` `MapLiteral`. Same shape as the property-map
+/// shorthand inside patterns; when the `{` appears in *expression*
+/// position the parser binds this production, when it appears inside a
+/// `NodePattern` / `RelDetail` the caller's existing property-map
+/// handling owns it (see `grammar::pattern::property_map`).
+fn map_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_BRACE));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACE);
+    if !p.at(SyntaxKind::R_BRACE) {
+        map_entry(p, depth);
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            if p.at(SyntaxKind::R_BRACE) {
+                break;
+            }
+            map_entry(p, depth);
+        }
+    }
+    if !p.eat(SyntaxKind::R_BRACE) {
+        p.error_code(sc::EXPECTED_RBRACE_MAP, "expected '}' to close map literal");
+    }
+    m.complete(p, SyntaxKind::MAP_LITERAL)
+}
+
+fn map_entry(p: &mut Parser<'_>, depth: u32) {
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_MAP_KEY, "expected key in map literal");
+    }
+    if !p.eat(SyntaxKind::COLON) {
+        p.error_code(sc::EXPECTED_COLON_MAP, "expected ':' in map entry");
+    }
+    if expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(sc::EXPECTED_MAP_VALUE, "expected expression for map value");
+    }
 }
 
 fn literal_atom(p: &mut Parser<'_>, node: SyntaxKind) -> CompletedMarker {

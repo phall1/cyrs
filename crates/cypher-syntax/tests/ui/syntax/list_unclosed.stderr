@@ -1,0 +1,3 @@
+error[E0048]: expected ']' to close list literal
+ --> list_unclosed.cypher:16
+

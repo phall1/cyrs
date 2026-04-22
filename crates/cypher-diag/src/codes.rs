@@ -210,6 +210,74 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0046.md`
     E0046 = 46,
+    /// Expected an expression in a list literal.
+    ///
+    /// Docs: `docs/errors/E0047.md`
+    E0047 = 47,
+    /// Expected `]` to close a list literal.
+    ///
+    /// Docs: `docs/errors/E0048.md`
+    E0048 = 48,
+    /// Expected a key in a map literal.
+    ///
+    /// Docs: `docs/errors/E0049.md`
+    E0049 = 49,
+    /// Expected `:` in a map literal entry.
+    ///
+    /// Docs: `docs/errors/E0050.md`
+    E0050 = 50,
+    /// Expected an expression for a map literal value.
+    ///
+    /// Docs: `docs/errors/E0051.md`
+    E0051 = 51,
+    /// Expected `}` to close a map literal.
+    ///
+    /// Docs: `docs/errors/E0052.md`
+    E0052 = 52,
+    /// Expected an expression after `UNWIND`.
+    ///
+    /// Docs: `docs/errors/E0053.md`
+    E0053 = 53,
+    /// Expected `AS` after an `UNWIND` expression.
+    ///
+    /// Docs: `docs/errors/E0054.md`
+    E0054 = 54,
+    /// Expected a pattern after `CREATE`.
+    ///
+    /// Docs: `docs/errors/E0055.md`
+    E0055 = 55,
+    /// Expected a pattern after `MERGE`.
+    ///
+    /// Docs: `docs/errors/E0056.md`
+    E0056 = 56,
+    /// Expected a SET item (property assignment or label add).
+    ///
+    /// Docs: `docs/errors/E0057.md`
+    E0057 = 57,
+    /// Expected a REMOVE item (property access or label).
+    ///
+    /// Docs: `docs/errors/E0058.md`
+    E0058 = 58,
+    /// Expected an expression after `DELETE`.
+    ///
+    /// Docs: `docs/errors/E0059.md`
+    E0059 = 59,
+    /// Expected `DELETE` after `DETACH`.
+    ///
+    /// Docs: `docs/errors/E0060.md`
+    E0060 = 60,
+    /// Expected `CREATE` or `MATCH` after `ON` in a MERGE action.
+    ///
+    /// Docs: `docs/errors/E0061.md`
+    E0061 = 61,
+    /// Expected `]` to close a variable-length hop quantifier.
+    ///
+    /// Docs: `docs/errors/E0062.md`
+    E0062 = 62,
+    /// Expected `=` after a path binder identifier.
+    ///
+    /// Docs: `docs/errors/E0063.md`
+    E0063 = 63,
 
     // --- name resolution (E1000–E1999) --------------------------------
     /// Unresolved variable reference (spec §6.2).
@@ -482,6 +550,23 @@ impl DiagCode {
             Self::E0044 => "E0044",
             Self::E0045 => "E0045",
             Self::E0046 => "E0046",
+            Self::E0047 => "E0047",
+            Self::E0048 => "E0048",
+            Self::E0049 => "E0049",
+            Self::E0050 => "E0050",
+            Self::E0051 => "E0051",
+            Self::E0052 => "E0052",
+            Self::E0053 => "E0053",
+            Self::E0054 => "E0054",
+            Self::E0055 => "E0055",
+            Self::E0056 => "E0056",
+            Self::E0057 => "E0057",
+            Self::E0058 => "E0058",
+            Self::E0059 => "E0059",
+            Self::E0060 => "E0060",
+            Self::E0061 => "E0061",
+            Self::E0062 => "E0062",
+            Self::E0063 => "E0063",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -594,6 +679,23 @@ impl DiagCode {
         Self::E0044,
         Self::E0045,
         Self::E0046,
+        Self::E0047,
+        Self::E0048,
+        Self::E0049,
+        Self::E0050,
+        Self::E0051,
+        Self::E0052,
+        Self::E0053,
+        Self::E0054,
+        Self::E0055,
+        Self::E0056,
+        Self::E0057,
+        Self::E0058,
+        Self::E0059,
+        Self::E0060,
+        Self::E0061,
+        Self::E0062,
+        Self::E0063,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -700,6 +802,23 @@ mod tests {
             DiagCode::E0044,
             DiagCode::E0045,
             DiagCode::E0046,
+            DiagCode::E0047,
+            DiagCode::E0048,
+            DiagCode::E0049,
+            DiagCode::E0050,
+            DiagCode::E0051,
+            DiagCode::E0052,
+            DiagCode::E0053,
+            DiagCode::E0054,
+            DiagCode::E0055,
+            DiagCode::E0056,
+            DiagCode::E0057,
+            DiagCode::E0058,
+            DiagCode::E0059,
+            DiagCode::E0060,
+            DiagCode::E0061,
+            DiagCode::E0062,
+            DiagCode::E0063,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,

@@ -100,6 +100,15 @@ fn parse_function_call() {
 }
 
 #[test]
+fn parse_function_call_sum() {
+    // The dedicated function-call idioms that TCK @AGGREGATIONS exercises.
+    // `sum` is a bare identifier; `count` is a keyword that also stands in
+    // for a function name — both must parse cleanly.
+    assert_ok("MATCH (n:Order) RETURN sum(n.amount)");
+    assert_ok("MATCH (n:Person) RETURN count(n)");
+}
+
+#[test]
 fn parse_string_concat() {
     assert_ok("RETURN \"hello\" + ' world'");
 }

@@ -5,4 +5,5 @@ expression: "render_src(\"RETURN count(missing)\")"
 scopes: 2
   scope[0] kind=Root parent=None bindings=[]
   scope[1] kind=Return parent=Some(0) bindings=[]
-diagnostics: 0
+diagnostics: 1
+  E1001: unresolved variable `missing`
