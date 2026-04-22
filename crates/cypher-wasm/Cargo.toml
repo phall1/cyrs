@@ -1,0 +1,55 @@
+[package]
+name         = "cypher-wasm"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "WebAssembly binding (wasm-bindgen) that exposes the Cypher / GQL frontend agent op surface as JavaScript callables (spec 0004 §4)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cypher-db            = { workspace = true }
+cypher-diag          = { workspace = true }
+cypher-fmt           = { workspace = true }
+cypher-lang-services = { workspace = true }
+# cypher-syntax is reachable transitively through every other dep above;
+# cypher-lang-services's public API is keyed on `cypher_syntax::TextSize`
+# (spec 0001 §14) and this crate's JS entry points convert a JS `u32`
+# offset into that `TextSize` at the boundary.  No new analysis surface.
+cypher-syntax        = { workspace = true }
+# Spec 0001 §7 schema provider trait — implemented locally by the
+# deserialize-only `WasmSchema` so `schemaSet` can install a user-
+# supplied label set without widening into cypher-project / cypher-hir.
+cypher-schema        = { workspace = true }
+# `smol_str` mirrors the agent crate's use via the SchemaProvider
+# implementation; no new behaviour.
+smol_str             = { workspace = true }
+# Plan / HIR lowering are reached via cypher-db's public API plus the
+# lang-services engines; no direct dep on cypher-hir/plan is added here
+# because spec 0004 §3 pins cypher-wasm's dep list to the adapter set.
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+
+# Browser / JS boundary — wasm-bindgen handles the JS ↔ Rust ABI and
+# serde-wasm-bindgen carries the agent wire types across as idiomatic JS
+# objects rather than JSON strings (spec 0004 §4.1).
+wasm-bindgen        = "0.2"
+serde-wasm-bindgen  = "0.6"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# cypher-wasm is a thin adapter crate.  Like the other binding crates
+# (spec 0004 §2.1) the workspace lints apply; `unsafe_code = forbid` from
+# the workspace table covers us without a crate-local opt-out.
+[lints]
+workspace = true
