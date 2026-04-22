@@ -77,6 +77,8 @@ cypher-syntax        → (external only: rowan, logos, smol_str, text-size, drop
 cypher-ast           → cypher-syntax
 cypher-hir           → cypher-ast, cypher-syntax
 cypher-schema        → cypher-syntax (types only)
+cypher-project       → cypher-schema, smol_str, thiserror, serde, toml,
+                       globset, walkdir
 cypher-sema          → cypher-hir, cypher-schema
 cypher-diag          → cypher-syntax
 cypher-plan          → cypher-hir
@@ -89,7 +91,8 @@ cypher-lsp           → cypher-lang-services, cypher-db, cypher-diag,
                        cypher-fmt, lsp-server, lsp-types
 cypher-agent         → cypher-lang-services, cypher-db, cypher-diag,
                        cypher-fmt, serde_json
-cypher-cli           → cypher-db, cypher-diag, cypher-fmt, cypher-schema
+cypher-cli           → cypher-db, cypher-diag, cypher-fmt, cypher-schema,
+                       cypher-project
 cypher-tck           → cypher-db
 cypher-testkit       → any (dev only, not published)
 cypher               → all non-binary crates above
