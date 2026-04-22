@@ -53,6 +53,17 @@ The authoritative crate graph and allowed-edges list lives in
 [`docs/specs/0001-cypher-frontend.md`](./docs/specs/0001-cypher-frontend.md)
 §3.
 
+### Specs
+
+- [`0001-cypher-frontend.md`](./docs/specs/0001-cypher-frontend.md) —
+  architecture, crate graph, testing bar.
+- [`0002-schema-file-format.md`](./docs/specs/0002-schema-file-format.md) —
+  `schema.toml` file format + diff.
+- [`0003-project-manifest.md`](./docs/specs/0003-project-manifest.md) —
+  `cypher-project.toml` workspace manifest.
+- [`0004-interop-surfaces.md`](./docs/specs/0004-interop-surfaces.md) —
+  WASM, C FFI, PyO3, LSP-Web, tree-sitter parity.
+
 ---
 
 ## Quickstart
