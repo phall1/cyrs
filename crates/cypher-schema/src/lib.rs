@@ -31,6 +31,9 @@ pub use in_memory::{BuilderError, InMemorySchema, InMemorySchemaBuilder, RelDecl
 #[cfg(feature = "file")]
 pub mod file;
 
+pub mod diff;
+pub mod lint;
+
 // ============================================================
 // SchemaProvider
 // ============================================================

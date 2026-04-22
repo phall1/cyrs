@@ -417,6 +417,27 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E3008.md`
     E3008 = 3008,
+    /// Schema-file property type is unresolved (spec 0002 §9).
+    ///
+    /// Emitted by `cypher schema check` when a property or parameter
+    /// declares an opaque type (e.g. `DURATION`, `POINT`) whose v0
+    /// structural meaning is deferred. Load succeeds — the type round-
+    /// trips — but the linter flags it so operators know the type
+    /// participates as an opaque symbolic value only.
+    ///
+    /// Docs: `docs/errors/E3010.md`
+    E3010 = 3010,
+    /// Relationship-type endpoint cycles through the same label on both
+    /// sides (spec 0002 §9).
+    ///
+    /// Emitted by `cypher schema check` when a rel type declares the
+    /// same label in both `start_labels` and `end_labels`. The spec
+    /// permits self-loops but the linter surfaces them so operators
+    /// can confirm they are intentional (e.g. `KNOWS: Person → Person`
+    /// is fine; `REPORTS_TO: Team → Team` may be a modelling slip).
+    ///
+    /// Docs: `docs/errors/E3011.md`
+    E3011 = 3011,
 
     // --- dialect (E4000–E4999) ----------------------------------------
     /// Dialect not supported (spec §9.3).
@@ -557,6 +578,17 @@ pub enum DiagCode {
     W6006 = 6006,
     /// Inconsistent keyword casing inside one query.
     W6007 = 6007,
+    /// Unreachable label — schema-file lint (spec 0002 §9).
+    ///
+    /// Emitted by `cypher schema check` when a label is declared but
+    /// not referenced by any relationship type's `start_labels` or
+    /// `end_labels`. Not fatal: isolated labels are permitted — they
+    /// are legitimate for nodes created without relationships — but
+    /// the lint surfaces them so operators catch typos in rel-type
+    /// endpoint lists.
+    ///
+    /// Docs: `docs/errors/W6010.md`
+    W6010 = 6010,
 
     // --- performance (7000..) ----------------------------------------
     /// Cartesian product between disconnected MATCH components.
@@ -667,6 +699,8 @@ impl DiagCode {
             Self::E3006 => "E3006",
             Self::E3007 => "E3007",
             Self::E3008 => "E3008",
+            Self::E3010 => "E3010",
+            Self::E3011 => "E3011",
             Self::E4001 => "E4001",
             Self::E4010 => "E4010",
             Self::E4011 => "E4011",
@@ -689,6 +723,7 @@ impl DiagCode {
             Self::W6005 => "W6005",
             Self::W6006 => "W6006",
             Self::W6007 => "W6007",
+            Self::W6010 => "W6010",
             Self::W7001 => "W7001",
             Self::W7002 => "W7002",
             Self::W7003 => "W7003",
@@ -805,6 +840,8 @@ impl DiagCode {
         Self::E3006,
         Self::E3007,
         Self::E3008,
+        Self::E3010,
+        Self::E3011,
         Self::E4001,
         Self::E4010,
         Self::E4011,
@@ -827,6 +864,7 @@ impl DiagCode {
         Self::W6005,
         Self::W6006,
         Self::W6007,
+        Self::W6010,
         Self::W7001,
         Self::W7002,
         Self::W7003,
@@ -937,6 +975,8 @@ mod tests {
             DiagCode::E3006,
             DiagCode::E3007,
             DiagCode::E3008,
+            DiagCode::E3010,
+            DiagCode::E3011,
             DiagCode::E4001,
             DiagCode::E4010,
             DiagCode::E4011,
@@ -959,6 +999,7 @@ mod tests {
             DiagCode::W6005,
             DiagCode::W6006,
             DiagCode::W6007,
+            DiagCode::W6010,
             DiagCode::W7001,
             DiagCode::W7002,
             DiagCode::W7003,

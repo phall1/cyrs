@@ -70,14 +70,14 @@ fn all_count_pinned() {
     //   69  syntax         (E0001–E0069, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
-    //    7  schema-aware   (E3001–E3004, E3006–E3008, cy-36u)
+    //    9  schema-aware   (E3001–E3004, E3006–E3008, E3010, E3011, cy-36u + cy-0ek)
     //   11  dialect        (E4001 + E4010–E4019, cy-z49)
     //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
-    //    7  style          (W6001–W6007)
+    //    8  style          (W6001–W6007, W6010, cy-0ek)
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  114  total
+    //  117  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -90,6 +90,9 @@ fn all_count_pinned() {
     // cy-5gh: added E0068 (expected IN in list comp) and E0069
     //         (expected `|` or `]` in list comp) for list comprehensions.
     // cy-zo9.1: added E5012 (builtin argument kind mismatch).
-    const EXPECTED: usize = 114;
+    // cy-0ek: added E3010 (opaque/unresolved schema type), E3011 (self-
+    //         referential rel type), and W6010 (unreachable label) for
+    //         the `cypher schema check` linter (spec 0002 §9).
+    const EXPECTED: usize = 117;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
