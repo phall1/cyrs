@@ -13,7 +13,9 @@
 //! these tests also serve as the behavioural contract that the future
 //! sub-tree-splice path must satisfy.
 
-use cypher_syntax::{SyntaxKind, SyntaxNode, TextEdit, TextRange, TextSize, incremental_reparse, parse};
+use cypher_syntax::{
+    SyntaxKind, SyntaxNode, TextEdit, TextRange, TextSize, incremental_reparse, parse,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,18 +66,12 @@ fn edit_preserves_tree_shape() {
 
     // Find the "a" of "alice" — byte offset of the opening " plus 1.
     let quote_start = src.find('"').expect("fixture has a string literal");
-    let a_offset = quote_start + 1;
-    let range = TextRange::new(
-        TextSize::new(a_offset as u32),
-        TextSize::new((a_offset + 1) as u32),
-    );
+    let a_offset = u32::try_from(quote_start + 1).expect("fixture fits in u32");
+    let range = TextRange::new(TextSize::new(a_offset), TextSize::new(a_offset + 1));
     let edit = TextEdit::replace(range, "A"); // "alice" → "Alice"
 
     let np = incremental_reparse(&p.syntax(), &edit);
-    assert!(
-        np.errors().is_empty(),
-        "edited tree must still parse clean"
-    );
+    assert!(np.errors().is_empty(), "edited tree must still parse clean");
     let after = shape(&np.syntax());
     assert_eq!(
         before, after,

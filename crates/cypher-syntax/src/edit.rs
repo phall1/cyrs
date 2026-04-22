@@ -26,9 +26,9 @@
 //!    syntax error produces a tree whose error set matches a full reparse.
 //!
 //! Items 1–3 are a research-sized tranche. Landing the API + whole-file
-//! fallback lets downstream crates migrate onto
-//! [`crate::Database::edit_file`] (see `cypher-db`) today; the smart path
-//! can then land in a follow-up bead without touching any caller.
+//! fallback lets downstream crates migrate onto `Database::edit_file`
+//! (see `cypher-db`) today; the smart path can then land in a follow-up
+//! bead without touching any caller.
 //!
 //! # Future smart path
 //!
@@ -44,8 +44,8 @@
 //! - `incremental_reparse(old_tree, edit)` produces a [`Parse`] whose
 //!   `syntax().to_string()` equals the new source text.
 //! - The call is infallible: malformed UTF-8 cannot enter because
-//!   [`TextEdit::new`] takes `&str` and [`TextEdit::apply`] concatenates
-//!   bytes at char boundaries.
+//!   [`TextEdit::replace`] takes `impl Into<String>` and
+//!   [`TextEdit::apply`] concatenates bytes at char boundaries.
 //! - `edit.range` must lie inside the old source; out-of-range offsets
 //!   saturate to the source length (matching `String::replace_range`'s
 //!   documented behaviour).
@@ -164,19 +164,18 @@ pub fn incremental_reparse(old_tree: &SyntaxNode, edit: &TextEdit) -> Parse {
     // The `incremental` feature is defaulted-on. When a real smart path
     // is implemented, `cfg!(feature = "incremental")` gates the fast
     // dispatch; the slow fallback always remains available for A/B
-    // testing. Today the two paths are identical.
+    // testing. Today the two paths are identical — the feature cfg is a
+    // *reservation* for the follow-up bead.
+    let _ = old_tree;
     #[cfg(feature = "incremental")]
     {
-        // Smart-path hook: currently the smart path delegates to the full
-        // reparse. When a real incremental splicer lands, it goes here.
-        // The `old_tree` is bound so future code can read it without a
-        // signature churn.
-        let _ = old_tree;
-        return parse(&new_src);
+        // Smart-path hook: when a real incremental splicer lands, it
+        // replaces this call. Callers need no change; the return value's
+        // byte-equivalence invariant (see module docs) holds either way.
+        parse(&new_src)
     }
     #[cfg(not(feature = "incremental"))]
     {
-        let _ = old_tree;
         parse(&new_src)
     }
 }
@@ -228,10 +227,7 @@ mod tests {
     fn incremental_reparse_roundtrips() {
         let p = parse("RETURN 1");
         let root = p.syntax();
-        let edit = TextEdit::replace(
-            TextRange::new(TextSize::from(7), TextSize::from(8)),
-            "42",
-        );
+        let edit = TextEdit::replace(TextRange::new(TextSize::from(7), TextSize::from(8)), "42");
         let np = incremental_reparse(&root, &edit);
         assert_eq!(np.syntax().to_string(), "RETURN 42");
         assert!(np.errors().is_empty(), "edit keeps the file parseable");

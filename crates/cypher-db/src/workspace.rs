@@ -759,10 +759,7 @@ mod tests {
         assert_eq!(before.parse().syntax().to_string(), "RETURN 1");
 
         // Replace "1" (byte 7..8) with "42".
-        let edit = TextEdit::replace(
-            TextRange::new(TextSize::new(7), TextSize::new(8)),
-            "42",
-        );
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(7), TextSize::new(8)), "42");
         db.edit_file(id, &edit).unwrap();
 
         let after = db.parse_cst(id).unwrap();
@@ -804,10 +801,7 @@ mod tests {
         let ob = db.parse_cst(b).unwrap();
 
         // Edit file `a`.
-        let edit = TextEdit::replace(
-            TextRange::new(TextSize::new(7), TextSize::new(8)),
-            "99",
-        );
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(7), TextSize::new(8)), "99");
         db.edit_file(a, &edit).unwrap();
 
         // File b's cache must survive.
