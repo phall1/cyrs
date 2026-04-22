@@ -67,6 +67,20 @@ enum Cmd {
     Plan { file: Option<PathBuf> },
     /// Human-readable explanation of the query.
     Explain { file: Option<PathBuf> },
+    /// Schema file operations (spec 0002).
+    Schema {
+        #[command(subcommand)]
+        cmd: SchemaCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SchemaCmd {
+    /// Load a TOML schema file and print a one-line summary.
+    Load {
+        /// Path to the `schema.toml` file (spec 0002).
+        path: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -177,6 +191,33 @@ fn run(cli: &Cli) -> Result<u8> {
             let _ = read_source(file.as_deref())?;
             println!("(explain lands with the grammar — spec §16)");
             Ok(EXIT_OK)
+        }
+        Cmd::Schema { cmd } => match cmd {
+            SchemaCmd::Load { path } => Ok(schema_load(path)),
+        },
+    }
+}
+
+/// `cypher schema load <path>` — parse a TOML schema file and print a
+/// one-line summary. Spec 0002 §12.
+///
+/// Exit codes follow the rest of the CLI surface (spec §16):
+/// - `0` — schema loaded successfully.
+/// - `1` — load error (unknown label ref, duplicate, bad type, I/O).
+fn schema_load(path: &Path) -> u8 {
+    match cypher_schema::file::load_from_toml_path(path) {
+        Ok(schema) => {
+            println!(
+                "loaded schema: {} labels, {} rel_types, {} parameters",
+                schema.label_count(),
+                schema.rel_type_count(),
+                schema.parameter_count(),
+            );
+            EXIT_OK
+        }
+        Err(err) => {
+            eprintln!("error: {err}");
+            EXIT_DIAGNOSTICS
         }
     }
 }

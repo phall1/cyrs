@@ -372,7 +372,9 @@ dependencies = [
  "cypher-db",
  "cypher-diag",
  "cypher-fmt",
+ "cypher-schema",
  "predicates",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
 ]
@@ -502,6 +504,8 @@ dependencies = [
  "serde",
  "sha2",
  "smol_str",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]

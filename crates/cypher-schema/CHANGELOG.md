@@ -12,6 +12,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+* cy-0ek.1 (spec 0002): `InMemorySchema` + `RelDecl`, builder API, and
+  `file::{load_from_toml_str, load_from_toml_path, serialise_to_toml}`
+  behind the new `file` feature.  Round-trip integration test at
+  `tests/file.rs`.
+
 ### Changed
 
 ### Deprecated
