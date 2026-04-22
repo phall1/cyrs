@@ -273,6 +273,71 @@ path = "schema.toml"
         ));
 }
 
+/// Spec 0001 §8 + §11.4: the workspace schema is shared across every
+/// member. A query using an undeclared label raises E3001, proving the
+/// manifest's schema is actually propagated through the Database.
+#[test]
+fn check_project_schema_detects_unknown_label_across_files() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path();
+    std::fs::create_dir_all(root.join("samples")).unwrap();
+    std::fs::write(
+        root.join("schema.toml"),
+        r#"
+[[label]]
+name = "Person"
+"#,
+    )
+    .unwrap();
+    // `Person` is declared; `Ghost` is not.
+    std::fs::write(root.join("samples/ok.cyp"), "MATCH (p:Person) RETURN p\n").unwrap();
+    std::fs::write(root.join("samples/bad.cyp"), "MATCH (g:Ghost) RETURN g\n").unwrap();
+    std::fs::write(
+        root.join("cypher-project.toml"),
+        r#"
+[project]
+name = "ws"
+
+[project.members]
+include = ["samples/*.cyp"]
+
+[project.schema]
+path = "schema.toml"
+"#,
+    )
+    .unwrap();
+
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["check"])
+        .arg(root)
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("E3001"))
+        .stderr(predicate::str::contains("bad.cyp"));
+}
+
+/// Spec 0003 §2 + acceptance of cy-o8c tranche 1: the
+/// `tests/workspace/` on-disk fixture loads cleanly. Three member files
+/// share a single `schema.toml`; `cypher check` must resolve labels
+/// declared in the schema from every member regardless of which file
+/// first needs them.
+#[test]
+fn check_project_static_workspace_fixture() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("workspace");
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["check"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "checked 3 files in project 'tranche1-fixture'",
+        ));
+}
+
 /// Spec 0002 §11: load errors print to stderr and exit 1.
 #[test]
 fn schema_load_reports_error_on_bad_file() {
