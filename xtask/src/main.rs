@@ -87,6 +87,12 @@ enum Cmd {
     /// (spec 0004 §10.1).  Skips if wasm-pack is not on PATH.
     #[command(name = "wasm-smoke")]
     WasmSmoke,
+    /// Build the cypher-lsp wasm artifact for the LSP-Web demo worker
+    /// (bead cy-m0d, spec 0004 §7).  Mirrors `wasm-build` with the
+    /// `web-lsp` feature, `--target no-modules`, and a 3 MB brotli
+    /// size cap.  Missing wasm tooling produces a skip, not a failure.
+    #[command(name = "lsp-web-build")]
+    LspWebBuild,
     /// Generate or verify the cypher-ffi C header (spec 0004 §5.6).
     ///
     /// Default mode regenerates `crates/cypher-ffi/include/cypher.h`.
@@ -125,6 +131,7 @@ fn main() -> Result<()> {
         Cmd::WasmBuild => xtask::wasm::build(),
         Cmd::WasmSize => xtask::wasm::size(),
         Cmd::WasmSmoke => xtask::wasm::smoke(),
+        Cmd::LspWebBuild => xtask::wasm::lsp_web_build(),
         Cmd::Cbindgen { check } => xtask::cbindgen::run(check),
     }
 }

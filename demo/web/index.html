@@ -1,10 +1,17 @@
 <!doctype html>
 <!--
-    cypher-wasm Monaco playground — spec 0004 §4 demo page.
+    cypher-wasm Monaco playground — spec 0004 §4 + §7 demo page.
 
-    No build step.  Loads the wasm-bindgen generated JS wrapper at
-    ../../crates/cypher-wasm/pkg/cypher_wasm.js (populated by
-    `cargo xtask wasm-build` — see ../../crates/cypher-wasm/README.md).
+    No build step.  Loads one of two wasm-bindgen bundles:
+
+    * "agent-wasm" (spec 0004 §4) — ../../crates/cypher-wasm/pkg
+      populated by `cargo xtask wasm-build`.
+    * "lsp-wasm"   (spec 0004 §7) — ./pkg-lsp
+      populated by `cargo xtask lsp-web-build` (cy-m0d).
+
+    Both modes produce identical diagnostic output on the corpus; the
+    toggle below lets a reviewer switch between them at runtime.
+
     Monaco is pulled from a pinned unpkg CDN path via AMD so no bundler
     is required.
 
@@ -67,7 +74,17 @@
 <body>
     <header>
         <h1>cypher-wasm · Monaco demo</h1>
-        <span class="muted">spec 0004 §4 · proto version <span id="proto">?</span></span>
+        <span class="muted">spec 0004 §4 / §7 · proto version <span id="proto">?</span></span>
+        <fieldset id="mode-toggle" style="margin-left:auto; border:none; padding:0;">
+            <label style="margin-right:0.75rem;">
+                <input type="radio" name="mode" value="agent-wasm" checked />
+                agent-wasm
+            </label>
+            <label>
+                <input type="radio" name="mode" value="lsp-wasm" />
+                lsp-wasm
+            </label>
+        </fieldset>
     </header>
     <div id="editor"></div>
     <div id="status">loading…</div>

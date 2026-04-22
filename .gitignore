@@ -42,6 +42,10 @@ beads_report_*.md
 # artifacts).  Populated by `cargo xtask wasm-build`; never committed.
 crates/cypher-wasm/pkg/
 
+# cypher-lsp-web generated build output (spec 0004 §7, bead cy-m0d).
+# Populated by `cargo xtask lsp-web-build`; never committed.
+demo/web/pkg-lsp/
+
 # demo/ffi/node — koffi is installed via `npm install` before running
 # the smoke test (spec 0004 §10.2).  Lockfile + node_modules are
 # developer-local.

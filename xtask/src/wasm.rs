@@ -1,13 +1,18 @@
-//! `cargo xtask wasm-size` / `cargo xtask wasm-build` / `cargo xtask
-//! wasm-smoke` — developer wrappers around the `cypher-wasm` build
-//! pipeline.  Spec 0004 §4.2 (size budget) and §10.1 (smoke test).
+//! `cargo xtask wasm-*` / `cargo xtask lsp-web-build` — developer
+//! wrappers around the WASM build pipelines.  Spec 0004 §4.2 (agent
+//! size budget), §7 (LSP-Web), §10.1 (smoke test).
 //!
-//! The pipeline:
+//! The `cypher-wasm` pipeline:
 //!
 //! 1. `cargo build -p cypher-wasm --target wasm32-unknown-unknown --release`
 //! 2. `wasm-bindgen --target web --out-dir <pkg> <artifact>.wasm`
 //! 3. `wasm-opt -Os <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm`
 //! 4. `brotli -q 11 <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm.br`
+//!
+//! The `cypher-lsp` (LSP-Web) pipeline is a sibling with a different
+//! target directory, `--target no-modules` for use inside a classic
+//! Dedicated Worker, the `web-lsp` feature enabled, and a looser 3 MB
+//! brotli cap (spec 0004 §7).
 //!
 //! Each step is best-effort: a missing binary (`wasm-bindgen`,
 //! `wasm-opt`, `brotli`) is a skip with a clear message, not a failure —
@@ -21,7 +26,9 @@
 //! again is a skip if `wasm-pack` is not on PATH.
 //!
 //! The gate: when the full pipeline runs, the brotli-compressed
-//! artifact must be ≤ 2 MB (spec 0004 §4.2).
+//! artifact must be ≤ 2 MB for cypher-wasm (spec 0004 §4.2) and ≤ 3 MB
+//! for cypher-lsp (spec 0004 §7, looser because LSP carries
+//! lsp-types).
 
 #![allow(clippy::uninlined_format_args)]
 
@@ -34,6 +41,12 @@ use anyhow::{Result, anyhow, bail};
 /// Spec 0004 §4.2 — brotli-compressed artifact size cap.  The CI gate
 /// fails if the produced `.wasm.br` crosses this.
 const SIZE_LIMIT_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Spec 0004 §7 — brotli-compressed size cap for the LSP-Web artifact.
+/// Looser than the agent cap because `cypher-lsp` carries `lsp-types`
+/// (a large generated-from-JSON-schema crate) on top of the same
+/// analysis pipeline.
+const LSP_SIZE_LIMIT_BYTES: u64 = 3 * 1024 * 1024;
 
 /// `wasm-build` — compile the cdylib + run `wasm-bindgen`.  Skips (prints
 /// a notice, returns Ok) when tooling is missing locally so that the
@@ -188,6 +201,130 @@ pub fn smoke() -> Result<()> {
     Ok(())
 }
 
+/// `lsp-web-build` — compile + bundle `cypher-lsp` with the `web-lsp`
+/// feature and enforce the §7 size gate.  Sibling to `wasm-build` /
+/// `wasm-size`; see the module-level docstring for the pipeline shape.
+///
+/// The wasm-bindgen target is `no-modules` because the `cypher-lsp`
+/// Worker is a classic `DedicatedWorkerGlobalScope` — `type: "module"`
+/// workers do not honour wasm-bindgen's module-output shape on every
+/// browser we care about (spec 0004 §11).  The artifact lands under
+/// `demo/web/pkg-lsp/` so the demo page (`demo/web/main.js`) can swap
+/// between agent-wasm and lsp-wasm modes via the radio toggle.
+pub fn lsp_web_build() -> Result<()> {
+    let workspace = workspace_root();
+    run_cargo_wasm_lsp(&workspace)?;
+
+    let Some(bindgen) = which("wasm-bindgen") else {
+        println!(
+            "==> wasm-bindgen not on PATH.  Install with:\n\
+             \tcargo install wasm-bindgen-cli --locked\n\
+             [xtask lsp-web-build] skipping JS wrapper generation"
+        );
+        return Ok(());
+    };
+    let pkg_dir = workspace.join("demo/web/pkg-lsp");
+    std::fs::create_dir_all(&pkg_dir)?;
+    let wasm_path = workspace
+        .join("target")
+        .join("wasm32-unknown-unknown")
+        .join("release")
+        .join("cypher_lsp.wasm");
+    if !wasm_path.is_file() {
+        bail!("lsp wasm artifact not found at {}", wasm_path.display());
+    }
+    println!(
+        "==> wasm-bindgen --target no-modules --out-dir {} {}",
+        pkg_dir.display(),
+        wasm_path.display()
+    );
+    let status = Command::new(&bindgen)
+        .args([
+            "--target",
+            "no-modules",
+            "--out-dir",
+            &pkg_dir.display().to_string(),
+            &wasm_path.display().to_string(),
+        ])
+        .status()
+        .map_err(|e| anyhow!("failed to spawn wasm-bindgen: {e}"))?;
+    if !status.success() {
+        bail!("wasm-bindgen exited with {}", status);
+    }
+
+    // Optional -Os + brotli pass, mirrors `size()` above but with the
+    // LSP-Web limit.
+    let bg = pkg_dir.join("cypher_lsp_bg.wasm");
+    if !bg.is_file() {
+        println!(
+            "[xtask lsp-web-build] no {} on disk (wasm-bindgen skipped); \
+             cannot run size gate.",
+            bg.display()
+        );
+        return Ok(());
+    }
+
+    if let Some(opt) = which("wasm-opt") {
+        println!("==> wasm-opt -Os {} -o {}", bg.display(), bg.display());
+        let status = Command::new(&opt)
+            .args([
+                "-Os",
+                &bg.display().to_string(),
+                "-o",
+                &bg.display().to_string(),
+            ])
+            .status()
+            .map_err(|e| anyhow!("failed to spawn wasm-opt: {e}"))?;
+        if !status.success() {
+            bail!("wasm-opt exited with {}", status);
+        }
+    } else {
+        println!(
+            "==> wasm-opt not on PATH (install binaryen).  Skipping -Os\n\
+             pass; the LSP-Web size gate still runs on the unoptimised artifact."
+        );
+    }
+
+    let Some(brotli) = which("brotli") else {
+        println!(
+            "==> brotli not on PATH.  Install via your package manager\n\
+             (brew install brotli, apt-get install brotli).  LSP-Web size gate skipped."
+        );
+        return Ok(());
+    };
+    let br = pkg_dir.join("cypher_lsp_bg.wasm.br");
+    if br.exists() {
+        std::fs::remove_file(&br)?;
+    }
+    println!("==> brotli -q 11 -o {} {}", br.display(), bg.display());
+    let status = Command::new(&brotli)
+        .args([
+            "-q",
+            "11",
+            "-o",
+            &br.display().to_string(),
+            &bg.display().to_string(),
+        ])
+        .status()
+        .map_err(|e| anyhow!("failed to spawn brotli: {e}"))?;
+    if !status.success() {
+        bail!("brotli exited with {}", status);
+    }
+
+    let size = std::fs::metadata(&br)?.len();
+    println!(
+        "==> {} brotli-compressed: {size} bytes (limit {LSP_SIZE_LIMIT_BYTES})",
+        br.display()
+    );
+    if size > LSP_SIZE_LIMIT_BYTES {
+        bail!(
+            "cypher-lsp (web-lsp) brotli artifact {size} bytes exceeds 3 MB cap ({LSP_SIZE_LIMIT_BYTES} bytes) — see spec 0004 §7"
+        );
+    }
+    println!("[xtask lsp-web-build] OK");
+    Ok(())
+}
+
 /// Invoke `cargo build -p cypher-wasm --target wasm32-unknown-unknown --release`.
 /// A missing `wasm32-unknown-unknown` target is reported with a clear
 /// install hint and returns Ok — local developers should not be forced
@@ -226,6 +363,51 @@ fn run_cargo_wasm(workspace: &Path) -> Result<()> {
     }
     bail!(
         "cargo build for cypher-wasm (wasm32) exited with {}",
+        output.status
+    );
+}
+
+/// LSP-Web sibling: `cargo build -p cypher-lsp --features web-lsp
+/// --target wasm32-unknown-unknown --release`.  Mirrors
+/// [`run_cargo_wasm`]'s missing-target handling so local developers
+/// without the wasm toolchain get a skip rather than a gate failure.
+fn run_cargo_wasm_lsp(workspace: &Path) -> Result<()> {
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(workspace).args([
+        "build",
+        "-p",
+        "cypher-lsp",
+        "--features",
+        "web-lsp",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--release",
+    ]);
+    println!(
+        "==> cargo build -p cypher-lsp --features web-lsp --target wasm32-unknown-unknown --release"
+    );
+    let output = cmd
+        .output()
+        .map_err(|e| anyhow!("failed to spawn cargo: {e}"))?;
+    io::Write::write_all(&mut io::stderr(), &output.stderr).ok();
+    io::Write::write_all(&mut io::stdout(), &output.stdout).ok();
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("toolchain is not installed")
+        || stderr.contains("target may not be installed")
+        || stderr.contains("can't find crate for `core`")
+    {
+        println!(
+            "==> wasm32-unknown-unknown target not installed.  Install with:\n\
+             \trustup target add wasm32-unknown-unknown\n\
+             [xtask lsp-web-build] skipping wasm build"
+        );
+        return Ok(());
+    }
+    bail!(
+        "cargo build for cypher-lsp (wasm32 --features web-lsp) exited with {}",
         output.status
     );
 }

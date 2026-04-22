@@ -12,6 +12,14 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+* cy-m0d (spec 0004 §7): `web-lsp` Cargo feature exposes a
+  `DedicatedWorkerGlobalScope` + `postMessage` transport for the
+  LSP-Web demo worker.  `cypher_lsp::transport::Transport` trait
+  abstracts the wire plumbing; `StdioTransport` wraps the existing
+  `lsp_server::Connection` so the native path is byte-identical.
+  `cypher_lsp::web::start_lsp` is the `#[wasm_bindgen]` entry point the
+  demo's worker invokes.
+
 ### Changed
 
 ### Deprecated

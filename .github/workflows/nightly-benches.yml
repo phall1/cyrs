@@ -197,12 +197,24 @@ jobs:
       - name: cargo xtask wasm-size
         run: cargo xtask wasm-size
 
+      - name: cargo xtask lsp-web-build (spec 0004 §7, bead cy-m0d)
+        run: cargo xtask lsp-web-build
+
       - name: upload wasm artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cypher-wasm-pkg-${{ github.run_id }}
           path: crates/cypher-wasm/pkg/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: upload lsp-web artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypher-lsp-web-pkg-${{ github.run_id }}
+          path: demo/web/pkg-lsp/
           if-no-files-found: ignore
           retention-days: 30
 
