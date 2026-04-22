@@ -576,6 +576,11 @@ fn cypher_valid() -> impl Strategy<Value = String> {
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[..3]".to_string()),
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..]".to_string()),
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3][0]".to_string()),
+        // cy-5gh — list comprehension shape matrix (spec §19).
+        Just("RETURN [x IN [1, 2, 3]]".to_string()),
+        Just("RETURN [x IN [1, 2, 3] WHERE x > 1]".to_string()),
+        Just("RETURN [x IN [1, 2, 3] | x + 1]".to_string()),
+        Just("RETURN [x IN [1, 2, 3] WHERE x > 1 | x + 1]".to_string()),
     ]
 }
 

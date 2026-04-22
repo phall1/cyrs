@@ -397,6 +397,45 @@ fn expr_slice_then_index_chain() {
     insta::assert_snapshot!(format_with_errors("RETURN xs[0..3][0]"));
 }
 
+// ---------------------------------------------------------------------------
+// Expressions — list comprehensions (cy-5gh)
+// ---------------------------------------------------------------------------
+//
+// openCypher §3.3 list comprehension — four legal shapes:
+//   [x IN xs]                         — identity collect
+//   [x IN xs WHERE p(x)]              — filter only (implicit identity map)
+//   [x IN xs | f(x)]                  — map only
+//   [x IN xs WHERE p(x) | f(x)]       — filter and map
+
+#[test]
+fn expr_list_comprehension_identity() {
+    insta::assert_snapshot!(format_with_errors("RETURN [x IN [1, 2, 3]]"));
+}
+
+#[test]
+fn expr_list_comprehension_filter_only() {
+    insta::assert_snapshot!(format_with_errors("RETURN [x IN [1, 2, 3] WHERE x > 1]"));
+}
+
+#[test]
+fn expr_list_comprehension_map_only() {
+    insta::assert_snapshot!(format_with_errors("RETURN [x IN [1, 2, 3] | x + 1]"));
+}
+
+#[test]
+fn expr_list_comprehension_filter_and_map() {
+    insta::assert_snapshot!(format_with_errors(
+        "RETURN [x IN [1, 2, 3] WHERE x > 1 | x + 1]"
+    ));
+}
+
+#[test]
+fn err_list_comprehension_unterminated_where() {
+    // Missing closing `]` after a WHERE predicate — exercises the
+    // E0069 recovery (expected `|` or `]`).
+    insta::assert_snapshot!(format_with_errors("RETURN [x IN xs WHERE x > 1"));
+}
+
 #[test]
 fn expr_function_call() {
     insta::assert_snapshot!(format_with_errors("RETURN count(n)"));
