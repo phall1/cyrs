@@ -116,71 +116,100 @@ impl LowerCtx {
 
     fn lower_stmt_node(&mut self, node: SyntaxNode) {
         for child in node.children() {
-            if let Some(clause) = self.try_lower_clause(child) {
-                self.stmt.clauses.push(clause);
-            }
+            self.lower_clause_into(child);
         }
     }
 
-    fn try_lower_clause(&mut self, node: SyntaxNode) -> Option<Clause> {
+    /// Lower a clause subtree and push the resulting HIR clause(s) onto
+    /// [`Statement::clauses`] **in source order**.
+    ///
+    /// Invariant (cy-ypm, spec §6.1): the order of clauses in
+    /// `stmt.clauses` MUST mirror the surface-syntax order.  In
+    /// particular, an inline `WHERE` that lives inside a
+    /// `MATCH (p) WHERE q` node lowers to two sibling HIR clauses
+    /// `[Match, Where]` — the `Match` is pushed BEFORE the `Where`, even
+    /// though it is built last.  Downstream plan lowering relies on this
+    /// (`Filter` must chain after the `Source` the owning `MATCH`
+    /// produced); violating it silently orphans predicates onto
+    /// `EMPTY_SOURCE`.
+    fn lower_clause_into(&mut self, node: SyntaxNode) {
         let span = node.text_range();
         match node.kind() {
             SyntaxKind::MATCH_CLAUSE => {
                 let id = self.alloc_hir(node.clone());
                 let pattern = self.lower_pattern_from_clause(&node);
-                // Inline WHERE inside MATCH is lowered into a separate
-                // Where clause immediately following. Because
-                // `try_lower_clause` returns a single Option, we push
-                // the WHERE directly onto `self.stmt.clauses` here and
-                // return the MATCH.
-                if let Some(where_node) = node
-                    .children()
-                    .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
-                {
-                    let wspan = where_node.text_range();
-                    let wid = self.alloc_hir(where_node.clone());
-                    let pred = where_node
-                        .children()
-                        .find_map(|n| self.try_lower_expr(n))
-                        .unwrap_or(Expr::Null);
-                    self.stmt.clauses.push(Clause::Where {
-                        id: wid,
-                        predicate: pred,
-                        span: wspan,
-                    });
-                }
-                Some(Clause::Match {
+                // Build the inline-WHERE first so it shares byte-adjacent
+                // HirIds, but push MATCH first to preserve source order.
+                let inline_where = self.build_inline_where(&node);
+                self.stmt.clauses.push(Clause::Match {
                     id,
                     optional: false,
                     pattern,
                     span,
-                })
+                });
+                if let Some(w) = inline_where {
+                    self.stmt.clauses.push(w);
+                }
             }
             SyntaxKind::OPTIONAL_MATCH_CLAUSE => {
                 let id = self.alloc_hir(node.clone());
                 let pattern = self.lower_pattern_from_clause(&node);
-                if let Some(where_node) = node
-                    .children()
-                    .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
-                {
-                    let wspan = where_node.text_range();
-                    let wid = self.alloc_hir(where_node.clone());
-                    let pred = where_node
-                        .children()
-                        .find_map(|n| self.try_lower_expr(n))
-                        .unwrap_or(Expr::Null);
-                    self.stmt.clauses.push(Clause::Where {
-                        id: wid,
-                        predicate: pred,
-                        span: wspan,
-                    });
-                }
-                Some(Clause::Match {
+                let inline_where = self.build_inline_where(&node);
+                self.stmt.clauses.push(Clause::Match {
                     id,
                     optional: true,
                     pattern,
                     span,
-                })
+                });
+                if let Some(w) = inline_where {
+                    self.stmt.clauses.push(w);
+                }
+            }
+            _ => {
+                if let Some(clause) = self.try_lower_clause(node) {
+                    self.stmt.clauses.push(clause);
+                }
+            }
+        }
+    }
+
+    /// Lower the inline `WHERE_CLAUSE` child of a `MATCH_CLAUSE` /
+    /// `OPTIONAL_MATCH_CLAUSE` into a standalone [`Clause::Where`], if
+    /// present.  Caller is responsible for pushing it onto
+    /// `stmt.clauses` **after** the owning MATCH (see
+    /// [`Self::lower_clause_into`] for the ordering invariant).
+    fn build_inline_where(&mut self, match_node: &SyntaxNode) -> Option<Clause> {
+        let where_node = match_node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)?;
+        let wspan = where_node.text_range();
+        let wid = self.alloc_hir(where_node.clone());
+        let pred = where_node
+            .children()
+            .find_map(|n| self.try_lower_expr(n))
+            .unwrap_or(Expr::Null);
+        Some(Clause::Where {
+            id: wid,
+            predicate: pred,
+            span: wspan,
+        })
+    }
+
+    /// Lower a single syntax node into an HIR [`Clause`], for clause
+    /// kinds that always produce exactly one HIR clause.  `MATCH` /
+    /// `OPTIONAL_MATCH` go through [`Self::lower_clause_into`] instead
+    /// because they may emit a trailing inline-`WHERE` clause.
+    fn try_lower_clause(&mut self, node: SyntaxNode) -> Option<Clause> {
+        let span = node.text_range();
+        match node.kind() {
+            SyntaxKind::MATCH_CLAUSE | SyntaxKind::OPTIONAL_MATCH_CLAUSE => {
+                // Callers should use `lower_clause_into` for MATCH /
+                // OPTIONAL_MATCH to preserve source-order for the inline
+                // WHERE. See the invariant documented there.
+                unreachable!(
+                    "MATCH / OPTIONAL_MATCH must be lowered via lower_clause_into to preserve \
+                     clause ordering (cy-ypm, spec §6.1)"
+                );
             }
             SyntaxKind::WHERE_CLAUSE => {
                 // Standalone WHERE (between clauses).
@@ -1683,6 +1712,65 @@ mod tests {
     fn snap_expr_regex_match() {
         let stmt = lower_statement("RETURN a =~ 'r.*'");
         insta::assert_snapshot!("expr_regex_match", render(&stmt));
+    }
+
+    // --- cy-ypm: clause ordering regression tests (spec §6.1) ---
+    //
+    // MATCH (a) WHERE ... RETURN a must lower to clause order
+    // [Match, Where, Return] — i.e. source order.  A prior bug
+    // (cy-lve diagnosis) pushed an inline WHERE before its owning
+    // MATCH, which orphaned Filter on EMPTY_SOURCE in plan lowering.
+
+    fn clause_kinds(stmt: &Statement) -> Vec<&'static str> {
+        stmt.clauses
+            .iter()
+            .map(|c| match c {
+                Clause::Match {
+                    optional: false, ..
+                } => "Match",
+                Clause::Match { optional: true, .. } => "OptionalMatch",
+                Clause::Where { .. } => "Where",
+                Clause::Return { .. } => "Return",
+                Clause::With { .. } => "With",
+                Clause::Unwind { .. } => "Unwind",
+                Clause::Create { .. } => "Create",
+                Clause::Merge { .. } => "Merge",
+                Clause::Set { .. } => "Set",
+                Clause::Remove { .. } => "Remove",
+                Clause::Delete { .. } => "Delete",
+                Clause::Call { .. } => "Call",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn match_where_return_preserves_source_order() {
+        let stmt = lower_statement("MATCH (a) WHERE n.x = 1 RETURN a");
+        assert_eq!(
+            clause_kinds(&stmt),
+            vec!["Match", "Where", "Return"],
+            "inline WHERE must follow its owning MATCH (cy-ypm)",
+        );
+    }
+
+    #[test]
+    fn optional_match_where_return_preserves_source_order() {
+        let stmt = lower_statement("OPTIONAL MATCH (a) WHERE a.x = 1 RETURN a");
+        assert_eq!(
+            clause_kinds(&stmt),
+            vec!["OptionalMatch", "Where", "Return"],
+            "inline WHERE must follow its owning OPTIONAL MATCH (cy-ypm)",
+        );
+    }
+
+    #[test]
+    fn two_matches_each_with_inline_where() {
+        let stmt = lower_statement("MATCH (a) WHERE a.x = 1 MATCH (b) WHERE b.y = 2 RETURN a, b");
+        assert_eq!(
+            clause_kinds(&stmt),
+            vec!["Match", "Where", "Match", "Where", "Return"],
+            "each inline WHERE must follow its own MATCH (cy-ypm)",
+        );
     }
 
     // --- node_map / binding correctness tests ---

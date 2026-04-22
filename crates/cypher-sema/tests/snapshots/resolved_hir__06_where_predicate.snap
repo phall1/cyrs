@@ -8,15 +8,15 @@ Statement {
     Var(0) 0: n (Node) @7..8
   ]
   clauses: [
-    Where @9..26 {
-      predicate: (Var(0)[n←Node@7..8].age > 18)
-    }
     Match @0..26 {
       Pattern {
         part[0] [
           Node(n[bind:Var(0)←Node@7..8]) @5..9
         ]
       }
+    }
+    Where @9..26 {
+      predicate: (Var(0)[n←Node@7..8].age > 18)
     }
     Return(distinct=false) @26..35 {
       proj[0]: Var(0)[n←Node@7..8]

@@ -1585,6 +1585,16 @@ mod tests {
         insta::assert_snapshot!("plan_match_where", render(&plan));
     }
 
+    // cy-ypm: canonical MATCH+WHERE must pretty-print as a proper
+    // Project → Filter → Source chain, not an orphan Filter over
+    // EMPTY_SOURCE.  This pins the end-to-end lowering shape.
+    #[test]
+    fn snap_match_where_pretty_tree() {
+        use crate::pretty::pretty;
+        let plan = plan_from("MATCH (a) WHERE a.x = 1 RETURN a");
+        insta::assert_snapshot!("plan_match_where_pretty_tree", pretty(&plan));
+    }
+
     // 4. MATCH + WITH
     #[test]
     fn snap_match_with() {
