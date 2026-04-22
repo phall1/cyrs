@@ -62,6 +62,7 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use cypher_schema::SchemaProvider;
+use cypher_syntax::{TextEdit, incremental_reparse};
 
 use crate::inputs::{AnalysisOptions, FileOptions, WorkspaceInputs};
 use crate::options::DatabaseOptions;
@@ -421,6 +422,59 @@ impl Database {
     pub fn update_file(&mut self, id: FileId, new_source: String) -> Result<(), UnknownFileId> {
         let record = self.files.get(&id).ok_or(UnknownFileId(id))?;
         let sf = record.source_file;
+        self.inner.set_source(sf, new_source);
+        Ok(())
+    }
+
+    /// Apply a single-range text edit to an already-open file (cy-zv0, spec §11).
+    ///
+    /// This is the incremental-edit entry point that `textDocument/didChange`
+    /// and agent edit flows should prefer over [`update_file`] when only a
+    /// byte range changed. The API is shaped so that a future sub-tree
+    /// reparse (see `cypher_syntax::edit::incremental_reparse`) can plug in
+    /// underneath without breaking callers.
+    ///
+    /// # Current implementation
+    ///
+    /// Today the underlying [`incremental_reparse`] is a whole-file reparse
+    /// fallback, so the cache-invalidation behaviour is identical to
+    /// `update_file`. The observable difference is:
+    ///
+    /// - Callers pass a [`TextEdit`] value (range + replacement) instead of
+    ///   re-materialising the full source, so they don't pay an extra
+    ///   `String` allocation for the unchanged prefix / suffix.
+    /// - The edit is applied to the current source held by Salsa, not to a
+    ///   caller-managed copy, so there is no opportunity for the caller's
+    ///   local mirror to drift out of sync.
+    ///
+    /// Once the smart path lands (tracked as a follow-up bead to cy-zv0),
+    /// `edit_file` will become strictly sub-linear in file size for small
+    /// edits. Callers do not need to change.
+    ///
+    /// Returns `Err(UnknownFileId)` if `id` is not currently open.
+    ///
+    /// [`update_file`]: Database::update_file
+    pub fn edit_file(&mut self, id: FileId, edit: &TextEdit) -> Result<(), UnknownFileId> {
+        let record = self.files.get(&id).ok_or(UnknownFileId(id))?;
+        let sf = record.source_file;
+
+        // Pull the current tree from Salsa so `incremental_reparse` gets a
+        // real `SyntaxNode` to dispatch on.  The smart path (when it lands)
+        // will reuse the green tree rather than the source string; calling
+        // parse_cst here warms the memo and — critically — pins the
+        // `Arc<Parse>` that the future sub-tree splicer needs.
+        let parse_out = parse_cst(&self.inner, sf);
+        let old_tree = parse_out.parse().syntax();
+
+        // Dispatch through the edit crate. Today this is a whole-file
+        // reparse fallback; the return value's source string is the new
+        // canonical text, which we feed back into Salsa to bump the
+        // revision and invalidate downstream queries.
+        let new_parse = incremental_reparse(&old_tree, edit);
+        let new_source = new_parse.syntax().to_string();
+
+        // Salsa will detect whether the source actually changed and skip
+        // downstream re-execution via the standard revision-bump protocol.
         self.inner.set_source(sf, new_source);
         Ok(())
     }

@@ -17,12 +17,14 @@
 #![doc(html_root_url = "https://docs.rs/cypher-syntax/0.0.1")]
 
 pub(crate) mod builder;
+pub mod edit;
 pub(crate) mod grammar;
 pub mod kind;
 pub mod lexer;
 pub mod line_index;
 pub mod parser;
 
+pub use edit::{TextEdit, incremental_reparse};
 pub use kind::SyntaxKind;
 pub use lexer::{LexError, LexToken, lex, validate_tokens};
 pub use line_index::{LineCol, LineIndex, WideLineCol};

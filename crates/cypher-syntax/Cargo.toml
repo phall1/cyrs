@@ -22,8 +22,13 @@ thiserror  = { workspace = true }
 serde      = { workspace = true, optional = true }
 
 [features]
-default = []
-serde   = ["dep:serde", "smol_str/serde", "text-size/serde"]
+default     = ["incremental"]
+# cy-zv0: A/B flag for the incremental-reparse smart path. Defaulted on.
+# Disabling forces the whole-file reparse fallback in `edit::incremental_reparse`.
+# Consumers can flip this in CI to pin the old behaviour while the smart
+# path is being validated.
+incremental = []
+serde       = ["dep:serde", "smol_str/serde", "text-size/serde"]
 
 [dev-dependencies]
 expect-test       = { workspace = true }
