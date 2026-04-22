@@ -291,10 +291,12 @@ impl LowerCtx {
                 // its optional inline WHERE becomes the projection's `filter`
                 // predicate (HIR `Clause::With { filter }`), not a separate
                 // `Where` clause — §6.4 models it as part of the same frame.
+                // The parser nests WHERE_CLAUSE inside RETURN_BODY, so search
+                // descendants rather than direct children (cy-v31).
                 let id = self.alloc_hir(node.clone());
                 let projections = self.lower_return_body(&node);
                 let filter = node
-                    .children()
+                    .descendants()
                     .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
                     .and_then(|w| w.children().find_map(|n| self.try_lower_expr(n)));
                 Some(Clause::With {

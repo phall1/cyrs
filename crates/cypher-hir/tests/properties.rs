@@ -537,6 +537,9 @@ fn cypher_valid() -> impl Strategy<Value = String> {
         Just("MATCH (n) RETURN n ORDER BY n.name ASC".to_string()),
         Just("MATCH (n) RETURN n SKIP 10 LIMIT 5".to_string()),
         Just("MATCH (n) WITH n RETURN n".to_string()),
+        Just("MATCH (n) WITH n WHERE n.age > 21 RETURN n".to_string()),
+        Just("MATCH (n) WITH n, n.age AS a WHERE a > 21 RETURN n".to_string()),
+        Just("MATCH (n) WITH n WHERE n.age > 21 ORDER BY n.name LIMIT 10 RETURN n".to_string()),
         Just("MATCH (n) RETURN n;\nMATCH (m) RETURN m".to_string()),
         Just("MATCH (n {name: 'Alice'}) RETURN n".to_string()),
         Just("MATCH (n) WHERE n.a > 1 AND n.b < 2 RETURN n".to_string()),
@@ -604,6 +607,27 @@ fn regression_where_clause() {
         semantic_sig(&lower(s)),
         semantic_sig(&lower(&fmt_s)),
         "HIR round-trip failed for WHERE clause"
+    );
+}
+
+/// cy-v31: WHERE after WITH must populate `Clause::With.filter`.
+/// The parser nests `WHERE_CLAUSE` inside `RETURN_BODY`; lowering must
+/// look through that wrapper, not only at direct children of
+/// `WITH_CLAUSE`.
+#[test]
+fn regression_with_where_filter_populated() {
+    let stmt = lower(
+        "MATCH (a) UNWIND a.aliases AS alias \
+                      WITH a, alias WHERE alias CONTAINS 'Fancy' \
+                      RETURN DISTINCT a.canonical_name",
+    );
+    let with_filter = stmt.clauses.iter().find_map(|c| match c {
+        Clause::With { filter, .. } => Some(filter.as_ref()),
+        _ => None,
+    });
+    assert!(
+        matches!(with_filter, Some(Some(_))),
+        "WITH ... WHERE ... must lower to Clause::With {{ filter: Some(_) }}; got {with_filter:?}"
     );
 }
 

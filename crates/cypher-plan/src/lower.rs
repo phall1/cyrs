@@ -1618,4 +1618,29 @@ mod tests {
             "var_map should be populated for bound variables"
         );
     }
+
+    // cy-v31: WHERE after WITH must survive end-to-end (source → HIR → plan)
+    // and materialise in `ReadOp::With { filter: Some(_), .. }`.
+    #[test]
+    fn with_where_threads_filter_into_plan() {
+        let plan = plan_from(
+            "MATCH (a) UNWIND a.aliases AS alias \
+             WITH a, alias WHERE alias CONTAINS 'Fancy' \
+             RETURN DISTINCT a.canonical_name",
+        );
+        let has_with_filter = plan.ops.iter().any(|op| {
+            matches!(
+                op,
+                ReadOp::With {
+                    filter: Some(_),
+                    ..
+                }
+            )
+        });
+        assert!(
+            has_with_filter,
+            "expected ReadOp::With with a Some(filter); plan ops = {:#?}",
+            plan.ops
+        );
+    }
 }
