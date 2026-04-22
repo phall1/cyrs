@@ -15,6 +15,13 @@ description  = "WebAssembly binding (wasm-bindgen) that exposes the Cypher / GQL
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# `wasm-smoke` gates the wasm-bindgen-test round-trip added for spec
+# 0004 §10.1.  The feature is off by default so CI runners without the
+# wasm toolchain do not see the optional dev dep; `cargo xtask
+# wasm-smoke` enables it when `wasm-pack` is on PATH.
+wasm-smoke = []
+
 [dependencies]
 cypher-db            = { workspace = true }
 cypher-diag          = { workspace = true }
@@ -43,6 +50,12 @@ serde_json   = { workspace = true }
 # objects rather than JSON strings (spec 0004 §4.1).
 wasm-bindgen        = "0.2"
 serde-wasm-bindgen  = "0.6"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Only pulled in when building for wasm32; native test runs do not
+# touch wasm-bindgen-test.  Spec 0004 §10.1 smoke test lives behind the
+# `wasm-smoke` feature flag.
+wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 all-features = true

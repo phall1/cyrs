@@ -73,6 +73,20 @@ enum Cmd {
     /// every TCK v1 scenario's parse outcome between tree-sitter and cyrs.
     #[command(name = "tree-sitter-parity")]
     TreeSitterParity,
+    /// Build the cypher-wasm cdylib + run wasm-bindgen (bead cy-u6r,
+    /// spec 0004 §4).  Missing wasm tooling produces a skip, not a
+    /// failure.
+    #[command(name = "wasm-build")]
+    WasmBuild,
+    /// Full cypher-wasm size pipeline + gate (spec 0004 §4.2): cargo
+    /// build → wasm-bindgen → wasm-opt -Os → brotli -q 11.  Fails if
+    /// the brotli artifact exceeds 2 MB.
+    #[command(name = "wasm-size")]
+    WasmSize,
+    /// wasm-pack headless smoke test behind the `wasm-smoke` feature
+    /// (spec 0004 §10.1).  Skips if wasm-pack is not on PATH.
+    #[command(name = "wasm-smoke")]
+    WasmSmoke,
 }
 
 fn main() -> Result<()> {
@@ -97,6 +111,9 @@ fn main() -> Result<()> {
         Cmd::CheckRecoveryBudget => xtask::check_recovery_budget::run(),
         Cmd::Doc => doc(),
         Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
+        Cmd::WasmBuild => xtask::wasm::build(),
+        Cmd::WasmSize => xtask::wasm::size(),
+        Cmd::WasmSmoke => xtask::wasm::smoke(),
     }
 }
 

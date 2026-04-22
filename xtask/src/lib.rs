@@ -14,3 +14,4 @@ pub mod check_recovery;
 pub mod check_recovery_budget;
 pub mod codegen;
 pub mod tree_sitter_parity;
+pub mod wasm;

@@ -151,3 +151,43 @@ jobs:
             /tmp/bench-agent-throughput.txt
           if-no-files-found: ignore
           retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # cypher-wasm size gate — spec 0004 §4.2.  Keeps the brotli-compressed
+  # artifact ≤ 2 MB so a hosted playground can fetch it on a warm CDN
+  # without a loading spinner.  Runs nightly (not on pre-commit) because
+  # the wasm toolchain is not universally installed; the `cargo xtask
+  # wasm-size` driver itself skips gracefully when a tool is missing.
+  # ---------------------------------------------------------------------------
+  wasm-size:
+    name: cypher-wasm size gate (≤ 2 MB brotli)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-size
+
+      - name: install wasm toolchain
+        run: |
+          cargo install wasm-bindgen-cli --locked
+          sudo apt-get update
+          sudo apt-get install -y binaryen brotli
+
+      - name: cargo xtask wasm-size
+        run: cargo xtask wasm-size
+
+      - name: upload wasm artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypher-wasm-pkg-${{ github.run_id }}
+          path: crates/cypher-wasm/pkg/
+          if-no-files-found: ignore
+          retention-days: 30
