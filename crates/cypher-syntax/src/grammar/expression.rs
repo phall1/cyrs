@@ -168,6 +168,17 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
         }
+        // List predicates (cy-8x5). `ANY / ALL / NONE / SINGLE (x IN xs
+        // [WHERE p])`. The discriminant keyword token stays as the first
+        // child of the emitted `LIST_PREDICATE_EXPR` so downstream passes
+        // (HIR lowering, pretty-printers) can classify without a per-kind
+        // SyntaxKind. `ALL_KW` also appears in `UNION ALL`; there the
+        // `(` lookahead is absent so the expression path does not fire.
+        SyntaxKind::ANY_KW | SyntaxKind::ALL_KW | SyntaxKind::NONE_KW | SyntaxKind::SINGLE_KW
+            if p.nth(1) == SyntaxKind::L_PAREN =>
+        {
+            list_predicate(p, depth)
+        }
         SyntaxKind::L_PAREN => paren_expr(p, depth),
         SyntaxKind::L_BRACK => list_literal(p, depth),
         SyntaxKind::L_BRACE => map_literal(p, depth),
@@ -261,6 +272,89 @@ fn literal_keyword_atom(p: &mut Parser<'_>, node: SyntaxKind) -> CompletedMarker
     let m = p.start();
     p.bump_any();
     m.complete(p, node)
+}
+
+/// Parse a list-predicate expression: `ANY|ALL|NONE|SINGLE(x IN xs [WHERE p])`.
+///
+/// Spec §19 row "List predicates". The returned `LIST_PREDICATE_EXPR`
+/// preserves the discriminant keyword as its first child token so HIR
+/// lowering can classify without a dedicated `SyntaxKind` per keyword.
+/// Grammar identical shape for all four:
+///
+/// ```text
+/// LIST_PREDICATE_EXPR
+///   (ANY_KW | ALL_KW | NONE_KW | SINGLE_KW)
+///   '('
+///   NAME
+///   IN_KW
+///   <iterable Expr>
+///   (WHERE_KW <predicate Expr>)?
+///   ')'
+/// ```
+///
+/// Recovery per AGENTS.md §10:
+///   E0065 — missing `(` after the predicate keyword
+///   E0066 — missing `IN`
+///   E0067 — missing `)` to close the predicate
+fn list_predicate(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(matches!(
+        p.current(),
+        SyntaxKind::ANY_KW | SyntaxKind::ALL_KW | SyntaxKind::NONE_KW | SyntaxKind::SINGLE_KW
+    ));
+    let m = p.start();
+    // Discriminant keyword. Consumed as-is so it survives as the first
+    // token child of the emitted node.
+    p.bump_any();
+
+    if !p.eat(SyntaxKind::L_PAREN) {
+        p.error_code(
+            sc::EXPECTED_LPAREN_LIST_PREDICATE,
+            "expected `(` after ANY/ALL/NONE/SINGLE",
+        );
+    }
+
+    // The binder name. Wrap it in a NAME node so AST / HIR can address it
+    // uniformly (mirrors how `UNWIND ... AS v` and LIST_COMPREHENSION
+    // emit a NAME child).
+    let name_marker = p.start();
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(
+            sc::EXPECTED_IDENT,
+            "expected binder identifier in list predicate",
+        );
+    }
+    name_marker.complete(p, SyntaxKind::NAME);
+
+    if !p.eat(SyntaxKind::IN_KW) {
+        p.error_code(sc::EXPECTED_IN_LIST_PREDICATE, "expected `IN`");
+    }
+
+    // Iterable expression.
+    if expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(
+            sc::EXPECTED_BINOP_RHS,
+            "expected iterable expression in list predicate",
+        );
+    }
+
+    // Optional `WHERE <expr>` predicate. Per openCypher semantics the
+    // WHERE clause is optional: bare `ANY(x IN xs)` is true iff xs is
+    // non-empty, etc. — we accept the form and leave the filter absent.
+    if p.eat(SyntaxKind::WHERE_KW) && expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(
+            sc::EXPECTED_WHERE_EXPR,
+            "expected predicate expression after WHERE in list predicate",
+        );
+    }
+
+    if !p.eat(SyntaxKind::R_PAREN) {
+        p.error_code(
+            sc::EXPECTED_RPAREN_LIST_PREDICATE,
+            "expected `)` to close list predicate",
+        );
+    }
+
+    m.complete(p, SyntaxKind::LIST_PREDICATE_EXPR)
 }
 
 fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {

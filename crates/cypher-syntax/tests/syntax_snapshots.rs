@@ -417,6 +417,44 @@ fn expr_paren() {
 // EXISTS(...), standalone COUNT(*) — deferred per grammar/expression.rs.
 
 // ---------------------------------------------------------------------------
+// Expressions — list predicates (cy-8x5)
+// ---------------------------------------------------------------------------
+//
+// openCypher list predicates: ANY / ALL / NONE / SINGLE share one grammar
+// shape — `KW '(' IDENT 'IN' Expr ('WHERE' Expr)? ')'`. The discriminant
+// keyword survives as the first child token of the LIST_PREDICATE_EXPR
+// node so HIR lowering can pick the variant.
+
+#[test]
+fn expr_list_predicate_any_with_where() {
+    insta::assert_snapshot!(format_with_errors("RETURN ANY(x IN xs WHERE x > 0)"));
+}
+
+#[test]
+fn expr_list_predicate_all_bare() {
+    insta::assert_snapshot!(format_with_errors("RETURN ALL(x IN xs)"));
+}
+
+#[test]
+fn expr_list_predicate_none_prop_filter() {
+    insta::assert_snapshot!(format_with_errors(
+        "RETURN NONE(x IN xs WHERE x.foo = 'bar')"
+    ));
+}
+
+#[test]
+fn expr_list_predicate_single_with_where() {
+    insta::assert_snapshot!(format_with_errors("RETURN SINGLE(x IN xs WHERE x < 10)"));
+}
+
+#[test]
+fn err_list_predicate_unterminated_where() {
+    // Unterminated WHERE arm — the parser should emit `expected predicate
+    // expression after WHERE` plus `expected )` recovery diagnostics.
+    insta::assert_snapshot!(format_with_errors("RETURN ANY(x IN xs WHERE"));
+}
+
+// ---------------------------------------------------------------------------
 // Expressions — operators
 // ---------------------------------------------------------------------------
 

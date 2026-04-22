@@ -325,6 +325,13 @@ enum RawToken {
     ShortestPath,
     #[token("allShortestPaths", ignore(case))]
     AllShortestPaths,
+    // List-predicate keywords (cy-8x5). `All` above already carries ALL_KW.
+    #[token("ANY", ignore(case))]
+    Any,
+    #[token("NONE", ignore(case))]
+    None,
+    #[token("SINGLE", ignore(case))]
+    Single,
 
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
@@ -474,6 +481,9 @@ impl RawToken {
             Self::Exists => SyntaxKind::EXISTS_KW,
             Self::ShortestPath => SyntaxKind::SHORTESTPATH_KW,
             Self::AllShortestPaths => SyntaxKind::ALLSHORTESTPATHS_KW,
+            Self::Any => SyntaxKind::ANY_KW,
+            Self::None => SyntaxKind::NONE_KW,
+            Self::Single => SyntaxKind::SINGLE_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

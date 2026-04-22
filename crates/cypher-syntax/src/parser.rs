@@ -556,6 +556,15 @@ pub(crate) mod syntax_codes {
     /// legacy `SUBSCRIPT_EXPR` path: E0064 is emitted by the typed
     /// index / slice recovery introduced in cy-7s6.1.
     pub(crate) const UNCLOSED_INDEX_BRACKET: u16 = 64;
+    /// E0065 — expected `(` after ANY / ALL / NONE / SINGLE keyword to
+    /// begin the list-predicate arg list (cy-8x5).
+    pub(crate) const EXPECTED_LPAREN_LIST_PREDICATE: u16 = 65;
+    /// E0066 — expected `IN` between the list-predicate binder and its
+    /// source expression (cy-8x5).
+    pub(crate) const EXPECTED_IN_LIST_PREDICATE: u16 = 66;
+    /// E0067 — expected `)` to close a list-predicate expression
+    /// (cy-8x5).
+    pub(crate) const EXPECTED_RPAREN_LIST_PREDICATE: u16 = 67;
 }
 
 /// Advance `idx` past any leading trivia tokens.
