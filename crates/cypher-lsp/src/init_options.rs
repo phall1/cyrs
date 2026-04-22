@@ -56,6 +56,12 @@ pub(crate) struct InitOptions {
     pub schema_command: Option<String>,
     #[serde(default)]
     pub dialect: Option<Dialect>,
+    /// Debounce window for `workspace/didChangeWatchedFiles` flushes
+    /// in milliseconds (cy-k2r, spec §14).  Defaults to 250 ms, clamped
+    /// to `[0, 5_000]` on application.  Callers typically leave this
+    /// unset — tests override via `with_config_and_debounce`.
+    #[serde(rename = "watchedFilesDebounceMs", default)]
+    pub watched_files_debounce_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -103,6 +109,16 @@ impl InitOptions {
     /// Resolve the dialect with the default applied.
     pub(crate) fn resolved_dialect(&self) -> DialectMode {
         self.dialect.map_or(DialectMode::GqlAligned, Into::into)
+    }
+
+    /// Resolve the watched-file debounce window with the default +
+    /// upper bound applied (cy-k2r, spec §14).
+    pub(crate) fn resolved_debounce(&self) -> std::time::Duration {
+        let ms = self
+            .watched_files_debounce_ms
+            .unwrap_or(crate::watchers::DEFAULT_DEBOUNCE_MS);
+        let clamped = ms.min(crate::watchers::MAX_DEBOUNCE_MS);
+        std::time::Duration::from_millis(clamped)
     }
 }
 

@@ -45,6 +45,7 @@ mod references;
 mod rename;
 mod semantic_tokens;
 mod signature_help;
+mod watchers;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -124,6 +125,20 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
             trigger_characters: Some(vec![":".into(), ".".into(), "$".into()]),
             ..Default::default()
         }),
+        // cy-k2r (spec §14): advertise workspace-folder change
+        // notifications + file-operations hook-up so a spec-compliant
+        // client actually sends us `workspace/didChangeWatchedFiles`
+        // and `workspace/didChangeWorkspaceFolders`.  Clients with
+        // dynamic-registration support for watched files will also
+        // wire the glob pattern at `initialized` time (we emit the
+        // registration there).
+        workspace: Some(lsp_types::WorkspaceServerCapabilities {
+            workspace_folders: Some(lsp_types::WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: Some(OneOf::Left(true)),
+            }),
+            file_operations: Some(lsp_types::WorkspaceFileOperationsServerCapabilities::default()),
+        }),
         ..Default::default()
     })?)
 }
@@ -158,8 +173,9 @@ pub fn serve(connection: &Connection) -> Result<()> {
             None
         }
     };
+    let debounce = init.resolved_debounce();
 
-    main_loop(connection, dialect, schema)
+    main_loop(connection, dialect, schema, debounce)
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +200,16 @@ pub(crate) struct Server {
     /// Directories we've already probed for a project manifest, so we
     /// don't walk `discover` up every single tree on every `didOpen`.
     pub(crate) project_probed: std::collections::HashSet<std::path::PathBuf>,
+    /// Pending `didChangeWatchedFiles` events (cy-k2r, spec §14).
+    /// Drained + applied to the database once the debounce window
+    /// expires — see [`watchers::flush_watched_files`].
+    pub(crate) watched_files: watchers::WatchedFilesBuffer,
+    /// Debounce window for [`watched_files`] flushes.  Defaults to
+    /// 250 ms; configurable via
+    /// `initializationOptions.watchedFilesDebounceMs` (spec §14).
+    ///
+    /// [`watched_files`]: Self::watched_files
+    pub(crate) watched_debounce: std::time::Duration,
 }
 
 impl std::fmt::Debug for Server {
@@ -209,9 +235,27 @@ impl Server {
     /// Construct a server with a specific dialect and optional
     /// pre-loaded schema.  Called from `serve` after parsing
     /// `initializationOptions`.
+    #[cfg(test)]
     pub(crate) fn with_config(
         dialect: DialectMode,
         schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
+    ) -> Self {
+        Self::with_config_and_debounce(
+            dialect,
+            schema,
+            std::time::Duration::from_millis(watchers::DEFAULT_DEBOUNCE_MS),
+        )
+    }
+
+    /// Like [`with_config`] but takes an explicit watched-file debounce
+    /// window.  Useful for tests that want to assert flush timing
+    /// without blocking a full 250 ms.
+    ///
+    /// [`with_config`]: Self::with_config
+    pub(crate) fn with_config_and_debounce(
+        dialect: DialectMode,
+        schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
+        watched_debounce: std::time::Duration,
     ) -> Self {
         let mut db = Database::new();
         if let Some(s) = schema {
@@ -223,6 +267,8 @@ impl Server {
             dialect,
             project: None,
             project_probed: std::collections::HashSet::new(),
+            watched_files: watchers::WatchedFilesBuffer::default(),
+            watched_debounce,
         }
     }
 }
@@ -310,27 +356,68 @@ fn main_loop(
     connection: &Connection,
     dialect: DialectMode,
     schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
+    watched_debounce: std::time::Duration,
 ) -> Result<()> {
-    let mut server = Server::with_config(dialect, schema);
+    let mut server = Server::with_config_and_debounce(dialect, schema, watched_debounce);
+    dispatch(connection, &mut server)
+}
 
-    for msg in &connection.receiver {
+/// Poll the client transport, dispatch requests / notifications, and
+/// flush the watched-files debounce buffer when its window expires.
+///
+/// Factored out of [`main_loop`] so `Server` constructors that want a
+/// non-default debounce window (tests) can re-use the same loop body.
+pub(crate) fn dispatch(connection: &Connection, server: &mut Server) -> Result<()> {
+    loop {
+        // Compute the recv deadline.  When the debounce buffer is
+        // empty we block on recv; otherwise we wait at most the
+        // remaining debounce so a flush can run even if the client
+        // stops sending messages.
+        let timeout = server.watched_files.remaining(server.watched_debounce);
+
+        let msg = match timeout {
+            None => match connection.receiver.recv() {
+                Ok(m) => Some(m),
+                Err(_) => return Ok(()),
+            },
+            Some(remaining) => match connection.receiver.recv_timeout(remaining) {
+                Ok(m) => Some(m),
+                Err(e) if e.is_timeout() => None,
+                Err(_) => return Ok(()),
+            },
+        };
+
+        // Check the debounce first so flushes happen before we process
+        // the next incoming message — a tight loop of watched-file
+        // events can't starve the buffer.
+        if let Some(remaining) = server.watched_files.remaining(server.watched_debounce)
+            && remaining.is_zero()
+        {
+            watchers::flush_watched_files(connection, server);
+        }
+
+        let Some(msg) = msg else {
+            continue;
+        };
+
         match msg {
             Message::Request(req) => {
                 if connection.handle_shutdown(&req)? {
-                    // Spec §15.X: evict all open FileIds before exiting so
-                    // Salsa's memoisation cache can be cleanly reclaimed.
-                    evict_all(&mut server);
+                    // Final debounce flush so any trailing events make
+                    // it to the client's last diagnostics snapshot
+                    // before we evict.
+                    watchers::flush_watched_files(connection, server);
+                    evict_all(server);
                     return Ok(());
                 }
-                handle_request(connection, &mut server, req)?;
+                handle_request(connection, server, req)?;
             }
             Message::Notification(notif) => {
-                handle_notification(connection, &mut server, notif)?;
+                handle_notification(connection, server, notif)?;
             }
             Message::Response(_) => {}
         }
     }
-    Ok(())
 }
 
 /// Evict all currently-open files from the database (spec §15.X).
@@ -1222,6 +1309,19 @@ fn handle_notification(
             };
             send_notification::<lsp_types::notification::PublishDiagnostics>(connection, &clear)?;
         }
+        lsp_types::notification::DidChangeWatchedFiles::METHOD => {
+            // Spec §14 (cy-k2r): buffer the events; flushing happens
+            // once the debounce window expires (see `main_loop`).
+            let params: lsp_types::DidChangeWatchedFilesParams =
+                serde_json::from_value(notif.params)?;
+            watchers::handle_did_change_watched_files(server, params);
+        }
+        lsp_types::notification::DidChangeWorkspaceFolders::METHOD => {
+            // Spec §14 (cy-k2r): user-initiated; apply synchronously.
+            let params: lsp_types::DidChangeWorkspaceFoldersParams =
+                serde_json::from_value(notif.params)?;
+            watchers::handle_did_change_workspace_folders(connection, server, params);
+        }
         _ => {
             tracing::debug!("unhandled notification: {}", notif.method);
         }
@@ -1356,6 +1456,18 @@ pub(crate) fn read_line_index(server: &Server, path: &std::path::Path) -> Option
 // Diagnostics helper
 // ---------------------------------------------------------------------------
 
+/// Re-publish diagnostics for a watched-file URI (cy-k2r).  The
+/// `watchers` module invokes this after draining the debounce buffer
+/// so the client sees fresh diagnostics within one debounce window of
+/// the last external file event.
+pub(crate) fn publish_diagnostics_for_watched(
+    connection: &Connection,
+    server: &mut Server,
+    uri: &Uri,
+) -> Result<()> {
+    publish_diagnostics(connection, server, uri)
+}
+
 fn publish_diagnostics(connection: &Connection, server: &mut Server, uri: &Uri) -> Result<()> {
     let uri_str = uri.to_string();
     let Some(&file_id) = server.open_files.get(&uri_str) else {
@@ -1382,7 +1494,7 @@ fn publish_diagnostics(connection: &Connection, server: &mut Server, uri: &Uri) 
     send_notification::<lsp_types::notification::PublishDiagnostics>(connection, &params)
 }
 
-fn send_notification<N: lsp_types::notification::Notification>(
+pub(crate) fn send_notification<N: lsp_types::notification::Notification>(
     connection: &Connection,
     params: &N::Params,
 ) -> Result<()>
