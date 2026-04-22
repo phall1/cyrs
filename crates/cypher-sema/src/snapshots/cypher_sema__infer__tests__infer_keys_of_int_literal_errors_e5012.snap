@@ -1,0 +1,6 @@
+---
+source: crates/cypher-sema/src/infer.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E5012: builtin `keys` argument has type `Int` but expected `Node | Relationship | Map`

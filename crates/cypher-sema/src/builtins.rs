@@ -3,9 +3,9 @@
 //! The schema-free inference pass ([`crate::infer`]) needs to know the
 //! signatures of the standard-library functions the language defines
 //! without any schema input. `id(n)`, `size(x)`, `head(xs)`, `tail(xs)`,
-//! and `last(xs)` are the v1 cap — all other function calls fall through
-//! to the schema-aware pass, which queries the caller's
-//! [`cypher_schema::SchemaProvider`].
+//! `last(xs)`, `keys(x)`, and `values(map)` are the v1 cap — all other
+//! function calls fall through to the schema-aware pass, which queries
+//! the caller's [`cypher_schema::SchemaProvider`].
 //!
 //! The table is intentionally small and append-only: new entries land at
 //! the end. Each [`Builtin`] entry is a plain `struct` literal so the
@@ -52,6 +52,18 @@ pub enum ArgShape {
     /// are accepted to avoid cascading diagnostics when inference has
     /// already failed upstream.
     GraphEntity,
+    /// Must be a `MAP`.
+    ///
+    /// Used by `values(map)` (cy-afo) to reject scalars, lists, and
+    /// graph entities. `Any` / `Unknown` are accepted to avoid cascades.
+    Map,
+    /// Must be a graph entity (`Node` / `Relationship`) or a `MAP`.
+    ///
+    /// Used by `keys(x)` (cy-afo): openCypher defines `keys` over both
+    /// graph entities (property-key names) and maps (map keys). `Path`
+    /// is deliberately excluded — `keys` is not defined for paths.
+    /// `Any` / `Unknown` are accepted to avoid cascades.
+    GraphEntityOrMap,
 }
 
 impl ArgShape {
@@ -73,6 +85,11 @@ impl ArgShape {
                 ty,
                 Type::Node(_) | Type::Relationship(_) | Type::Path | Type::Any | Type::Unknown
             ),
+            ArgShape::Map => matches!(ty, Type::Map(_) | Type::Any | Type::Unknown),
+            ArgShape::GraphEntityOrMap => matches!(
+                ty,
+                Type::Node(_) | Type::Relationship(_) | Type::Map(_) | Type::Any | Type::Unknown
+            ),
         }
     }
 
@@ -86,6 +103,8 @@ impl ArgShape {
             ArgShape::String => "String",
             ArgShape::ListOrString => "List | String",
             ArgShape::GraphEntity => "Node | Relationship | Path",
+            ArgShape::Map => "Map",
+            ArgShape::GraphEntityOrMap => "Node | Relationship | Map",
         }
     }
 }
@@ -116,6 +135,10 @@ pub enum FixedTy {
     Bool,
     /// `ANY` — the universal super-type.
     Any,
+    /// `LIST<STRING>` — returned by `keys`.
+    ListString,
+    /// `LIST<ANY>` — returned by `values`.
+    ListAny,
 }
 
 impl FixedTy {
@@ -127,6 +150,8 @@ impl FixedTy {
             FixedTy::String => Type::String,
             FixedTy::Bool => Type::Bool,
             FixedTy::Any => Type::Any,
+            FixedTy::ListString => Type::List(Box::new(Type::String)),
+            FixedTy::ListAny => Type::List(Box::new(Type::Any)),
         }
     }
 }
@@ -220,6 +245,27 @@ pub const BUILTINS: &[Builtin] = &[
         params: &[ArgShape::List],
         ret: ReturnShape::ListElement,
         doc: "last element of a list, or null when empty",
+    },
+    // --- cy-afo: map stdlib -----------------------------------------------
+    //
+    // `keys(x)` — openCypher names `keys` over both graph entities
+    // (property-key names) and maps (map keys). The schema layer
+    // accepts anything (`PropertyType::Any`); this entry is what the
+    // schema-free pass uses to reject scalars / lists / paths with
+    // E5012 at the call site.
+    Builtin {
+        name: "keys",
+        params: &[ArgShape::GraphEntityOrMap],
+        ret: ReturnShape::Fixed(FixedTy::ListString),
+        doc: "property-key names of a node, relationship, or map",
+    },
+    // `values(map)` — openCypher defines this over `MAP` only, returning
+    // the value list as `LIST<ANY>`.
+    Builtin {
+        name: "values",
+        params: &[ArgShape::Map],
+        ret: ReturnShape::Fixed(FixedTy::ListAny),
+        doc: "values of a map as a list",
     },
 ];
 
@@ -389,5 +435,79 @@ mod tests {
         for b in BUILTINS {
             assert_eq!(b.name, b.name.to_ascii_lowercase(), "name: {}", b.name);
         }
+    }
+
+    // --- cy-afo: keys / values over maps ----------------------------------
+
+    #[test]
+    fn keys_is_registered_and_accepts_graph_entity_or_map() {
+        let b = lookup("keys").expect("keys is a registered builtin");
+        assert_eq!(b.arity(), 1);
+        assert_eq!(b.params, &[ArgShape::GraphEntityOrMap]);
+
+        let shape = b.params[0];
+        assert!(shape.accepts(&Type::Node(None)));
+        assert!(shape.accepts(&Type::Relationship(None)));
+        assert!(shape.accepts(&Type::Map(std::collections::BTreeMap::new())));
+        assert!(shape.accepts(&Type::Any));
+        assert!(shape.accepts(&Type::Unknown));
+
+        // `Path` is not in the list — `keys` is not defined for paths
+        // (unlike `id`).
+        assert!(!shape.accepts(&Type::Path));
+        assert!(!shape.accepts(&Type::Int));
+        assert!(!shape.accepts(&Type::String));
+        assert!(!shape.accepts(&Type::List(Box::new(Type::Int))));
+    }
+
+    #[test]
+    fn keys_returns_list_of_string() {
+        let b = lookup("keys").unwrap();
+        assert_eq!(
+            b.resolve_return(&[Type::Map(std::collections::BTreeMap::new())]),
+            Type::List(Box::new(Type::String))
+        );
+        assert_eq!(
+            b.resolve_return(&[Type::Node(None)]),
+            Type::List(Box::new(Type::String))
+        );
+    }
+
+    #[test]
+    fn values_is_registered_and_accepts_map_only() {
+        let b = lookup("values").expect("values is a registered builtin");
+        assert_eq!(b.arity(), 1);
+        assert_eq!(b.params, &[ArgShape::Map]);
+
+        let shape = b.params[0];
+        assert!(shape.accepts(&Type::Map(std::collections::BTreeMap::new())));
+        assert!(shape.accepts(&Type::Any));
+        assert!(shape.accepts(&Type::Unknown));
+
+        // Everything else (including graph entities) is rejected.
+        assert!(!shape.accepts(&Type::Node(None)));
+        assert!(!shape.accepts(&Type::Relationship(None)));
+        assert!(!shape.accepts(&Type::Path));
+        assert!(!shape.accepts(&Type::Int));
+        assert!(!shape.accepts(&Type::String));
+        assert!(!shape.accepts(&Type::List(Box::new(Type::Int))));
+    }
+
+    #[test]
+    fn values_returns_list_of_any() {
+        let b = lookup("values").unwrap();
+        assert_eq!(
+            b.resolve_return(&[Type::Map(std::collections::BTreeMap::new())]),
+            Type::List(Box::new(Type::Any))
+        );
+    }
+
+    #[test]
+    fn fixed_ty_list_variants_lift_correctly() {
+        assert_eq!(
+            FixedTy::ListString.to_type(),
+            Type::List(Box::new(Type::String))
+        );
+        assert_eq!(FixedTy::ListAny.to_type(), Type::List(Box::new(Type::Any)));
     }
 }

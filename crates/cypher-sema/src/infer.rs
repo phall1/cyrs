@@ -1261,6 +1261,132 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // 16.1 (cy-afo). Builtin `keys` / `values` — map stdlib.
+    //
+    //   - `keys({a: 1, b: 2})` → accepted, returns `LIST<STRING>`.
+    //   - `values({a: 1, b: 2})` → accepted, returns `LIST<ANY>`.
+    //   - `keys(42)` / `values(42)` → rejected with E5012.
+    // -----------------------------------------------------------------------
+    #[test]
+    fn snap_infer_keys_of_map_ok_returns_list_string() {
+        let map_expr = Expr::Map(vec![
+            (SmolStr::new("a"), Expr::Int(1)),
+            (SmolStr::new("b"), Expr::Int(2)),
+        ]);
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("keys"),
+            args: vec![map_expr],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_keys_of_map_ok_returns_list_string", run(&stmt));
+
+        // Sanity: the return-type resolution is LIST<STRING> regardless
+        // of the diagnostic channel.
+        let b = crate::builtins::lookup("keys").unwrap();
+        assert_eq!(
+            b.resolve_return(&[Type::Map(std::collections::BTreeMap::new())]),
+            Type::List(Box::new(Type::String))
+        );
+    }
+
+    #[test]
+    fn snap_infer_values_of_map_ok_returns_list_any() {
+        let map_expr = Expr::Map(vec![
+            (SmolStr::new("a"), Expr::Int(1)),
+            (SmolStr::new("b"), Expr::Int(2)),
+        ]);
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("values"),
+            args: vec![map_expr],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_values_of_map_ok_returns_list_any", run(&stmt));
+
+        let b = crate::builtins::lookup("values").unwrap();
+        assert_eq!(
+            b.resolve_return(&[Type::Map(std::collections::BTreeMap::new())]),
+            Type::List(Box::new(Type::Any))
+        );
+    }
+
+    #[test]
+    fn snap_infer_keys_of_int_literal_errors_e5012() {
+        // RETURN keys(42)
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("keys"),
+            args: vec![Expr::Int(42)],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_keys_of_int_literal_errors_e5012", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_values_of_node_errors_e5012() {
+        // `values` is defined over MAP only; `Node` is rejected.
+        let mut stmt = Statement::new(zero_range());
+        let n = intern_var(&mut stmt, "n", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: false,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: Some(n),
+                        labels: vec![],
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: Expr::Call {
+                    name: SmolStr::new("values"),
+                    args: vec![Expr::Var(n)],
+                    distinct: false,
+                },
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!("infer_values_of_node_errors_e5012", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_keys_of_path_errors_e5012() {
+        // `keys` over graph entities covers Node / Relationship but not
+        // Path — `keys(p)` where `p` is a Path must be rejected.
+        let mut stmt = Statement::new(zero_range());
+        let p = intern_var(&mut stmt, "p", VarKind::Path);
+        let ret_id = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: Expr::Call {
+                    name: SmolStr::new("keys"),
+                    args: vec![Expr::Var(p)],
+                    distinct: false,
+                },
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!("infer_keys_of_path_errors_e5012", run(&stmt));
+    }
+
+    // -----------------------------------------------------------------------
     // 17. Relationship variable in RETURN — no type error.
     // -----------------------------------------------------------------------
     #[test]

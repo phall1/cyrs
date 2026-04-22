@@ -1,0 +1,6 @@
+error[E5012]: builtin `keys` argument has type `Int` but expected `Node | Relationship | Map`
+  ┌─ keys_on_scalar_errors.cypher:1:1
+  │
+1 │ // cy-afo: keys() rejects scalar arguments with E5012 (spec §8.3 / §10.2).
+  │ ^
+
