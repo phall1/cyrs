@@ -4,6 +4,10 @@ use std::io::Write;
 
 use assert_cmd::Command;
 use predicates::prelude::*;
+// `protobuf::Message` lives inside the `index_scip_on_workspace_fixture_emits_valid_file`
+// test but clippy `items_after_statements` forbids per-test imports,
+// so we hoist it to the top of the module.
+use protobuf::Message as _;
 
 #[test]
 fn parse_produces_output() {
@@ -527,4 +531,43 @@ end_labels   = ["A"]
                 .and(predicate::str::contains("\"removes\": []"))
                 .and(predicate::str::contains("\"breaking\": []")),
         );
+}
+
+/// Spec §14, bead cy-o8c tranche 3 / cy-k2r: `cypher index scip` on the
+/// tranche 1 workspace fixture writes a non-empty `.scip` file that
+/// round-trips through the `scip` crate's proto reader.
+#[test]
+fn index_scip_on_workspace_fixture_emits_valid_file() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("workspace");
+    let out = tempfile::NamedTempFile::new().expect("tempfile");
+    let out_path = out.path().to_path_buf();
+    // Drop the handle so the bin can overwrite the path; keep the guard
+    // alive via `_out_guard` so the file is reaped on test exit.
+    let _out_guard = out;
+
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["index", "scip"])
+        .arg(&root)
+        .args(["--output"])
+        .arg(&out_path)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("scip: wrote"));
+
+    let bytes = std::fs::read(&out_path).expect("scip file exists");
+    assert!(!bytes.is_empty(), "scip file must be non-empty");
+
+    let index = scip::types::Index::parse_from_bytes(&bytes).expect("round-trip");
+    assert!(!index.documents.is_empty(), "index must have documents");
+    assert!(
+        index
+            .documents
+            .iter()
+            .flat_map(|d| d.symbols.iter())
+            .any(|s| s.display_name == "Person"),
+        "Person label must be indexed"
+    );
 }

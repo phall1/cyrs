@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+mod scip_index;
+
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -80,6 +82,13 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ProjectCmd,
     },
+    /// Emit a code-search index for the project at `path` (spec §14,
+    /// cy-o8c tranche 3 / cy-k2r).  The only supported format today is
+    /// SCIP; see the `scip` subcommand.
+    Index {
+        #[command(subcommand)]
+        cmd: IndexCmd,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -109,6 +118,27 @@ enum ProjectCmd {
     Load {
         /// Path to the `cypher-project.toml` file (spec 0003).
         path: PathBuf,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum IndexCmd {
+    /// Emit a SCIP (Sourcegraph Code Index Protocol) index for the
+    /// project rooted at `path`.  Walks the workspace via
+    /// `cypher-project.toml` discovery and serialises every label,
+    /// rel-type, parameter, and named-path alias into a proto-encoded
+    /// `.scip` file.
+    Scip {
+        /// Project root.  Must contain (or be below) a
+        /// `cypher-project.toml`.
+        path: PathBuf,
+        /// Output file.  Defaults to `<path>/index.scip`.
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Write to stdout instead of a file.  Mutually exclusive with
+        /// `--output`.
+        #[arg(long, conflicts_with = "output")]
+        stdout: bool,
     },
 }
 
@@ -237,7 +267,49 @@ fn run(cli: &Cli) -> Result<u8> {
         Cmd::Project { cmd } => match cmd {
             ProjectCmd::Load { path } => Ok(project_load(path)),
         },
+        Cmd::Index { cmd } => match cmd {
+            IndexCmd::Scip {
+                path,
+                output,
+                stdout,
+            } => index_scip(path, output.as_deref(), *stdout),
+        },
     }
+}
+
+/// `cypher index scip <path>` — emit a SCIP index covering every label,
+/// rel-type, parameter, and named-path alias in the workspace rooted at
+/// `path`.  Spec §14, bead cy-o8c tranche 3 / cy-k2r.
+///
+/// Writes to `<path>/index.scip` by default; `--output` overrides, and
+/// `--stdout` dumps the proto bytes directly.  Exit codes:
+///
+/// * `0` — index written or streamed to stdout.
+/// * `1` — workspace discovery / schema / member-read error.
+/// * `3` — internal error (propagates from the emitter).
+fn index_scip(path: &Path, output: Option<&Path>, to_stdout: bool) -> Result<u8> {
+    let index = scip_index::emit_index(path)?;
+    let doc_count = index.documents.len();
+    let symbol_count: usize = index.documents.iter().map(|d| d.symbols.len()).sum();
+    let occurrence_count: usize = index.documents.iter().map(|d| d.occurrences.len()).sum();
+
+    if to_stdout {
+        scip_index::stdout_index(&index)?;
+        eprintln!(
+            "scip: streamed {doc_count} document(s), {symbol_count} symbol(s), \
+             {occurrence_count} occurrence(s) to stdout"
+        );
+        return Ok(EXIT_OK);
+    }
+
+    let out = output.map_or_else(|| path.join("index.scip"), Path::to_path_buf);
+    scip_index::write_index(&index, &out)?;
+    eprintln!(
+        "scip: wrote {doc_count} document(s), {symbol_count} symbol(s), \
+         {occurrence_count} occurrence(s) to {}",
+        out.display()
+    );
+    Ok(EXIT_OK)
 }
 
 /// `cypher schema load <path>` — parse a TOML schema file and print a

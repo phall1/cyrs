@@ -43,6 +43,12 @@ tracing-subscriber = { workspace = true }
 # — no new workspace-shared scip pin.  0.7.1 is the latest stable on
 # crates.io.
 scip = "0.7.1"
+# protobuf is pulled in transitively by `scip` (it owns the generated
+# proto bindings).  We name it here so `protobuf::Message` — the trait
+# that exposes `write_to_bytes` / `parse_from_bytes` on the SCIP proto
+# types — is accessible.  Version pinned to match scip's own `=3.7.2`
+# pin so the trait impls resolve against the same monomorphisation.
+protobuf = "=3.7.2"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

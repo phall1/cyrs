@@ -411,6 +411,7 @@ dependencies = [
  "cypher-schema",
  "insta",
  "predicates",
+ "protobuf",
  "scip",
  "serde_json",
  "tempfile",
