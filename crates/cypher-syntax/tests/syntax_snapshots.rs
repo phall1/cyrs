@@ -494,6 +494,52 @@ fn err_list_predicate_unterminated_where() {
 }
 
 // ---------------------------------------------------------------------------
+// Expressions — EXISTS pattern predicate (cy-lve, spec §6.1 / §19)
+// ---------------------------------------------------------------------------
+//
+// `EXISTS ( <pattern> )` is a pattern predicate — sugar for the bare path
+// form in WHERE position (`WHERE (a)-->(b)`). Disambiguation from the
+// `exists(expr)` function call: two-token lookahead on `EXISTS ( (`. The
+// block-subquery form `EXISTS { ... }` is deferred (spec §19 / §20 D1)
+// and rejected with E4017.
+
+#[test]
+fn expr_exists_pattern_simple() {
+    insta::assert_snapshot!(format_with_errors("RETURN EXISTS((a)-->(b))"));
+}
+
+#[test]
+fn expr_exists_pattern_with_labels() {
+    insta::assert_snapshot!(format_with_errors(
+        "RETURN EXISTS((a:Person)-[:KNOWS]->(b:Person))"
+    ));
+}
+
+#[test]
+fn expr_exists_pattern_in_where() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) WHERE EXISTS((a)-->(:Movie)) RETURN a"
+    ));
+}
+
+#[test]
+fn expr_exists_function_call_form() {
+    // `exists(n.prop)` — expression arg, not a pattern. Must still parse
+    // as a plain function call (`FUNCTION_CALL`).
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN exists(n.prop)"));
+}
+
+#[test]
+fn err_exists_block_deferred() {
+    // `EXISTS { ... }` block-subquery form — deferred per spec §19 /
+    // §20 D1. The parser emits E4017 via the `exists_subquery`
+    // dialect-gate slot and recovers by swallowing the braced body.
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) WHERE EXISTS { MATCH (a) RETURN a } RETURN a"
+    ));
+}
+
+// ---------------------------------------------------------------------------
 // Expressions — operators
 // ---------------------------------------------------------------------------
 

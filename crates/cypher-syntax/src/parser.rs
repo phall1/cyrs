@@ -588,6 +588,23 @@ pub(crate) mod syntax_codes {
     /// `END` keyword is missing after the final arm / optional `ELSE`
     /// branch — cy-41u.
     pub(crate) const EXPECTED_END_CASE: u16 = 71;
+    /// E0072 — expected `)` to close an `EXISTS(<pattern>)` pattern
+    /// predicate (cy-lve, spec §6.1 / §19 row "Pattern predicates in
+    /// expressions").
+    pub(crate) const EXPECTED_RPAREN_EXISTS: u16 = 72;
+
+    // ---- dialect gates (E4xxx, shared with cypher-diag::codes) -----------
+    // The `error_code` payload is the numeric part of a `DiagCode`
+    // variant. Dialect-gate codes live in `crates/cypher-diag/src/codes.rs`
+    // and are referenced here as `u16` constants so the parser can emit
+    // them without a cross-crate dependency.
+
+    /// E4017 — `EXISTS { <subquery> }` block form is deferred per spec
+    /// §9.3 / §19 / §20 D1 (cy-lve, tranche A). Registered in
+    /// `cypher-diag::codes` (`DiagCode::E4017`, `exists_subquery`
+    /// dialect gate). Emitted by the parser when it encounters
+    /// `EXISTS {` in an atom position.
+    pub(crate) const EXISTS_BLOCK_DEFERRED: u16 = 4017;
 }
 
 /// Advance `idx` past any leading trivia tokens.

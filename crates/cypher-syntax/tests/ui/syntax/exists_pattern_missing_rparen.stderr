@@ -1,0 +1,3 @@
+error[E0072]: expected ')' to close EXISTS pattern predicate
+ --> exists_pattern_missing_rparen.cypher:97
+

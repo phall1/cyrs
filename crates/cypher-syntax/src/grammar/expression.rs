@@ -37,6 +37,8 @@
 use crate::SyntaxKind;
 use crate::parser::{CompletedMarker, Marker, Parser, TokenSet, syntax_codes as sc};
 
+use super::pattern;
+
 /// Parse an expression and return a handle to the completed root node.
 /// Returns `None` if the current token starts nothing expression-like —
 /// the caller should emit its own "expected expression" diagnostic.
@@ -159,11 +161,44 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
         }
-        // `COUNT` / `EXISTS` lex as dedicated keyword tokens (lexer §4.1)
-        // but in expression position they still stand in for a function
-        // identifier — `count(n)`, `exists(n.prop)`. Accept the keyword as
-        // a VAR_EXPR so the postfix `(` loop can wrap it in a FUNCTION_CALL.
-        SyntaxKind::COUNT_KW | SyntaxKind::EXISTS_KW => {
+        // `EXISTS` has three surface forms (cy-lve, spec §6.1 / §19):
+        //
+        //   1. `EXISTS ( <pattern> )` — pattern predicate. Accepted; lowered
+        //      to `PATTERN_PREDICATE` so HIR / sema see the same shape as
+        //      a bare `(a)-->(b)` in WHERE position.
+        //   2. `EXISTS ( <expr> )` — `exists(expr)` function call (e.g.
+        //      `exists(n.prop)`). Falls through to the `VAR_EXPR` + postfix
+        //      function-call path.
+        //   3. `EXISTS { … }` — block-subquery form. Deferred per spec §19 /
+        //      §20 D1; emit E4017 and swallow the braced body for recovery.
+        //
+        // Disambiguation between (1) and (2): openCypher patterns always
+        // begin with an `(` (the first node pattern). A `(` immediately
+        // after `EXISTS (` therefore indicates form (1); anything else
+        // falls through to form (2). This is the same shape heuristic
+        // tree-sitter-cypher uses for `exists_expression` vs.
+        // `exists_function_invocation` (spec §19 "Pattern predicates in
+        // expressions" — the ambiguity is resolved by the nested `(`).
+        SyntaxKind::EXISTS_KW => {
+            if p.nth(1) == SyntaxKind::L_BRACE {
+                // Form (3): block subquery. Not in v1. Emit E4017 and
+                // recover by consuming the balanced braces.
+                exists_block_deferred(p)
+            } else if p.nth(1) == SyntaxKind::L_PAREN && p.nth(2) == SyntaxKind::L_PAREN {
+                // Form (1): pattern predicate.
+                exists_pattern_predicate(p)
+            } else {
+                // Form (2): fall through to function-call shape.
+                let m = p.start();
+                p.bump_any();
+                m.complete(p, SyntaxKind::VAR_EXPR)
+            }
+        }
+        // `COUNT` lexes as a dedicated keyword token (lexer §4.1) but in
+        // expression position it stands in for the aggregate function
+        // identifier — `count(n)` / `count(*)`. Accept the keyword as a
+        // VAR_EXPR so the postfix `(` loop can wrap it in a FUNCTION_CALL.
+        SyntaxKind::COUNT_KW => {
             let m = p.start();
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
@@ -545,6 +580,88 @@ fn case_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     }
 
     m.complete(p, SyntaxKind::CASE_EXPR)
+}
+
+/// Parse a pattern-predicate `EXISTS ( <pattern> )` — spec §6.1 (sugar
+/// desugared in HIR) / §19 row "Pattern predicates in expressions".
+///
+/// Enters on the `EXISTS` keyword with the two-token lookahead
+/// `EXISTS ( (` already confirmed by [`atom`]. Consumes the keyword, the
+/// outer `(`, a path pattern, and the closing `)`. Returns a
+/// [`SyntaxKind::PATTERN_PREDICATE`] node so HIR lowering reuses the same
+/// `Expr::PatternPredicate` path as a bare `(a)-->(b)` would if it were
+/// reachable from expression position.
+///
+/// Recovery: E0072 on a missing `)` after the pattern. The outer opening
+/// `(` is guaranteed by the dispatch lookahead, so no miss diagnostic is
+/// needed there.
+///
+/// # Ambiguity note (spec §19 "Pattern predicates in expressions")
+///
+/// `EXISTS ( <expr> )` remains a function-call form and is handled by the
+/// fallthrough branch in [`atom`]. Disambiguation is the two-token
+/// lookahead `EXISTS ( (`: a pattern always begins with a parenthesised
+/// node pattern, and `exists(expr)` never starts with `(`. This matches
+/// the tree-sitter grammar's `exists_expression` vs.
+/// `exists_function_invocation` split.
+fn exists_pattern_predicate(p: &mut Parser<'_>) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::EXISTS_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::EXISTS_KW);
+    // Outer `(` — guaranteed by the atom dispatch lookahead.
+    p.bump(SyntaxKind::L_PAREN);
+    // Reuse the canonical pattern parser so we pick up every pattern
+    // shape the grammar accepts in MATCH position (labels, rels with
+    // types / directions, chained path elements).
+    pattern::pattern(p);
+    if !p.eat(SyntaxKind::R_PAREN) {
+        p.error_code(
+            sc::EXPECTED_RPAREN_EXISTS,
+            "expected ')' to close EXISTS pattern predicate",
+        );
+    }
+    m.complete(p, SyntaxKind::PATTERN_PREDICATE)
+}
+
+/// Reject the block-subquery form `EXISTS { ... }` with the
+/// `exists_subquery` dialect-gate code E4017 (spec §9.3 / §19 row
+/// "`EXISTS { <subquery> }`" / §20 D1).
+///
+/// The form is not part of either v1 dialect and will not be in v1. We
+/// still parse it permissively enough to recover: consume the keyword,
+/// skip the balanced braces, and emit an ERROR-marker so the rest of the
+/// statement parses.
+fn exists_block_deferred(p: &mut Parser<'_>) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::EXISTS_KW));
+    debug_assert!(p.nth(1) == SyntaxKind::L_BRACE);
+    let m = p.start();
+    p.error_code(
+        sc::EXISTS_BLOCK_DEFERRED,
+        "EXISTS { ... } block subqueries are deferred per spec §19 / §20 D1",
+    );
+    // Consume the keyword and the brace-delimited body without
+    // interpreting its contents. Track brace depth so nested maps
+    // inside the body don't prematurely end the skip.
+    p.bump(SyntaxKind::EXISTS_KW);
+    p.bump(SyntaxKind::L_BRACE);
+    let mut depth: u32 = 1;
+    while depth > 0 && !p.at(SyntaxKind::EOF) {
+        match p.current() {
+            SyntaxKind::L_BRACE => {
+                depth += 1;
+                p.bump(SyntaxKind::L_BRACE);
+            }
+            SyntaxKind::R_BRACE => {
+                depth -= 1;
+                p.bump(SyntaxKind::R_BRACE);
+            }
+            _ => p.bump_any(),
+        }
+    }
+    // Tag as ERROR so downstream passes (sema/plan) do not try to
+    // interpret this as a valid expression. The primary diagnostic is
+    // already on the CST.
+    m.complete(p, SyntaxKind::ERROR)
 }
 
 fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {

@@ -596,17 +596,30 @@ invariant; the strategy will be fleshed out when the production lands.
 
 ### ExistsPredicate
 
-- Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).
+- Status: **IMPLEMENTED** (cy-lve, spec §6.1 / §19 row "Pattern predicates
+  in expressions"). Emitted as `PATTERN_PREDICATE` so the HIR lowering path
+  from bare pattern predicates is shared.
 - Synchronisation set: clause-level keywords + `;` + EOF (default).
-- Skip-and-recover: default per spec §4.3.
-- Virtual insertion: none planned until production lands.
+- Skip-and-recover: on missing `)` after the pattern the parser emits
+  E0072 at the token boundary and continues from the caller's recovery
+  set — the `PATTERN_PREDICATE` node is closed at the current position
+  via virtual-token insertion.
+- Virtual insertion: `E0072` — missing `)` closing `EXISTS(<pattern>)`.
+- Deferred block form: `EXISTS { <subquery> }` is not in v1 (§19 / §20
+  D1). The parser emits `E4017` (the shared `exists_subquery` dialect
+  gate) and recovers by swallowing the balanced braces.
 
 ### PatternPredicate
 
-- Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).
+- Status: **IMPLEMENTED** — reachable via the `ExistsPredicate` atom path
+  above (cy-lve). A bare `(a)-->(b)` in expression position is still
+  deferred pending full §7.5 pattern validation, but the node kind is
+  produced today by `EXISTS(<pattern>)`.
 - Synchronisation set: clause-level keywords + `;` + EOF (default).
-- Skip-and-recover: default per spec §4.3.
-- Virtual insertion: none planned until production lands.
+- Skip-and-recover: default per spec §4.3; the node is closed at the
+  first recovery anchor.
+- Virtual insertion: none dedicated to this node — the enclosing
+  `ExistsPredicate` owns the recovery diagnostic.
 
 ### BinaryExpr
 

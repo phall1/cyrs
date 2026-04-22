@@ -43,6 +43,7 @@
 //! Exercised: E0064 — index-close, covered by `crates/cypher-syntax/src/grammar/expression.rs` unit tests.
 //! Exercised: E0065..=E0067 — list-predicate recovery (cy-8x5), covered by existing UI fixture for list predicates.
 //! Exercised: E0068..=E0069 — list-comprehension recovery (cy-5gh), covered by random prefixes of SOURCES.
+//! Exercised: E0072 — EXISTS(<pattern>) missing ')' (cy-lve), UI fixture `exists_pattern_missing_rparen`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!
