@@ -741,6 +741,88 @@ mod tests {
         assert_eq!(out2.parse().syntax().to_string(), "RETURN 2");
     }
 
+    // -----------------------------------------------------------------------
+    // edit_file (cy-zv0)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn edit_file_applies_edit_and_invalidates_cache() {
+        use cypher_syntax::{TextEdit, TextRange, TextSize};
+
+        let mut db = Database::new();
+        let id = db.open_file(
+            Path::new("e.cyp"),
+            "RETURN 1".into(),
+            DialectMode::GqlAligned,
+        );
+        let before = db.parse_cst(id).unwrap();
+        assert_eq!(before.parse().syntax().to_string(), "RETURN 1");
+
+        // Replace "1" (byte 7..8) with "42".
+        let edit = TextEdit::replace(
+            TextRange::new(TextSize::new(7), TextSize::new(8)),
+            "42",
+        );
+        db.edit_file(id, &edit).unwrap();
+
+        let after = db.parse_cst(id).unwrap();
+        assert_eq!(after.parse().syntax().to_string(), "RETURN 42");
+        assert_eq!(db.source_of(id).unwrap(), "RETURN 42");
+        assert!(
+            !Arc::ptr_eq(&before.0, &after.0),
+            "edit_file must bump the Salsa revision → new Arc"
+        );
+    }
+
+    #[test]
+    fn edit_file_unknown_fileid() {
+        use cypher_syntax::{TextEdit, TextSize};
+
+        let mut db = Database::new();
+        let ghost = FileId(999);
+        let edit = TextEdit::insert(TextSize::new(0), "x");
+        assert_eq!(db.edit_file(ghost, &edit), Err(UnknownFileId(ghost)));
+    }
+
+    #[test]
+    fn edit_file_preserves_other_files_cache() {
+        use cypher_syntax::{TextEdit, TextRange, TextSize};
+
+        let mut db = Database::new();
+        let a = db.open_file(
+            Path::new("a.cyp"),
+            "RETURN 1".into(),
+            DialectMode::GqlAligned,
+        );
+        let b = db.open_file(
+            Path::new("b.cyp"),
+            "RETURN 2".into(),
+            DialectMode::GqlAligned,
+        );
+
+        let oa = db.parse_cst(a).unwrap();
+        let ob = db.parse_cst(b).unwrap();
+
+        // Edit file `a`.
+        let edit = TextEdit::replace(
+            TextRange::new(TextSize::new(7), TextSize::new(8)),
+            "99",
+        );
+        db.edit_file(a, &edit).unwrap();
+
+        // File b's cache must survive.
+        let ob2 = db.parse_cst(b).unwrap();
+        assert!(
+            Arc::ptr_eq(&ob.0, &ob2.0),
+            "file b cache must survive edit to file a"
+        );
+
+        // File a reflects the edit.
+        let oa2 = db.parse_cst(a).unwrap();
+        assert!(!Arc::ptr_eq(&oa.0, &oa2.0));
+        assert_eq!(oa2.parse().syntax().to_string(), "RETURN 99");
+    }
+
     #[test]
     fn remove_file_stale_returns_error() {
         let mut db = Database::new();

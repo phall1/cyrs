@@ -1,34 +1,36 @@
 //! bench_incremental_edit — 1000 single-char edits across a 1k-line fixture,
-//! with a sub-linear-scaling gate (spec §17.10; bead cy-y6a).
+//! with a sub-linear-scaling gate (spec §17.10; beads cy-y6a, cy-zv0).
 //!
 //! # What this measures
 //!
 //! An editor / agent making 1000 tiny edits at varying positions in a
 //! 1000-line query.  After each edit we ask [`Database::analyse_file`] to
 //! rebuild diagnostics — this is the exact path `textDocument/didChange`
-//! takes once the LSP notification has been translated to `update_file`.
+//! takes once the LSP notification has been translated to an
+//! `edit_file(TextEdit)` call.
 //!
 //! The ideal invariant is that steady-state per-edit reanalysis time is
-//! *sub-linear* in file size.  Today, however, `cypher-db` treats source
-//! text as a monolithic Salsa `#[input]` — every `update_file` bumps the
-//! revision and cascades a full re-parse / re-lower / re-sema through
-//! the derived queries.  The ratio the bench prints therefore sits near
-//! 2.0 rather than the sub-linear target; the budget is set at [`LINEAR_BUDGET`]
-//! to *document*, not to *gate*, until the incremental-edit driver lands.
+//! *sub-linear* in file size.  cy-zv0 introduced the
+//! `Database::edit_file(TextEdit)` API plus `cypher_syntax::incremental_reparse`,
+//! but the underlying reparse is still a whole-file fallback (the API-first
+//! tranche of Option A).  Until the smart sub-tree splicer lands in a
+//! follow-up bead, the observed scaling ratio sits near 2.0 and the budget
+//! is set to [`LINEAR_BUDGET`] accordingly.
 //!
 //! # Bench-harness hook required for a sub-linear ratio
 //!
-//! To push the ratio below 2.0 we need either:
+//! The API surface is now in place — `Database::edit_file` routes through
+//! `cypher_syntax::incremental_reparse`.  What remains is the smart
+//! implementation:
 //!
-//! 1. A sub-file Salsa input granularity (tree / token-stream) so a
-//!    single-character edit only invalidates one statement; or
-//! 2. A tree-edit API on `cypher-syntax` so the parser can splice the
-//!    edited region into the existing green tree without re-lexing the
-//!    whole buffer.
+//! 1. Identify the covering sub-tree for the edit range
+//!    (`SyntaxNode::covering_element`).
+//! 2. Re-lex and reparse only that sub-span.
+//! 3. Splice the new green sub-tree into the old root via
+//!    `GreenNode::replace_child`.
 //!
-//! Either approach is a sizable bead of work in `cypher-db` and is out
-//! of scope for cy-y6a (perf gates only).  Filed as a follow-up bead —
-//! see the orchestrator note in the report for cy-y6a.
+//! Landing those three steps flips the ratio below 2.0 without any bench
+//! or caller change.  Tracked as the cy-zv0 smart-path follow-up.
 //!
 //! # What the bench measures today
 //!
@@ -63,6 +65,7 @@ use std::time::{Duration, Instant};
 use criterion::Criterion;
 
 use cypher_db::{Database, DialectMode};
+use cypher_syntax::{TextEdit, TextSize};
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -86,13 +89,12 @@ const EDITS: usize = 1_000;
 const WARMUP_EDITS: usize = 50;
 
 /// Linear-or-better scaling ceiling.  At exactly 2× lines, a fully linear
-/// per-edit cost yields ratio 2.0 (the current architecture — see the
-/// module docs).  We set the budget at 2.5× to allow for allocator slack
-/// + hash-map rehashing on the larger buffer while catching a regression
-/// into *super-linear* reanalysis (e.g. a quadratic sema loop).  Pushing
-/// this budget below 2.0 requires the sub-file Salsa input or tree-edit
-/// API described in the module docs.
-const LINEAR_BUDGET: f64 = 2.5;
+/// per-edit cost yields ratio 2.0.  cy-zv0 landed the `edit_file` API but
+/// the underlying `incremental_reparse` is still a whole-file fallback,
+/// so in practice the ratio sits near 2.0.  The budget is tightened from
+/// 2.5× (cy-y6a) to 2.0× to catch any super-linear regression; pushing
+/// below requires the smart sub-tree splicer tracked as a cy-zv0 follow-up.
+const LINEAR_BUDGET: f64 = 2.0;
 
 // ---------------------------------------------------------------------------
 // Deterministic fixture + RNG
@@ -129,28 +131,27 @@ fn lcg_next(state: u64) -> (u64, u32) {
     ((next), (next >> 33) as u32)
 }
 
-/// Apply a single-character edit at a (deterministic) byte offset
-/// inside `source`.  We always insert a space at a non-multi-byte
-/// boundary so the source remains valid UTF-8 and the parser still
-/// produces a tree (though some lines may shift by a byte).
+/// Build a single-character insertion [`TextEdit`] at a (deterministic)
+/// byte offset inside a source of length `source_len`.  We always insert
+/// a single space at a char boundary so the resulting source is valid
+/// UTF-8 and still parses.
 ///
-/// Returns the mutated source so the caller can pass it through
-/// `update_file` on the next iteration.
-fn apply_edit(source: &str, rng_state: &mut u64) -> String {
-    // Find a safe insert position: take modulo len, then walk forward to
-    // a character boundary.  `source` is all 7-bit ASCII from our
-    // templates, so every byte is already a boundary.
+/// The bench fixture is ASCII-only, so every byte is a char boundary;
+/// `TextEdit::apply` handles the edge case internally if a future
+/// fixture ever includes multi-byte text.
+fn pick_edit(source_len: usize, rng_state: &mut u64) -> TextEdit {
     let (next, draw) = lcg_next(*rng_state);
     *rng_state = next;
-    let mut pos = (draw as usize) % source.len().max(1);
-    while !source.is_char_boundary(pos) {
-        pos = pos.saturating_sub(1);
-    }
-    let mut out = String::with_capacity(source.len() + 1);
-    out.push_str(&source[..pos]);
-    out.push(' ');
-    out.push_str(&source[pos..]);
-    out
+    let pos = (draw as usize) % source_len.max(1);
+    TextEdit::insert(TextSize::new(pos as u32), " ")
+}
+
+/// Bytes a `TextEdit` would add to the source (net). Used by the bench
+/// driver to keep a running source-length estimate so edit offsets stay
+/// in range without re-reading the full source from the DB each edit.
+fn edit_net_bytes(edit: &TextEdit) -> isize {
+    let old_len = u32::from(edit.range.end()) - u32::from(edit.range.start());
+    edit.replacement.len() as isize - old_len as isize
 }
 
 // ---------------------------------------------------------------------------
@@ -159,13 +160,20 @@ fn apply_edit(source: &str, rng_state: &mut u64) -> String {
 
 /// Run `EDITS` single-character edits against a source of `n` lines;
 /// return the median per-edit wall-clock latency.
+///
+/// Uses the cy-zv0 `Database::edit_file(TextEdit)` API rather than
+/// `update_file(String)` so the bench exercises the incremental-edit
+/// path exactly as `textDocument/didChange` will.  Today both paths
+/// bottom out on a whole-file reparse; the numbers diverge once the
+/// smart path lands.
 fn median_edit_latency(lines: usize) -> Duration {
-    let mut source = synth_source(lines);
+    let source = synth_source(lines);
+    let mut source_len = source.len() as isize;
 
     let mut db = Database::new();
     let id = db.open_file(
         Path::new("incremental_edit.cyp"),
-        source.clone(),
+        source,
         DialectMode::GqlAligned,
     );
     // Prime the pipeline so first-edit fixed costs don't skew samples.
@@ -175,8 +183,9 @@ fn median_edit_latency(lines: usize) -> Duration {
 
     // Warmup — edits whose timings we discard.
     for _ in 0..WARMUP_EDITS {
-        source = apply_edit(&source, &mut rng_state);
-        db.update_file(id, source.clone())
+        let edit = pick_edit(source_len as usize, &mut rng_state);
+        source_len += edit_net_bytes(&edit);
+        db.edit_file(id, &edit)
             .expect("FileId stays open through the workload");
         let _ = black_box(db.analyse_file(id));
     }
@@ -184,9 +193,10 @@ fn median_edit_latency(lines: usize) -> Duration {
     // Measured window.
     let mut samples: Vec<Duration> = Vec::with_capacity(EDITS);
     for _ in 0..EDITS {
-        source = apply_edit(&source, &mut rng_state);
+        let edit = pick_edit(source_len as usize, &mut rng_state);
+        source_len += edit_net_bytes(&edit);
         let t0 = Instant::now();
-        db.update_file(id, source.clone())
+        db.edit_file(id, &edit)
             .expect("FileId stays open through the workload");
         let _ = black_box(db.analyse_file(id));
         samples.push(t0.elapsed());
@@ -201,10 +211,11 @@ fn median_edit_latency(lines: usize) -> Duration {
 
 fn bench_single_char_edit_1k(c: &mut Criterion) {
     let mut db = Database::new();
-    let mut source = synth_source(LINES_1K);
+    let source = synth_source(LINES_1K);
+    let mut source_len = source.len() as isize;
     let id = db.open_file(
         Path::new("incremental_edit_1k.cyp"),
-        source.clone(),
+        source,
         DialectMode::GqlAligned,
     );
     let _ = db.analyse_file(id);
@@ -212,8 +223,9 @@ fn bench_single_char_edit_1k(c: &mut Criterion) {
 
     c.bench_function("incremental_edit_1k", |b| {
         b.iter(|| {
-            source = apply_edit(&source, &mut rng_state);
-            db.update_file(id, source.clone()).unwrap();
+            let edit = pick_edit(source_len as usize, &mut rng_state);
+            source_len += edit_net_bytes(&edit);
+            db.edit_file(id, &edit).unwrap();
             let _ = black_box(db.analyse_file(id));
         });
     });

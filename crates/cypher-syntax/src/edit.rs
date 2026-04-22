@@ -192,9 +192,10 @@ mod tests {
     #[test]
     fn insert_at_middle_preserves_prefix_and_suffix() {
         let src = "RETURN 1";
+        // Offset 6 is the boundary between "RETURN" and " 1".
         let edit = TextEdit::insert(TextSize::from(6), "0");
         let out = edit.apply(src);
-        assert_eq!(out, "RETURN01 1");
+        assert_eq!(out, "RETURN0 1");
     }
 
     #[test]
