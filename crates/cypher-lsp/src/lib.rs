@@ -132,7 +132,7 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
             ..Default::default()
         }),
         // cy-k2r (spec §14): advertise workspace-folder change
-        // notifications + file-requests hook-up so a spec-compliant
+        // notifications + file-operations hook-up so a spec-compliant
         // client actually sends us `workspace/didChangeWatchedFiles`
         // and `workspace/didChangeWorkspaceFolders`.  Clients with
         // dynamic-registration support for watched files will also
@@ -159,9 +159,9 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
 /// whether the transport is `Connection::stdio()` (production bin) or
 /// `Connection::memory()` (in-process tests).
 pub fn serve(connection: &Connection) -> Result<()> {
-    let features = server_capabilities()?;
+    let capabilities = server_capabilities()?;
     let initialization_params = connection
-        .initialize(features)
+        .initialize(capabilities)
         .map_err(|e| anyhow!("initialize failed: {e}"))?;
     let params: lsp_types::InitializeParams = serde_json::from_value(initialization_params)?;
 

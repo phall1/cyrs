@@ -1139,7 +1139,7 @@ regressions ≥ 10% as blocking. Thresholds per-benchmark, documented in
 ### 17.12. Miri
 
 Run on all library crates in CI nightly. Fails on any UB (including in
-dependencies — we use `MIRIFLAGS=-Zmiri-strict-attestation`).
+dependencies — we use `MIRIFLAGS=-Zmiri-strict-provenance`).
 
 ### 17.13. `unsafe_code` policy
 

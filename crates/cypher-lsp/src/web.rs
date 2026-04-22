@@ -231,7 +231,7 @@ pub fn start_lsp() -> Result<(), JsValue> {
 /// State carried between `pump` invocations: the transport + the
 /// `Server` that owns the Salsa database.  Instantiated lazily on the
 /// first `initialize` request so we don't do any analysis-crate work
-/// before the client has handed us its features.
+/// before the client has handed us its capabilities.
 struct WebLoopState {
     transport: WebTransport,
     server: crate::Server,
@@ -243,7 +243,7 @@ struct WebLoopState {
 ///
 /// On the very first call we synthesize the initialize handshake:
 /// the client's `initialize` request is at the head of the inbox,
-/// so we pop it, build features, and reply before handing off to
+/// so we pop it, build capabilities, and reply before handing off to
 /// the normal dispatch loop.
 fn pump(
     global: &DedicatedWorkerGlobalScope,
@@ -345,7 +345,7 @@ type InitializeResolved = (
     Duration,
 );
 
-/// Parse the `initialize` params, ship the features response, and
+/// Parse the `initialize` params, ship the capabilities response, and
 /// return the resolved dialect / schema / debounce triple.
 ///
 /// Mirrors the logic in `serve` (lib.rs) — kept separate because we
@@ -355,9 +355,9 @@ fn send_initialize_response(transport: &WebTransport, req: Request) -> Result<In
     let params: lsp_types::InitializeParams = serde_json::from_value(req.params.clone())
         .map_err(|e| anyhow!("initialize: bad params: {e}"))?;
 
-    let features = crate::server_capabilities()?;
+    let capabilities = crate::server_capabilities()?;
     let result = serde_json::json!({
-        "features": features,
+        "capabilities": capabilities,
     });
     transport.send(Response::new_ok(req.id, result).into())?;
 

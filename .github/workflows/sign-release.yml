@@ -1,4 +1,4 @@
-# Release signing, SBOM generation, and SLSA attestation for cyrs
+# Release signing, SBOM generation, and SLSA provenance for cyrs
 # (spec 0001 §17.16, §18).
 #
 # ---
@@ -22,15 +22,15 @@
 #    secrets; cosign attaches a transparency-log entry via Rekor.
 # 2. CycloneDX SBOM generation for the workspace via `cargo-cyclonedx`.
 #    The generated SBOM is uploaded as a release asset.
-# 3. SLSA attestation emitted via `slsa-github-generator` for every
-#    dylib / bin release artifact.  Attestation attestations are
+# 3. SLSA provenance emitted via `slsa-github-generator` for every
+#    dylib / bin release artifact.  Provenance attestations are
 #    uploaded to the release as `.intoto.jsonl` sidecars.
 #
 # ---
 # SECRETS / PERMISSIONS
 # ---
 # - id-token: write       — OIDC token for cosign keyless + SLSA generator.
-# - contents: write       — upload signing / SBOM / attestation assets.
+# - contents: write       — upload signing / SBOM / provenance assets.
 # - packages: write       — (unused today; reserved for future container signing.)
 #
 # No long-lived secrets.  Do not add a COSIGN_PRIVATE_KEY variable;
@@ -143,7 +143,7 @@ jobs:
           cd release-assets
           shopt -s nullglob
           for f in *; do
-            # Skip signatures, attestations, SBOMs, and attestation sidecars.
+            # Skip signatures, attestations, SBOMs, and provenance sidecars.
             case "$f" in
               *.sig|*.crt|*.intoto.jsonl|*.cdx.json) continue ;;
             esac
@@ -157,10 +157,10 @@ jobs:
           done
 
   # ---------------------------------------------------------------
-  # SLSA attestation — build-level attestation per release artifact
+  # SLSA provenance — build-level attestation per release artifact
   # ---------------------------------------------------------------
-  attestation:
-    name: SLSA attestation
+  provenance:
+    name: SLSA provenance
     needs: sbom
     permissions:
       id-token: write
@@ -182,7 +182,7 @@ jobs:
   summary:
     name: Post-signing summary
     runs-on: ubuntu-latest
-    needs: [sbom, cosign, attestation]
+    needs: [sbom, cosign, provenance]
     if: ${{ always() }}
     steps:
       - name: Emit workflow-summary markdown
@@ -192,7 +192,7 @@ jobs:
             echo "";
             echo "- SBOM (CycloneDX): uploaded as \`*.cdx.json\` release assets.";
             echo "- Cosign (keyless): signatures and Fulcio certs uploaded as \`*.sig\` / \`*.crt\`.";
-            echo "- SLSA attestation: \`*.intoto.jsonl\` attestations uploaded.";
+            echo "- SLSA provenance: \`*.intoto.jsonl\` attestations uploaded.";
             echo "";
             echo "Verify a downloaded asset locally with:";
             echo "";

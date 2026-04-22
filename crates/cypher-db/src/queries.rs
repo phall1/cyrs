@@ -438,7 +438,7 @@ fn find_diag_code(numeric: u16) -> DiagCode {
 //
 // Salsa 0.26 generates `set_lru_capacity` as an associated function on the
 // tracked-fn module, but it is private to the declaring module.  These thin
-// wrappers re-export the feature so that `workspace::Database::with_options`
+// wrappers re-export the capability so that `workspace::Database::with_options`
 // can apply runtime LRU caps from [`crate::options::DatabaseOptions`].
 // ---------------------------------------------------------------------------
 

@@ -110,7 +110,7 @@ impl TestHarness {
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {},
+                "capabilities": {},
                 "initializationOptions": {
                     "watchedFilesDebounceMs": TEST_DEBOUNCE_MS,
                 }

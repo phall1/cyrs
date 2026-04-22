@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Temporal8 - Compute Arithmetic Requests on Temporal Values
+Feature: Temporal8 - Compute Arithmetic Operations on Temporal Values
 
   Scenario Outline: [1] Should add or subtract duration to or from date
     Given an empty graph

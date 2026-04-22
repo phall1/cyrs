@@ -382,9 +382,9 @@ pub enum WriteOp {
         labels: Vec<SmolStr>,
         /// Property predicate / initial values.
         props: Expr,
-        /// Write requests to apply when a new node is created.
+        /// Write operations to apply when a new node is created.
         on_create: Vec<WriteOp>,
-        /// Write requests to apply when an existing node is found.
+        /// Write operations to apply when an existing node is found.
         on_match: Vec<WriteOp>,
         /// Optional variable binding for the merged node.
         bind: Option<VarId>,
@@ -403,9 +403,9 @@ pub enum WriteOp {
         rel_type: SmolStr,
         /// Property predicate / initial values.
         props: Expr,
-        /// Write requests to apply when a new relationship is created.
+        /// Write operations to apply when a new relationship is created.
         on_create: Vec<WriteOp>,
-        /// Write requests to apply when an existing relationship is found.
+        /// Write operations to apply when an existing relationship is found.
         on_match: Vec<WriteOp>,
         /// Optional variable binding for the merged relationship.
         bind: Option<VarId>,

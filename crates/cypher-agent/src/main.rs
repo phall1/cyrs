@@ -1,10 +1,10 @@
 //! `cypher-agent` — JSON-over-stdio agent API. Spec 0001 §15.
 //!
 //! One request per line on stdin; one response per line on stdout. All
-//! requests synchronous. No network, no subprocess, no filesystem
+//! operations synchronous. No network, no subprocess, no filesystem
 //! writes (sandbox-safe per §15.3).
 //!
-//! ## Requests (spec §15.2)
+//! ## Operations (spec §15.2)
 //!
 //! | op             | request fields                          | response fields                        |
 //! |----------------|-----------------------------------------|----------------------------------------|

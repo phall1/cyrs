@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Boolean2 - OR logical requests
+Feature: Boolean2 - OR logical operations
 
   Scenario: [1] Disjunction of two truth values
     Given any graph

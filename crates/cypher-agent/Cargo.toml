@@ -10,7 +10,7 @@ homepage     = { workspace = true }
 readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
-description  = "Stateless JSON API for Cypher / GQL frontend requests (parse/check/complete/hover/rewrite/...)."
+description  = "Stateless JSON API for Cypher / GQL frontend operations (parse/check/complete/hover/rewrite/...)."
 
 [[bin]]
 name = "cypher-agent"

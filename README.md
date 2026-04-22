@@ -76,7 +76,7 @@ cypher check demo/samples/unknown_var.cyp
 ```
 
 `cypher-cli` ships the `cypher` binary with `parse`, `check`, `fmt`,
-`plan`, `explain`, and schema-file requests (`schema load`,
+`plan`, `explain`, and schema-file operations (`schema load`,
 `schema check`, `schema diff`; see
 [spec 0002](docs/specs/0002-schema-file-format.md)). The Rust API is
 available as the [`cypher`](https://crates.io/crates/cypher) meta-crate.

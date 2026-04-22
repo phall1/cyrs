@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Boolean1 - And logical requests
+Feature: Boolean1 - And logical operations
 
   Scenario: [1] Conjunction of two truth values
     Given any graph

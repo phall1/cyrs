@@ -210,7 +210,7 @@ impl KindCtx<'_> {
                 self.check_var_in_ctx(*var, ctx, sink);
             }
             // ---------------------------------------------------------------
-            // Arithmetic binary requests — operands must be Value-kinded.
+            // Arithmetic binary operations — operands must be Value-kinded.
             // ---------------------------------------------------------------
             Expr::BinOp { op, lhs, rhs } => {
                 let inner_ctx = if is_arithmetic_op(*op) {

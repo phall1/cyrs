@@ -10,7 +10,7 @@
 //!
 //! Coverage (matches the spec §17.11 list of required flows):
 //!
-//! * `initialize` + feature echo
+//! * `initialize` + capability echo
 //! * `textDocument/didOpen` → `publishDiagnostics`
 //! * `textDocument/didChange` → fresh `publishDiagnostics`
 //! * `textDocument/didClose` → empty `publishDiagnostics` + `FileId`
@@ -109,23 +109,23 @@ impl TestHarness {
         }
     }
 
-    /// Initialize the session and assert the spec §14.2 features land
+    /// Initialize the session and assert the spec §14.2 capabilities land
     /// on the wire.  Separated from `new` so tests that only care about
-    /// shutdown semantics can skip the feature assertions.
+    /// shutdown semantics can skip the capability assertions.
     fn initialize(&mut self) {
         let id = self.send_request(
             "initialize",
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {}
+                "capabilities": {}
             }),
         );
 
         let resp = self.recv_response(&id);
         assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
         let caps = resp.result.expect("initialize result");
-        let caps = &caps["features"];
+        let caps = &caps["capabilities"];
 
         assert_eq!(
             caps["textDocumentSync"],
@@ -318,7 +318,7 @@ impl TestHarness {
 
     /// Initialize with raw `initializationOptions` — used by the
     /// schema-aware tests to drive spec §14.3.  Skips the default
-    /// feature assertions since those are covered by the other
+    /// capability assertions since those are covered by the other
     /// tests already.
     fn initialize_with_options(&mut self, options: Value) {
         let id = self.send_request(
@@ -326,7 +326,7 @@ impl TestHarness {
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {},
+                "capabilities": {},
                 "initializationOptions": options,
             }),
         );

@@ -1250,7 +1250,7 @@ fn is_aggregate_func(name: &str) -> bool {
 
 // ── Create/Merge pattern decomposition helper ─────────────────────────────────
 
-/// A decomposed write request from a CREATE/MERGE pattern.
+/// A decomposed write operation from a CREATE/MERGE pattern.
 enum CreatePair<'a> {
     Node {
         labels: Vec<SmolStr>,

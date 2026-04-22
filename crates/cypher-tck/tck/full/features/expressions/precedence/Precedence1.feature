@@ -358,7 +358,7 @@ Feature: Precedence1 - On boolean values
       | >    | XOR    |
       #| >    | AND    | # Greater and conjunction are associative over truth values
       | <>   | OR     |
-      #| <>   | XOR    | # Inequality and exclusive disjunction are associative over truth values; inequality and exclusive disjunction are the same request over truth values; exclusive disjunction is associative
+      #| <>   | XOR    | # Inequality and exclusive disjunction are associative over truth values; inequality and exclusive disjunction are the same operation over truth values; exclusive disjunction is associative
       | <>   | AND    |
 
   Scenario Outline: [22] Pairs of comparison operators and binary boolean operators that are associative in every combination of truth values

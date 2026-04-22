@@ -167,11 +167,11 @@ Within each member, there are additional categories.
 
 === Boolean
 
-* Boolean1 - And logical requests
-* Boolean2 - OR logical requests
-* Boolean3 - XOR logical requests
-* Boolean4 - NOT logical requests
-* Boolean5 - Interop of logical requests
+* Boolean1 - And logical operations
+* Boolean2 - OR logical operations
+* Boolean3 - XOR logical operations
+* Boolean4 - NOT logical operations
+* Boolean5 - Interop of logical operations
 
 === Comparison
 
@@ -296,7 +296,7 @@ Within each member, there are additional categories.
 * Temporal5 - Access Components of Temporal Values
 * Temporal6 - Render Temporal Values as a String
 * Temporal7 - Compare Temporal Values
-* Temporal8 - Compute Arithmetic Requests on Temporal Values
+* Temporal8 - Compute Arithmetic Operations on Temporal Values
 * Temporal9 - Truncate Temporal Values
 * Temporal10 - Compute Durations Between two Temporal Values
 

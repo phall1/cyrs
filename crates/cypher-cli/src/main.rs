@@ -72,12 +72,12 @@ enum Cmd {
     Plan { file: Option<PathBuf> },
     /// Human-readable explanation of the query.
     Explain { file: Option<PathBuf> },
-    /// Schema file requests (spec 0002).
+    /// Schema file operations (spec 0002).
     Schema {
         #[command(subcommand)]
         cmd: SchemaCmd,
     },
-    /// Project manifest requests (spec 0003).
+    /// Project manifest operations (spec 0003).
     Project {
         #[command(subcommand)]
         cmd: ProjectCmd,

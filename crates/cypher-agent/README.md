@@ -6,7 +6,7 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
 
-Stateless JSON API for Cypher / GQL frontend requests —
+Stateless JSON API for Cypher / GQL frontend operations —
 parse, check, complete, hover, rewrite — over stdio. Ships the
 `cypher-agent` binary. See spec 0001 §15.
 

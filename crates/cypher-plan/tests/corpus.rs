@@ -1141,7 +1141,7 @@ fn corpus_pretty_union_nested() {
     insta::assert_snapshot!("corpus_pretty_union_nested", pretty(&plan));
 }
 
-// ── §6 Write requests ───────────────────────────────────────────────────────
+// ── §6 Write operations ───────────────────────────────────────────────────────
 
 #[test]
 fn corpus_pretty_create_node_chain() {

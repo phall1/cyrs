@@ -139,7 +139,7 @@ impl LspHarness {
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {}
+                "capabilities": {}
             }),
         )));
         let _ = self.recv_response(&id);

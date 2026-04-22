@@ -95,7 +95,7 @@ impl TestHarness {
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {}
+                "capabilities": {}
             }),
         );
         let resp = self.drain_notifications_until_response(&id);

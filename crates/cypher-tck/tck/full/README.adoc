@@ -158,8 +158,8 @@ RETURN r AS entity, key, properties[key] AS value
 ----
 
 Note that in the definition above, a property is defined as the triple of containing entity, key, and value.
-Therefore the request of moving a property from one entity to another will be noted as one removal and one addition in the side effects.
-Likewise, the request of changing the value of a property is noted as one removal and one addition in the side effects.
+Therefore the operation of moving a property from one entity to another will be noted as one removal and one addition in the side effects.
+Likewise, the operation of changing the value of a property is noted as one removal and one addition in the side effects.
 
 ===== Labels
 
@@ -229,9 +229,9 @@ TYPE will be one of the following error types:
 - EntityNotFound                 "The statement refers to a non-existent entity."
 - PropertyNotFound               "The statement refers to a non-existent property."
 - LabelNotFound                  "The statement refers to a non-existent label."
-- TypeError                      "The statement is attempting to perform requests on values with types that are not supported by the request."
-- ArgumentError                  "The statement is attempting to perform requests using invalid arguments."
-- ArithmeticError                "Invalid use of an arithmetic request, such as dividing by zero."
+- TypeError                      "The statement is attempting to perform operations on values with types that are not supported by the operation."
+- ArgumentError                  "The statement is attempting to perform operations using invalid arguments."
+- ArithmeticError                "Invalid use of an arithmetic operation, such as dividing by zero."
 
 PHASE will be either `runtime` or `compile time`.
 

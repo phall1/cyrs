@@ -137,7 +137,7 @@ edge into it is closed.
 | B113  | Criterion benches + 10% regression gate        | §17.10    | B017, B055, B073, B083, B100, B101      |
 | B114  | `cargo-mutants` config + weekly CI + kill rates | §17.8    | B055, B035, B017, B073                  |
 | B115  | Full CI matrix (stable/beta/nightly × 3 OS × feature matrix) | §17.15 | B005 |
-| B116  | Miri CI (`-Zmiri-strict-attestation`)           | §17.12    | B115                                    |
+| B116  | Miri CI (`-Zmiri-strict-provenance`)           | §17.12    | B115                                    |
 | B117  | `cargo deny` allowlist + `cargo audit` PR gate | §17.16    | B001                                    |
 | B118  | `cargo llvm-cov` coverage gates per crate      | §17.9     | B115                                    |
 | B119  | `cypher-testkit` dev crate (fixtures, compiletest runner, mock executor) | §3.1, §17.6 | B002 |

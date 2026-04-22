@@ -1,6 +1,6 @@
 # Miri CI (spec 0001 §17.12).
 #
-# Runs `cargo miri test -p <crate>` with MIRIFLAGS=-Zmiri-strict-attestation
+# Runs `cargo miri test -p <crate>` with MIRIFLAGS=-Zmiri-strict-provenance
 # for every first-party library crate in the workspace.  Binary-only crates
 # (cypher-lsp, cypher-agent, cypher-cli) and testkit helpers are excluded
 # because Miri requires a lib target.
@@ -24,7 +24,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  MIRIFLAGS: "-Zmiri-strict-attestation"
+  MIRIFLAGS: "-Zmiri-strict-provenance"
 
 jobs:
   miri:

@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Boolean3 - XOR logical requests
+Feature: Boolean3 - XOR logical operations
 
   Scenario: [1] Exclusive disjunction of two truth values
     Given any graph

@@ -30,7 +30,7 @@
 
 Feature: Precedence2 - On numeric values
 
-  Scenario Outline: [1] Numeric multiplicative requests takes precedence over numeric additive requests
+  Scenario Outline: [1] Numeric multiplicative operations takes precedence over numeric additive operations
     Given an empty graph
     When executing query:
       """
@@ -64,7 +64,7 @@ Feature: Precedence2 - On numeric values
       | %     | -   | /     | -1    | 0     |
       | %     | -   | %     | -1    | 0     |
 
-  Scenario Outline: [2] Exponentiation takes precedence over numeric multiplicative requests
+  Scenario Outline: [2] Exponentiation takes precedence over numeric multiplicative operations
     Given an empty graph
     When executing query:
       """
@@ -83,7 +83,7 @@ Feature: Precedence2 - On numeric values
       | /    | 8.0   | 64.0          |
       | %    | 0.0   | 64.0          |
 
-  Scenario Outline: [3] Exponentiation takes precedence over numeric additive requests
+  Scenario Outline: [3] Exponentiation takes precedence over numeric additive operations
     Given an empty graph
     When executing query:
       """
@@ -114,9 +114,9 @@ Feature: Precedence2 - On numeric values
       | 9.0 | 9.0 | -9.0 |
     And no side effects
 
-  # Numeric additive inverse and numeric multiplicative request are associative
+  # Numeric additive inverse and numeric multiplicative operation are associative
 
-  Scenario Outline: [5] Numeric unary negative takes precedence over numeric additive requests
+  Scenario Outline: [5] Numeric unary negative takes precedence over numeric additive operations
     Given an empty graph
     When executing query:
       """

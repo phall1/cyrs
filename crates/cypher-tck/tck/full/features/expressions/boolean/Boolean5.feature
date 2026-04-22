@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Boolean5 - Interop of logical requests
+Feature: Boolean5 - Interop of logical operations
 
   Scenario: [1] Disjunction is distributive over conjunction on non-null
     Given any graph

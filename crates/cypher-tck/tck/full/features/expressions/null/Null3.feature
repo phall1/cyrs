@@ -29,7 +29,7 @@
 #encoding: utf-8
 
 Feature: Null3 - Null evaluation
-# the scenarios of this feature should be redistributed to the features of respective requests
+# the scenarios of this feature should be redistributed to the features of respective operations
 
   Scenario: [1] The inverse of a null is a null
     Given any graph

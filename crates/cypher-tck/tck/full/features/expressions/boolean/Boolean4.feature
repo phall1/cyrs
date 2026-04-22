@@ -28,7 +28,7 @@
 
 #encoding: utf-8
 
-Feature: Boolean4 - NOT logical requests
+Feature: Boolean4 - NOT logical operations
 
   Scenario: [1] Logical negation of truth values
     Given any graph

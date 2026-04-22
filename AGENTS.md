@@ -281,7 +281,7 @@ these.
 - **TCK conformance** (`cypher-tck`): the v1 tags in §17.5 must be
   green on every PR.
 - **Benchmarks** (`criterion`) with a 10% regression gate per §17.10.
-- **Miri** nightly with `-Zmiri-strict-attestation`. No UB, including
+- **Miri** nightly with `-Zmiri-strict-provenance`. No UB, including
   in dependencies.
 - **Determinism** (§17.14): no `HashMap` iteration order in outputs.
   Use `BTreeMap` or `IndexMap` for anything that crosses the public

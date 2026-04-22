@@ -85,7 +85,7 @@ impl TestHarness {
             json!({
                 "processId": null,
                 "rootUri": null,
-                "features": {},
+                "capabilities": {},
                 "initializationOptions": options,
             }),
         );
@@ -96,7 +96,7 @@ impl TestHarness {
         // would still work (we fall back to the char-before-cursor
         // heuristic) but real editors would stop asking.
         let caps = resp.result.expect("initialize result");
-        let triggers = caps["features"]["completionProvider"]["triggerCharacters"]
+        let triggers = caps["capabilities"]["completionProvider"]["triggerCharacters"]
             .as_array()
             .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_default();
