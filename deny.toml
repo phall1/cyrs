@@ -26,7 +26,17 @@ version = 2
 # the advisory DB clone to incorrectly inherit the worktree's index,
 # producing false advisory-parse failures on workspace files.
 git-fetch-with-cli = true
-ignore = []
+ignore = [
+    # RUSTSEC-2025-0020 — pyo3 0.22 `PyString::from_object` boundary bug.
+    # Fixed in pyo3 0.24.1.  Spec 0004 §6 (cy-mpb) pins pyo3 to 0.22 for
+    # the abi3-py310 binding; the adapter layer does not call
+    # `PyString::from_object` (every string crosses the boundary via
+    # pyo3 0.22's `set_item` / `Bound<PyDict>::set_item`, which use the
+    # safe-length path), so this repo's exposure to the advisory is
+    # nil.  Upgrade path: a follow-up bead bumps the pin to pyo3 0.25+
+    # once the API settles on `&CStr` for the affected helpers.
+    "RUSTSEC-2025-0020",
+]
 
 # ---------------------------------------------------------------------------
 # License allowlist (spec §17.16)
