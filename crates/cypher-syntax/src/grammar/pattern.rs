@@ -171,13 +171,28 @@ fn rel_detail(p: &mut Parser<'_>) {
     m.complete(p, SyntaxKind::REL_DETAIL);
 }
 
+/// Label / rel-type names are (per Cypher) unrestricted identifiers — any
+/// keyword spelling is a valid label. Accept `IDENT` / `QUOTED_IDENT` and any
+/// token whose kind is in the keyword zone; the concrete token kind still
+/// round-trips in the CST so diagnostic-producing passes keep the span.
+fn eat_label_or_type_name(p: &mut Parser<'_>) -> bool {
+    if p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT) {
+        return true;
+    }
+    if p.current().is_keyword() {
+        p.bump_any();
+        return true;
+    }
+    false
+}
+
 /// `(':' IDENT)+`
 fn label_expr(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::COLON));
     let m = p.start();
     while p.at(SyntaxKind::COLON) {
         p.bump(SyntaxKind::COLON);
-        if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        if !eat_label_or_type_name(p) {
             p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
             break;
         }
@@ -191,7 +206,7 @@ fn rel_type_expr(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::COLON));
     let m = p.start();
     p.bump(SyntaxKind::COLON);
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if !eat_label_or_type_name(p) {
         p.error_code(
             sc::EXPECTED_REL_TYPE,
             "expected relationship type after ':'",

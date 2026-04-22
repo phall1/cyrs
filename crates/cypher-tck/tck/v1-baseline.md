@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **30** (75 %) |
-| Ignored (known parser gaps) | **10** (25 %) |
+| Passing | **32** (80 %) |
+| Ignored (known parser gaps) | **8** (20 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.

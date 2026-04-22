@@ -198,16 +198,12 @@ name    = "COUNT aggregation"
 tags    = ["@AGGREGATIONS"]
 query   = "MATCH (n:Person) RETURN count(n)"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
 
 [[scenario]]
 name    = "SUM aggregation"
 tags    = ["@AGGREGATIONS"]
 query   = "MATCH (n:Order) RETURN sum(n.amount)"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
 
 # ---------------------------------------------------------------------------
 # @PATTERNS

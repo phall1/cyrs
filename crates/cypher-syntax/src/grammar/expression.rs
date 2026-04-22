@@ -159,6 +159,15 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
         }
+        // `COUNT` / `EXISTS` lex as dedicated keyword tokens (lexer §4.1)
+        // but in expression position they still stand in for a function
+        // identifier — `count(n)`, `exists(n.prop)`. Accept the keyword as
+        // a VAR_EXPR so the postfix `(` loop can wrap it in a FUNCTION_CALL.
+        SyntaxKind::COUNT_KW | SyntaxKind::EXISTS_KW => {
+            let m = p.start();
+            p.bump_any();
+            m.complete(p, SyntaxKind::VAR_EXPR)
+        }
         SyntaxKind::L_PAREN => paren_expr(p, depth),
         SyntaxKind::L_BRACK => list_literal(p, depth),
         SyntaxKind::L_BRACE => map_literal(p, depth),
