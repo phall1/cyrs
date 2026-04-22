@@ -209,7 +209,9 @@ async function initAgentMode(model, applyDiagnostics) {
 async function initLspMode(model, applyDiagnostics) {
     let worker;
     try {
-        worker = new Worker(LSP_WORKER_URL, { type: "module" });
+        // Classic worker — `worker.js` uses `importScripts` to load
+        // wasm-bindgen's `--target no-modules` output (spec 0004 §7).
+        worker = new Worker(LSP_WORKER_URL);
     } catch (e) {
         setStatus(
             `lsp-wasm worker failed to start: ${e.message ?? e}\n` +

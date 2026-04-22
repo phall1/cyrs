@@ -10,15 +10,23 @@
 //     cargo xtask lsp-web-build
 //
 // That produces `./pkg-lsp/cypher_lsp.js` + `cypher_lsp_bg.wasm`
-// (wasm-bindgen `--target no-modules`).  We load the JS via importScripts
-// — `type: "module"` workers do not honour wasm-bindgen's no-modules
-// output, so this file is a classic worker with a dynamic init guard.
+// (wasm-bindgen `--target no-modules`).  We load the JS via
+// importScripts — `type: "module"` workers do not honour
+// wasm-bindgen's no-modules output, so this file is a classic worker.
 
 const PKG_JS_URL = "./pkg-lsp/cypher_lsp.js";
 const PKG_WASM_URL = "./pkg-lsp/cypher_lsp_bg.wasm";
 
-let ready = false;
+// Buffer messages received before the wasm module finishes booting.
+// `start_lsp` sets `self.onmessage` on the Rust side, which receives
+// future messages directly; this pre-init handler stops at that point
+// (we remove it explicitly to avoid double-dispatch).
 const pending = [];
+
+function preInitHandler(ev) {
+    pending.push(ev.data);
+}
+self.addEventListener("message", preInitHandler);
 
 (async function init() {
     try {
@@ -27,18 +35,19 @@ const pending = [];
         // call it with the wasm URL to initialise the instance, then
         // invoke the exported `start_lsp()` entry point which takes
         // over `onmessage`.
-        // eslint-disable-next-line no-undef
         self.importScripts(PKG_JS_URL);
         // eslint-disable-next-line no-undef
         await self.wasm_bindgen(PKG_WASM_URL);
         // eslint-disable-next-line no-undef
         self.wasm_bindgen.start_lsp();
-        ready = true;
-        // Replay buffered messages that landed before the module
-        // finished initialising.
-        for (const m of pending) {
-            self.postMessage.bind(self); // shape: worker forwards into itself
-            self.dispatchEvent(new MessageEvent("message", { data: m }));
+        // Rust installed its own `self.onmessage` handler.  Stop
+        // buffering and replay anything that arrived during boot via a
+        // synthetic MessageEvent so the Rust handler sees it.
+        self.removeEventListener("message", preInitHandler);
+        const rustHandler = self.onmessage;
+        for (const data of pending) {
+            const ev = new MessageEvent("message", { data });
+            rustHandler?.call(self, ev);
         }
         pending.length = 0;
     } catch (e) {
@@ -59,12 +68,3 @@ const pending = [];
         );
     }
 })();
-
-// Buffer inbound messages while the wasm module is still initialising.
-// Once `start_lsp` returns, the wasm module replaces the `onmessage`
-// handler, so this handler is only used pre-init.
-self.addEventListener("message", (ev) => {
-    if (!ready) {
-        pending.push(ev.data);
-    }
-});
