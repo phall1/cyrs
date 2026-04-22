@@ -72,12 +72,12 @@ fn all_count_pinned() {
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    7  schema-aware   (E3001–E3004, E3006–E3008, cy-36u)
     //   11  dialect        (E4001 + E4010–E4019, cy-z49)
-    //    3  type           (E5003, E5010, E5011, cy-c6g + cy-7s6.1 + cy-8x5)
+    //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
     //    7  style          (W6001–W6007)
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  113  total
+    //  114  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -89,6 +89,7 @@ fn all_count_pinned() {
     //         E5011 (list-predicate iterable is not a list).
     // cy-5gh: added E0068 (expected IN in list comp) and E0069
     //         (expected `|` or `]` in list comp) for list comprehensions.
-    const EXPECTED: usize = 113;
+    // cy-zo9.1: added E5012 (builtin argument kind mismatch).
+    const EXPECTED: usize = 114;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

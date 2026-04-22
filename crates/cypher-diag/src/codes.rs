@@ -501,6 +501,16 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E5011.md`
     E5011 = 5011,
+    /// Built-in function argument kind mismatch (spec §7.4 / §10.2).
+    ///
+    /// Emitted by `cypher-sema::infer` when a call to a registered
+    /// builtin passes an argument whose inferred type is incompatible
+    /// with the parameter's declared `ArgShape`. The canonical case
+    /// is `id(42)` — the `id` builtin's parameter is `GraphEntity`
+    /// (`Node | Relationship | Path`), so a scalar literal is rejected.
+    ///
+    /// Docs: `docs/errors/E5012.md`
+    E5012 = 5012,
 
     // --- syntax (E0064) continued -------------------------------------
     /// Unclosed `[` in a list-indexing / slicing expression (spec §4.3).
@@ -671,6 +681,7 @@ impl DiagCode {
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
             Self::E5011 => "E5011",
+            Self::E5012 => "E5012",
             Self::W6001 => "W6001",
             Self::W6002 => "W6002",
             Self::W6003 => "W6003",
@@ -808,6 +819,7 @@ impl DiagCode {
         Self::E5003,
         Self::E5010,
         Self::E5011,
+        Self::E5012,
         Self::W6001,
         Self::W6002,
         Self::W6003,
@@ -939,6 +951,7 @@ mod tests {
             DiagCode::E5003,
             DiagCode::E5010,
             DiagCode::E5011,
+            DiagCode::E5012,
             DiagCode::W6001,
             DiagCode::W6002,
             DiagCode::W6003,
