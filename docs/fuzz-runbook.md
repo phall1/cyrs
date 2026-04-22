@@ -18,26 +18,35 @@ I do when…" questions.
 | `fuzz_sema` | arbitrary bytes | no panic; diagnostic spans lie within input |
 | `fuzz_plan` | arbitrary bytes | no panic on HIR → plan lowering |
 | `fuzz_structured_parse` | RNG seed → grammar generator | valid parse, fmt idempotence, parse(fmt) clean, HIR + sema no-panic |
+| `fmt_parse_roundtrip` | arbitrary UTF-8 | P17.3.4 structural equality of CST modulo trivia |
 
-The byte-level targets all receive `-dict=fuzz/dicts/cypher.dict`; the
-structured target does not (its input is an RNG seed, not source text).
+Byte-level targets receive their per-target dictionary at
+`fuzz/dicts/<target>.dict`; the structured target does not (its input
+is an RNG seed, not source text).
 
 ## Dictionaries
 
 ### What the dicts are
 
-`fuzz/dicts/cypher.dict` is a libFuzzer dictionary: one C-string literal
-per line, `#`-prefixed comments and blank lines ignored. libFuzzer uses
-these tokens as splice candidates when mutating inputs, dramatically
-shortening the path to syntactically interesting shapes.
+libFuzzer dictionaries: one C-string literal per line, `#`-prefixed
+comments and blank lines ignored. libFuzzer uses these tokens as splice
+candidates when mutating inputs, dramatically shortening the path to
+syntactically interesting shapes.
 
-The entry count at the top of the file is kept in sync with the file
-body; if you edit the dict, update the header comment.
+**Layout (cy-h07):**
 
-Current groups (cy-h07.1, 178 entries):
+- `fuzz/dicts/cypher.dict` — shared base, hand-maintained.
+- `fuzz/dicts/extras/<target>.dict` — target-specific extras.
+- `fuzz/dicts/<target>.dict` — auto-generated concatenation of the
+  above by `fuzz/dicts/regen.sh`. Do NOT edit by hand. Each file is
+  > 200 entries; the acceptance floor per target is 100.
+- `fuzz/dicts/regen.sh` — shellcheck-clean regeneration script. Run
+  it after editing the base or any extras file.
+
+Current groups (shared base, cy-h07):
 
 - Every `*_KW` variant in `crates/cypher-syntax/src/kind.rs`.
-- Punctuation + multi-char operators (`<=`, `->`, `..`, …).
+- Punctuation + multi-char operators (`<=`, `->`, `<->`, `..`, …).
 - Literal shapes: quoted strings, integers, floats (incl. scientific),
   `null`, bools, `$param`, backtick-escaped identifiers.
 - Unicode edge cases: NUL, DEL, BOM, LTR/RTL marks, line separator,
@@ -45,6 +54,23 @@ Current groups (cy-h07.1, 178 entries):
 - Identifier pool matching the generator's (so the two fuzzers can
   find overlapping crashes).
 - Common fragments (`MATCH (n)`, `RETURN n`, `-[:KNOWS]->`, …).
+
+Per-target extras (cy-h07):
+
+- `fuzz_lexer.dict`: string escapes, numeric edge shapes, whitespace /
+  comment shapes, max-munch identifier-adjacency traps, bare sigils.
+- `fuzz_parser.dict`: clause-order bait, unbalanced-delimiter recovery
+  stress, pattern-comprehension + quantified-pattern shapes, subquery
+  forms that must reject cleanly per §9 v1 scope.
+- `fuzz_formatter.dict`: trivia-only inputs, comment placements that
+  break many formatters, operator-spacing edges, UTF-8 whitespace.
+- `fuzz_sema.dict`: undeclared / shadowed variables, aggregation +
+  grouping bait, WITH-pipeline scope rules, label expressions.
+- `fuzz_plan.dict`: scan / expand / filter / project / aggregate / sort
+  seeds, UNION, optional-match, write-side ops (SET / MERGE / DELETE).
+- `fmt_parse_roundtrip.dict`: well-formed fragments covering every
+  clause the formatter handles — the oracle is strongest when libFuzzer
+  splices valid fragments into the input stream.
 
 ### Who pages when an entry becomes obsolete
 
@@ -77,8 +103,20 @@ rg '_KW(?:\s*=\s*\d+)?,?\s*$' crates/cypher-syntax/src/kind.rs \
 
 Diff the output against the `# Keywords` section of
 `fuzz/dicts/cypher.dict`; add any newcomers, remove any
-disappeared entries. A future bead (cy-h07.2) replaces this
-manual step with `cargo xtask gen-fuzz-dict`.
+disappeared entries.
+
+After editing the base dict or any per-target extras:
+
+```sh
+fuzz/dicts/regen.sh
+```
+
+regenerates all seven `fuzz/dicts/<target>.dict` files. Commit the
+regenerated outputs in the same PR as the base edit so the committed
+tree always matches what CI passes to libFuzzer.
+
+A future bead (cy-h07.2) replaces the manual keyword-refresh step with
+`cargo xtask gen-fuzz-dict`.
 
 ## Adding a new fuzz target
 
@@ -100,8 +138,12 @@ Checklist:
       seed file. Filenames starting with `seed` are checked in per
       `.gitignore`; hex-named files are libFuzzer-generated and
       ignored.
+- [ ] Dictionary: add `fuzz/dicts/extras/<name>.dict` with
+      target-specific splice shapes, update the `targets=(…)` array in
+      `fuzz/dicts/regen.sh`, and run the script. Commit the regenerated
+      `fuzz/dicts/<name>.dict` alongside the extras.
 - [ ] CI: add a `build` loop entry and a `run` step in `.github/workflows/ci.yml`
-      under `fuzz-smoke`. Pass `-dict=fuzz/dicts/cypher.dict` for
+      under `fuzz-smoke`. Pass `-dict=fuzz/dicts/<name>.dict` for
       byte-level targets; omit the dict for structured / RNG-seeded
       targets.
 - [ ] Table row in `docs/fuzz-runbook.md` (this file) and
@@ -168,10 +210,64 @@ When a run crashes, libFuzzer writes the reproducer to
 
 ## OSS-Fuzz onboarding
 
-Deferred to a future bead (see `.beads/` for a `cy-oss-fuzz` parent
-ticket when it's filed). Doing it well requires: a pinned image with
-our nightly toolchain, a seed-corpus tarball published by CI, and
-a coverage-feedback loop into `docs/specs/0001-cypher-frontend.md §17.4`.
-None of that is needed for the PR-gate fuzz job today — the nightly
-workflow at `.github/workflows/fuzz-nightly.yml` runs each target for
-24h, which is the bar §17.4 sets.
+Scaffolding lives at `oss-fuzz/` (bead cy-h07):
+
+- `oss-fuzz/project.yaml` — manifest for the upstream `google/oss-fuzz`
+  submission (contacts, sanitizers, engine, architectures).
+- `oss-fuzz/Dockerfile` — builder image extending
+  `gcr.io/oss-fuzz-base/base-builder-rust`.
+- `oss-fuzz/build.sh` — builds every target, copies binaries +
+  per-target dictionaries + zipped seed corpora into `$OUT`.
+- `oss-fuzz/README.md` — submission flow + corpus-sync instructions.
+
+**Submission is operator-gated.** Do NOT open the upstream PR without
+explicit approval; see `oss-fuzz/README.md` §Submitting for the exact
+flow (fork, mirror, local sanity pass, PR against
+`google/oss-fuzz:master`).
+
+### Corpus auto-pull from OSS-Fuzz
+
+Once the project is live on OSS-Fuzz, the ClusterFuzz bucket is the
+canonical corpus. Pull the current state into the local tree for
+reproduction and expanded nightly runs:
+
+```sh
+# Requires gsutil + Google auth with read access to the public bucket.
+for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan \
+              fuzz_structured_parse fmt_parse_roundtrip; do
+    gsutil -m rsync -d \
+        "gs://cyrs-corpus.clusterfuzz-external.appspot.com/libFuzzer/cyrs_${target}/" \
+        "fuzz/corpus/${target}/"
+done
+```
+
+Commit only the files that start with `seed` (or that we author by hand
+as reproducers). ClusterFuzz names mutated entries by content hash;
+those are covered by the `fuzz/corpus/**/[0-9a-f]{8}*` ignore rule in
+`.gitignore` and should NOT be committed — they would inflate repo
+size without adding signal a nightly rebuild can't produce.
+
+### Regression minimisation from an OSS-Fuzz report
+
+ClusterFuzz emails the primary contact when a new crash is confirmed,
+with a link to the reproducer. The standard minimisation flow:
+
+```sh
+# Download the reproducer ClusterFuzz flags.
+curl -o /tmp/crash "$REPRODUCER_URL"
+
+# Feed it back into libFuzzer to confirm it still reproduces.
+cargo +nightly fuzz run "$target" /tmp/crash
+
+# Minimise.
+cargo +nightly fuzz tmin "$target" /tmp/crash
+# → writes fuzz/artifacts/$target/minimized-from-* next to the input.
+
+# Promote the minimised reproducer into the corpus so the next nightly
+# regresses on it deterministically.
+mv fuzz/artifacts/$target/minimized-from-* \
+   "fuzz/corpus/$target/seed_$(date +%Y%m%d)_${target}_oss_fuzz"
+```
+
+Then follow the `## Crash triage playbook` flow above (classify →
+regression test → fix → commit both).
