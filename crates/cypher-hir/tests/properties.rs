@@ -18,9 +18,9 @@
 
 use cypher_fmt::format;
 use cypher_hir::{
-    Clause, Direction, Expr, MapProjectionItem, Pattern, PatternElement, PatternPart, Projection,
-    RelLength, RemoveItem, SetItem, Statement, VarId, YieldItem, desugar::desugar_statement,
-    lower::lower_statement,
+    Clause, Direction, Expr, ListPredKind, MapProjectionItem, Pattern, PatternElement, PatternPart,
+    Projection, RelLength, RemoveItem, SetItem, Statement, VarId, YieldItem,
+    desugar::desugar_statement, lower::lower_statement,
 };
 use cypher_syntax::{SyntaxKind, parse};
 use proptest::prelude::*;
@@ -179,6 +179,32 @@ fn sig_expr(e: &Expr, out: &mut String) {
             }
             out.push(',');
             sig_expr(map_expr, out);
+            out.push(')');
+        }
+        Expr::ListPredicate {
+            kind,
+            var: VarId(v),
+            iterable,
+            predicate,
+        } => {
+            let tag = match kind {
+                ListPredKind::Any => "Any",
+                ListPredKind::All => "All",
+                ListPredKind::None => "None",
+                ListPredKind::Single => "Single",
+                // `#[non_exhaustive]`: future kinds fall back to a
+                // deterministic placeholder so the signature stays
+                // stable for round-trip.
+                _ => "?",
+            };
+            write!(out, "ListPred({tag},{v},").unwrap();
+            sig_expr(iterable, out);
+            out.push(',');
+            if let Some(p) = predicate {
+                sig_expr(p, out);
+            } else {
+                out.push('_');
+            }
             out.push(')');
         }
         Expr::MapProjection { base, items } => {
@@ -576,6 +602,12 @@ fn cypher_valid() -> impl Strategy<Value = String> {
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[..3]".to_string()),
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..]".to_string()),
         Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3][0]".to_string()),
+        // cy-8x5 — list predicates: ANY / ALL / NONE / SINGLE.
+        Just("UNWIND [1, 2, 3] AS xs RETURN ANY(x IN xs WHERE x > 0)".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN ALL(x IN xs WHERE x > 0)".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN NONE(x IN xs WHERE x > 0)".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN SINGLE(x IN xs WHERE x = 1)".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN ALL(x IN xs)".to_string()),
     ]
 }
 

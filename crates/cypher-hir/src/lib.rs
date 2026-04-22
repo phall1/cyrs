@@ -454,6 +454,23 @@ pub enum Expr {
         filter: Option<Box<Expr>>,
         map_expr: Box<Expr>,
     },
+    /// A list predicate — `ANY|ALL|NONE|SINGLE(v IN xs [WHERE p(v)])`
+    /// (cy-8x5, spec §19 row "List predicates").
+    ///
+    /// The `var` is scoped to the `predicate` expression only; callers
+    /// that traverse the HIR must introduce a child scope before
+    /// descending into the predicate (this parallels the
+    /// `ListComprehension` `filter_var` discipline). The `predicate` is
+    /// optional per openCypher spec: bare `ANY(x IN xs)` is true iff
+    /// `xs` is non-empty, `ALL(x IN xs)` is vacuously true, etc.
+    ///
+    /// Result type is always `Bool`.
+    ListPredicate {
+        kind: ListPredKind,
+        var: VarId,
+        iterable: Box<Expr>,
+        predicate: Option<Box<Expr>>,
+    },
     /// Desugared map projection (spec §6.1).
     ///
     /// `a { .name, .age, computed: f(a) }` is lowered to an explicit map
@@ -521,6 +538,25 @@ pub enum BinOp {
 pub enum UnaryOp {
     Neg,
     Not,
+}
+
+/// Discriminant for [`Expr::ListPredicate`] — one of the four openCypher
+/// list predicates (cy-8x5, spec §19 row "List predicates").
+///
+/// Marked `#[non_exhaustive]` at the public boundary so future list
+/// predicates (e.g. `EVERY`) can be added without breaking downstream
+/// matches (see `docs/stability.md`, same policy as cy-2i9.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ListPredKind {
+    /// `ANY(v IN xs WHERE p)` — at least one element matches.
+    Any,
+    /// `ALL(v IN xs WHERE p)` — every element matches.
+    All,
+    /// `NONE(v IN xs WHERE p)` — no element matches.
+    None,
+    /// `SINGLE(v IN xs WHERE p)` — exactly one element matches.
+    Single,
 }
 
 #[cfg(test)]

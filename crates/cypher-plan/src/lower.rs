@@ -858,6 +858,15 @@ impl<'s> LowerCtx<'s> {
                 Expr::Null
             }
 
+            HirExpr::ListPredicate { .. } => {
+                // cy-8x5 — list predicates survive the HIR→Plan boundary;
+                // the plan-level `Expr::ListPredicate` variant + real
+                // lowering land in the plan-layer commit. For now keep
+                // the placeholder so the HIR and plan crates build while
+                // the layered commits are in flight.
+                Expr::Null
+            }
+
             HirExpr::MapProjection { .. } => {
                 // Map projections must be desugared to explicit Expr::Map
                 // before lowering (see cy-mla).

@@ -368,6 +368,26 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
+            // List predicate — result is always Bool (cy-8x5, §19).
+            //
+            // Type rules enforced by `cypher-sema::kinds` (not here, because
+            // the schema-free inference pass does not know the predicate's
+            // iteration variable scope): iterable must be `LIST<T>`, the
+            // predicate (if present) must be `BOOL`. See `kinds.rs`.
+            // ---------------------------------------------------------------
+            Expr::ListPredicate {
+                iterable,
+                predicate,
+                ..
+            } => {
+                self.infer_expr(iterable);
+                if let Some(p) = predicate {
+                    self.infer_expr(p);
+                }
+                Type::Bool
+            }
+
+            // ---------------------------------------------------------------
             // Map projection — result is Map.
             // ---------------------------------------------------------------
             Expr::MapProjection { base, items } => {

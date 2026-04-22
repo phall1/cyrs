@@ -395,6 +395,19 @@ impl SchemaCtx<'_> {
                 }
                 self.check_expr(map_expr);
             }
+            // cy-8x5 — list-predicate traversal. Schema-aware checks
+            // recurse into iterable + optional predicate identically
+            // to list comprehensions; no dedicated rule here.
+            Expr::ListPredicate {
+                iterable,
+                predicate,
+                ..
+            } => {
+                self.check_expr(iterable);
+                if let Some(p) = predicate {
+                    self.check_expr(p);
+                }
+            }
 
             Expr::MapProjection { base, items } => {
                 self.check_expr(base);

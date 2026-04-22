@@ -299,6 +299,21 @@ impl KindCtx<'_> {
                 }
                 self.check_expr(map_expr, ExprCtx::General, sink);
             }
+            // cy-8x5 — list-predicate traversal. Richer type rules
+            // (iterable is LIST, predicate is BOOL) land with sema
+            // E5011 registration in the follow-up commit; for now we
+            // recurse into both sub-expressions so nested structural
+            // checks still fire.
+            Expr::ListPredicate {
+                iterable,
+                predicate,
+                ..
+            } => {
+                self.check_expr(iterable, ExprCtx::General, sink);
+                if let Some(p) = predicate {
+                    self.check_expr(p, ExprCtx::General, sink);
+                }
+            }
             Expr::MapProjection { base, items } => {
                 self.check_expr(base, ExprCtx::PropAccess, sink);
                 for item in items {

@@ -687,6 +687,25 @@ impl OverlayCtx<'_> {
                 let map_str = self.fmt_expr(map_expr, 0);
                 format!("[{var_str} IN {iter_str}{filter_str} | {map_str}]")
             }
+            Expr::ListPredicate {
+                kind,
+                var,
+                iterable,
+                predicate,
+            } => {
+                let kw = match kind {
+                    crate::ListPredKind::Any => "ANY",
+                    crate::ListPredKind::All => "ALL",
+                    crate::ListPredKind::None => "NONE",
+                    crate::ListPredKind::Single => "SINGLE",
+                };
+                let var_str = self.fmt_var_bind(*var);
+                let iter_str = self.fmt_expr(iterable, 0);
+                let pred_str = predicate
+                    .as_ref()
+                    .map_or_else(String::new, |p| format!(" WHERE {}", self.fmt_expr(p, 0)));
+                format!("{kw}({var_str} IN {iter_str}{pred_str})")
+            }
             Expr::MapProjection { base, items } => {
                 let base_str = self.fmt_expr(base, 0);
                 let item_strs: Vec<_> = items
