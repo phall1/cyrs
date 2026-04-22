@@ -21,6 +21,10 @@ benches/Cargo.lock
 # Seed corpus files (fuzz/corpus/<target>/seed*) ARE checked in.
 fuzz/target
 fuzz/artifacts
+# fuzz/ is a standalone workspace (see fuzz/Cargo.toml [workspace]). The
+# lockfile it generates is a developer convenience; like benches/Cargo.lock
+# it is not part of the committed tree.
+fuzz/Cargo.lock
 # Ignore fuzzer-generated corpus entries but keep our seed files.
 # (cargo fuzz writes new inputs as hex-named files; seeds are named seed*)
 fuzz/corpus/**/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*

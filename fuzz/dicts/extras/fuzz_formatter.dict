@@ -1,0 +1,70 @@
+# fuzz_formatter-specific extras — whitespace / comment / trivia shapes
+# the formatter must preserve-or-canonicalise. Splicing these into an
+# otherwise valid statement is the fastest path to idempotence bugs.
+
+# Trailing trivia: whitespace only / comment only.
+" "
+"  "
+"\t"
+"\n"
+"\r\n"
+"\n\n\n"
+"   \t  \n"
+"// leading\n"
+"// trailing\n"
+"/*block*/"
+"/* spaced */"
+"/* multi\nline */"
+"/* nested-like */"
+"/*/*/"
+"/*"
+"*/"
+
+# Comment placements that break many formatters.
+"MATCH /* inline */ (n)"
+"MATCH // eol\n(n)"
+"RETURN /* a */ n /* b */"
+"WITH // x\nn AS n"
+"-- sql-style"
+"#shebang-ish"
+
+# Alignment bait: already-multi-line vs inline.
+"MATCH (n)\nRETURN n"
+"MATCH\n(n)\nRETURN\nn"
+"MATCH   (n)"
+"RETURN    n   ,   m"
+"MATCH(n)RETURN n"
+
+# Operator-spacing edges.
+"n.k=1"
+"n.k = 1"
+"n.k  =  1"
+"1+2"
+"1 + 2"
+"1  +  2"
+"n.k>=1"
+"n.k >= 1"
+
+# String-literal quote style.
+"\"double\""
+"'single'"
+"'mixed \"quotes\"'"
+"\"mixed 'quotes'\""
+
+# Keyword case variations — formatter canonicalises.
+"match"
+"Match"
+"MATCH"
+"mAtCh"
+"return"
+"Return"
+
+# Very long statement bait (length-driven wrapping).
+"MATCH (a)-[:R]->(b)-[:R]->(c)-[:R]->(d)-[:R]->(e) RETURN a, b, c, d, e"
+"RETURN 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15"
+
+# UTF-8 whitespace (NBSP, ideographic space) the formatter should either
+# preserve or classify as trivia.
+"\xc2\xa0"
+"\xe3\x80\x80"
+"\xe2\x80\x83"

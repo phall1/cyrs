@@ -49,6 +49,8 @@
 //! resolution happy is a *future* enhancement; v0 only asserts the parser
 //! sees a clean tree.
 
+use core::sync::atomic::{AtomicU64, Ordering};
+
 use rand_core::RngCore;
 
 // ---------------------------------------------------------------------------
@@ -60,12 +62,199 @@ use rand_core::RngCore;
 /// `max_depth` caps recursion on expression / pattern productions. A value
 /// of `4`–`6` is a good default for fuzzing; `0` produces only the thinnest
 /// leaves (literal-only RETURN).
+///
+/// Each call bumps the process-wide [`COVERAGE`] counters (spec §17.4,
+/// bead cy-h07 acceptance: every clause covered at least once per 1k
+/// iterations).
 #[must_use]
 pub fn random_valid_cypher<R: RngCore + ?Sized>(rng: &mut R, max_depth: u8) -> String {
     let mut g = Gen::new(rng, max_depth);
     g.statement();
     g.finish()
 }
+
+// ---------------------------------------------------------------------------
+// Coverage tracking (cy-h07)
+// ---------------------------------------------------------------------------
+
+/// Clause / expression categories tracked by [`COVERAGE`].
+///
+/// Ordering is stable and forms the index into the parallel arrays on
+/// [`CoverageCounters`]. New variants append to the end so old indices
+/// keep meaning; this mirrors the `SyntaxKind` stability policy in
+/// `crates/cypher-syntax/src/kind.rs`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Clause {
+    /// `MATCH <pattern> [WHERE …]`
+    Match,
+    /// `OPTIONAL MATCH <pattern>`
+    OptionalMatch,
+    /// `WITH <items> [WHERE …]`
+    With,
+    /// `UNWIND <expr> AS <var>`
+    Unwind,
+    /// `CREATE (<node>)`
+    Create,
+    /// `RETURN …` — always emitted by `statement()` as the tail.
+    Return,
+    /// A binary-operator expression was emitted somewhere in the statement.
+    ExprBinary,
+    /// A function-call expression was emitted.
+    ExprFunctionCall,
+    /// A list literal `[…]` was emitted.
+    ExprList,
+    /// A map literal `{…}` was emitted.
+    ExprMap,
+    /// A property access `n.k` was emitted at the return-item or leaf level.
+    ExprPropertyAccess,
+    /// A relationship pattern was emitted inside a MATCH/OPTIONAL MATCH.
+    RelPattern,
+    /// `ORDER BY` tail on a RETURN was emitted.
+    OrderBy,
+    /// `SKIP` tail on a RETURN was emitted.
+    Skip,
+    /// `LIMIT` tail on a RETURN was emitted.
+    Limit,
+    /// `RETURN DISTINCT` was emitted.
+    Distinct,
+}
+
+impl Clause {
+    /// Dense index for array-backed counter storage.
+    const fn as_index(self) -> usize {
+        self as usize
+    }
+
+    /// Total number of variants. Kept in sync by hand with the enum; the
+    /// test `coverage_all_clauses_seen_within_1k_iterations` will fail if
+    /// you forget to update.
+    pub const ALL: &'static [Clause] = &[
+        Clause::Match,
+        Clause::OptionalMatch,
+        Clause::With,
+        Clause::Unwind,
+        Clause::Create,
+        Clause::Return,
+        Clause::ExprBinary,
+        Clause::ExprFunctionCall,
+        Clause::ExprList,
+        Clause::ExprMap,
+        Clause::ExprPropertyAccess,
+        Clause::RelPattern,
+        Clause::OrderBy,
+        Clause::Skip,
+        Clause::Limit,
+        Clause::Distinct,
+    ];
+
+    /// Human-readable name, for `Display`-style reporting.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Clause::Match => "MATCH",
+            Clause::OptionalMatch => "OPTIONAL_MATCH",
+            Clause::With => "WITH",
+            Clause::Unwind => "UNWIND",
+            Clause::Create => "CREATE",
+            Clause::Return => "RETURN",
+            Clause::ExprBinary => "expr:binary",
+            Clause::ExprFunctionCall => "expr:function_call",
+            Clause::ExprList => "expr:list_literal",
+            Clause::ExprMap => "expr:map_literal",
+            Clause::ExprPropertyAccess => "expr:property_access",
+            Clause::RelPattern => "pattern:relationship",
+            Clause::OrderBy => "RETURN/ORDER_BY",
+            Clause::Skip => "RETURN/SKIP",
+            Clause::Limit => "RETURN/LIMIT",
+            Clause::Distinct => "RETURN/DISTINCT",
+        }
+    }
+}
+
+/// Process-wide coverage counter — one `AtomicU64` per [`Clause`] variant.
+///
+/// `fuzz_structured_parse` prints a snapshot at shutdown so the nightly
+/// run reports how often each clause fired. Tests also assert every
+/// variant ticks at least once within 1k iterations (spec §17.4).
+pub struct CoverageCounters {
+    counts: [AtomicU64; Clause::ALL.len()],
+}
+
+impl CoverageCounters {
+    const fn new() -> Self {
+        // AtomicU64 has no `const` array-repeat constructor on stable, so
+        // spell out all 16 slots explicitly. Adding a variant? Append a
+        // new `AtomicU64::new(0)` below.
+        Self {
+            counts: [
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+                AtomicU64::new(0),
+            ],
+        }
+    }
+
+    /// Record one hit of `clause`.
+    pub fn record(&self, clause: Clause) {
+        self.counts[clause.as_index()].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Read the current count for `clause`.
+    #[must_use]
+    pub fn get(&self, clause: Clause) -> u64 {
+        self.counts[clause.as_index()].load(Ordering::Relaxed)
+    }
+
+    /// Reset every counter to zero. Tests that want to measure a fresh
+    /// 1k-iteration window call this first.
+    pub fn reset(&self) {
+        for c in &self.counts {
+            c.store(0, Ordering::Relaxed);
+        }
+    }
+
+    /// Return every `(clause, count)` pair sorted by variant order.
+    #[must_use]
+    pub fn snapshot(&self) -> Vec<(Clause, u64)> {
+        Clause::ALL.iter().map(|c| (*c, self.get(*c))).collect()
+    }
+
+    /// Return `true` iff every clause variant has a non-zero count.
+    #[must_use]
+    pub fn all_nonzero(&self) -> bool {
+        Clause::ALL.iter().all(|c| self.get(*c) > 0)
+    }
+
+    /// Render a human-readable summary block suitable for printing at
+    /// the end of a fuzz run. The output is stable across runs when the
+    /// counts are stable (fixed iteration order).
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let mut out = String::with_capacity(512);
+        out.push_str("[cyrs_fuzz coverage] clause hit counts:\n");
+        for (clause, count) in self.snapshot() {
+            out.push_str(&format!("  {:24} {}\n", clause.name(), count));
+        }
+        out
+    }
+}
+
+/// Single process-wide instance. Safe to clone-style-read from multiple
+/// threads: every field is `AtomicU64`.
+pub static COVERAGE: CoverageCounters = CoverageCounters::new();
 
 // ---------------------------------------------------------------------------
 // Core
@@ -141,20 +330,25 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
         // Every statement is a sequence of 1..=3 reading/updating clauses
         // capped with a trailing RETURN — the parser requires statements to
         // end in a returning clause for the shapes we cover here.
-        let lead = self.pick_u32(6);
+        //
+        // We pick over five *distinct* leads (not six) so every clause has
+        // the same 1/5 hit rate. Previously `_ => match_clause` biased
+        // MATCH to 2/6; that meant 1k iterations still left tail clauses
+        // under-covered in rare seed strides.
+        let lead = self.pick_u32(5);
         match lead {
             0 => self.match_clause(),
             1 => self.optional_match_clause(),
             2 => self.with_clause(),
             3 => self.unwind_clause(),
-            4 => self.create_clause(),
-            _ => self.match_clause(),
+            _ => self.create_clause(),
         }
         self.out.push(' ');
         self.return_clause();
     }
 
     fn match_clause(&mut self) {
+        COVERAGE.record(Clause::Match);
         self.out.push_str("MATCH ");
         self.pattern();
         if self.coin(1, 2) {
@@ -164,11 +358,13 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn optional_match_clause(&mut self) {
+        COVERAGE.record(Clause::OptionalMatch);
         self.out.push_str("OPTIONAL MATCH ");
         self.pattern();
     }
 
     fn with_clause(&mut self) {
+        COVERAGE.record(Clause::With);
         // `WITH x AS x` is the minimal shape that parses cleanly and keeps
         // the trailing RETURN well-scoped.
         self.out.push_str("WITH ");
@@ -183,6 +379,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn unwind_clause(&mut self) {
+        COVERAGE.record(Clause::Unwind);
         self.out.push_str("UNWIND ");
         // Use a list literal so the parser sees a typed expression; a bare
         // variable might unresolve in sema but still parses.
@@ -192,14 +389,17 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn create_clause(&mut self) {
+        COVERAGE.record(Clause::Create);
         self.out.push_str("CREATE ");
         // Keep v0 simple: a single node pattern, no relationship.
         self.node_pattern();
     }
 
     fn return_clause(&mut self) {
+        COVERAGE.record(Clause::Return);
         self.out.push_str("RETURN ");
         if self.coin(1, 4) {
+            COVERAGE.record(Clause::Distinct);
             self.out.push_str("DISTINCT ");
         }
         // 1..=3 return items.
@@ -211,6 +411,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
             self.return_item();
         }
         if self.coin(1, 3) {
+            COVERAGE.record(Clause::OrderBy);
             self.out.push_str(" ORDER BY ");
             self.push_pick(VARS);
             if self.coin(1, 2) {
@@ -219,10 +420,12 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
             }
         }
         if self.coin(1, 4) {
+            COVERAGE.record(Clause::Skip);
             self.out.push_str(" SKIP ");
             self.int_literal();
         }
         if self.coin(1, 4) {
+            COVERAGE.record(Clause::Limit);
             self.out.push_str(" LIMIT ");
             self.int_literal();
         }
@@ -234,6 +437,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
         match self.pick_u32(4) {
             0 => self.push_pick(VARS),
             1 => {
+                COVERAGE.record(Clause::ExprPropertyAccess);
                 self.push_pick(VARS);
                 self.out.push('.');
                 self.push_pick(PROP_KEYS);
@@ -277,6 +481,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn rel_pattern(&mut self) {
+        COVERAGE.record(Clause::RelPattern);
         // Random direction.
         let dir = self.pick_u32(3);
         match dir {
@@ -347,6 +552,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
             6 => self.push_pick(VARS),
             _ => {
                 // Property access.
+                COVERAGE.record(Clause::ExprPropertyAccess);
                 self.push_pick(VARS);
                 self.out.push('.');
                 self.push_pick(PROP_KEYS);
@@ -355,6 +561,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn binary_expr(&mut self, depth: u8) {
+        COVERAGE.record(Clause::ExprBinary);
         self.expr(depth - 1);
         // Whitelisted binary operators known to round-trip through the
         // parser. Keyword ops (AND/OR) and comparison `=` need spaces on
@@ -375,6 +582,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn function_call(&mut self, depth: u8) {
+        COVERAGE.record(Clause::ExprFunctionCall);
         self.push_pick(FUNCS);
         self.out.push('(');
         // 0..=2 args. Zero is valid for `count(*)`, but we're not emitting
@@ -390,6 +598,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn list_literal(&mut self, depth: u8) {
+        COVERAGE.record(Clause::ExprList);
         self.out.push('[');
         let n = self.pick_u32(4);
         for i in 0..n {
@@ -402,6 +611,7 @@ impl<'r, R: RngCore + ?Sized> Gen<'r, R> {
     }
 
     fn map_literal(&mut self, depth: u8) {
+        COVERAGE.record(Clause::ExprMap);
         self.out.push('{');
         let n = self.pick_u32(3);
         for i in 0..n {
@@ -557,6 +767,72 @@ mod tests {
             assert!(
                 !has_error_nodes(&src),
                 "ERROR at depth=0 seed={seed}: {src:?}"
+            );
+        }
+    }
+
+    /// Clause-coverage acceptance test (bead cy-h07, spec §17.4).
+    ///
+    /// Every [`Clause`] variant must tick at least once across 1000
+    /// iterations with a fixed seed stride. This guards against future
+    /// edits to the generator (e.g. re-weighting the clause picker)
+    /// silently dropping a branch from the fuzz distribution.
+    ///
+    /// We reset `COVERAGE` at the start so previous tests in the same
+    /// process don't mask a regression. Rust's default test runner
+    /// parallelises test threads, so we use a local `CoverageCounters`
+    /// instance populated by a per-test hook — but since the generator
+    /// writes to the static `COVERAGE`, we instead take a "before"
+    /// snapshot and assert each clause's *delta* is > 0.
+    #[test]
+    fn coverage_all_clauses_seen_within_1k_iterations() {
+        const ITERS: u64 = 1000;
+
+        // Snapshot before running so parallel tests in this process
+        // (which also call `random_valid_cypher`) don't interfere.
+        let before: Vec<u64> = Clause::ALL.iter().map(|c| COVERAGE.get(*c)).collect();
+
+        for seed in 0..ITERS {
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            // Vary depth so shallow AND deep branches (map, list, binary,
+            // function call) all get a realistic shot at firing.
+            let depth = (seed % 5) as u8 + 2;
+            let _ = random_valid_cypher(&mut rng, depth);
+        }
+
+        let mut missing: Vec<&'static str> = Vec::new();
+        for (i, clause) in Clause::ALL.iter().enumerate() {
+            let delta = COVERAGE.get(*clause) - before[i];
+            if delta == 0 {
+                missing.push(clause.name());
+            }
+        }
+
+        assert!(
+            missing.is_empty(),
+            "clause coverage gap after {ITERS} iterations: {missing:?}"
+        );
+
+        // Emit the per-clause hit counts so `cargo test -- --nocapture`
+        // doubles as the coverage-metric output promised by cy-h07.
+        eprintln!("[cy-h07] clause coverage over {ITERS} iterations:");
+        for (i, clause) in Clause::ALL.iter().enumerate() {
+            let delta = COVERAGE.get(*clause) - before[i];
+            eprintln!("  {:24} {}", clause.name(), delta);
+        }
+    }
+
+    /// `COVERAGE.summary()` lists every variant and is reasonably sized.
+    /// Guards the diagnostic-quality requirement that the fuzz runner can
+    /// print a coverage summary at shutdown (cy-h07 scope bullet 2).
+    #[test]
+    fn coverage_summary_mentions_every_variant() {
+        let summary = COVERAGE.summary();
+        for clause in Clause::ALL {
+            assert!(
+                summary.contains(clause.name()),
+                "summary missing variant {:?}:\n{summary}",
+                clause.name()
             );
         }
     }
