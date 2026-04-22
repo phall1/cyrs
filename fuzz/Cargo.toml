@@ -53,6 +53,16 @@ path = "fuzz_targets/fuzz_plan.rs"
 test = false
 doc  = false
 
+# Grammar-aware target (cy-h07.1). Uses the generator in `src/generator.rs`
+# to synthesise valid Cypher from the fuzz input as an RNG seed, then
+# asserts parse + fmt + sema + plan all run without error.
+[[bin]]
+name  = "fuzz_structured_parse"
+path  = "fuzz_targets/fuzz_structured_parse.rs"
+test  = false
+doc   = false
+bench = false
+
 [dependencies]
 libfuzzer-sys = "0.4"
 cypher-syntax = { path = "../crates/cypher-syntax" }
@@ -69,8 +79,8 @@ rand_core    = { version = "0.6", default-features = false }
 rand         = { version = "0.8", default-features = false, features = ["std_rng"] }
 rand_chacha  = { version = "0.3", default-features = false }
 
-# Test-only walker.
-[dev-dependencies]
+# Needed by `fuzz_structured_parse` to walk the CST looking for ERROR
+# nodes — same version cypher-syntax uses internally.
 rowan        = "0.15"
 
 [profile.release]
