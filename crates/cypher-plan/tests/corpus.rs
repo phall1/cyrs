@@ -10,8 +10,8 @@
 use cypher_plan::lower::PlanStatement;
 use cypher_plan::pretty::pretty;
 use cypher_plan::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, NodeSpec, OpId, OrderKey, Projection, ReadOp,
-    RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, Projection,
+    ReadOp, RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId, WriteOp,
 };
 use indexmap::IndexMap;
 
@@ -2387,6 +2387,114 @@ fn corpus_json_full_delete_detach() {
     assert_json_roundtrip(&plan);
     insta::assert_json_snapshot!(
         "corpus_json_full_delete_detach",
+        serde_json::to_value(&plan).unwrap()
+    );
+}
+
+// ── cy-8x5 — list predicates (§19 row "List predicates") ────────────────────
+
+/// RETURN ANY(x IN [1, 2, 3] WHERE x > 0) — the plan `Expr::ListPredicate`
+/// survives through the HIR→Plan boundary so consumers can evaluate it
+/// directly (no desugaring required).
+#[test]
+fn corpus_pretty_list_pred_any_return() {
+    let any_expr = Expr::ListPredicate {
+        kind: ListPredKind::Any,
+        var: VarId(0),
+        iterable: Box::new(Expr::List(vec![Expr::Int(1), Expr::Int(2), Expr::Int(3)])),
+        predicate: Some(Box::new(Expr::BinOp {
+            op: BinOp::Gt,
+            lhs: Box::new(Expr::Var(VarId(0))),
+            rhs: Box::new(Expr::Int(0)),
+        })),
+    };
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(1),
+        },
+        ReadOp::Project {
+            input: OpId(0),
+            items: vec![Projection {
+                expr: any_expr,
+                alias: "pred".into(),
+            }],
+        },
+    ]);
+    insta::assert_snapshot!("corpus_pretty_list_pred_any_return", pretty(&plan));
+}
+
+/// RETURN ALL(x IN xs) — bare (predicate-free) form. Plan `predicate`
+/// field is `None`; pretty output omits the `WHERE` clause.
+#[test]
+fn corpus_pretty_list_pred_all_bare() {
+    let all_expr = Expr::ListPredicate {
+        kind: ListPredKind::All,
+        var: VarId(0),
+        iterable: Box::new(Expr::Var(VarId(1))),
+        predicate: None,
+    };
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(1),
+        },
+        ReadOp::Project {
+            input: OpId(0),
+            items: vec![Projection {
+                expr: all_expr,
+                alias: "pred".into(),
+            }],
+        },
+    ]);
+    insta::assert_snapshot!("corpus_pretty_list_pred_all_bare", pretty(&plan));
+}
+
+/// JSON round-trip: all four kinds survive serialise + deserialise
+/// identically (deterministic snapshot). Exercises the `ExprSer`
+/// `list_predicate` proxy with the `pred_kind` tag rename.
+#[test]
+fn corpus_json_list_pred_roundtrip_all_kinds() {
+    let mk = |kind: ListPredKind| Expr::ListPredicate {
+        kind,
+        var: VarId(0),
+        iterable: Box::new(Expr::Var(VarId(1))),
+        predicate: Some(Box::new(Expr::BinOp {
+            op: BinOp::Gt,
+            lhs: Box::new(Expr::Var(VarId(0))),
+            rhs: Box::new(Expr::Int(0)),
+        })),
+    };
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(1),
+        },
+        ReadOp::Project {
+            input: OpId(0),
+            items: vec![
+                Projection {
+                    expr: mk(ListPredKind::Any),
+                    alias: "a".into(),
+                },
+                Projection {
+                    expr: mk(ListPredKind::All),
+                    alias: "b".into(),
+                },
+                Projection {
+                    expr: mk(ListPredKind::None),
+                    alias: "c".into(),
+                },
+                Projection {
+                    expr: mk(ListPredKind::Single),
+                    alias: "d".into(),
+                },
+            ],
+        },
+    ]);
+    assert_json_roundtrip(&plan);
+    insta::assert_json_snapshot!(
+        "corpus_json_list_pred_roundtrip_all_kinds",
         serde_json::to_value(&plan).unwrap()
     );
 }

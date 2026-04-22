@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, NodeSpec, OpId, OrderKey, Projection, ReadOp,
-    RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, Projection,
+    ReadOp, RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── VarId / OpId ─────────────────────────────────────────────────────────────
@@ -275,6 +275,36 @@ impl<'de> Deserialize<'de> for UnaryOp {
     }
 }
 
+// ── ListPredKind ──────────────────────────────────────────────────────────────
+
+impl Serialize for ListPredKind {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let tag = match self {
+            ListPredKind::Any => "any",
+            ListPredKind::All => "all",
+            ListPredKind::None => "none",
+            ListPredKind::Single => "single",
+        };
+        s.serialize_str(tag)
+    }
+}
+
+impl<'de> Deserialize<'de> for ListPredKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        match s.as_str() {
+            "any" => Ok(ListPredKind::Any),
+            "all" => Ok(ListPredKind::All),
+            "none" => Ok(ListPredKind::None),
+            "single" => Ok(ListPredKind::Single),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["any", "all", "none", "single"],
+            )),
+        }
+    }
+}
+
 // ── NodeSpec / RelSpec ────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize)]
@@ -501,6 +531,14 @@ enum ExprSer {
         operand: Box<Expr>,
         list: Box<Expr>,
     },
+    ListPredicate {
+        #[serde(rename = "pred_kind")]
+        kind: ListPredKind,
+        var: VarId,
+        iterable: Box<Expr>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        predicate: Option<Box<Expr>>,
+    },
     Param {
         name: SmolStr,
     },
@@ -564,6 +602,17 @@ impl Serialize for Expr {
                 operand: Box::new(*operand.clone()),
                 list: Box::new(*list.clone()),
             },
+            Expr::ListPredicate {
+                kind,
+                var,
+                iterable,
+                predicate,
+            } => ExprSer::ListPredicate {
+                kind: *kind,
+                var: *var,
+                iterable: Box::new(*iterable.clone()),
+                predicate: predicate.as_ref().map(|p| Box::new(*p.clone())),
+            },
             Expr::Param { name } => ExprSer::Param { name: name.clone() },
         };
         proxy.serialize(s)
@@ -621,6 +670,17 @@ impl<'de> Deserialize<'de> for Expr {
             ExprSer::InList { operand, list } => Expr::InList {
                 operand: Box::new(*operand),
                 list: Box::new(*list),
+            },
+            ExprSer::ListPredicate {
+                kind,
+                var,
+                iterable,
+                predicate,
+            } => Expr::ListPredicate {
+                kind,
+                var,
+                iterable: Box::new(*iterable),
+                predicate: predicate.map(|p| Box::new(*p)),
             },
             ExprSer::Param { name } => Expr::Param { name },
         })

@@ -16,8 +16,8 @@ use std::fmt::Write as _;
 
 use crate::lower::PlanStatement;
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, OrderKey, Projection, ReadOp, RelLength, RelSpec,
-    SortDir, UnaryOp, UnionKind, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, OrderKey, Projection, ReadOp,
+    RelLength, RelSpec, SortDir, UnaryOp, UnionKind, WriteOp,
 };
 
 const INDENT: &str = "  ";
@@ -458,6 +458,24 @@ fn format_expr(expr: &Expr) -> String {
         }
         Expr::InList { operand, list } => {
             format!("({} IN {})", format_expr(operand), format_expr(list))
+        }
+        Expr::ListPredicate {
+            kind,
+            var,
+            iterable,
+            predicate,
+        } => {
+            let kw = match kind {
+                ListPredKind::Any => "ANY",
+                ListPredKind::All => "ALL",
+                ListPredKind::None => "NONE",
+                ListPredKind::Single => "SINGLE",
+            };
+            let pred = predicate
+                .as_ref()
+                .map(|p| format!(" WHERE {}", format_expr(p)))
+                .unwrap_or_default();
+            format!("{kw}(${} IN {}{pred})", var.0, format_expr(iterable))
         }
         Expr::Param { name } => format!("${name}"),
     }

@@ -574,6 +574,23 @@ pub enum Expr {
         /// List to test membership in.
         list: Box<Expr>,
     },
+    /// A list predicate — `ANY|ALL|NONE|SINGLE(v IN xs [WHERE p(v)])`
+    /// (cy-8x5). Result type is `Bool`.
+    ///
+    /// Mirrors the HIR shape: the binder `var` is scoped to the
+    /// `predicate` sub-expression only; the `iterable` evaluates in the
+    /// enclosing row scope. `predicate` is `None` for the bare form
+    /// (`ANY(x IN xs)` — true iff xs is non-empty).
+    ListPredicate {
+        /// Which of the four list predicates.
+        kind: ListPredKind,
+        /// Plan-scoped id of the iteration variable.
+        var: VarId,
+        /// Source list expression.
+        iterable: Box<Expr>,
+        /// Optional `Bool` predicate; `None` for the bare form.
+        predicate: Option<Box<Expr>>,
+    },
     /// A query parameter reference. Spec §12.4.
     ///
     /// The consumer binds parameter values at execution time. The plan does
@@ -651,6 +668,22 @@ pub enum UnaryOp {
     Neg,
     /// `NOT` — boolean negation.
     Not,
+}
+
+/// Discriminant for [`Expr::ListPredicate`] (cy-8x5, spec §19 row
+/// "List predicates"). Mirrors `cypher_hir::ListPredKind` at the plan
+/// layer so the HIR is not leaked across the plan boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ListPredKind {
+    /// `ANY(v IN xs WHERE p)` — at least one element matches.
+    Any,
+    /// `ALL(v IN xs WHERE p)` — every element matches.
+    All,
+    /// `NONE(v IN xs WHERE p)` — no element matches.
+    None,
+    /// `SINGLE(v IN xs WHERE p)` — exactly one element matches.
+    Single,
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
