@@ -241,11 +241,16 @@ fn sig_pattern_element(el: &PatternElement, out: &mut String) {
                 Direction::Outgoing => "->",
                 Direction::Incoming => "<-",
                 Direction::Undirected => "--",
+                // `Direction` is `#[non_exhaustive]` (cy-2i9.1).
+                _ => "?",
             };
             out.push_str(dir);
+            // `RelLength` is `#[non_exhaustive]` (cy-2i9.1).
+            #[allow(clippy::match_same_arms)]
             match length {
                 RelLength::Single => {}
                 RelLength::Variable { min, max } => write!(out, "*{min:?}..{max:?}").unwrap(),
+                _ => {}
             }
             if let Some(p) = props {
                 out.push('{');

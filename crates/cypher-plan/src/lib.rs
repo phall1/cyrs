@@ -83,6 +83,7 @@ pub struct RelSpec {
 
 /// Relationship traversal direction as written in the source. Spec §5.3.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Direction {
     /// `-[r]->` — left-to-right.
     Outgoing,
@@ -95,6 +96,7 @@ pub enum Direction {
 /// Variable-length relationship bounds. `Single` means no `*` qualifier.
 /// Spec §5.3.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum RelLength {
     /// Exactly one hop (`-[r]->`).
     Single,
@@ -110,6 +112,7 @@ pub enum RelLength {
 
 /// Disposition of a `UNION`. Spec §12.1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UnionKind {
     /// `UNION ALL` — duplicate rows are preserved.
     All,
@@ -138,6 +141,7 @@ pub struct OrderKey {
 
 /// Sort direction for [`OrderKey`]. Spec §12.1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SortDir {
     /// `ASC` / default.
     Asc,
@@ -175,6 +179,7 @@ pub struct AggExpr {
 /// Consumers iterate the tree in whatever order suits their executor. This
 /// crate imposes no evaluation semantics.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReadOp {
     /// Scan all nodes, optionally filtered to those carrying a set of labels.
     ///
@@ -333,6 +338,7 @@ pub enum ReadOp {
 /// row. Consumers own the sequencing and transactional semantics. This crate
 /// describes *what* to write, not *how*.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WriteOp {
     /// Create a new node with the given labels and properties.
     ///
@@ -468,6 +474,7 @@ pub enum WriteOp {
 /// consumer's responsibility. The Plan IR treats float bit patterns as opaque
 /// for structural equality checks (spec §17.14 determinism).
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Expr {
     /// The `null` literal. Spec §12.2 E1.
     Null,
@@ -574,6 +581,7 @@ impl Eq for Expr {}
 
 /// Binary operators. Spec §12.2 E12 / §5.6 / §7.2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BinOp {
     /// `+` — arithmetic addition or string/list concatenation (type-directed).
     Add,
@@ -621,6 +629,7 @@ pub enum BinOp {
 
 /// Unary operators. Spec §12.2 E13 / §5.6 / §7.2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UnaryOp {
     /// Unary `-` — arithmetic negation.
     Neg,
