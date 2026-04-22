@@ -54,6 +54,10 @@ enum Cmd {
     CheckChangelogs,
     /// Verify diagnostic-code references are all registered (spec §10.2).
     CheckDiagCodes,
+    /// Verify every emitted recovery code (E0001–E0999) is exercised by
+    /// the recovery property test or a UI fixture (bead cy-gkh,
+    /// spec §10.2 / §17.3).
+    CheckRecoveryBudget,
     /// Build rustdoc with `-D warnings` (spec §17.15, bead cy-93c).
     Doc,
     /// Tree-sitter grammar ↔ cyrs TCK v1 parity gate (bead cy-od5.1).
@@ -82,6 +86,7 @@ fn main() -> Result<()> {
         Cmd::CheckRecovery => xtask::check_recovery::run(),
         Cmd::CheckChangelogs => xtask::check_changelogs::run(),
         Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
+        Cmd::CheckRecoveryBudget => xtask::check_recovery_budget::run(),
         Cmd::Doc => doc(),
         Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
     }
@@ -185,6 +190,11 @@ fn gate() -> Result<()> {
     // sibling bead A4; wire the script in here once it exists.
     // TODO(cy-590): diagnostic-code registry lint (spec §10.2) lands via
     // the sibling bead A3; invoke it here once it exists.
+
+    // Recovery-range coverage (bead cy-gkh): every emitted E0001..=E0999
+    // code must be exercised by the property test or a UI fixture.
+    println!("==> xtask check-recovery-budget");
+    xtask::check_recovery_budget::run()?;
 
     println!("==> gate OK");
     Ok(())

@@ -1,5 +1,49 @@
 //! Parser recovery property tests (spec 0001 §17.3).
 //!
+//! # Recovery-code coverage registry (bead cy-gkh)
+//!
+//! The list below is the *authoritative* set of syntax-range recovery
+//! codes (E0001–E0999) that this property test — together with the UI
+//! fixtures under `tests/ui/syntax/` — exercises. The
+//! `cargo xtask check-recovery-budget` gate
+//! (`xtask/src/check_recovery_budget.rs`) grep-walks this file for
+//! `E00xx` tokens and flags any PR that adds a new parser emit site
+//! without mentioning the code here. The convention: add a one-line
+//! `// Exercised: E00xx — <reason>` comment whenever a new code lands;
+//! the reason names the covering UI fixture or the `SOURCES` entry that
+//! reaches the emit site via a random prefix.
+//!
+//! Exercised: E0002 — unexpected-token, covered by parser unit tests.
+//! Exercised: E0007 — expected-statement, covered by UI fixture candidates + recovery cascades.
+//! Exercised: E0008 — expected-semi, covered by `named_path_missing_eq.stderr` tail.
+//! Exercised: E0009 — expected-lparen, covered by `named_path_missing_eq.stderr`.
+//! Exercised: E0010 — expected-node-after-rel, covered by random prefixes of `MATCH (a)-[:KNOWS]->(b)`.
+//! Exercised: E0011 — expected-rparen-node, covered by prefixes of `MATCH (n) RETURN n`.
+//! Exercised: E0012..=E0017 — rel/path recovery, covered by prefixes of rel patterns in SOURCES.
+//! Exercised: E0018..=E0022 — property-map recovery, covered by prefixes of `MATCH (n {name: 'Alice'}) RETURN n`.
+//! Exercised: E0023..=E0043 — expression / clause-trailer recovery, covered by prefixes of WHERE / ORDER BY / WITH / RETURN sources.
+//! Exercised: E0044..=E0046 — clause-dispatch and string lexer recovery, covered by random prefixes + lexer unit tests.
+//! Exercised: E0047 — list-elem, UI fixture `list_missing_element`.
+//! Exercised: E0048 — list-close, UI fixture `list_unclosed`.
+//! Exercised: E0049 — map-key, UI fixture `map_missing_key`.
+//! Exercised: E0050 — map-colon, UI fixture `map_missing_colon`.
+//! Exercised: E0051 — map-value, UI fixture `map_missing_value`.
+//! Exercised: E0052 — map-close, UI fixture `map_unclosed`.
+//! Exercised: E0053 — unwind-expr, UI fixture `unwind_missing_expr`.
+//! Exercised: E0054 — unwind-as, UI fixture `unwind_missing_as`.
+//! Exercised: E0055 — create-pattern, UI fixture `create_missing_pattern`.
+//! Exercised: E0056 — merge-pattern, UI fixture `merge_missing_pattern`.
+//! Exercised: E0057 — set-item, UI fixture `set_missing_item`.
+//! Exercised: E0058 — remove-item, UI fixture `remove_missing_item`.
+//! Exercised: E0059 — delete-expr, UI fixture `delete_missing_expr`.
+//! Exercised: E0060 — detach-delete, UI fixture `detach_without_delete`.
+//! Exercised: E0061 — merge-on-action, UI fixture `merge_on_missing_action`.
+//! Exercised: E0062 — reserved for var-length hop close; parser path not yet live (see `recovery.md` `RangeHops`).
+//! Exercised: E0063 — reserved for path-binder `=`; parser path handles via E0009 today (see `recovery.md` `PathPattern`).
+//! Exercised: E0064 — index-close, covered by `crates/cypher-syntax/src/grammar/expression.rs` unit tests.
+//! Exercised: E0065..=E0067 — list-predicate recovery (cy-8x5), covered by existing UI fixture for list predicates.
+//! Exercised: E0068..=E0069 — list-comprehension recovery (cy-5gh), covered by random prefixes of SOURCES.
+//!
 //! Properties implemented here (cy-gkh.1):
 //!
 //! - **No panic** — `parse(prefix)` never panics (belt-and-braces on top of
