@@ -25,6 +25,18 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Changed
 
+- cy-169 (tech-debt): bumped `pyo3` 0.22 → 0.28.3, past the 0.24.1
+  fix for RUSTSEC-2025-0020 (`PyString::from_object` boundary bug).
+  Dropped the advisory ignore in `deny.toml`.  Adapter adjustments:
+  `PyDict::new_bound` / `PyList::empty_bound` → `PyDict::new` /
+  `PyList::empty` (0.23 deprecation promoted), `CypherDatabase` marked
+  `#[pyclass(unsendable)]` (pyo3 0.23+ requires `Send + Sync` by
+  default; the wrapped salsa `Storage` is not `Sync`), and
+  `Diagnostic` opted out of the auto-`FromPyObject` impl with
+  `skip_from_py_object` (return-only type).  No Python API / stub
+  changes; `abi3-py310` feature still used (MSRV 1.83 < workspace
+  1.94).
+
 ### Deprecated
 
 ### Removed
@@ -32,6 +44,9 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 ### Fixed
 
 ### Security
+
+- cy-169: `RUSTSEC-2025-0020` ignore removed from `deny.toml` — the
+  underlying soundness bug is fixed in the 0.24.1+ pin shipped here.
 
 <!--
 Maintainer notes:

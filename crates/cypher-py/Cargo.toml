@@ -40,7 +40,7 @@ cypher-schema        = { workspace = true }
 # * `abi3-py310` — build once against CPython's stable ABI with 3.10 as
 #   the floor.  One wheel covers 3.10, 3.11, 3.12, 3.13 per spec 0004
 #   §6.2.  abi3 is REQUIRED by the spec, not an optimisation.
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.28.3", features = ["extension-module", "abi3-py310"] }
 
 [package.metadata.docs.rs]
 all-features = true

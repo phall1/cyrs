@@ -125,7 +125,13 @@ pub const PROTO_VERSION: u32 = 1;
 /// `#[pyclass]` exposes read-only accessors so Python callers can treat
 /// it as an immutable value object (matches the `dataclass(frozen=True)`
 /// shape the type stub describes).
-#[pyclass(module = "cypher", frozen)]
+///
+/// `skip_from_py_object` — pyo3 0.28 emits an automatic `FromPyObject`
+/// impl for `Clone` pyclasses but is transitioning this to opt-in.
+/// `Diagnostic` is a return-only type (never crosses the boundary
+/// Python → Rust), so opting out now mirrors the eventual default and
+/// silences the deprecation warning.
+#[pyclass(module = "cypher", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     code: String,
@@ -213,7 +219,17 @@ fn diag_from(idx: &LineIndex, d: &cypher_diag::Diagnostic) -> Diagnostic {
 /// Python-facing handle wrapping one [`cypher_db::Database`] plus a
 /// single interned `FileId` reused across calls.  Instances are
 /// constructed from Python via `CypherDatabase()`.
-#[pyclass(module = "cypher")]
+///
+/// `unsendable` — pyo3 ≥ 0.23 requires every `#[pyclass]` to be
+/// `Send + Sync` by default so free-threaded Python can share the
+/// handle across interpreter threads.  `cypher_db::Database` wraps
+/// `salsa::Storage`, which holds an `UnsafeCell<HashMap<…>>` in its
+/// thread-local and is therefore not `Sync`.  Marking the class
+/// `unsendable` keeps the GIL-era semantics — pyo3 panics at runtime
+/// if Python code tries to access the handle from a different thread
+/// than the one that created it (spec 0004 §6 keeps the binding
+/// single-threaded; multi-thread use is out of scope).
+#[pyclass(module = "cypher", unsendable)]
 pub struct CypherDatabase {
     db: Database,
     file: Option<FileId>,
@@ -286,7 +302,7 @@ impl CypherDatabase {
             .map_err(|e| PyRuntimeError::new_err(format!("parse_cst failed: {e}")))?;
         let parse = out.parse();
         let errors: Vec<String> = parse.errors().iter().map(|e| e.message.clone()).collect();
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("op", "parse")?;
         dict.set_item("cst_string", parse.syntax().to_string())?;
         dict.set_item("syntax_errors", errors)?;
@@ -331,7 +347,7 @@ impl CypherDatabase {
     ) -> PyResult<Bound<'py, PyList>> {
         let id = self.ingest(text.to_owned());
         let items = complete_shared(&self.db, id, TextSize::from(offset));
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for item in &items {
             list.append(completion_to_dict(py, item)?)?;
         }
@@ -352,7 +368,7 @@ impl CypherDatabase {
         let Hover {
             markdown, range, ..
         } = hover_shared(&self.db, id, TextSize::from(offset));
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("op", "hover")?;
         dict.set_item("markdown", markdown)?;
         dict.set_item("range", (u32::from(range.start()), u32::from(range.end())))?;
@@ -391,9 +407,9 @@ impl CypherDatabase {
     ) -> PyResult<Bound<'py, PyDict>> {
         let id = self.ingest(text.to_owned());
         let payload: RewritePayload = rewrite_shared(&self.db, id, text, &fix_ids);
-        let applied = PyList::empty_bound(py);
+        let applied = PyList::empty(py);
         for e in &payload.applied_edits {
-            let edit_dict = PyDict::new_bound(py);
+            let edit_dict = PyDict::new(py);
             edit_dict.set_item("fix_id", &e.fix_id)?;
             edit_dict.set_item(
                 "range",
@@ -402,7 +418,7 @@ impl CypherDatabase {
             edit_dict.set_item("replacement", &e.replacement)?;
             applied.append(edit_dict)?;
         }
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         dict.set_item("op", "rewrite")?;
         dict.set_item("applied_edits", applied)?;
         dict.set_item("resulting_text", payload.resulting_text)?;
@@ -452,7 +468,7 @@ fn completion_kind_str(k: NeutralKind) -> &'static str {
 }
 
 fn completion_to_dict<'py>(py: Python<'py>, item: &CompletionItem) -> PyResult<Bound<'py, PyDict>> {
-    let dict = PyDict::new_bound(py);
+    let dict = PyDict::new(py);
     dict.set_item("label", item.label.as_str())?;
     dict.set_item("kind", completion_kind_str(item.kind))?;
     if let Some(detail) = item.detail.as_deref() {
