@@ -577,6 +577,17 @@ pub(crate) mod syntax_codes {
     /// malformed — either a missing `|` before the projection
     /// expression or a missing `]` closer — cy-5gh.
     pub(crate) const EXPECTED_PIPE_OR_RBRACK_LIST_COMP: u16 = 69;
+    /// E0070 — expected `THEN` in CASE arm.
+    ///
+    /// Emitted by the parser's `CASE` production when a `WHEN <value>`
+    /// clause is not followed by the mandatory `THEN` keyword — cy-41u.
+    pub(crate) const EXPECTED_THEN_CASE: u16 = 70;
+    /// E0071 — expected `END` to close a CASE expression.
+    ///
+    /// Emitted by the parser's `CASE` production when the terminating
+    /// `END` keyword is missing after the final arm / optional `ELSE`
+    /// branch — cy-41u.
+    pub(crate) const EXPECTED_END_CASE: u16 = 71;
 }
 
 /// Advance `idx` past any leading trivia tokens.

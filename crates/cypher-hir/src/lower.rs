@@ -957,16 +957,51 @@ impl LowerCtx {
     }
 
     fn lower_case_expr(&mut self, node: SyntaxNode) -> Expr {
-        // CASE_EXPR: [scrutinee] (WHEN cond THEN result)* [ELSE otherwise] END
-        // Grammar deferred in cy-nom so we produce a minimal stub.
-        let scrutinee = node
-            .children()
-            .find_map(|n| self.try_lower_expr(n))
-            .map(Box::new);
+        // CASE_EXPR: optional scrutinee Expr (direct child, before any arms),
+        //            CASE_WHEN_ARM+,
+        //            CASE_ELSE_ARM? (optional).
+        // Children appear in syntactic order. The scrutinee is *any* direct
+        // Expr child that precedes the first `CASE_WHEN_ARM`; generic CASE
+        // forms omit it (the first direct child is a `CASE_WHEN_ARM`).
+        // cy-41u, spec §19 row "CASE".
+        let mut scrutinee: Option<Box<Expr>> = None;
+        let mut arms: Vec<(Expr, Expr)> = Vec::new();
+        let mut otherwise: Option<Box<Expr>> = None;
+
+        for child in node.children() {
+            match child.kind() {
+                SyntaxKind::CASE_WHEN_ARM => {
+                    let mut arm_exprs = child.children().filter_map(|n| self.try_lower_expr(n));
+                    let when_value = arm_exprs.next().unwrap_or(Expr::Null);
+                    let then_value = arm_exprs.next().unwrap_or(Expr::Null);
+                    arms.push((when_value, then_value));
+                }
+                SyntaxKind::CASE_ELSE_ARM => {
+                    let else_value = child
+                        .children()
+                        .find_map(|n| self.try_lower_expr(n))
+                        .unwrap_or(Expr::Null);
+                    otherwise = Some(Box::new(else_value));
+                }
+                _ => {
+                    // Direct Expr child: at most one is legal, and it
+                    // always precedes the first arm. If arms have already
+                    // been collected we treat stray Expr children as
+                    // recovery noise and skip.
+                    if arms.is_empty()
+                        && scrutinee.is_none()
+                        && let Some(expr) = self.try_lower_expr(child)
+                    {
+                        scrutinee = Some(Box::new(expr));
+                    }
+                }
+            }
+        }
+
         Expr::Case {
             scrutinee,
-            arms: vec![],
-            otherwise: None,
+            arms,
+            otherwise,
         }
     }
 

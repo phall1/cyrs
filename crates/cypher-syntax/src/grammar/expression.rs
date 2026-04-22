@@ -182,8 +182,11 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
         SyntaxKind::L_PAREN => paren_expr(p, depth),
         SyntaxKind::L_BRACK => list_literal(p, depth),
         SyntaxKind::L_BRACE => map_literal(p, depth),
-        // cy-nom: v1 scope — comprehensions, CASE, pattern predicates,
-        // EXISTS(...) land in follow-up beads.
+        // `CASE` expression — generic + simple-when forms (cy-41u,
+        // spec §19 row "CASE").
+        SyntaxKind::CASE_KW => case_expr(p, depth),
+        // cy-nom: v1 scope — pattern predicates, EXISTS(...) land in
+        // follow-up beads.
         _ => return None,
     })
 }
@@ -456,6 +459,92 @@ fn list_predicate(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     }
 
     m.complete(p, SyntaxKind::LIST_PREDICATE_EXPR)
+}
+
+/// Parse a `CASE` expression — generic or simple-when form (spec §19 row
+/// "CASE"; cy-41u).
+///
+/// ```text
+/// GenericCase = 'CASE' (WHEN Expr THEN Expr)+ ('ELSE' Expr)? 'END'
+/// SimpleCase  = 'CASE' Expr (WHEN Expr THEN Expr)+ ('ELSE' Expr)? 'END'
+/// ```
+///
+/// The two forms share an emitted shape: a `CASE_EXPR` node with an
+/// optional scrutinee expression child (present iff a token other than
+/// `WHEN` follows the leading `CASE`), one or more `CASE_WHEN_ARM`
+/// children, and an optional trailing `CASE_ELSE_ARM`.
+///
+/// Recovery:
+///   E0070 — missing `THEN` after `WHEN <value>`
+///   E0071 — missing `END` at the close of the expression
+fn case_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::CASE_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::CASE_KW);
+
+    // Optional scrutinee — present iff the token following `CASE` is not
+    // a `WHEN` / `ELSE` / `END`. `ELSE` / `END` here mean an empty CASE
+    // (no arms), which is ill-formed but we accept for recovery — the
+    // `WHEN` loop below will emit `E0007`-style missing-arm diagnostics
+    // via the standard expr recovery path.
+    if !matches!(
+        p.current(),
+        SyntaxKind::WHEN_KW | SyntaxKind::ELSE_KW | SyntaxKind::END_KW
+    ) && expr_bp_depth(p, 0, depth + 1).is_none()
+    {
+        p.error_code(
+            sc::EXPECTED_BINOP_RHS,
+            "expected expression after `CASE` (simple-when scrutinee)",
+        );
+    }
+
+    // One or more WHEN arms.
+    while p.at(SyntaxKind::WHEN_KW) {
+        let arm = p.start();
+        p.bump(SyntaxKind::WHEN_KW);
+        // `WHEN <value / predicate>` — required expression.
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_BINOP_RHS,
+                "expected expression after `WHEN` in CASE arm",
+            );
+        }
+        if !p.eat(SyntaxKind::THEN_KW) {
+            p.error_code(sc::EXPECTED_THEN_CASE, "expected `THEN` in CASE arm");
+        }
+        // `THEN <result>` — required expression.
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_BINOP_RHS,
+                "expected expression after `THEN` in CASE arm",
+            );
+        }
+        arm.complete(p, SyntaxKind::CASE_WHEN_ARM);
+    }
+
+    // Optional ELSE arm.
+    if p.at(SyntaxKind::ELSE_KW) {
+        let else_arm = p.start();
+        p.bump(SyntaxKind::ELSE_KW);
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_BINOP_RHS,
+                "expected expression after `ELSE` in CASE",
+            );
+        }
+        else_arm.complete(p, SyntaxKind::CASE_ELSE_ARM);
+    }
+
+    // Closing `END` — required. Virtual-token insertion on miss so the
+    // CST round-trips and downstream passes see a well-formed node.
+    if !p.eat(SyntaxKind::END_KW) {
+        p.error_code(
+            sc::EXPECTED_END_CASE,
+            "expected `END` to close CASE expression",
+        );
+    }
+
+    m.complete(p, SyntaxKind::CASE_EXPR)
 }
 
 fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {

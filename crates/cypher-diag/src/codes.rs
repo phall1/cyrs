@@ -562,6 +562,22 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0069.md`
     E0069 = 69,
+    /// Expected `THEN` in a `CASE` arm (spec §19 row "CASE").
+    ///
+    /// Emitted by the parser's CASE production (cy-41u) when a
+    /// `WHEN <value>` clause is not followed by the mandatory `THEN`
+    /// keyword.
+    ///
+    /// Docs: `docs/errors/E0070.md`
+    E0070 = 70,
+    /// Expected `END` to close a `CASE` expression (spec §19 row "CASE").
+    ///
+    /// Emitted by the parser's CASE production (cy-41u) when the
+    /// terminating `END` keyword is missing after the final arm /
+    /// optional `ELSE` branch.
+    ///
+    /// Docs: `docs/errors/E0071.md`
+    E0071 = 71,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -683,6 +699,8 @@ impl DiagCode {
             Self::E0067 => "E0067",
             Self::E0068 => "E0068",
             Self::E0069 => "E0069",
+            Self::E0070 => "E0070",
+            Self::E0071 => "E0071",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -824,6 +842,8 @@ impl DiagCode {
         Self::E0067,
         Self::E0068,
         Self::E0069,
+        Self::E0070,
+        Self::E0071,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -959,6 +979,8 @@ mod tests {
             DiagCode::E0067,
             DiagCode::E0068,
             DiagCode::E0069,
+            DiagCode::E0070,
+            DiagCode::E0071,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,

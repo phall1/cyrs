@@ -49,7 +49,6 @@
 //   - StringLiteral: no `SyntaxKind::STRING_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - BoolLiteral: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NullLiteral: no `SyntaxKind::NULL_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
-//   - WhenArm: no `SyntaxKind::WHEN_ARM` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - BinaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - UnaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - StringPatternOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
@@ -920,8 +919,16 @@ impl CaseExpr {
         self.syntax.children().find_map(Expr::cast)
     }
 
-    pub fn else_branch(&self) -> Option<Expr> {
-        self.syntax.children().find_map(Expr::cast)
+    pub fn arms(&self) -> Option<CaseWhenArm> {
+        self.syntax.children().find_map(CaseWhenArm::cast)
+    }
+
+    pub fn case_when_arm(&self) -> impl Iterator<Item = CaseWhenArm> + '_ {
+        self.syntax.children().filter_map(CaseWhenArm::cast)
+    }
+
+    pub fn else_arm(&self) -> Option<CaseElseArm> {
+        self.syntax.children().find_map(CaseElseArm::cast)
     }
 
     pub fn case_token(&self) -> Option<SyntaxToken> {
@@ -929,13 +936,6 @@ impl CaseExpr {
             .children_with_tokens()
             .filter_map(SyntaxElement::into_token)
             .find(|t| t.kind() == SyntaxKind::CASE_KW)
-    }
-
-    pub fn else_token(&self) -> Option<SyntaxToken> {
-        self.syntax
-            .children_with_tokens()
-            .filter_map(SyntaxElement::into_token)
-            .find(|t| t.kind() == SyntaxKind::ELSE_KW)
     }
 
     pub fn end_token(&self) -> Option<SyntaxToken> {
@@ -1000,6 +1000,69 @@ impl PatternPredicate {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CaseWhenArm {
+    syntax: SyntaxNode,
+}
+
+impl CaseWhenArm {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::CASE_WHEN_ARM).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn when_value(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn then_value(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn when_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::WHEN_KW)
+    }
+
+    pub fn then_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::THEN_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CaseElseArm {
+    syntax: SyntaxNode,
+}
+
+impl CaseElseArm {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::CASE_ELSE_ARM).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn value(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn else_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ELSE_KW)
     }
 }
 

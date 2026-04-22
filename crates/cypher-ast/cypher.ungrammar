@@ -331,12 +331,19 @@ ListPredicateExpr =
 PatternComprehension =
   '[' path:PathPattern WhereClause? '|' projection:Expr ']'
 
-// `CASE` with optional scrutinee and trailing `ELSE`.
+// `CASE` with optional scrutinee, one or more `CaseWhenArm` children,
+// and an optional trailing `CaseElseArm` — spec §19 row "CASE" (cy-41u).
+// The arms and else branch are wrapped in dedicated nodes so the typed
+// AST can address them directly; the parser emits the corresponding
+// `CASE_WHEN_ARM` / `CASE_ELSE_ARM` SyntaxKind nodes.
 CaseExpr =
-  'CASE' scrutinee:Expr? WhenArm+ ('ELSE' else_branch:Expr)? 'END'
+  'CASE' scrutinee:Expr? arms:CaseWhenArm+ else_arm:CaseElseArm? 'END'
 
-WhenArm =
-  'WHEN' cond:Expr 'THEN' result:Expr
+CaseWhenArm =
+  'WHEN' when_value:Expr 'THEN' then_value:Expr
+
+CaseElseArm =
+  'ELSE' value:Expr
 
 NullCheck =
   operand:Expr 'IS' 'NOT'? 'NULL'

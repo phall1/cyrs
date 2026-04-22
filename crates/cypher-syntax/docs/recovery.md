@@ -558,17 +558,34 @@ invariant; the strategy will be fleshed out when the production lands.
 
 ### CaseExpr
 
-- Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).
-- Synchronisation set: clause-level keywords + `;` + EOF (default).
-- Skip-and-recover: default per spec §4.3.
-- Virtual insertion: none planned until production lands.
+- Status: **IMPLEMENTED** (cy-41u, spec §19 row "CASE").
+- Synchronisation set: clause-level keywords + `;` + EOF (default). The
+  CASE production threads its own `WHEN` / `ELSE` / `END` lookahead for
+  arm-loop control; no extra synchronisation set is registered because
+  a malformed CASE unwinds via the usual Pratt expression recovery.
+- Skip-and-recover: a missing terminator does not skip tokens; the
+  recovery emits a virtual `END` diagnostic and finishes the node, so a
+  truncated prefix like `RETURN CASE WHEN 1 THEN 'x'` surfaces exactly
+  one `E0071` diagnostic (≤3 diagnostics per bead cy-gkh property).
+- Virtual insertion:
+  - `E0070` — missing `THEN` after a `WHEN <value>`.
+  - `E0071` — missing `END` at the close of the expression.
 
-### WhenArm
+### CaseWhenArm
 
-- Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).
-- Synchronisation set: clause-level keywords + `;` + EOF (default).
-- Skip-and-recover: default per spec §4.3.
-- Virtual insertion: none planned until production lands.
+- Status: **IMPLEMENTED** (cy-41u).
+- Inherits the CaseExpr recovery strategy: arms are parsed left-to-right
+  by the CASE production and completed even when the trailing `THEN`
+  keyword is missing.
+- Virtual insertion: `E0070` (missing `THEN`).
+
+### CaseElseArm
+
+- Status: **IMPLEMENTED** (cy-41u).
+- Optional child of `CaseExpr`; a missing closing `END` at the end of
+  an `ELSE`-terminated CASE surfaces `E0071` via the outer production,
+  not the arm itself.
+- Virtual insertion: none dedicated to this node.
 
 ### NullCheck
 

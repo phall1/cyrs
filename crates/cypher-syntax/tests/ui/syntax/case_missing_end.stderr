@@ -1,0 +1,3 @@
+error[E0071]: expected `END` to close CASE expression
+ --> case_missing_end.cypher:118
+
