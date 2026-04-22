@@ -33,8 +33,6 @@
 
 #![forbid(unsafe_code)]
 
-mod engine;
-
 use std::collections::VecDeque;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
@@ -46,11 +44,16 @@ use cypher_diag::json as diag_json;
 use cypher_fmt::{FormatOptions, format_with};
 use cypher_hir::desugar::desugar_statement;
 use cypher_hir::lower::lower_statement as hir_lower;
+use cypher_lang_services::{
+    CompletionItem as NeutralItem, CompletionItemKind as NeutralKind, complete as complete_shared,
+    hover as hover_shared, rewrite as rewrite_shared,
+};
 use cypher_plan::lower::lower_statement as plan_lower;
 use cypher_plan::pretty::pretty as plan_pretty;
 use cypher_schema::SchemaProvider;
+use cypher_syntax::TextSize;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 // ---------------------------------------------------------------------------
 // Dialect
@@ -621,7 +624,7 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // complete — engine ports the LSP v1 completion (cy-da0).
+        // complete — delegated to cypher-lang-services (cy-da0 / cy-4t0).
         // ------------------------------------------------------------------
         AgentRequest::Complete {
             text,
@@ -632,7 +635,10 @@ fn handle(
                 db.set_schema(Some(schema));
             }
             let id = intern_file(db, file_cache, text, dialect);
-            let items = engine::complete(db, id, offset);
+            let items = complete_shared(db, id, TextSize::from(offset))
+                .into_iter()
+                .map(completion_item_to_json)
+                .collect();
             AgentResponse::Complete {
                 items,
                 deferred: false,
@@ -641,7 +647,7 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // hover — engine ports the LSP v1 hover (cy-o59).
+        // hover — delegated to cypher-lang-services (cy-o59 / cy-4t0).
         // ------------------------------------------------------------------
         AgentRequest::Hover {
             text,
@@ -649,10 +655,14 @@ fn handle(
             dialect,
         } => {
             let id = intern_file(db, file_cache, text, dialect);
-            let payload = engine::hover(db, id, offset);
+            let payload = hover_shared(db, id, TextSize::from(offset));
+            let range = [
+                u32::from(payload.range.start()),
+                u32::from(payload.range.end()),
+            ];
             AgentResponse::Hover {
                 markdown: payload.markdown,
-                range: payload.range,
+                range,
                 deferred: false,
                 deferred_reason: String::new(),
             }
@@ -669,18 +679,29 @@ fn handle(
         },
 
         // ------------------------------------------------------------------
-        // rewrite — engine applies FixIts matching the requested ids
-        // (cy-taz).  Input text is returned unchanged when no ids
-        // match; unknown ids are surfaced for the caller to diff.
+        // rewrite — delegated to cypher-lang-services (cy-taz / cy-4t0).
+        // Input text is returned unchanged when no ids match; unknown
+        // ids are surfaced for the caller to diff.
         // ------------------------------------------------------------------
         AgentRequest::Rewrite { text, fix_ids } => {
             if let Some(schema) = session_schema.clone() {
                 db.set_schema(Some(schema));
             }
             let id = intern_file(db, file_cache, text.clone(), Dialect::default());
-            let payload = engine::rewrite(db, id, &text, &fix_ids);
+            let payload = rewrite_shared(db, id, &text, &fix_ids);
+            let applied_edits: Vec<Value> = payload
+                .applied_edits
+                .into_iter()
+                .map(|e| {
+                    json!({
+                        "fix_id": e.fix_id,
+                        "range": [u32::from(e.range.start()), u32::from(e.range.end())],
+                        "replacement": e.replacement,
+                    })
+                })
+                .collect();
             AgentResponse::Rewrite {
-                applied_edits: payload.applied_edits,
+                applied_edits,
                 resulting_text: payload.resulting_text,
                 deferred: false,
                 deferred_reason: if payload.unknown_fix_ids.is_empty() {
@@ -745,6 +766,33 @@ fn handle(
         // shutdown
         // ------------------------------------------------------------------
         AgentRequest::Shutdown => AgentResponse::Shutdown,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Neutral → JSON adapters for cypher-lang-services DTOs
+// ---------------------------------------------------------------------------
+
+/// Translate a neutral [`NeutralItem`] into the agent's wire JSON shape.
+///
+/// Mirrors the v1 agent completion wire format: `{label, kind}` always
+/// present, `detail` only for placeholder parameter items.  The shared
+/// engine emits neutral `CompletionItemKind` variants; this helper maps
+/// them to the `snake_case` strings the agent has always used.
+fn completion_item_to_json(item: NeutralItem) -> Value {
+    let kind = match item.kind {
+        NeutralKind::Keyword => "keyword",
+        NeutralKind::Label => "label",
+        NeutralKind::RelationshipType => "relationship_type",
+        NeutralKind::Parameter => "parameter",
+    };
+    // Placeholder parameters carry `detail: "placeholder"` on the wire
+    // to match the v1 shape; every other item omits the field.
+    if matches!(item.kind, NeutralKind::Parameter) && item.detail.as_deref() == Some("placeholder")
+    {
+        json!({ "label": item.label.to_string(), "kind": kind, "detail": "placeholder" })
+    } else {
+        json!({ "label": item.label.to_string(), "kind": kind })
     }
 }
 
