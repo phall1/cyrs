@@ -1,0 +1,153 @@
+# Nightly heavy-bench runner with a 10% regression gate (spec §17.10,
+# bead cy-y6a).
+#
+# Runs the four at-scale benches added by cy-y6a:
+#
+#   * bench_large_file          — 10 k-line parse + HIR + diagnose
+#   * bench_incremental_edit    — 1 k single-char edits on a 1 k-line file
+#   * bench_workspace_fan       — 100-file cross-file diagnostics sweep
+#   * bench_agent_throughput    — 10 k JSON round trips against cypher-agent
+#
+# These are too slow / too resource-hungry for the PR-gate bench workflow
+# (.github/workflows/bench.yml), so they run nightly on a scheduled
+# trigger and on workflow_dispatch.
+#
+# Baseline policy
+# ---------------
+# benches/baselines/nightly.json carries a committed {bench_name ->
+# {mean_ns, median_ns}} reference, captured on the initial cy-y6a landing.
+# The comparison step fails the job if any bench's current mean_ns
+# exceeds its baseline * 1.10. Re-baselining is an explicit operator
+# action — see benches/baselines/README.md.
+#
+# Each bench carries its own *internal* budget gate (p95 wall-clock,
+# sub-linear scaling ratio, RSS ceiling, ops/sec floor, p99 ceiling).
+# Those gates fail the binary non-zero directly; the criterion-mean
+# comparison below catches smaller, sub-budget drift.
+
+name: nightly-benches
+
+on:
+  schedule:
+    # 05:00 UTC daily — one hour after bench-nightly and fuzz-nightly
+    # so shared runners don't contend.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  nightly-benches:
+    name: nightly-benches (regression gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "benches -> target"
+          key: nightly-benches
+
+      # bench_agent_throughput needs the `cypher-agent` release binary.
+      # The bench crate is its own [workspace] so the main workspace
+      # target dir is separate; build the binary up front so the bench's
+      # own `cargo build` step is a no-op.
+      - name: pre-build cypher-agent (release)
+        run: cargo build --release -p cypher-agent
+
+      # Run all four heavy benches.  Each bench has `harness = false` +
+      # its own `main`, so a non-zero exit from any internal gate
+      # (p95, ratio, RSS, ops/sec, p99) fails the step.  `--no-fail-fast`
+      # so one bench's failure does not hide another's.
+      - name: cargo bench (nightly suite)
+        working-directory: benches
+        run: |
+          set -eo pipefail
+          # Run each bench separately so failures are isolated in the logs.
+          cargo bench --bench large_file 2>&1 | tee /tmp/bench-large-file.txt
+          cargo bench --bench bench_incremental_edit 2>&1 | tee /tmp/bench-incremental-edit.txt
+          cargo bench --bench bench_workspace_fan 2>&1 | tee /tmp/bench-workspace-fan.txt
+          cargo bench --bench bench_agent_throughput 2>&1 | tee /tmp/bench-agent-throughput.txt
+
+      # Distil criterion's per-bench estimates.json into a flat JSON
+      # summary ready for comparison against the committed baseline.
+      - name: extract criterion summary
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+
+          base = pathlib.Path("benches/target/criterion")
+          results = {}
+          for est in base.glob("*/new/estimates.json"):
+              bench_name = est.parts[-3]
+              data = json.loads(est.read_text())
+              results[bench_name] = {
+                  "mean_ns": data["mean"]["point_estimate"],
+                  "median_ns": data["median"]["point_estimate"],
+              }
+          pathlib.Path("nightly-current.json").write_text(
+              json.dumps(dict(sorted(results.items())), indent=2) + "\n"
+          )
+          print("Current nightly summary:")
+          print(pathlib.Path("nightly-current.json").read_text())
+          EOF
+
+      # 10% regression gate — any bench whose mean_ns exceeds its
+      # committed baseline by more than 10% fails the job.
+      - name: compare against committed baseline (10% gate)
+        run: |
+          python3 - <<'EOF'
+          import json, sys, pathlib
+
+          THRESHOLD = 0.10  # spec §17.10 regression gate
+
+          baseline_path = pathlib.Path("benches/baselines/nightly.json")
+          current_path  = pathlib.Path("nightly-current.json")
+          if not baseline_path.exists():
+              print(f"No baseline at {baseline_path}; skipping gate.")
+              sys.exit(0)
+          baseline = json.loads(baseline_path.read_text())
+          current  = json.loads(current_path.read_text())
+
+          regressions = []
+          for name, base in baseline.items():
+              if name not in current:
+                  print(f"  [skip]     {name!r} not found in current run")
+                  continue
+              base_ns = base["mean_ns"]
+              cur_ns  = current[name]["mean_ns"]
+              delta   = (cur_ns - base_ns) / base_ns
+              marker  = "REGRESSED" if delta > THRESHOLD else "ok"
+              print(f"  {marker:10s}  {name}: baseline={base_ns:>12.1f} ns  "
+                    f"current={cur_ns:>12.1f} ns  delta={delta:+.1%}")
+              if delta > THRESHOLD:
+                  regressions.append((name, delta))
+
+          if regressions:
+              print()
+              print("FAIL: one or more benches regressed by more than 10%:")
+              for name, delta in regressions:
+                  print(f"  {name}: {delta:+.1%}")
+              sys.exit(1)
+          print()
+          print("PASS: no bench regressed by more than 10%.")
+          EOF
+
+      - name: upload criterion HTML reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-benches-report-${{ github.run_id }}
+          path: |
+            benches/target/criterion/
+            nightly-current.json
+            /tmp/bench-large-file.txt
+            /tmp/bench-incremental-edit.txt
+            /tmp/bench-workspace-fan.txt
+            /tmp/bench-agent-throughput.txt
+          if-no-files-found: ignore
+          retention-days: 30

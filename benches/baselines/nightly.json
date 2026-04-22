@@ -1,0 +1,26 @@
+{
+  "agent_round_trip": {
+    "mean_ns": 20817.736269492827,
+    "median_ns": 20269.166287878787
+  },
+  "diagnose_10k": {
+    "mean_ns": 53601686.14071429,
+    "median_ns": 53969173.42857143
+  },
+  "hir_lower_10k": {
+    "mean_ns": 55852702.09444444,
+    "median_ns": 55526846.0
+  },
+  "incremental_edit_1k": {
+    "mean_ns": 7255660.5070486115,
+    "median_ns": 7287603.1953125
+  },
+  "parse_10k": {
+    "mean_ns": 27524242.195059527,
+    "median_ns": 27259031.86904762
+  },
+  "workspace_fan_sweep_100": {
+    "mean_ns": 23722160.177619047,
+    "median_ns": 23755460.32222222
+  }
+}
