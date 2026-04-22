@@ -11,6 +11,13 @@ to bottom when a spec is relevant to the work at hand.
   Architecture of the standalone Rust Cypher front-end: crate graph,
   syntax/AST/HIR/sema/plan layers, schema-provider trait, dialect matrix,
   incremental DB, LSP/agent/CLI, and testing at rustc grade.
+- [`specs/0002-schema-file-format.md`](specs/0002-schema-file-format.md) —
+  `schema.toml` file format: TOML grammar, types, labels, rel types,
+  parameters, validation rules, linter (`E3010`/`E3011`/`W6010`), and
+  structural diff.
+- [`specs/0003-project-manifest.md`](specs/0003-project-manifest.md) —
+  `cypher-project.toml` workspace manifest: members, dialect defaults,
+  lint levels, schema wiring.
 
 ## Conventions
 

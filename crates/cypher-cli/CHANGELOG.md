@@ -19,6 +19,13 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 - cy-0ek.1 (spec 0002 §12): `cypher schema load <path>` — parse a TOML
   schema file and print a one-line human-readable summary; exit 1 on
   any load error.
+- cy-0ek (spec 0002 §9): `cypher schema check <path>` — load a schema
+  and run the linter; prints `severity[code]: message` findings on
+  stderr and a summary line on stdout. Exits 1 if any `E`-severity
+  lint fires.
+- cy-0ek (spec 0002 §9.4): `cypher schema diff <old> <new>` — emit a
+  stable JSON diff report on stdout. Exits 1 when `breaking` is
+  non-empty — suitable as a CI "schema-compat" gate.
 - cy-o8c.1 (spec 0003 §12): `cypher project load <path>` — parse a
   `cypher-project.toml` manifest and print a one-line summary
   (name, members, dialect, schema labels, lint-rule count); exit 1 on

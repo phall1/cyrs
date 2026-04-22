@@ -360,3 +360,171 @@ name = "Dup"
         .code(1)
         .stderr(predicate::str::contains("duplicate label"));
 }
+/// Spec 0002 §9: `cypher schema check <path>` runs the linter and
+/// emits a one-line issue summary with stable codes.
+#[test]
+fn schema_check_emits_lint_issues_with_codes() {
+    let mut tf = tempfile::NamedTempFile::new().expect("tempfile");
+    tf.write_all(
+        br#"
+[[label]]
+name = "Team"
+
+[[label]]
+name = "Orphan"
+
+[[rel_type]]
+name = "REPORTS_TO"
+start_labels = ["Team"]
+end_labels   = ["Team"]
+"#,
+    )
+    .unwrap();
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["schema", "check"])
+        .arg(tf.path())
+        .assert()
+        .code(1)
+        .stderr(
+            predicate::str::contains("error[E3011]")
+                .and(predicate::str::contains("REPORTS_TO"))
+                .and(predicate::str::contains("warning[W6010]"))
+                .and(predicate::str::contains("Orphan")),
+        )
+        .stdout(predicate::str::contains("2 issue(s)"));
+}
+
+/// Spec 0002 §9: `cypher schema check` on a clean schema exits 0.
+#[test]
+fn schema_check_clean_schema_exits_zero() {
+    let mut tf = tempfile::NamedTempFile::new().expect("tempfile");
+    tf.write_all(
+        br#"
+[[label]]
+name = "Person"
+
+[[label]]
+name = "Movie"
+
+[[rel_type]]
+name = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Movie"]
+"#,
+    )
+    .unwrap();
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["schema", "check"])
+        .arg(tf.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 issue(s)"));
+}
+
+/// Spec 0002 §9: `cypher schema diff old.toml new.toml` emits a stable
+/// JSON report. The report is snapshot-tested via `insta` for format
+/// stability — downstream CI gates consume this output verbatim.
+#[test]
+fn schema_diff_emits_stable_json_report() {
+    let old = tempfile::NamedTempFile::new().expect("tempfile");
+    let new = tempfile::NamedTempFile::new().expect("tempfile");
+    std::fs::write(
+        old.path(),
+        r#"
+[[label]]
+name = "Person"
+properties = [
+    { name = "name", type = "STRING", required = true },
+    { name = "age",  type = "INTEGER" },
+]
+
+[[label]]
+name = "Movie"
+properties = [
+    { name = "title", type = "STRING", required = true },
+]
+
+[[rel_type]]
+name = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Movie"]
+
+[[parameter]]
+name    = "since_year"
+type    = "INTEGER"
+default = 1990
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        new.path(),
+        r#"
+[[label]]
+name = "Person"
+properties = [
+    { name = "name",  type = "STRING", required = true },
+    { name = "age",   type = "STRING" },
+    { name = "email", type = "STRING" },
+]
+
+[[label]]
+name = "Director"
+
+[[rel_type]]
+name = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Person"]
+
+[[parameter]]
+name = "since_year"
+type = "INTEGER"
+"#,
+    )
+    .unwrap();
+
+    let out = Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["schema", "diff"])
+        .arg(old.path())
+        .arg(new.path())
+        .assert()
+        .code(1) // breaking changes present
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(out).expect("utf-8");
+    insta::assert_snapshot!("schema_diff_report", stdout);
+}
+
+/// Identical schemas produce an empty diff and exit 0 — the gate's
+/// "happy path" for CI usage.
+#[test]
+fn schema_diff_identical_schemas_empty_report() {
+    let old = tempfile::NamedTempFile::new().expect("tempfile");
+    let new = tempfile::NamedTempFile::new().expect("tempfile");
+    let src = r#"
+[[label]]
+name = "A"
+
+[[rel_type]]
+name = "R"
+start_labels = ["A"]
+end_labels   = ["A"]
+"#;
+    std::fs::write(old.path(), src).unwrap();
+    std::fs::write(new.path(), src).unwrap();
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["schema", "diff"])
+        .arg(old.path())
+        .arg(new.path())
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("\"adds\": []")
+                .and(predicate::str::contains("\"removes\": []"))
+                .and(predicate::str::contains("\"breaking\": []")),
+        );
+}

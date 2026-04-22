@@ -89,6 +89,18 @@ enum SchemaCmd {
         /// Path to the `schema.toml` file (spec 0002).
         path: PathBuf,
     },
+    /// Load a schema and run the linter (spec 0002 §9).
+    Check {
+        /// Path to the `schema.toml` file.
+        path: PathBuf,
+    },
+    /// Diff two schema files and emit a stable JSON report (spec 0002 §9).
+    Diff {
+        /// Old schema path.
+        old: PathBuf,
+        /// New schema path.
+        new: PathBuf,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -219,6 +231,8 @@ fn run(cli: &Cli) -> Result<u8> {
         }
         Cmd::Schema { cmd } => match cmd {
             SchemaCmd::Load { path } => Ok(schema_load(path)),
+            SchemaCmd::Check { path } => Ok(schema_check(path)),
+            SchemaCmd::Diff { old, new } => schema_diff(old, new),
         },
         Cmd::Project { cmd } => match cmd {
             ProjectCmd::Load { path } => Ok(project_load(path)),
@@ -248,6 +262,59 @@ fn schema_load(path: &Path) -> u8 {
             EXIT_DIAGNOSTICS
         }
     }
+}
+
+/// `cypher schema check <path>` — load a schema and run the linter
+/// (spec 0002 §9). Prints each [`SchemaLint`] issue to stderr in
+/// `severity[code]: message` form; exits 1 if any error-severity
+/// issue was reported.
+///
+/// [`SchemaLint`]: cypher_schema::lint::SchemaLint
+fn schema_check(path: &Path) -> u8 {
+    let schema = match cypher_schema::file::load_from_toml_path(path) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("error: {err}");
+            return EXIT_DIAGNOSTICS;
+        }
+    };
+    let lints = cypher_schema::lint::lint(&schema);
+    let mut had_error = false;
+    for lint in &lints {
+        if lint.severity == cypher_schema::lint::LintSeverity::Error {
+            had_error = true;
+        }
+        eprintln!("{lint}");
+    }
+    println!(
+        "checked schema: {} labels, {} rel_types, {} parameters; {} issue(s)",
+        schema.label_count(),
+        schema.rel_type_count(),
+        schema.parameter_count(),
+        lints.len(),
+    );
+    if had_error { EXIT_DIAGNOSTICS } else { EXIT_OK }
+}
+
+/// `cypher schema diff <old> <new>` — emit a stable JSON diff report
+/// (spec 0002 §9). Prints the serialised [`SchemaDiff`] to stdout.
+/// Exits 1 if the diff contains any breaking change, 0 otherwise; the
+/// caller can use `--exit-code` semantics as a CI "schema-compat" gate.
+///
+/// [`SchemaDiff`]: cypher_schema::diff::SchemaDiff
+fn schema_diff(old: &Path, new: &Path) -> Result<u8> {
+    let old_schema = cypher_schema::file::load_from_toml_path(old)
+        .with_context(|| format!("loading old schema {}", old.display()))?;
+    let new_schema = cypher_schema::file::load_from_toml_path(new)
+        .with_context(|| format!("loading new schema {}", new.display()))?;
+    let report = cypher_schema::diff::diff(&old_schema, &new_schema);
+    let json = serde_json::to_string_pretty(&report).context("serialising diff report")?;
+    println!("{json}");
+    Ok(if report.has_breaking() {
+        EXIT_DIAGNOSTICS
+    } else {
+        EXIT_OK
+    })
 }
 
 /// `cypher project load <path>` — parse a `cypher-project.toml` manifest

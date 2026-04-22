@@ -2,7 +2,7 @@
 
 | Field          | Value                                                                 |
 | -------------- | --------------------------------------------------------------------- |
-| Status         | Draft                                                                 |
+| Status         | Accepted                                                              |
 | Owner          | phall                                                                 |
 | Authors        | phall                                                                 |
 | Depends on     | 0001-cypher-frontend                                                  |
@@ -259,20 +259,105 @@ is encouraged but not required.
 
 ---
 
-## 9. Invariants
+## 9. Validation rules
 
-Enforced at load time:
+Validation splits into two phases. **Load-time invariants** are
+fatal — the loader refuses to construct an `InMemorySchema`. **Lint
+checks** run after a successful load and surface advisory findings
+that do not prevent the schema from being used.
+
+### 9.1 Load-time invariants
+
+Enforced by `load_from_toml_str` / `load_from_toml_path`:
 
 - All `label.name` values are unique (`SchemaLoadError::DuplicateLabel`).
 - All `rel_type.name` values are unique (`SchemaLoadError::DuplicateRelType`).
+- All `parameter.name` values are unique
+  (`SchemaLoadError::DuplicateParameter`).
 - Every `rel_type.start_labels` and `rel_type.end_labels` entry either
   is empty or references a declared label
   (`SchemaLoadError::UnknownLabelRef`).
 - Every `type` field is well-formed per §4
   (`SchemaLoadError::BadType`).
+- `[meta].cyrs_schema_version` (if present) matches the loader's
+  supported version (`SchemaLoadError::BadType` with a version-shaped
+  message).
 
 Not enforced at v0 (property names within a label may repeat; that is
 a future lint candidate).
+
+### 9.2 Lint checks
+
+`cypher_schema::lint::lint(&InMemorySchema) -> Vec<SchemaLint>` runs
+the following post-load checks. Each finding carries a stable
+diagnostic code registered in `cypher-diag` per spec 0001 §10.2:
+
+| Code    | Severity | Check                                                   |
+| ------- | -------- | ------------------------------------------------------- |
+| `E3010` | Error    | Property or parameter type is an opaque v0 type         |
+|         |          | (`DURATION`, `POINT`, `MAP`) whose structural meaning   |
+|         |          | is deferred to a successor spec (§20). List nesting is  |
+|         |          | traversed: `LIST<DURATION>` is flagged.                 |
+| `E3011` | Error    | A relationship type declares the same label in both    |
+|         |          | `start_labels` and `end_labels`. Self-loops are legal   |
+|         |          | but frequently a modelling slip; the lint forces the   |
+|         |          | author to confirm intent.                              |
+| `W6010` | Warning  | A label is declared but never referenced by any        |
+|         |          | relationship type's endpoint lists — possibly a typo   |
+|         |          | in a rel-type declaration.                             |
+
+CLI surface: `cypher schema check <path>` runs the loader, then the
+linter. Exit code is `0` if no `E`-severity lint fires, `1` otherwise
+(load-time invariants also exit `1`, using the existing load-error
+code path). Messages render as `severity[code]: message` on stderr so
+the output is grep-friendly; the summary line goes to stdout.
+
+### 9.3 Diagnostic codes
+
+The linter uses only codes already in the semantic-schema-aware
+(`E3000–E3999`) and style (`W6000–W6999`) ranges established by spec
+0001 §10.2; no new code range is introduced. Codes added by this spec:
+
+- `E3010` — opaque schema-file type (§9.2).
+- `E3011` — self-referential relationship type (§9.2).
+- `W6010` — unreachable label (§9.2).
+
+Ownership of the codes lives in `cypher-diag`; `cypher-schema`
+references them by their canonical string (`"E3010"`, `"E3011"`,
+`"W6010"`) to stay on its single allowed dependency edge
+(`cypher-syntax` types only, spec 0001 §3.1).
+
+### 9.4 Schema diff
+
+`cypher_schema::diff::diff(old, new) -> SchemaDiff` computes a
+deterministic structural diff between two schemas. The output shape
+carries three buckets — `adds`, `removes`, `breaking` — each a
+`Vec<DiffEntry>` sorted by `(category, path, detail)` so the JSON
+output is stable for CI snapshot tests.
+
+**Breaking** at v0:
+
+- A label, relationship type, or parameter is removed.
+- A property on an existing label or rel type changes type, is
+  removed, or tightens from optional to required.
+- A rel type's `start_labels` or `end_labels` shrink.
+- A parameter's type changes, or a parameter loses its default.
+
+**Additive** at v0:
+
+- New labels, rel types, or parameters.
+- New **optional** properties on an existing declaration.
+- A rel type's endpoint lists expanding.
+- A parameter gaining a default, or a default value changing.
+
+The diff is **structural**, not semantic — it does not open queries
+against the old schema to check which ones still type-check. A
+downstream "schema-compat" gate that wants stronger guarantees can
+union the structural diff with its own query corpus.
+
+CLI surface: `cypher schema diff <old> <new>` serialises the
+`SchemaDiff` to pretty-printed JSON on stdout and exits `1` if
+`breaking` is non-empty, `0` otherwise.
 
 ---
 
@@ -318,7 +403,7 @@ change and a spec revision.
 
 ## 12. Public API surface
 
-Three functions live in `cypher_schema::file`:
+Three loader functions live in `cypher_schema::file`:
 
 ```rust
 pub fn load_from_toml_str(input: &str) -> Result<InMemorySchema, SchemaLoadError>;
@@ -326,12 +411,133 @@ pub fn load_from_toml_path(path: &Path) -> Result<InMemorySchema, SchemaLoadErro
 pub fn serialise_to_toml(schema: &InMemorySchema) -> String;
 ```
 
+The linter (§9.2) lives in `cypher_schema::lint`:
+
+```rust
+pub fn lint(schema: &InMemorySchema) -> Vec<SchemaLint>;
+
+pub struct SchemaLint { pub code: &'static str, pub severity: LintSeverity, pub message: String }
+pub enum LintSeverity { Error, Warning }
+```
+
+The diff (§9.4) lives in `cypher_schema::diff`:
+
+```rust
+pub fn diff(old: &InMemorySchema, new: &InMemorySchema) -> SchemaDiff;
+
+pub struct SchemaDiff { pub adds: Vec<DiffEntry>, pub removes: Vec<DiffEntry>, pub breaking: Vec<DiffEntry> }
+pub struct DiffEntry { pub kind: String, pub category: String, pub path: String, pub detail: String }
+```
+
 [`InMemorySchema`] is the concrete `SchemaProvider` implementation in
 `cypher-schema`; see spec 0001 §8.1 for the trait contract.
 
-The CLI surfaces the loader through `cypher schema load <path>`, which
-prints a one-line human-readable summary and exits 0/1. No JSON output
-at v0.
+CLI surface:
+
+- `cypher schema load <path>` — load and summarise.
+- `cypher schema check <path>` — load, lint, emit findings.
+- `cypher schema diff <old> <new>` — pretty-printed JSON diff on
+  stdout; exits `1` if `breaking` is non-empty (CI gate ready).
+
+### 12.1 LSP / workspace integration (deferred to cy-o8c)
+
+Automatically loading `schema.toml` from a project root when the LSP
+starts is deferred to cy-o8c (workspace / `cypher-project.toml`
+semantics, spec 0003). Until then, the schema-aware consumer explicitly
+feeds an `InMemorySchema` in via the existing `SchemaProvider` trait
+(spec 0001 §8).
+
+---
+
+## 13. Examples
+
+### 13.1 Minimal schema
+
+```toml
+[meta]
+cyrs_schema_version = "0.1.0"
+schema_name = "minimal"
+
+[[label]]
+name = "Person"
+properties = [
+    { name = "name", type = "STRING", required = true },
+    { name = "age",  type = "INTEGER" },
+]
+
+[[label]]
+name = "Movie"
+properties = [
+    { name = "title",   type = "STRING", required = true },
+    { name = "genres",  type = "LIST<STRING>" },
+]
+
+[[rel_type]]
+name = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Movie"]
+properties   = [
+    { name = "role", type = "STRING" },
+]
+
+[[parameter]]
+name    = "since_year"
+type    = "INTEGER"
+default = 1990
+```
+
+Running `cypher schema check` on this file exits `0` and reports
+`0 issue(s)`.
+
+### 13.2 Schema that triggers each lint
+
+```toml
+[[label]]
+name = "Team"
+
+[[label]]
+name = "Orphan"
+
+[[rel_type]]
+name = "REPORTS_TO"
+start_labels = ["Team"]
+end_labels   = ["Team"]
+properties = [
+    { name = "since", type = "DURATION" },
+]
+```
+
+`cypher schema check` emits three findings:
+
+```
+error[E3010]: relationship `REPORTS_TO` property `since` has opaque type `DURATION`; …
+error[E3011]: relationship `REPORTS_TO` declares `Team` on both `start_labels` and `end_labels`; …
+warning[W6010]: label `Orphan` is declared but not used by any relationship type; …
+```
+
+and exits `1` because `E`-severity lints fired.
+
+### 13.3 Diff output (abridged)
+
+```json
+{
+  "adds": [
+    { "kind": "add", "category": "label", "path": "Director",
+      "detail": "added label `Director`" }
+  ],
+  "removes": [
+    { "kind": "remove", "category": "label", "path": "Movie",
+      "detail": "removed label `Movie`" }
+  ],
+  "breaking": [
+    { "kind": "breaking", "category": "label_property", "path": "Person.age",
+      "detail": "property `Person.age` type changed from `INTEGER` to `STRING`" }
+  ]
+}
+```
+
+The full JSON structure is snapshot-tested in
+`crates/cypher-cli/tests/snapshots/integration__schema_diff_report.snap`.
 
 ---
 

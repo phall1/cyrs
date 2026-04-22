@@ -12,6 +12,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+- cy-0ek (spec 0002 §9): register three new diagnostic codes consumed
+  by the `cypher schema check` linter — `E3010` (opaque schema-file
+  type), `E3011` (self-referential relationship type), and `W6010`
+  (unreachable label).
+
 ### Changed
 
 ### Deprecated

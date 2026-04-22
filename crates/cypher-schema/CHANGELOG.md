@@ -16,6 +16,12 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   `file::{load_from_toml_str, load_from_toml_path, serialise_to_toml}`
   behind the new `file` feature.  Round-trip integration test at
   `tests/file.rs`.
+* cy-0ek (spec 0002 §9): `lint::lint` surfaces schema-file lints with
+  stable codes `E3010` (opaque type), `E3011` (self-referential rel
+  type), and `W6010` (unreachable label).
+* cy-0ek (spec 0002 §9.4): `diff::diff` computes a deterministic,
+  serde-serialisable `SchemaDiff` between two schemas with `adds`,
+  `removes`, and `breaking` buckets — the CI "schema-compat" gate.
 
 ### Changed
 
