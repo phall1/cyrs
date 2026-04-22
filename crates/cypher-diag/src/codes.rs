@@ -278,6 +278,22 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0063.md`
     E0063 = 63,
+    /// Expected `(` after a list-predicate keyword (cy-8x5).
+    ///
+    /// Emitted by the parser when `ANY / ALL / NONE / SINGLE` is not
+    /// immediately followed by an opening parenthesis at atom position.
+    ///
+    /// Docs: `docs/errors/E0065.md`
+    E0065 = 65,
+    /// Expected `IN` between the list-predicate binder and its source
+    /// expression (cy-8x5).
+    ///
+    /// Docs: `docs/errors/E0066.md`
+    E0066 = 66,
+    /// Expected `)` to close a list-predicate expression (cy-8x5).
+    ///
+    /// Docs: `docs/errors/E0067.md`
+    E0067 = 67,
 
     // --- name resolution (E1000–E1999) --------------------------------
     /// Unresolved variable reference (spec §6.2).
@@ -473,6 +489,18 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E5010.md`
     E5010 = 5010,
+    /// List-predicate iterable is not a list (spec §7.4 / §19 row
+    /// "List predicates").
+    ///
+    /// Emitted by `cypher-sema::kinds` when the source expression of
+    /// `ANY / ALL / NONE / SINGLE (x IN xs [WHERE p])` is structurally
+    /// non-list: a scalar literal, a `Node` / `Relationship` / `Path`
+    /// variable, a map literal, or a pattern predicate. `Value` variables
+    /// and call results are accepted because they may hold a list at
+    /// runtime — schema-aware refinement is the follow-up's job.
+    ///
+    /// Docs: `docs/errors/E5011.md`
+    E5011 = 5011,
 
     // --- syntax (E0064) continued -------------------------------------
     /// Unclosed `[` in a list-indexing / slicing expression (spec §4.3).
@@ -590,6 +618,9 @@ impl DiagCode {
             Self::E0062 => "E0062",
             Self::E0063 => "E0063",
             Self::E0064 => "E0064",
+            Self::E0065 => "E0065",
+            Self::E0066 => "E0066",
+            Self::E0067 => "E0067",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -619,6 +650,7 @@ impl DiagCode {
             Self::E4019 => "E4019",
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
+            Self::E5011 => "E5011",
             Self::W6001 => "W6001",
             Self::W6002 => "W6002",
             Self::W6003 => "W6003",
@@ -721,6 +753,9 @@ impl DiagCode {
         Self::E0062,
         Self::E0063,
         Self::E0064,
+        Self::E0065,
+        Self::E0066,
+        Self::E0067,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -750,6 +785,7 @@ impl DiagCode {
         Self::E4019,
         Self::E5003,
         Self::E5010,
+        Self::E5011,
         Self::W6001,
         Self::W6002,
         Self::W6003,
@@ -846,6 +882,9 @@ mod tests {
             DiagCode::E0062,
             DiagCode::E0063,
             DiagCode::E0064,
+            DiagCode::E0065,
+            DiagCode::E0066,
+            DiagCode::E0067,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -875,6 +914,7 @@ mod tests {
             DiagCode::E4019,
             DiagCode::E5003,
             DiagCode::E5010,
+            DiagCode::E5011,
             DiagCode::W6001,
             DiagCode::W6002,
             DiagCode::W6003,
