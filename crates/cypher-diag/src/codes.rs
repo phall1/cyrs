@@ -463,6 +463,28 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E5003.md`
     E5003 = 5003,
+    /// Indexing or slicing applied to a non-list expression (spec §7.4 /
+    /// §19 row "List indexing / slicing").
+    ///
+    /// Emitted by `cypher-sema::kinds` when `xs[0]` / `xs[i..j]` is applied
+    /// to a target whose inferred type is not a list (and not `Any` / `Unknown`).
+    /// v1 scope is list-only; string indexing is deferred to a follow-up
+    /// bead and is rejected by this code until then.
+    ///
+    /// Docs: `docs/errors/E5010.md`
+    E5010 = 5010,
+
+    // --- syntax (E0064) continued -------------------------------------
+    /// Unclosed `[` in a list-indexing / slicing expression (spec §4.3).
+    ///
+    /// Emitted by the parser's `index_or_slice_postfix` recovery path
+    /// when no matching `]` follows the inner expression / slice bounds.
+    /// Distinct from E0033 (`SUBSCRIPT_EXPR` legacy path) so tooling can
+    /// tell the two apart; the typed cy-7s6.1 grammar path uses this
+    /// code exclusively.
+    ///
+    /// Docs: `docs/errors/E0064.md`
+    E0064 = 64,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -567,6 +589,7 @@ impl DiagCode {
             Self::E0061 => "E0061",
             Self::E0062 => "E0062",
             Self::E0063 => "E0063",
+            Self::E0064 => "E0064",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -595,6 +618,7 @@ impl DiagCode {
             Self::E4018 => "E4018",
             Self::E4019 => "E4019",
             Self::E5003 => "E5003",
+            Self::E5010 => "E5010",
             Self::W6001 => "W6001",
             Self::W6002 => "W6002",
             Self::W6003 => "W6003",
@@ -696,6 +720,7 @@ impl DiagCode {
         Self::E0061,
         Self::E0062,
         Self::E0063,
+        Self::E0064,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -724,6 +749,7 @@ impl DiagCode {
         Self::E4018,
         Self::E4019,
         Self::E5003,
+        Self::E5010,
         Self::W6001,
         Self::W6002,
         Self::W6003,
@@ -819,6 +845,7 @@ mod tests {
             DiagCode::E0061,
             DiagCode::E0062,
             DiagCode::E0063,
+            DiagCode::E0064,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -847,6 +874,7 @@ mod tests {
             DiagCode::E4018,
             DiagCode::E4019,
             DiagCode::E5003,
+            DiagCode::E5010,
             DiagCode::W6001,
             DiagCode::W6002,
             DiagCode::W6003,

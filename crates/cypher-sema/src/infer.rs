@@ -209,29 +209,38 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
-            // Subscript index — target should be a list or map; result Any.
+            // Subscript index — target should be a list or map.
+            //
+            // When the target infers to `LIST<T>`, the result is `T`.
+            // Otherwise result is `Any` (map access returns an `Any`-typed
+            // value in schema-free mode; non-list/non-map targets are
+            // caught by the structural `kinds` pass).
             // ---------------------------------------------------------------
             Expr::Index { target, index } => {
-                self.infer_expr(target);
+                let tgt_ty = self.infer_expr(target);
                 self.infer_expr(index);
-                Type::Any
+                match tgt_ty {
+                    Type::List(elem) => *elem,
+                    _ => Type::Any,
+                }
             }
 
             // ---------------------------------------------------------------
-            // Slice — visit target + bounds so their type errors surface;
-            // the element-type lattice work lives in the cy-7s6.1 sema
-            // commit. Result is `Any` here; the kinds pass narrows to
-            // `LIST<T>` when the target is list-shaped.
+            // Slice — `LIST<T>[..]` is `LIST<T>` (spec §7.4 / §19).
+            // Visit bounds so their own type errors still surface.
             // ---------------------------------------------------------------
             Expr::Slice { target, start, end } => {
-                self.infer_expr(target);
+                let tgt_ty = self.infer_expr(target);
                 if let Some(s) = start {
                     self.infer_expr(s);
                 }
                 if let Some(e) = end {
                     self.infer_expr(e);
                 }
-                Type::Any
+                match tgt_ty {
+                    Type::List(_) => tgt_ty,
+                    _ => Type::Any,
+                }
             }
 
             // ---------------------------------------------------------------
