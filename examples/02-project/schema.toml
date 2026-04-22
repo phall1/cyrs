@@ -1,0 +1,8 @@
+# Shared schema — both query files below resolve labels against this.
+# Spec 0002.
+
+[[label]]
+name = "Person"
+properties = [
+    { name = "name", type = "STRING", required = true },
+]

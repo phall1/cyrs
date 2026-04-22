@@ -1,0 +1,18 @@
+# Standalone example — not part of the root [workspace.members].
+# The `[workspace]` table below keeps Cargo from walking up and
+# adopting the root workspace, which would force this crate onto the
+# root's unified dep resolution.
+[workspace]
+resolver = "3"
+
+[package]
+name    = "library-example"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# In-tree path dep while developing against the workspace. Once
+# cypher is published on crates.io, swap for the versioned line:
+# cypher = "0.1"
+cypher = { path = "../../crates/cypher" }

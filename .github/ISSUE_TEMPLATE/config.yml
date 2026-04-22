@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions / discussion
+    url: https://github.com/phall1/cyrs/discussions
+    about: Open-ended questions, design discussions, or showcase.
+  - name: Security vulnerability
+    url: https://github.com/phall1/cyrs/security/advisories/new
+    about: Report a vulnerability privately. See SECURITY.md.

@@ -1,0 +1,91 @@
+name: Bug report
+description: A crash, incorrect diagnostic, or other unexpected behavior.
+title: "[bug] "
+labels: ["type:bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: run `cargo xtask gate` locally to confirm the issue reproduces on `main`.
+        For security issues, see [SECURITY.md](../../SECURITY.md) and report privately.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproducer
+      description: Minimal `.cyp` input or command. Paste code in a fenced block.
+      placeholder: |
+        ```cypher
+        MATCH (n:Person) WHERE ...
+        RETURN n
+        ```
+      render: markdown
+    validations:
+      required: true
+
+  - type: input
+    id: diag_code
+    attributes:
+      label: Diagnostic code (if any)
+      placeholder: "E0011, W6004, ..."
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened? Paste stderr / panic message verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dialect
+    attributes:
+      label: Dialect
+      options:
+        - GqlAligned
+        - OpenCypherV9
+        - Either / unsure
+
+  - type: input
+    id: version
+    attributes:
+      label: cyrs version / commit
+      placeholder: "v0.1.0, or commit sha"
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "macOS 14.5 aarch64, Rust 1.94"
+    validations:
+      required: true
+
+  - type: input
+    id: spec_section
+    attributes:
+      label: Related spec section (optional)
+      placeholder: "spec 0001 §7.2"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Logs, screenshots, workspace setup — anything else useful.

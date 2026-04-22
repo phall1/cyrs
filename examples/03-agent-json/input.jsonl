@@ -1,0 +1,4 @@
+{"op":"parse","text":"MATCH (n) RETURN n"}
+{"op":"check","text":"MATCH (n RETURN n"}
+{"op":"format","text":"return 1"}
+{"op":"shutdown"}

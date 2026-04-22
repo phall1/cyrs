@@ -1,0 +1,13 @@
+# Minimal workspace manifest. Spec 0003.
+[project]
+name        = "mini"
+description = "Two-file example sharing a single schema.toml."
+
+[project.dialect]
+default = "GqlAligned"
+
+[project.members]
+include = ["queries/*.cyp"]
+
+[project.schema]
+path = "schema.toml"

@@ -1,0 +1,65 @@
+name: Feature request
+description: Propose a language-surface extension, new diagnostic, or API addition.
+title: "[feature] "
+labels: ["type:feature", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature work is tracked in beads. This issue is for discussion and scoping;
+        once accepted, the maintainer files it with `br create` and the work happens there.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the proposal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem does this solve? Who benefits? Cite a real use case.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: What gets added / changed? Where in the crate graph?
+    validations:
+      required: true
+
+  - type: input
+    id: spec_section
+    attributes:
+      label: Spec section(s) this would amend
+      placeholder: "spec 0001 §9.3, spec 0004 §5"
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other designs, workarounds, or reasons this belongs (or doesn't belong) in cyrs.
+
+  - type: input
+    id: related_beads
+    attributes:
+      label: Related beads (if any)
+      placeholder: "cy-abc, cy-def"
+
+  - type: checkboxes
+    id: non_goals
+    attributes:
+      label: Non-goal check
+      description: Confirm this doesn't violate cyrs non-goals (AGENTS.md §1 + spec §9.3).
+      options:
+        - label: Does not add an execution engine, runtime, or storage.
+          required: true
+        - label: Does not introduce domain vocabulary (Actor, Event, Operation, etc.).
+          required: true
+        - label: Does not target Neo4jCurrent-only features (APOC, CALL { } subqueries, SHOW, LOAD CSV).
+          required: true

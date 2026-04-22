@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+    Minimal cypher-wasm page. Textarea → button → <pre> with JSON.
+    No build step, no Monaco. See ../../demo/web/ for the full version.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>cypher-wasm minimal</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 720px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        textarea, pre {
+            width: 100%;
+            font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace;
+            box-sizing: border-box;
+        }
+        textarea { height: 8rem; padding: 0.5rem; }
+        pre {
+            background: #f5f5f5;
+            padding: 0.75rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        button { padding: 0.4rem 0.9rem; font-size: 1rem; }
+    </style>
+</head>
+<body>
+    <h1>cypher-wasm · minimal check</h1>
+    <p>
+        Type Cypher below, click <strong>Check</strong>. Diagnostics
+        render as JSON. Build the wasm artifact first with
+        <code>cargo xtask wasm-build</code>.
+    </p>
+    <textarea id="src">MATCH (n RETURN n</textarea>
+    <p><button id="go">Check</button></p>
+    <pre id="out">(load complete — edit above and click Check)</pre>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

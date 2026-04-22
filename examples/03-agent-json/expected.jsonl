@@ -1,0 +1,4 @@
+{"op":"parse","cst_string":"MATCH (n) RETURN n","syntax_errors":[]}
+{"op":"check","diagnostics":[{"code":"E0011","fixes":[],"labels":[],"message":"expected ')' to close node pattern","notes":[],"primary":{"caption":"","range":[9,9]},"related":[],"severity":"error"}]}
+{"op":"format","formatted":"RETURN 1\n"}
+{"op":"shutdown"}
