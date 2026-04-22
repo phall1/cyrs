@@ -1,0 +1,50 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 563
+expression: "format_with_errors(\"MATCH (a) WHERE NOT (a)-->(:Villain) RETURN a\")"
+---
+SOURCE_FILE@0..45
+  STATEMENT@0..45
+    MATCH_CLAUSE@0..36
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..36
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        UNARY_EXPR@15..36
+          WHITESPACE@15..16 " "
+          NOT_KW@16..19 "NOT"
+          PATTERN_PREDICATE@19..36
+            PATTERN@19..36
+              PATTERN_PART@19..36
+                NODE_PATTERN@19..23
+                  WHITESPACE@19..20 " "
+                  L_PAREN@20..21 "("
+                  NAME@21..22
+                    IDENT@21..22 "a"
+                  R_PAREN@22..23 ")"
+                REL_PATTERN@23..26
+                  MINUS@23..24 "-"
+                  ARROW_R@24..26 "->"
+                NODE_PATTERN@26..36
+                  L_PAREN@26..27 "("
+                  LABEL_EXPR@27..35
+                    COLON@27..28 ":"
+                    IDENT@28..35 "Villain"
+                  R_PAREN@35..36 ")"
+    RETURN_CLAUSE@36..45
+      WHITESPACE@36..37 " "
+      RETURN_KW@37..43 "RETURN"
+      RETURN_BODY@43..45
+        RETURN_ITEMS@43..45
+          RETURN_ITEM@43..45
+            VAR_EXPR@43..45
+              WHITESPACE@43..44 " "
+              IDENT@44..45 "a"

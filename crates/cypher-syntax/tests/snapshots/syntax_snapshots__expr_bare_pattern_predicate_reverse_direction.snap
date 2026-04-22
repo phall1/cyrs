@@ -1,0 +1,47 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 589
+expression: "format_with_errors(\"MATCH (n) WHERE (n)<-[]-() RETURN n\")"
+---
+SOURCE_FILE@0..35
+  STATEMENT@0..35
+    MATCH_CLAUSE@0..26
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..26
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        PATTERN_PREDICATE@15..26
+          PATTERN@15..26
+            PATTERN_PART@15..26
+              NODE_PATTERN@15..19
+                WHITESPACE@15..16 " "
+                L_PAREN@16..17 "("
+                NAME@17..18
+                  IDENT@17..18 "n"
+                R_PAREN@18..19 ")"
+              REL_PATTERN@19..24
+                ARROW_L@19..21 "<-"
+                REL_DETAIL@21..23
+                  L_BRACK@21..22 "["
+                  R_BRACK@22..23 "]"
+                MINUS@23..24 "-"
+              NODE_PATTERN@24..26
+                L_PAREN@24..25 "("
+                R_PAREN@25..26 ")"
+    RETURN_CLAUSE@26..35
+      WHITESPACE@26..27 " "
+      RETURN_KW@27..33 "RETURN"
+      RETURN_BODY@33..35
+        RETURN_ITEMS@33..35
+          RETURN_ITEM@33..35
+            VAR_EXPR@33..35
+              WHITESPACE@33..34 " "
+              IDENT@34..35 "n"

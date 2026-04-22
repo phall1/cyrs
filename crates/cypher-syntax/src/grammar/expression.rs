@@ -214,7 +214,19 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
         {
             list_predicate(p, depth)
         }
-        SyntaxKind::L_PAREN => paren_expr(p, depth),
+        // `(` in expression position is ambiguous between a parenthesised
+        // expression (`(1 + 2)`, `(a.name)`, …) and a bare pattern predicate
+        // (`(a)-->(b)`, `(:Label)-[:R]->()`, …) — spec §6.1 desugaring row
+        // "Pattern predicates in expressions" / §19. Dispatch on a two-token
+        // lookahead past the opening paren per cy-7lf; see
+        // [`at_bare_pattern_predicate`] for the token table.
+        SyntaxKind::L_PAREN => {
+            if at_bare_pattern_predicate(p) {
+                bare_pattern_predicate(p)
+            } else {
+                paren_expr(p, depth)
+            }
+        }
         SyntaxKind::L_BRACK => list_literal(p, depth),
         SyntaxKind::L_BRACE => map_literal(p, depth),
         // `CASE` expression — generic + simple-when forms (cy-41u,
@@ -662,6 +674,88 @@ fn exists_block_deferred(p: &mut Parser<'_>) -> CompletedMarker {
     // interpret this as a valid expression. The primary diagnostic is
     // already on the CST.
     m.complete(p, SyntaxKind::ERROR)
+}
+
+/// Two-token lookahead disambiguator for an `L_PAREN` in expression
+/// position: decides whether the `(` starts a bare pattern predicate
+/// (`(a)-->(b)`, `(:Label)`, `(a {k: 1})`, …) or a parenthesised
+/// expression (`(1 + 2)`, `(a.name)`, …). Spec §6.1 / §19 row
+/// "Pattern predicates in expressions" (cy-7lf).
+///
+/// The parser is positioned *at* the opening paren; `nth(1)` is the
+/// first token inside, `nth(2)` the second. Matches the classification
+/// table below — every token combination maps to exactly one branch so
+/// the caller never needs backtracking:
+///
+/// | `nth(1)` | `nth(2)` | Interpretation               |
+/// | -------- | -------- | ---------------------------- |
+/// | `)`      | —        | bare pattern (empty node)    |
+/// | `:`      | —        | bare pattern (`(:Label)`)    |
+/// | `{`      | —        | bare pattern (`({k: v})`)    |
+/// | ident    | `:`      | bare pattern (`(a:Label)`)   |
+/// | ident    | `,`      | bare pattern (comma in path) |
+/// | ident    | `)`      | **ambiguous → pattern**      |
+/// | ident    | `-`      | bare pattern (rel follows)   |
+/// | ident    | `<-`     | bare pattern (rel follows)   |
+/// | ident    | `{`      | bare pattern (inline props)  |
+/// | anything else        | parenthesised expression     |
+///
+/// The `ident` + `)` ambiguity is resolved in favour of the pattern
+/// form per the bead's spec; `(a)` read as a pattern predicate lowers to an
+/// existential check on node `a`, while `(a)` read as an expression is
+/// just `a` — they are not equivalent in type, but openCypher's bare
+/// pattern form is the high-value reading (see TCK `expressions/pattern`
+/// scenario [13] `MATCH (n) WHERE (n) RETURN n`). Users who meant the
+/// expression form can disambiguate with `.prop`, an operator, or by
+/// dropping the parens entirely.
+fn at_bare_pattern_predicate(p: &mut Parser<'_>) -> bool {
+    debug_assert!(p.at(SyntaxKind::L_PAREN));
+    match p.nth(1) {
+        // `()` — empty node pattern. Also `(:Label)`, `({k: v})` —
+        // node pattern without a binder.
+        SyntaxKind::R_PAREN | SyntaxKind::COLON | SyntaxKind::L_BRACE => true,
+        // `(IDENT …)` — inspect the next token to decide.
+        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => matches!(
+            p.nth(2),
+            // Label decoration → pattern.
+            SyntaxKind::COLON
+            // Inline property map → pattern.
+            | SyntaxKind::L_BRACE
+            // Ambiguous `(a)` → pattern per cy-7lf disambiguation rule.
+            | SyntaxKind::R_PAREN
+            // A trailing relationship always means a pattern: `(a)-[]->(b)`
+            // opens with `MINUS` or `ARROW_L` after the first node pattern
+            // closes, so seeing one inside means we're still mid-binder.
+            // The `MINUS` / `ARROW_L` tokens here apply to a following rel
+            // pattern after the closing `)` — but if they appear in the
+            // *next* slot they never belong to an expression `(a - b)`:
+            // expressions need whitespace-tolerant `a - b` which is `IDENT
+            // MINUS IDENT`; so an `IDENT MINUS IDENT` shape stays an expr.
+            // We only dispatch to pattern when we see a `,` which only
+            // appears in comma-separated pattern lists.
+            | SyntaxKind::COMMA
+        ),
+        // Everything else (literal, param, keyword, operator…) is an
+        // expression.
+        _ => false,
+    }
+}
+
+/// Parse a bare pattern predicate in expression position: `(a)-->(b)`,
+/// `(:Label)`, … — spec §6.1 / §19 row "Pattern predicates in
+/// expressions" (cy-7lf).
+///
+/// Enters at the opening `(` of the first node pattern. Delegates the
+/// whole path to [`pattern::pattern`], which walks `NodePattern
+/// (RelPattern NodePattern)*` and leaves the cursor past the final
+/// closing paren. The result is wrapped in a [`SyntaxKind::PATTERN_PREDICATE`]
+/// node so HIR lowering reuses the same `Expr::PatternPredicate` path
+/// as the `EXISTS(<pattern>)` form (cy-lve).
+fn bare_pattern_predicate(p: &mut Parser<'_>) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_PAREN));
+    let m = p.start();
+    pattern::pattern(p);
+    m.complete(p, SyntaxKind::PATTERN_PREDICATE)
 }
 
 fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {

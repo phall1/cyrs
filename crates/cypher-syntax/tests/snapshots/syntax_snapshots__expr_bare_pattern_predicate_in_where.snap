@@ -1,0 +1,47 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 554
+expression: "format_with_errors(\"MATCH (a) WHERE (a)-->(:Movie) RETURN a\")"
+---
+SOURCE_FILE@0..39
+  STATEMENT@0..39
+    MATCH_CLAUSE@0..30
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..30
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        PATTERN_PREDICATE@15..30
+          PATTERN@15..30
+            PATTERN_PART@15..30
+              NODE_PATTERN@15..19
+                WHITESPACE@15..16 " "
+                L_PAREN@16..17 "("
+                NAME@17..18
+                  IDENT@17..18 "a"
+                R_PAREN@18..19 ")"
+              REL_PATTERN@19..22
+                MINUS@19..20 "-"
+                ARROW_R@20..22 "->"
+              NODE_PATTERN@22..30
+                L_PAREN@22..23 "("
+                LABEL_EXPR@23..29
+                  COLON@23..24 ":"
+                  IDENT@24..29 "Movie"
+                R_PAREN@29..30 ")"
+    RETURN_CLAUSE@30..39
+      WHITESPACE@30..31 " "
+      RETURN_KW@31..37 "RETURN"
+      RETURN_BODY@37..39
+        RETURN_ITEMS@37..39
+          RETURN_ITEM@37..39
+            VAR_EXPR@37..39
+              WHITESPACE@37..38 " "
+              IDENT@38..39 "a"

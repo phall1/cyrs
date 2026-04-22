@@ -540,6 +540,70 @@ fn err_exists_block_deferred() {
 }
 
 // ---------------------------------------------------------------------------
+// Expressions — bare pattern predicates (cy-7lf, spec §6.1 / §19)
+// ---------------------------------------------------------------------------
+//
+// `(a)-->(b)` in expression position is sugar for the `EXISTS` wrapping
+// form — spec §6.1 desugars both to `Expr::PatternPredicate`. Two-token
+// lookahead past `(` disambiguates from parenthesised expressions; see
+// `grammar::expression::at_bare_pattern_predicate` for the table.
+
+#[test]
+fn expr_bare_pattern_predicate_in_where() {
+    // Classic bare form in WHERE position with a labelled target node.
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) WHERE (a)-->(:Movie) RETURN a"
+    ));
+}
+
+#[test]
+fn expr_bare_pattern_predicate_not_negation() {
+    // `NOT (a)-->(b)` — the pattern predicate binds tighter than unary
+    // NOT, so the whole predicate becomes the operand.
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) WHERE NOT (a)-->(:Villain) RETURN a"
+    ));
+}
+
+#[test]
+fn expr_bare_pattern_predicate_single_var_ambiguous() {
+    // `(n)` — per cy-7lf, resolved as a pattern predicate (the empty
+    // path `(n)`). Users who want the expression can write `n` without
+    // the parens.
+    insta::assert_snapshot!(format_with_errors("MATCH (n) WHERE (n) RETURN n"));
+}
+
+#[test]
+fn expr_bare_pattern_predicate_empty_node() {
+    // `()-->()` — anonymous nodes on both sides. Trivially exercises
+    // the `nth(1) == R_PAREN` branch of the disambiguator.
+    insta::assert_snapshot!(format_with_errors("MATCH (a) WHERE ()-->() RETURN a"));
+}
+
+#[test]
+fn expr_bare_pattern_predicate_reverse_direction() {
+    // `(n)<-[]-()` — reverse-direction rel. Covers the inbound-arrow
+    // branch of the pattern parser via bare pattern predicate position.
+    insta::assert_snapshot!(format_with_errors("MATCH (n) WHERE (n)<-[]-() RETURN n"));
+}
+
+#[test]
+fn expr_paren_still_parens_arithmetic() {
+    // Regression guard: `(1 + 2)` must still be a PAREN_EXPR. The
+    // disambiguator bails to paren-expr because `nth(1)` is an
+    // INT_LITERAL.
+    insta::assert_snapshot!(format_with_errors("RETURN (1 + 2)"));
+}
+
+#[test]
+fn expr_paren_still_parens_property_access() {
+    // Regression guard: `(a.name)` is a parenthesised property access,
+    // not a pattern predicate. `nth(2)` is `.` which forces the
+    // expression branch.
+    insta::assert_snapshot!(format_with_errors("MATCH (a) RETURN (a.name)"));
+}
+
+// ---------------------------------------------------------------------------
 // Expressions — operators
 // ---------------------------------------------------------------------------
 
