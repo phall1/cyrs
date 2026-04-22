@@ -229,10 +229,18 @@ impl KindCtx<'_> {
                 // Unary minus is arithmetic; NOT is boolean (general).
                 self.check_expr(operand, ctx, sink);
             }
-            Expr::Prop { target, .. } => {
+            Expr::Prop { target, prop } => {
                 // Property access on a non-Value var: check that target is
-                // not a Path (which has no properties).
-                self.check_expr(target, ExprCtx::PropAccess, sink);
+                // not a Path (which has no properties). Exception (cy-zo9):
+                // the synthetic `.id` pseudo-property is valid on Nodes,
+                // Relationships, *and* Paths — so skip the Path rejection
+                // in that case and let `infer.rs` type it as INTEGER.
+                let inner_ctx = if prop.as_str() == "id" {
+                    ExprCtx::General
+                } else {
+                    ExprCtx::PropAccess
+                };
+                self.check_expr(target, inner_ctx, sink);
             }
             Expr::Index { target, index } => {
                 self.require_indexable(target, /*op=*/ "index", sink);

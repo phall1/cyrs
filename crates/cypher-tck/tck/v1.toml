@@ -215,6 +215,21 @@ tags    = ["@EXPRESSIONS", "@LISTS"]
 query   = "RETURN size([1, 2, 3])"
 outcome = "ok"
 
+# cy-zo9 — node / relationship id via the built-in `id()` function
+# and the synthetic `.id` pseudo-property (spec §8.3).
+
+[[scenario]]
+name    = "id(n) built-in returns INTEGER"
+tags    = ["@EXPRESSIONS", "@MATCH", "@RETURN"]
+query   = "MATCH (n) RETURN id(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "n.id synthetic pseudo-property"
+tags    = ["@EXPRESSIONS", "@MATCH", "@RETURN"]
+query   = "MATCH (n) RETURN n.id"
+outcome = "ok"
+
 # ---------------------------------------------------------------------------
 # @AGGREGATIONS
 # ---------------------------------------------------------------------------
