@@ -101,7 +101,9 @@ cypher-fmt           = { version = "0.0.1", path = "crates/cypher-fmt" }
 cypher-db            = { version = "0.0.1", path = "crates/cypher-db" }
 cypher-lang-services = { version = "0.0.1", path = "crates/cypher-lang-services" }
 cypher-tck           = { version = "0.0.1", path = "crates/cypher-tck" }
-cypher-testkit       = { version = "0.0.1", path = "crates/cypher-testkit" }
+# cypher-testkit is dev-only (publish = false) — no version so `cargo
+# publish` strips it cleanly from published dev-dependencies.
+cypher-testkit       = { path = "crates/cypher-testkit" }
 cypher               = { version = "0.0.1", path = "crates/cypher" }
 
 # ---------------------------------------------------------------------------
