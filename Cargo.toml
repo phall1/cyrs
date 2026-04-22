@@ -6,6 +6,7 @@ members = [
     "crates/cypher-hir",
     "crates/cypher-sema",
     "crates/cypher-schema",
+    "crates/cypher-project",
     "crates/cypher-diag",
     "crates/cypher-plan",
     "crates/cypher-fmt",
@@ -95,6 +96,7 @@ cypher-ast           = { version = "0.0.1", path = "crates/cypher-ast" }
 cypher-hir           = { version = "0.0.1", path = "crates/cypher-hir" }
 cypher-sema          = { version = "0.0.1", path = "crates/cypher-sema" }
 cypher-schema        = { version = "0.0.1", path = "crates/cypher-schema" }
+cypher-project       = { version = "0.0.1", path = "crates/cypher-project" }
 cypher-diag          = { version = "0.0.1", path = "crates/cypher-diag" }
 cypher-plan          = { version = "0.0.1", path = "crates/cypher-plan" }
 cypher-fmt           = { version = "0.0.1", path = "crates/cypher-fmt" }

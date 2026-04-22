@@ -39,6 +39,8 @@ pub use cypher_syntax as syntax;
 pub use cypher_fmt as fmt;
 
 #[cfg(feature = "schema")]
+pub use cypher_project as project;
+#[cfg(feature = "schema")]
 pub use cypher_schema as schema;
 
 // ---------------------------------------------------------------------------
