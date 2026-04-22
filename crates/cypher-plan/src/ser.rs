@@ -459,6 +459,13 @@ enum ExprSer {
         target: Box<Expr>,
         index: Box<Expr>,
     },
+    Slice {
+        target: Box<Expr>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start: Option<Box<Expr>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end: Option<Box<Expr>>,
+    },
     List {
         items: Vec<Expr>,
     },
@@ -515,6 +522,11 @@ impl Serialize for Expr {
             Expr::Index { target, index } => ExprSer::Index {
                 target: Box::new(*target.clone()),
                 index: Box::new(*index.clone()),
+            },
+            Expr::Slice { target, start, end } => ExprSer::Slice {
+                target: Box::new(*target.clone()),
+                start: start.as_ref().map(|e| Box::new(*e.clone())),
+                end: end.as_ref().map(|e| Box::new(*e.clone())),
             },
             Expr::List(items) => ExprSer::List {
                 items: items.clone(),
@@ -575,6 +587,11 @@ impl<'de> Deserialize<'de> for Expr {
             ExprSer::Index { target, index } => Expr::Index {
                 target: Box::new(*target),
                 index: Box::new(*index),
+            },
+            ExprSer::Slice { target, start, end } => Expr::Slice {
+                target: Box::new(*target),
+                start: start.map(|e| Box::new(*e)),
+                end: end.map(|e| Box::new(*e)),
             },
             ExprSer::List { items } => Expr::List(items),
             ExprSer::Map { entries } => Expr::Map(entries),

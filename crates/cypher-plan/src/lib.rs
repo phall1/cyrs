@@ -495,6 +495,22 @@ pub enum Expr {
         /// Index expression (integer for lists, string for maps).
         index: Box<Expr>,
     },
+    /// A list slice (`expr[start..end]`). cy-7s6.1 (spec §12.2 E8,
+    /// extended for openCypher list slicing).
+    ///
+    /// Either bound may be `None` to represent the elided form:
+    /// `xs[..j]` -> `start = None, end = Some(j)`; `xs[i..]` ->
+    /// `start = Some(i), end = None`. Negative indices carry their
+    /// from-end meaning at evaluation time; the plan does not
+    /// normalise them.
+    Slice {
+        /// Expression evaluating to a list.
+        target: Box<Expr>,
+        /// Optional lower bound (inclusive, elidable).
+        start: Option<Box<Expr>>,
+        /// Optional upper bound (exclusive, elidable).
+        end: Option<Box<Expr>>,
+    },
     /// A list literal (`[e1, e2, ...]`). Spec §12.2 E9.
     List(Vec<Expr>),
     /// A map literal (`{k1: e1, k2: e2}`). Spec §12.2 E10.
