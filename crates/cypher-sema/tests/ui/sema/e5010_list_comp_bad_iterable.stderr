@@ -1,0 +1,6 @@
+error[E5010]: cannot iterate over non-list expression of type `Node`; list indexing and slicing require a list target
+  ┌─ e5010_list_comp_bad_iterable.cypher:1:1
+  │
+1 │ // E5010: iterating over a non-list expression in a list comprehension.
+  │ ^
+
