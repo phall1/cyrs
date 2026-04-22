@@ -54,7 +54,7 @@
 
 use std::sync::Arc;
 
-use cypher_diag::{DiagCode, Diagnostic, DiagnosticsSink, Label, Severity};
+use cypher_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cypher_hir::desugar::desugar_statement;
 use cypher_hir::lower::lower_statement as hir_lower;
 use cypher_plan::lower::{PlanStatement, lower_statement as plan_lower};
@@ -410,19 +410,10 @@ pub fn analyse_file(
 fn syntax_error_to_diagnostic(e: &cypher_syntax::SyntaxError) -> Diagnostic {
     let code = find_diag_code(e.code);
     let range = TextRange::new(e.offset, e.offset);
-    Diagnostic {
-        code,
-        severity: Severity::Error,
-        message: SmolStr::new(&e.message),
-        primary: Label {
-            range,
-            caption: SmolStr::default(),
-        },
-        labels: Vec::new(),
-        notes: Vec::new(),
-        related: Vec::new(),
-        fixes: Vec::new(),
-    }
+    // `Diagnostic` is `#[non_exhaustive]` (cy-2i9.1).  Use the `error`
+    // constructor rather than a struct literal so downstream / cross-crate
+    // construction remains SemVer-stable.
+    Diagnostic::error(code, range, SmolStr::new(&e.message))
 }
 
 /// Look up a numeric code in [`DiagCode::ALL`] and return the matching

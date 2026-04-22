@@ -461,6 +461,8 @@ impl<'s> LowerCtx<'s> {
                     HirDir::Outgoing => Direction::Outgoing,
                     HirDir::Incoming => Direction::Incoming,
                     HirDir::Undirected => Direction::Undirected,
+                    // `Direction` is `#[non_exhaustive]` (cy-2i9.1).
+                    _ => unreachable!("cypher-plan::lower: unhandled Direction variant"),
                 };
 
                 let rel_len = match length {
@@ -469,6 +471,8 @@ impl<'s> LowerCtx<'s> {
                         min: *min,
                         max: *max,
                     },
+                    // `RelLength` is `#[non_exhaustive]` (cy-2i9.1).
+                    _ => unreachable!("cypher-plan::lower: unhandled RelLength variant"),
                 };
 
                 let rel_spec = RelSpec {

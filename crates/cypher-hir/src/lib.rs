@@ -64,6 +64,12 @@ impl HirId {
 pub struct VarId(pub u32);
 
 /// Variable kind recorded at binding (spec §6.3).
+//
+// NOTE (cy-2i9.1): this enum is heavily matched across `cypher-sema`,
+// `cypher-plan`, `cypher-db`, and `cypher-lang-services`.  Marking it
+// `#[non_exhaustive]` here would force wildcard arms at every cross-crate
+// match site.  Deferred to a follow-up bead; see `docs/stability.md`
+// "Deferred: intra-workspace non_exhaustive" section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VarKind {
     /// Bound by a node pattern (e.g. `MATCH (a)`).
@@ -143,6 +149,9 @@ impl Statement {
 
 /// A single clause in a statement. Each variant carries its own
 /// [`HirId`] so diagnostics can point back at the originating AST.
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum Clause {
     Match {
@@ -262,6 +271,9 @@ pub struct PatternPart {
 }
 
 /// An individual node or relationship within a [`PatternPart`].
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum PatternElement {
     Node {
@@ -300,6 +312,7 @@ impl PatternElement {
 
 /// Relationship direction as written in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Direction {
     Outgoing,
     Incoming,
@@ -308,6 +321,7 @@ pub enum Direction {
 
 /// Variable-length relationship bounds. `Single` means no `*` suffix.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RelLength {
     Single,
     Variable { min: Option<u64>, max: Option<u64> },
@@ -322,6 +336,9 @@ pub struct Projection {
 }
 
 /// Right-hand side of a `SET` clause item.
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum SetItem {
     Property {
@@ -341,6 +358,9 @@ pub enum SetItem {
 }
 
 /// An item within a `REMOVE` clause.
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum RemoveItem {
     Property { target: Expr, prop: SmolStr },
@@ -356,6 +376,9 @@ pub struct YieldItem {
 
 /// HIR expression. Fully resolved: every [`Expr::Var`] carries its
 /// [`VarId`].
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum Expr {
     Null,
@@ -447,6 +470,9 @@ pub enum Expr {
 }
 
 /// One item in a [`Expr::MapProjection`] (spec §6.1).
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone)]
 pub enum MapProjectionItem {
     /// `.prop` — copy property `prop` from the base expression.
@@ -460,6 +486,9 @@ pub enum MapProjectionItem {
 }
 
 /// Binary operators (spec §5.6 / §7.2).
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinOp {
     Add,
@@ -485,6 +514,9 @@ pub enum BinOp {
 }
 
 /// Unary operators (spec §5.6 / §7.2).
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace — see
+// `VarKind` note above and `docs/stability.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
     Neg,

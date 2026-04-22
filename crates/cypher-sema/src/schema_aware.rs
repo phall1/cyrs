@@ -625,34 +625,19 @@ mod tests {
 
         fn node_properties(&self, label: &str) -> Option<Vec<PropertyDecl>> {
             match label {
+                // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1).
                 "Person" => Some(vec![
-                    PropertyDecl {
-                        name: SmolStr::new("name"),
-                        ty: PropertyType::String,
-                        required: true,
-                    },
-                    PropertyDecl {
-                        name: SmolStr::new("age"),
-                        ty: PropertyType::Int,
-                        required: false,
-                    },
+                    PropertyDecl::new("name", PropertyType::String, true),
+                    PropertyDecl::new("age", PropertyType::Int, false),
                 ]),
-                "Company" => Some(vec![PropertyDecl {
-                    name: SmolStr::new("name"),
-                    ty: PropertyType::String,
-                    required: true,
-                }]),
+                "Company" => Some(vec![PropertyDecl::new("name", PropertyType::String, true)]),
                 _ => None,
             }
         }
 
         fn relationship_properties(&self, rel_type: &str) -> Option<Vec<PropertyDecl>> {
             match rel_type {
-                "KNOWS" => Some(vec![PropertyDecl {
-                    name: SmolStr::new("since"),
-                    ty: PropertyType::Int,
-                    required: false,
-                }]),
+                "KNOWS" => Some(vec![PropertyDecl::new("since", PropertyType::Int, false)]),
                 _ => None,
             }
         }

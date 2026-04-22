@@ -158,9 +158,7 @@ mod tests {
     //! `Diagnostic`-with-fix locally so the conversion itself is still
     //! covered.
     use super::*;
-    use cypher_diag::{
-        Applicability, DiagCode, Diagnostic, FixIt, Label, Severity, TextEdit as DiagEdit,
-    };
+    use cypher_diag::{Applicability, DiagCode, Diagnostic, FixIt, TextEdit as DiagEdit};
     use smol_str::SmolStr;
     use std::str::FromStr;
 
@@ -168,27 +166,22 @@ mod tests {
     fn fixit_round_trips_to_code_action() {
         let line_index = LineIndex::new("MATCH (n) RETURN n");
         let uri: Uri = Uri::from_str("file:///tmp/t.cyp").expect("valid test URI");
-        let diag = Diagnostic {
-            code: DiagCode::E0001,
-            severity: Severity::Error,
-            message: SmolStr::new("example"),
-            primary: Label {
+        // `Diagnostic` is `#[non_exhaustive]` (cy-2i9.1) — build via the
+        // `error` constructor + `with_fix` rather than a struct literal.
+        let diag = Diagnostic::error(
+            DiagCode::E0001,
+            TextRange::new(TextSize::from(0), TextSize::from(5)),
+            "example",
+        )
+        .with_fix(FixIt {
+            id: SmolStr::new("cy-fix.uppercase"),
+            title: SmolStr::new("uppercase keyword"),
+            applicability: Applicability::MachineApplicable,
+            edits: vec![DiagEdit {
                 range: TextRange::new(TextSize::from(0), TextSize::from(5)),
-                caption: SmolStr::default(),
-            },
-            labels: Vec::new(),
-            notes: Vec::new(),
-            related: Vec::new(),
-            fixes: vec![FixIt {
-                id: SmolStr::new("cy-fix.uppercase"),
-                title: SmolStr::new("uppercase keyword"),
-                applicability: Applicability::MachineApplicable,
-                edits: vec![DiagEdit {
-                    range: TextRange::new(TextSize::from(0), TextSize::from(5)),
-                    replacement: SmolStr::new("MATCH"),
-                }],
+                replacement: SmolStr::new("MATCH"),
             }],
-        };
+        });
 
         let actions = fix_actions_for(&diag, &uri, &line_index);
         assert_eq!(actions.len(), 1);

@@ -378,6 +378,28 @@ jobs:
         run: cargo run -p xtask -- tree-sitter-parity
 
   # ---------------------------------------------------------------
+  # SemVer gate (cy-2i9.1): cargo-semver-checks on every PR.
+  #
+  # Compares the PR's public API against the base branch; flags any
+  # accidental breaking changes so they can be either fixed (preferred)
+  # or acknowledged in docs/stability.md before merging.  Advisory pre-
+  # first-crates.io-release (no baseline available for most crates);
+  # hard-blocks once we ship 0.1.0.
+  # ---------------------------------------------------------------
+  semver-checks:
+    name: cargo-semver-checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: cypher-syntax,cypher-ast,cypher-hir,cypher-schema,cypher-sema,cypher-diag,cypher-plan,cypher-fmt,cypher-db,cypher-lang-services,cypher-lsp,cypher-agent,cypher-cli,cypher-tck,cypher
+
+  # ---------------------------------------------------------------
   # MSRV check: spec §18 pins 1.94.
   # ---------------------------------------------------------------
   msrv:

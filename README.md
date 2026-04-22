@@ -235,6 +235,14 @@ cargo bench --workspace                             # criterion benchmarks
 working on the front-end. Commits cite the spec section and the
 corresponding bead ID (`cy-{3char}`). Beads live at `br` and track
 ongoing work.
+---
+
+## Stability
+
+Cyrs is pre-1.0; see [`docs/stability.md`](./docs/stability.md) for the
+surface-by-surface stability contract (diagnostic codes, agent wire
+protocol, schema file format, HIR / Plan IR shape, 1.0 cutover plan).
+PRs are gated by `cargo-semver-checks`.
 
 ---
 

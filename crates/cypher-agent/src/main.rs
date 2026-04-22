@@ -327,10 +327,12 @@ impl SchemaProvider for AgentSchema {
         }
         let decls = self.node_properties.get(label).map_or_else(Vec::new, |ps| {
             ps.iter()
-                .map(|p| cypher_schema::PropertyDecl {
-                    name: smol_str::SmolStr::new(&p.name),
-                    ty: parse_prop_type(&p.ty),
-                    required: p.required,
+                .map(|p| {
+                    cypher_schema::PropertyDecl::new(
+                        smol_str::SmolStr::new(&p.name),
+                        parse_prop_type(&p.ty),
+                        p.required,
+                    )
                 })
                 .collect()
         });
@@ -346,10 +348,12 @@ impl SchemaProvider for AgentSchema {
             .get(rel_type)
             .map_or_else(Vec::new, |ps| {
                 ps.iter()
-                    .map(|p| cypher_schema::PropertyDecl {
-                        name: smol_str::SmolStr::new(&p.name),
-                        ty: parse_prop_type(&p.ty),
-                        required: p.required,
+                    .map(|p| {
+                        cypher_schema::PropertyDecl::new(
+                            smol_str::SmolStr::new(&p.name),
+                            parse_prop_type(&p.ty),
+                            p.required,
+                        )
                     })
                     .collect()
             });
@@ -740,6 +744,8 @@ fn completion_item_to_json(item: NeutralItem) -> Value {
         NeutralKind::RelationshipType => "relationship_type",
         NeutralKind::Parameter => "parameter",
         NeutralKind::Property => "property",
+        // `CompletionItemKind` is `#[non_exhaustive]` (cy-2i9.1).
+        _ => "other",
     };
     // Placeholder parameters carry `detail: "placeholder"` on the wire
     // to match the v1 shape; every other item omits the field.

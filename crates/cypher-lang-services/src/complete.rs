@@ -38,7 +38,11 @@ const KEYWORD_COMPLETIONS: &[&str] = &[
 
 /// Neutral completion item kind.  Adapters translate to their wire
 /// format (LSP `CompletionItemKind` / agent JSON string).
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new completion kinds can
+/// land without forcing a SemVer-major release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CompletionItemKind {
     /// Cypher clause keyword (`MATCH`, `RETURN`, …).
     Keyword,
@@ -54,7 +58,13 @@ pub enum CompletionItemKind {
 
 /// Neutral completion item.  Adapters translate `(label, kind, detail)`
 /// to `lsp_types::CompletionItem` / `serde_json::Value` as appropriate.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new metadata fields (e.g. a
+/// `documentation` body) can land without forcing a SemVer-major
+/// release.  External crates access fields by name; construction is
+/// internal to `cypher-lang-services`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct CompletionItem {
     /// Human-visible label shown in the completion list.
     pub label: SmolStr,
@@ -261,7 +271,11 @@ fn node_label_for(stmt: &Statement, var_id: VarId) -> Option<SmolStr> {
 }
 
 fn property_decl_to_completion(decl: PropertyDecl) -> CompletionItem {
-    let PropertyDecl { name, ty, required } = decl;
+    // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1); destructure with
+    // `..` so future fields don't break this site.
+    let PropertyDecl {
+        name, ty, required, ..
+    } = decl;
     let type_label = property_type_label(&ty);
     let detail = if required {
         format!("{type_label} (required)")

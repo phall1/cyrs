@@ -98,7 +98,12 @@ impl std::fmt::Display for FileId {
 // ---------------------------------------------------------------------------
 
 /// Error returned when a `FileId` is not found in the workspace.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) on the tuple — consumers must
+/// match it with `..` in patterns.  The inner `FileId` remains
+/// accessible via the public `.0` field.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct UnknownFileId(pub FileId);
 
 impl std::fmt::Display for UnknownFileId {

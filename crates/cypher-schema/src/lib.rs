@@ -95,8 +95,13 @@ pub trait SchemaProvider: Send + Sync + 'static {
 // ============================================================
 
 /// A declared property on a label or relationship type.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new fields (e.g.
+/// `documentation`, `default`) can land without forcing a SemVer-major
+/// release.  External crates construct via [`PropertyDecl::new`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct PropertyDecl {
     /// Property name as it appears in `n.prop` expressions.
     pub name: SmolStr,
@@ -108,6 +113,22 @@ pub struct PropertyDecl {
     pub required: bool,
 }
 
+impl PropertyDecl {
+    /// Construct a [`PropertyDecl`].
+    ///
+    /// This is the SemVer-stable constructor; external crates should
+    /// prefer it over struct literals so the struct can grow fields
+    /// without forcing a SemVer-major release.
+    #[must_use]
+    pub fn new(name: impl Into<SmolStr>, ty: PropertyType, required: bool) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+            required,
+        }
+    }
+}
+
 /// The propertable-value type language. Intentionally simpler than the
 /// full Cypher value type — schemas describe what values are *stored*.
 ///
@@ -115,6 +136,10 @@ pub struct PropertyDecl {
 /// are self-documenting.  `#[allow(missing_docs)]` applies to the
 /// primitive variants; variants with nontrivial invariants
 /// (`Enum`, `Opaque`) keep their own docstrings.
+//
+// NOTE (cy-2i9.1): heavily matched across `cypher-sema`.  Marking
+// `#[non_exhaustive]` would force wildcard arms at every cross-crate
+// match site; deferred to a follow-up bead.  See `docs/stability.md`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
@@ -160,9 +185,13 @@ pub struct EndpointDecl {
 }
 
 /// Relationship multiplicity between two label endpoints.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new cardinality forms can
+/// land without forcing a SemVer-major release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum Cardinality {
     OneToOne,
     OneToMany,
@@ -274,9 +303,13 @@ pub struct ProcedureSignature {
 
 /// Procedure access mode (spec §8.2).  Used by sema to gate
 /// procedures in read-only contexts.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new modes can land without
+/// forcing a SemVer-major release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum ProcMode {
     Read,
     Write,
