@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Language server for Cypher / GQL. Spec 0001 §14."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Language Server Protocol implementation for Cypher / GQL (spec 0001 §14)."
 
 [lib]
 name = "cypher_lsp"
@@ -45,6 +49,10 @@ tempfile        = { workspace = true }
 # sender during teardown (mem::replace trick in Drop).
 crossbeam-channel = "0.5"
 # (smol_str moved to runtime deps — used by init_options JsonSchema.)
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

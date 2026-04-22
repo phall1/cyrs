@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Semantic analysis and type system for the Cypher front-end. Spec 0001 §7."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Schema-aware and schema-free semantic analysis for Cypher / GQL (spec 0001 §7)."
 
 [dependencies]
 cypher-hir    = { workspace = true }
@@ -23,6 +27,10 @@ cypher-testkit  = { workspace = true }
 proptest        = { workspace = true }
 serde           = { workspace = true }
 serde_json      = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "SchemaProvider trait + supporting types for the Cypher front-end. Spec 0001 §8."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Schema types and SchemaProvider trait for Cypher / GQL (spec 0001 §8)."
 
 [dependencies]
 smol_str  = { workspace = true }
@@ -19,6 +23,10 @@ serde   = ["dep:serde", "indexmap/serde", "smol_str/serde"]
 
 [dev-dependencies]
 sha2 = "0.10"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Typed AST wrappers over the Cypher CST. Spec 0001 §5."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Typed AST for Cypher / GQL, codegen'd from cypher-syntax (spec 0001 §5)."
 
 [dependencies]
 cypher-syntax = { workspace = true }
@@ -15,6 +19,10 @@ smol_str      = { workspace = true }
 [dev-dependencies]
 insta  = { workspace = true }
 rowan  = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

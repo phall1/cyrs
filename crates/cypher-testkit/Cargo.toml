@@ -6,7 +6,7 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Shared test fixtures, snapshot helpers, and compiletest runner for the Cypher front-end (dev only). Spec 0001 §17.6."
+description  = "Dev-only test helpers for cyrs; not re-exported from the main `cypher` meta-crate (spec 0001 §17.6)."
 publish      = false
 
 [dependencies]

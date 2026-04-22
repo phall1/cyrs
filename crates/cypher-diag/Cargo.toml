@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Diagnostic type, stable code registry, and rendering backends. Spec 0001 §10."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Stable diagnostic codes and rendering for the Cypher / GQL frontend (spec 0001 §10)."
 
 [dependencies]
 cypher-syntax = { workspace = true }
@@ -22,6 +26,10 @@ lsp-types     = { workspace = true, optional = true }
 default = []
 serde   = ["dep:serde", "smol_str/serde", "cypher-syntax/serde"]
 lsp     = ["dep:lsp-types"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

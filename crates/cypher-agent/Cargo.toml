@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "JSON-over-stdio agent API for Cypher. Spec 0001 §15."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Stateless JSON API for Cypher / GQL frontend operations (parse/check/complete/hover/rewrite/...)."
 
 [[bin]]
 name = "cypher-agent"
@@ -28,6 +32,10 @@ anyhow               = { workspace = true }
 smol_str             = { workspace = true }
 tracing              = { workspace = true }
 tracing-subscriber   = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true
