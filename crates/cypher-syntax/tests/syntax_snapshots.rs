@@ -355,6 +355,48 @@ fn expr_subscript() {
     insta::assert_snapshot!(format_with_errors("RETURN a[0]"));
 }
 
+// ---------------------------------------------------------------------------
+// Expressions — list indexing and slicing (cy-7s6.1)
+// ---------------------------------------------------------------------------
+//
+// openCypher / GQL postfix indexing:
+//   xs[0]        — integer index, zero-based
+//   xs[-1]       — negative index, from-end
+//   xs[0..3]     — slice with inclusive start, exclusive end
+//   xs[..3]      — elided start (defaults to 0)
+//   xs[0..]      — elided end (defaults to len)
+//   xs[0..3][0]  — postfix chain: slice then index
+
+#[test]
+fn expr_index_literal() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[0]"));
+}
+
+#[test]
+fn expr_index_negative() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[-1]"));
+}
+
+#[test]
+fn expr_slice_bounded() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[0..3]"));
+}
+
+#[test]
+fn expr_slice_elided_start() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[..3]"));
+}
+
+#[test]
+fn expr_slice_elided_end() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[0..]"));
+}
+
+#[test]
+fn expr_slice_then_index_chain() {
+    insta::assert_snapshot!(format_with_errors("RETURN xs[0..3][0]"));
+}
+
 #[test]
 fn expr_function_call() {
     insta::assert_snapshot!(format_with_errors("RETURN count(n)"));

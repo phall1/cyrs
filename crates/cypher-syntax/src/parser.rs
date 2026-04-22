@@ -550,6 +550,12 @@ pub(crate) mod syntax_codes {
     /// E0063 — expected `=` after path binder identifier.
     #[allow(dead_code)]
     pub(crate) const EXPECTED_EQ_PATH_BIND: u16 = 63;
+    /// E0064 — expected `]` to close an indexing / slicing bracket.
+    ///
+    /// Distinct from `EXPECTED_RBRACK_INDEX` (E0033) which covers the
+    /// legacy `SUBSCRIPT_EXPR` path: E0064 is emitted by the typed
+    /// index / slice recovery introduced in cy-7s6.1.
+    pub(crate) const UNCLOSED_INDEX_BRACKET: u16 = 64;
 }
 
 /// Advance `idx` past any leading trivia tokens.
