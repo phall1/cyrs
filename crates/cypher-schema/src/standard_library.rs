@@ -140,10 +140,26 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             categories: pure(),
         },
         BuiltIn {
+            // openCypher: `keys(x)` — accepts a `NODE`, `RELATIONSHIP`,
+            // or `MAP`, returning the property-name / map-key list as
+            // `LIST<STRING>`. The parameter slot is typed `Any` here
+            // because the schema layer has no `Map` variant; the
+            // Node / Relationship / Map kind check happens in
+            // `cypher-sema` via `ArgShape::GraphEntityOrMap`.
             name: "keys",
             params: vec![("x", PropertyType::Any)],
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::String))),
+            categories: pure(),
+        },
+        BuiltIn {
+            // openCypher: `values(map)` — returns the map's values as
+            // `LIST<ANY>`. The kind check (argument must be a `MAP`)
+            // lives in `cypher-sema` via `ArgShape::Map`.
+            name: "values",
+            params: vec![("map", PropertyType::Any)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::Any))),
             categories: pure(),
         },
         BuiltIn {
@@ -769,12 +785,28 @@ mod tests {
             "type",
             "labels",
             "keys",
+            "values",
             "properties",
             "length",
             "size",
             "coalesce",
         ] {
             assert!(s.function(name).is_some(), "missing: {name}");
+        }
+    }
+
+    /// cy-afo: `values(map)` returns `LIST<ANY>` per openCypher (spec §8.3).
+    /// The kind check (argument must be a MAP) lives in cypher-sema.
+    #[test]
+    fn values_returns_list_of_any() {
+        let s = StandardLibrary::new();
+        let sig = s.function("values").expect("values is registered");
+        assert_eq!(sig.name, SmolStr::new("values"));
+        match sig.return_ty {
+            ReturnTy::Constant(PropertyType::List(inner)) => {
+                assert_eq!(*inner, PropertyType::Any);
+            }
+            other => panic!("expected Constant(List(Any)), got {other:?}"),
         }
     }
 
