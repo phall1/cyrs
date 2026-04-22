@@ -16,6 +16,9 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   `Database::all_diagnostics` and renders each diagnostic in rustc-style
   with source underline (via `cypher-diag::render_text_stderr`). Exit
   code `1` on any error-severity diagnostic; `0` on a clean query.
+- cy-0ek.1 (spec 0002 §12): `cypher schema load <path>` — parse a TOML
+  schema file and print a one-line human-readable summary; exit 1 on
+  any load error.
 
 ### Changed
 
