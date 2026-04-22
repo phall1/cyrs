@@ -67,7 +67,7 @@ fn all_count_pinned() {
     // bump this number. This ensures the registry stays exhaustive.
     //
     // Breakdown (spec §10.2):
-    //   71  syntax         (E0001–E0071, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh + cy-41u)
+    //   72  syntax         (E0001–E0072, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh + cy-41u + cy-7lf)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    9  schema-aware   (E3001–E3004, E3006–E3008, E3010, E3011, cy-36u + cy-0ek)
@@ -77,7 +77,7 @@ fn all_count_pinned() {
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  119  total
+    //  120  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -96,6 +96,11 @@ fn all_count_pinned() {
     // cy-41u: added E0070 (expected THEN in CASE arm) and E0071
     //         (expected END to close CASE) for CASE expression parsing
     //         (spec §19 row "CASE").
-    const EXPECTED: usize = 119;
+    // cy-7lf: registered E0072 (expected `)` to close EXISTS pattern
+    //         predicate) — emitted by cy-lve's parser path but not
+    //         carried into the registry at that time. The bare-pattern
+    //         form (cy-7lf) reuses the NODE_PATTERN-level recovery and
+    //         does not need a new code.
+    const EXPECTED: usize = 120;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

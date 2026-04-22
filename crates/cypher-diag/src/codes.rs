@@ -578,6 +578,17 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0071.md`
     E0071 = 71,
+    /// Expected `)` to close an `EXISTS(<pattern>)` pattern predicate
+    /// (spec §6.1 / §19 row "Pattern predicates in expressions").
+    ///
+    /// Emitted by the parser's `exists_pattern_predicate` production
+    /// (cy-lve) when the closing paren of the wrapping
+    /// `EXISTS ( <pattern> )` form is missing. The bare-pattern form
+    /// `WHERE (a)-->(b)` (cy-7lf) does not emit this code — the inner
+    /// `)` belongs to the pattern's node-pattern production.
+    ///
+    /// Docs: `docs/errors/E0072.md`
+    E0072 = 72,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -701,6 +712,7 @@ impl DiagCode {
             Self::E0069 => "E0069",
             Self::E0070 => "E0070",
             Self::E0071 => "E0071",
+            Self::E0072 => "E0072",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -844,6 +856,7 @@ impl DiagCode {
         Self::E0069,
         Self::E0070,
         Self::E0071,
+        Self::E0072,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -981,6 +994,7 @@ mod tests {
             DiagCode::E0069,
             DiagCode::E0070,
             DiagCode::E0071,
+            DiagCode::E0072,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
