@@ -34,7 +34,8 @@
 use indexmap::IndexMap;
 use smol_str::SmolStr;
 
-use crate::{VarId, VarKind};
+use crate::{HirSpan, VarId, VarKind};
+use cypher_syntax::TextSize;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -76,6 +77,16 @@ pub struct ScopeNode {
     pub kind: ScopeKind,
     /// Parent scope, if any. The root scope has no parent.
     pub parent: Option<ScopeId>,
+    /// Source-text span this scope covers. Populated when the scope
+    /// is added via [`ScopeGraph::add_scope_with_span`]; legacy
+    /// [`ScopeGraph::add_scope`] callers get an empty range at
+    /// offset 0 (used only in tests that don't query offsets).
+    ///
+    /// Used by [`ScopeGraph::scope_at_offset`] to map an editor
+    /// cursor offset to the innermost scope that covers it. Shared
+    /// infra consumed by LSP features (property-key completion,
+    /// hover, goto-definition).
+    pub span: HirSpan,
     /// Bindings introduced directly in this scope.
     /// Maps name → (`VarId`, optional shadowed-`VarId`).
     pub bindings: IndexMap<SmolStr, (VarId, VarKind, Option<VarId>)>,
@@ -96,7 +107,27 @@ impl ScopeGraph {
     }
 
     /// Add a new scope node to the graph and return its `ScopeId`.
+    ///
+    /// The scope is recorded with an empty source span; callers that want
+    /// [`Self::scope_at_offset`] to land on this scope should use
+    /// [`Self::add_scope_with_span`] instead.
     pub fn add_scope(&mut self, kind: ScopeKind, parent: Option<ScopeId>) -> ScopeId {
+        self.add_scope_with_span(kind, parent, HirSpan::empty(TextSize::new(0)))
+    }
+
+    /// Add a new scope node with an explicit source span.
+    ///
+    /// `span` SHOULD cover the clause (or clause group) the scope
+    /// corresponds to. The span is the key used by
+    /// [`Self::scope_at_offset`] to map an editor cursor back to a
+    /// scope; passing a zero-width span is legal but makes the scope
+    /// invisible to offset lookups.
+    pub fn add_scope_with_span(
+        &mut self,
+        kind: ScopeKind,
+        parent: Option<ScopeId>,
+        span: HirSpan,
+    ) -> ScopeId {
         let id = ScopeId(u32::try_from(self.nodes.len()).expect("scope count overflowed u32"));
         if let Some(parent_id) = parent {
             self.nodes[parent_id.0 as usize].children.push(id);
@@ -105,6 +136,7 @@ impl ScopeGraph {
             id,
             kind,
             parent,
+            span,
             bindings: IndexMap::new(),
             children: Vec::new(),
         });
@@ -168,6 +200,51 @@ impl ScopeGraph {
     /// Immutable access to a scope node.
     pub fn scope(&self, id: ScopeId) -> &ScopeNode {
         &self.nodes[id.0 as usize]
+    }
+
+    /// Map a byte offset to the innermost scope whose span covers it.
+    ///
+    /// "Innermost" is the deepest scope in the forest whose span
+    /// contains the offset; ties (a child with the same span as its
+    /// parent) resolve to the child because it is traversed last.
+    ///
+    /// Returns `None` when no scope's span covers `offset` (e.g. the
+    /// graph is empty, or every scope was added without a span). When
+    /// the offset is past the end of every recorded scope, callers
+    /// typically want to fall back to the root scope; we do not do that
+    /// here because "top-level" is a caller-defined fallback and the
+    /// API should not conflate "no scope covers you" with "you are past
+    /// every scope".
+    ///
+    /// This is shared infra for LSP features that need a cursor →
+    /// scope mapping (property-key completion, hover, goto-definition).
+    /// The API intentionally avoids coupling to the concrete
+    /// LSP-side offset representation — any `TextSize` works.
+    pub fn scope_at_offset(&self, offset: TextSize) -> Option<ScopeId> {
+        // Linear scan suffices here: a single statement has O(10)
+        // scopes in practice, far below the cost of building an
+        // interval tree. Walk in reverse insertion order so a matching
+        // child is preferred over its parent when their spans are
+        // identical.
+        let mut best: Option<(ScopeId, u32)> = None;
+        for node in self.nodes.iter().rev() {
+            let start: u32 = node.span.start().into();
+            let end: u32 = node.span.end().into();
+            let off: u32 = offset.into();
+            // Half-open at the start, closed at the end: a cursor
+            // sitting exactly at the end of a clause still belongs to
+            // that clause's scope (matches rust-analyzer's convention
+            // for hover-at-EOF kinds of queries).
+            if off >= start && off <= end && end > start {
+                let width = end - start;
+                // Prefer the tightest (smallest width) scope that
+                // covers the offset — that is the innermost match.
+                if best.is_none_or(|(_, w)| width < w) {
+                    best = Some((node.id, width));
+                }
+            }
+        }
+        best.map(|(id, _)| id)
     }
 
     /// Total number of scopes in the graph.
@@ -282,5 +359,125 @@ impl ResolvedNames {
             .values()
             .filter(|r| matches!(r, Resolution::Unresolved))
             .count()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cypher_syntax::{TextRange, TextSize};
+
+    fn range(start: u32, end: u32) -> TextRange {
+        TextRange::new(TextSize::new(start), TextSize::new(end))
+    }
+
+    // ----- scope_at_offset: innermost match wins ---------------------------
+
+    /// Offset inside a MATCH clause's WHERE-predicate region lands on
+    /// the MATCH scope (the innermost scope covering the predicate; WHERE
+    /// does not introduce its own scope — §6.2).
+    #[test]
+    fn scope_at_offset_inside_match_where_returns_match_scope() {
+        // Simulated statement:  "MATCH (n) WHERE n.age > 18 RETURN n"
+        //                       01234567890123456789012345678901234
+        //                                 ^— match clause spans 0..26
+        //                                        ^— offset 16 (`n` in WHERE)
+        //                                               ^— RETURN at 27..35
+        let mut g = ScopeGraph::new();
+        let root = g.add_scope_with_span(ScopeKind::Root, None, range(0, 35));
+        let match_scope = g.add_scope_with_span(
+            ScopeKind::Match { optional: false },
+            Some(root),
+            range(0, 26),
+        );
+        let _return_scope = g.add_scope_with_span(ScopeKind::Return, Some(root), range(27, 35));
+
+        let got = g.scope_at_offset(TextSize::new(16));
+        assert_eq!(
+            got,
+            Some(match_scope),
+            "offset inside WHERE predicate region must land on the enclosing MATCH scope"
+        );
+    }
+
+    /// Offset inside a RETURN clause lands on the Return scope.
+    #[test]
+    fn scope_at_offset_inside_return_returns_return_scope() {
+        let mut g = ScopeGraph::new();
+        let root = g.add_scope_with_span(ScopeKind::Root, None, range(0, 35));
+        let _match_scope = g.add_scope_with_span(
+            ScopeKind::Match { optional: false },
+            Some(root),
+            range(0, 26),
+        );
+        let return_scope = g.add_scope_with_span(ScopeKind::Return, Some(root), range(27, 35));
+
+        let got = g.scope_at_offset(TextSize::new(34));
+        assert_eq!(got, Some(return_scope));
+    }
+
+    /// Offset at end-of-file that sits at the end of the innermost scope
+    /// is still covered by that scope (closed-end convention).
+    #[test]
+    fn scope_at_offset_at_eof_returns_innermost_covering() {
+        let mut g = ScopeGraph::new();
+        let root = g.add_scope_with_span(ScopeKind::Root, None, range(0, 18));
+        let match_scope = g.add_scope_with_span(
+            ScopeKind::Match { optional: false },
+            Some(root),
+            range(0, 9),
+        );
+        let return_scope = g.add_scope_with_span(ScopeKind::Return, Some(root), range(10, 18));
+
+        // EOF = offset 18: both root and return cover 18; return is tighter.
+        let got = g.scope_at_offset(TextSize::new(18));
+        assert_eq!(got, Some(return_scope));
+
+        // Offset 9 is the boundary between MATCH and RETURN; MATCH ends
+        // at 9 (closed) and RETURN starts at 10, so MATCH wins.
+        let got = g.scope_at_offset(TextSize::new(9));
+        assert_eq!(got, Some(match_scope));
+    }
+
+    /// Offset outside every recorded span yields `None`.
+    #[test]
+    fn scope_at_offset_out_of_range_is_none() {
+        let mut g = ScopeGraph::new();
+        let _root = g.add_scope_with_span(ScopeKind::Root, None, range(0, 10));
+        assert_eq!(g.scope_at_offset(TextSize::new(999)), None);
+    }
+
+    /// Scopes added without spans (legacy `add_scope`) are invisible to
+    /// the offset lookup — empty spans don't match any offset.
+    #[test]
+    fn scope_at_offset_ignores_empty_spans() {
+        let mut g = ScopeGraph::new();
+        let _root = g.add_scope(ScopeKind::Root, None);
+        // No scope has a real span; every lookup returns None.
+        assert_eq!(g.scope_at_offset(TextSize::new(0)), None);
+    }
+
+    /// Innermost-wins when scopes nest with non-identical widths.
+    #[test]
+    fn scope_at_offset_prefers_tighter_scope() {
+        let mut g = ScopeGraph::new();
+        let root = g.add_scope_with_span(ScopeKind::Root, None, range(0, 100));
+        let inner = g.add_scope_with_span(
+            ScopeKind::Match { optional: false },
+            Some(root),
+            range(10, 30),
+        );
+        let _innermost = g.add_scope_with_span(ScopeKind::Return, Some(inner), range(15, 25));
+
+        // Offset 5 is only in root.
+        assert_eq!(g.scope_at_offset(TextSize::new(5)), Some(root));
+        // Offset 12 is in inner (tighter than root).
+        assert_eq!(g.scope_at_offset(TextSize::new(12)), Some(inner));
+        // Offset 20 is in innermost (tighter than inner).
+        assert_eq!(g.scope_at_offset(TextSize::new(20)), Some(ScopeId(2)));
     }
 }

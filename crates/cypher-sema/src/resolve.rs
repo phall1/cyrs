@@ -72,8 +72,12 @@ pub fn resolve(
         warn_shadowing,
     };
 
-    // Root scope — parent of everything.
-    let root = ctx.graph.add_scope(ScopeKind::Root, None);
+    // Root scope — parent of everything. Its span covers the full
+    // statement so `scope_at_offset` can fall back to Root when the
+    // cursor is between clauses (whitespace / trivia).
+    let root = ctx
+        .graph
+        .add_scope_with_span(ScopeKind::Root, None, stmt.span);
     // `current` is the scope into which new bindings land and against
     // which use-site lookups are performed.
     let mut current = root;
@@ -115,14 +119,15 @@ impl ResolveCtx<'_> {
             Clause::Match {
                 optional,
                 pattern,
-                span: _,
+                span,
                 ..
             } => {
-                let scope = self.graph.add_scope(
+                let scope = self.graph.add_scope_with_span(
                     ScopeKind::Match {
                         optional: *optional,
                     },
                     Some(current),
+                    *span,
                 );
                 self.bind_pattern(pattern, scope, sink);
                 // WHERE inline is emitted as a separate Where clause by the
@@ -133,8 +138,10 @@ impl ResolveCtx<'_> {
             // ------------------------------------------------------------------
             // CREATE
             // ------------------------------------------------------------------
-            Clause::Create { pattern, .. } => {
-                let scope = self.graph.add_scope(ScopeKind::Create, Some(current));
+            Clause::Create { pattern, span, .. } => {
+                let scope = self
+                    .graph
+                    .add_scope_with_span(ScopeKind::Create, Some(current), *span);
                 self.bind_pattern(pattern, scope, sink);
                 scope
             }
@@ -142,8 +149,10 @@ impl ResolveCtx<'_> {
             // ------------------------------------------------------------------
             // MERGE
             // ------------------------------------------------------------------
-            Clause::Merge { pattern, .. } => {
-                let scope = self.graph.add_scope(ScopeKind::Merge, Some(current));
+            Clause::Merge { pattern, span, .. } => {
+                let scope = self
+                    .graph
+                    .add_scope_with_span(ScopeKind::Merge, Some(current), *span);
                 self.bind_pattern(pattern, scope, sink);
                 scope
             }
@@ -152,7 +161,9 @@ impl ResolveCtx<'_> {
             // UNWIND
             // ------------------------------------------------------------------
             Clause::Unwind { bind, span, .. } => {
-                let scope = self.graph.add_scope(ScopeKind::Unwind, Some(current));
+                let scope = self
+                    .graph
+                    .add_scope_with_span(ScopeKind::Unwind, Some(current), *span);
                 let name = self.var_name(*bind);
                 if self
                     .graph
@@ -173,7 +184,9 @@ impl ResolveCtx<'_> {
             // CALL … YIELD …
             // ------------------------------------------------------------------
             Clause::Call { yields, span, .. } => {
-                let scope = self.graph.add_scope(ScopeKind::Call, Some(current));
+                let scope = self
+                    .graph
+                    .add_scope_with_span(ScopeKind::Call, Some(current), *span);
                 for yi in yields {
                     let col_name: SmolStr = yi.alias.clone().unwrap_or_else(|| yi.name.clone());
                     // Find the VarId for this yield column — it must have
@@ -204,7 +217,7 @@ impl ResolveCtx<'_> {
             Clause::With {
                 projections,
                 filter,
-                span: _,
+                span,
                 ..
             } => {
                 // 1. Resolve projection expressions against the *current* scope.
@@ -224,16 +237,22 @@ impl ResolveCtx<'_> {
                     .collect();
 
                 // 3. Introduce the barrier scope.
-                let barrier = self.graph.add_scope(
+                let barrier = self.graph.add_scope_with_span(
                     ScopeKind::WithBarrier {
                         projected: projected.clone(),
                     },
                     Some(current),
+                    *span,
                 );
 
                 // 4. Create a fresh child scope that only sees projected names.
-                //    Bind the projected names into it.
-                let post = self.graph.add_scope(ScopeKind::Root, Some(barrier));
+                //    Bind the projected names into it. Its span starts at
+                //    the end of the WITH and runs to the end of the
+                //    statement (set when the parent `resolve` wraps up).
+                let post_span = cypher_hir::HirSpan::new(span.end(), span.end());
+                let post =
+                    self.graph
+                        .add_scope_with_span(ScopeKind::Root, Some(barrier), post_span);
                 for (proj_name, source_var) in &projected {
                     let kind = self
                         .bindings
@@ -247,8 +266,12 @@ impl ResolveCtx<'_> {
             // ------------------------------------------------------------------
             // RETURN
             // ------------------------------------------------------------------
-            Clause::Return { projections, .. } => {
-                let scope = self.graph.add_scope(ScopeKind::Return, Some(current));
+            Clause::Return {
+                projections, span, ..
+            } => {
+                let scope = self
+                    .graph
+                    .add_scope_with_span(ScopeKind::Return, Some(current), *span);
                 for proj in projections {
                     self.resolve_expr(&proj.expr, current, sink);
                 }
