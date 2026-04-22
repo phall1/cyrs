@@ -63,6 +63,18 @@ test  = false
 doc   = false
 bench = false
 
+# Differential / roundtrip target (cy-h07). Drives the
+# `parse(s) == parse(fmt(s))` invariant (spec §17.3 P17.3.4) on
+# arbitrary UTF-8 input. Separate from `fuzz_structured_parse` because
+# the oracle here is byte-level and the structural-equality check on
+# CST shapes is a first-class assertion, not a side effect.
+[[bin]]
+name  = "fmt_parse_roundtrip"
+path  = "fuzz_targets/fmt_parse_roundtrip.rs"
+test  = false
+doc   = false
+bench = false
+
 [dependencies]
 libfuzzer-sys = "0.4"
 cypher-syntax = { path = "../crates/cypher-syntax" }

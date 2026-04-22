@@ -1,6 +1,6 @@
 # `cyrs` fuzz targets — spec 0001 §17.4
 
-Five libFuzzer / cargo-fuzz targets exercising each pipeline stage:
+Seven libFuzzer / cargo-fuzz targets exercising each pipeline stage:
 
 | Target | Exercises |
 |---|---|
@@ -9,12 +9,28 @@ Five libFuzzer / cargo-fuzz targets exercising each pipeline stage:
 | `fuzz_formatter` | `cypher_fmt::format` — idempotence + no-panic on arbitrary input. |
 | `fuzz_sema` | `cypher_hir::lower::lower_statement` + `cypher_sema::resolve` — name-resolution + kind checks. |
 | `fuzz_plan` | `cypher_plan::lower::lower_statement` — HIR → plan lowering. |
+| `fuzz_structured_parse` | grammar-aware generator → parse + fmt + sema (cy-h07.1). |
+| `fmt_parse_roundtrip` | differential `parse(s) == parse(fmt(s))` structural equality (cy-h07, P17.3.4). |
+
+## Dictionaries
+
+Each byte-level target has its own libFuzzer dictionary under
+`fuzz/dicts/<target>.dict`, regenerated from the shared base
+(`fuzz/dicts/cypher.dict`) plus target-specific extras under
+`fuzz/dicts/extras/<target>.dict`:
+
+```sh
+fuzz/dicts/regen.sh
+```
+
+The structured-RNG target (`fuzz_structured_parse`) takes no dict: its
+input is an RNG seed, not source text.
 
 ## Running
 
 ```sh
 # Single 5-minute PR-gate-style run.
-cargo fuzz run fuzz_parser -- -max_total_time=300
+cargo fuzz run fuzz_parser -- -dict=fuzz/dicts/fuzz_parser.dict -max_total_time=300
 
 # Shortcut: the xtask wraps this so the PR gate can re-use it.
 cargo xtask fuzz fuzz_parser

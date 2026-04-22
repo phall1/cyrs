@@ -42,6 +42,8 @@ jobs:
           - fuzz_formatter
           - fuzz_sema
           - fuzz_plan
+          - fuzz_structured_parse
+          - fmt_parse_roundtrip
 
     steps:
       - uses: actions/checkout@v4
@@ -63,9 +65,20 @@ jobs:
 
       - name: run ${{ matrix.target }} (${{ env.FUZZ_TIME }} s)
         run: |
+          # Byte-level targets consume the per-target dictionary; the
+          # structured-RNG target does not (its input is an RNG seed,
+          # not source text). Gate the dict flag accordingly.
+          case "${{ matrix.target }}" in
+            fuzz_structured_parse)
+              dict_flag=""
+              ;;
+            *)
+              dict_flag="-dict=fuzz/dicts/${{ matrix.target }}.dict"
+              ;;
+          esac
           cargo +nightly fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} \
-            -- -max_total_time=${{ env.FUZZ_TIME }}
+            -- $dict_flag -max_total_time=${{ env.FUZZ_TIME }}
 
       # If the fuzz run above crashes, libfuzzer writes an artifact under
       # fuzz/artifacts/<target>/. Upload them so the crash is reproducible.
