@@ -15,7 +15,7 @@
 //!
 //! | Input struct        | Scope      | Salsa kind   | Purpose                                   |
 //! |---------------------|------------|--------------|-------------------------------------------|
-//! | [`SourceFile`]      | per-file   | `#[input]`   | raw source text + dialect (from `cy-zx6`) |
+//! | [`crate::SourceFile`] | per-file | `#[input]`   | raw source text + dialect (from `cy-zx6`) |
 //! | [`FileOptions`]     | per-file   | `#[input]`   | full [`AnalysisOptions`] for this file    |
 //! | [`WorkspaceInputs`] | workspace  | `#[input]`   | workspace-scoped schema (§11.4)           |
 //!

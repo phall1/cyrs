@@ -2,10 +2,10 @@
 //!
 //! Thin wrapper around [`cypher_lang_services::complete`].  All the
 //! real logic (trigger classification, schema lookup, parameter scan,
-//! keyword list) lives in the shared crate; this module's only job is
-//! to map LSP [`Position`] → byte offset on the way in and
-//! [`cypher_lang_services::CompletionItem`] → [`lsp_types::CompletionItem`]
-//! on the way out.
+//! property-key resolution, keyword list) lives in the shared crate;
+//! this module's only job is to map LSP [`Position`] → byte offset on
+//! the way in and [`cypher_lang_services::CompletionItem`] →
+//! [`lsp_types::CompletionItem`] on the way out.
 //!
 //! `completionItem/resolve` is a no-op for v1: every item is fully
 //! populated at completion time, so resolve simply echoes the request.
@@ -15,14 +15,21 @@ use cypher_lang_services::{
     CompletionItem as NeutralItem, CompletionItemKind as NeutralKind, complete as complete_shared,
 };
 use cypher_syntax::{LineIndex, TextSize};
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Position};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Position,
+};
 
 /// Compute the completion response for the given cursor.
 ///
 /// Always returns a `CompletionResponse::Array` (possibly empty); we
 /// never return `None` because LSP clients treat that as "completion
 /// not supported" and stop asking.
-pub(crate) fn compute(db: &Database, file_id: FileId, position: Position) -> CompletionResponse {
+pub(crate) fn compute(
+    db: &Database,
+    file_id: FileId,
+    params: &CompletionParams,
+) -> CompletionResponse {
+    let position = params.text_document_position.position;
     let Ok(source) = db.source_of(file_id) else {
         return CompletionResponse::Array(Vec::new());
     };
@@ -56,6 +63,7 @@ fn to_lsp(item: NeutralItem) -> CompletionItem {
             Some("relationship type"),
         ),
         NeutralKind::Parameter => (Some(CompletionItemKind::VARIABLE), None),
+        NeutralKind::Property => (Some(CompletionItemKind::FIELD), None),
     };
 
     // Parameter items without explicit detail get a synthesised

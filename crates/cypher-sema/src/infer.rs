@@ -1,7 +1,7 @@
 //! Schema-free type-inference pass (spec 0001 §7.4).
 //!
 //! Walks the resolved, desugared HIR and assigns a [`Type`] to each
-//! expression using the unification engine from [`crate::unify`]. Where
+//! expression using the unification engine from [`mod@crate::unify`]. Where
 //! unification fails or a structural constraint is violated, a diagnostic
 //! is emitted into the [`DiagnosticsSink`].
 //!

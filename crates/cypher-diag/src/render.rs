@@ -1,8 +1,10 @@
 //! Rendering backends for [`crate::Diagnostic`] (spec 0001 §10.3).
 //!
 //! This module hosts the plain-text renderer, implemented on top of
-//! [`codespan-reporting`]. JSON and LSP renderers land in separate
-//! beads (cy-0a4, cy-8nc) as their own modules.
+//! the `codespan-reporting` crate
+//! (<https://crates.io/crates/codespan-reporting>). JSON and LSP
+//! renderers land in separate beads (cy-0a4, cy-8nc) as their own
+//! modules.
 //!
 //! The renderer takes a [`Diagnostic`] together with the source text it
 //! was produced against and emits a terminal-friendly rendering:

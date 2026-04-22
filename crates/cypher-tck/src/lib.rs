@@ -6,7 +6,7 @@
 //! feature is considered green only when every scenario under that tag
 //! passes.
 //!
-//! v1 scaffolding: exposes [`FeatureGate`] + [`run_all`] stubs. Scenario
+//! v1 scaffolding: exposes [`FeatureGate`] + `run_all` stubs. Scenario
 //! fetching and per-tag conformance tracking land alongside the grammar.
 
 #![forbid(unsafe_code)]

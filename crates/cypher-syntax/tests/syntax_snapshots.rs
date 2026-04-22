@@ -140,10 +140,74 @@ fn clause_return_alias() {
     insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n.name AS name"));
 }
 
-// TODO(cy-nom): WITH clause (currently parsed as a deferred_clause_stub;
-// re-enable with a dedicated snapshot once WITH / DISTINCT / WHERE-filter
-// land).
-// TODO(cy-nom): UNWIND clause (deferred_clause_stub).
+#[test]
+fn clause_with_simple_projection() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n:Person) WITH n.name AS name RETURN name"
+    ));
+}
+
+#[test]
+fn clause_with_where_filter() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) WITH n WHERE n.age > 21 RETURN n"
+    ));
+}
+
+#[test]
+fn clause_with_order_by_limit() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) WITH n ORDER BY n.name LIMIT 5 RETURN n"
+    ));
+}
+
+#[test]
+fn clause_unwind_list() {
+    insta::assert_snapshot!(format_with_errors("UNWIND [1, 2, 3] AS x RETURN x"));
+}
+
+#[test]
+fn clause_create_node() {
+    insta::assert_snapshot!(format_with_errors("CREATE (n:Person {name: 'Alice'})"));
+}
+
+#[test]
+fn clause_merge_node_on_create() {
+    insta::assert_snapshot!(format_with_errors(
+        "MERGE (n:Person {name: 'A'}) ON CREATE SET n.created = 1 ON MATCH SET n.seen = 1 RETURN n"
+    ));
+}
+
+#[test]
+fn clause_set_property() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) SET n.active = true"));
+}
+
+#[test]
+fn clause_set_label() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) SET n:Admin"));
+}
+
+#[test]
+fn clause_remove_property() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) REMOVE n.age"));
+}
+
+#[test]
+fn clause_remove_label() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) REMOVE n:Admin"));
+}
+
+#[test]
+fn clause_delete() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) DELETE n"));
+}
+
+#[test]
+fn clause_detach_delete() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) DETACH DELETE n"));
+}
+
 // TODO(cy-nom): CREATE clause (deferred_clause_stub).
 // TODO(cy-nom): MERGE with ON CREATE / ON MATCH (deferred_clause_stub).
 // TODO(cy-nom): SET (property / labels / map) (deferred_clause_stub).
@@ -210,8 +274,22 @@ fn pattern_chain_three_nodes() {
     ));
 }
 
-// TODO(cy-nom): variable-length relationships (`*`, `*1..3`, `*1..`) —
-// not yet parsed; flagged in grammar/pattern.rs.
+#[test]
+fn pattern_var_length_range() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b"
+    ));
+}
+
+#[test]
+fn pattern_var_length_unbounded() {
+    insta::assert_snapshot!(format_with_errors("MATCH (a)-[r:KNOWS*]->(b) RETURN a"));
+}
+
+#[test]
+fn pattern_named_path() {
+    insta::assert_snapshot!(format_with_errors("MATCH p = (a)-[:KNOWS]->(b) RETURN p"));
+}
 
 // ---------------------------------------------------------------------------
 // Expressions — atoms
@@ -245,6 +323,21 @@ fn expr_literal_null() {
 #[test]
 fn expr_parameter() {
     insta::assert_snapshot!(format_with_errors("RETURN $name"));
+}
+
+#[test]
+fn expr_list_literal_ints() {
+    insta::assert_snapshot!(format_with_errors("RETURN [1, 2, 3]"));
+}
+
+#[test]
+fn expr_list_literal_empty() {
+    insta::assert_snapshot!(format_with_errors("RETURN []"));
+}
+
+#[test]
+fn expr_map_literal_basic() {
+    insta::assert_snapshot!(format_with_errors("RETURN {a: 1, b: 'two'}"));
 }
 
 #[test]

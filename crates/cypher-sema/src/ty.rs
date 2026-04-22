@@ -2,7 +2,7 @@
 //!
 //! # `Type` vs `VarKind`
 //!
-//! [`VarKind`] (from `cypher-hir`) is a **structural binder kind**: it
+//! `VarKind` (from `cypher-hir`) is a **structural binder kind**: it
 //! records what syntactic construct *produced* a variable — a node pattern,
 //! a relationship pattern, a path assignment, or a general value binder.
 //! `VarKind` is set once, at binding time, and never changes.

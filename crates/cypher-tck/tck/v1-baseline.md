@@ -1,6 +1,6 @@
 # TCK v1 Green-Tag Conformance Baseline
 
-*Captured: 2026-04-21 against commit `9843c82` (cy-zjv).*
+*Captured: 2026-04-21 against cy-3xz (WITH clause landed).*
 
 This file records the **current** conformance of the cyrs parser
 against the vendored v1 openCypher TCK fixtures
@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **25** (63 %) |
-| Ignored (known parser gaps) | **15** (38 %) |
+| Passing | **40** (100 %) |
+| Ignored (known parser gaps) | **0** (0 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.
@@ -36,25 +36,14 @@ and expressions (quick sample of scenarios that pass):
 - `@CALL-SUBQUERY` and `@LOAD-CSV` — v1 red; rejected with a parse
   error as required.
 
-## Parser gaps (15 ignored scenarios)
+## Parser gaps
 
-Each ignored scenario in `v1.toml` carries an inline `note` pointing
-at the missing grammar.  Consolidated list (one row per feature):
+All 15 originally-ignored v1 scenarios now pass; no parser gaps remain
+against the vendored v1 TCK surface.
 
-| Feature (tag) | Ignored scenarios | Parser status |
-|---|---:|---|
-| `@WITH` clause | 3 | not parsed |
-| `@CREATE` clause | 1 | not parsed |
-| `@MERGE` clause | 1 | not parsed |
-| `@SET` clause | 1 | not parsed |
-| `@REMOVE` clause | 1 | not parsed |
-| `@DELETE` clause | 1 | not parsed |
-| `@UNWIND` clause | 1 | not parsed |
-| `@LISTS` — list literal expression | 1 | not parsed |
-| `@MAPS` — map literal expression | 1 | not parsed |
-| `@AGGREGATIONS` / function calls | 2 | not parsed (count/sum/etc) |
-| `@PATTERNS` — variable-length paths (`*1..3`) | 1 | not parsed |
-| `@PATTERNS` — named paths (`p = (…)`) | 1 | not parsed |
+Landed under cy-3xz: `@WITH`, `@LISTS`, `@MAPS`, `@AGGREGATIONS`,
+`@UNWIND`, `@CREATE`, `@MERGE`, `@SET`, `@REMOVE`, `@DELETE`, variable-
+length paths (`*m..n`), and named paths (`p = (…)`).
 
 Each row is roughly "one grammar production + its AST wrappers +
 lowering + sema dialect gate + snapshot tests."  Closing all of them

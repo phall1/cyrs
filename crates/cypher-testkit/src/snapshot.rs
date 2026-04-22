@@ -6,7 +6,7 @@
 //!
 //! # Usage
 //!
-//! Call [`assert_snapshot`] or [`assert_json_snapshot`] in place of the
+//! Call [`crate::assert_snapshot!`] or [`crate::assert_json_snapshot!`] in place of the
 //! bare `insta` macros.  They forward to `insta` after applying the
 //! standard workspace redaction set (file paths, spans, etc.).
 //!
@@ -20,7 +20,7 @@ pub use insta;
 /// Assert that `value` matches a named snapshot.
 ///
 /// Delegates to [`insta::assert_snapshot!`] after applying workspace
-/// redaction conventions.  Use [`assert_json_snapshot`] for structured
+/// redaction conventions.  Use [`crate::assert_json_snapshot!`] for structured
 /// output (diagnostics, AST, plan).
 ///
 /// # Example

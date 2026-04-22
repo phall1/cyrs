@@ -1,6 +1,5 @@
 ---
 source: crates/cypher-ast/tests/snapshot.rs
-assertion_line: 250
 expression: "dump(\"MATCH (n) WITH n WHERE n.age > 30 RETURN n\")"
 ---
 SourceFile(SOURCE_FILE@0..42)
@@ -15,27 +14,30 @@ SourceFile(SOURCE_FILE@0..42)
             NAME@7..8
               IDENT@7..8 "n"
             R_PAREN@8..9 ")"
-    ERROR@9..16
+    WithClause(WITH_CLAUSE@9..33)
       WHITESPACE@9..10 " "
       WITH_KW@10..14 "WITH"
-      ERROR@14..16
-        WHITESPACE@14..15 " "
-        IDENT@15..16 "n"
-    WhereClause(WHERE_CLAUSE@16..33)
-      WHITESPACE@16..17 " "
-      WHERE_KW@17..22 "WHERE"
-      Expr::BinaryExpr(BINARY_EXPR@22..33)
-        PROP_ACCESS_EXPR@22..28
-          VAR_EXPR@22..24
-            WHITESPACE@22..23 " "
-            IDENT@23..24 "n"
-          DOT@24..25 "."
-          IDENT@25..28 "age"
-        WHITESPACE@28..29 " "
-        GT@29..30 ">"
-        LITERAL_EXPR@30..33
-          WHITESPACE@30..31 " "
-          INT_LITERAL@31..33 "30"
+      RETURN_BODY@14..33
+        RETURN_ITEMS@14..16
+          ReturnItem(RETURN_ITEM@14..16)
+            VAR_EXPR@14..16
+              WHITESPACE@14..15 " "
+              IDENT@15..16 "n"
+        WhereClause(WHERE_CLAUSE@16..33)
+          WHITESPACE@16..17 " "
+          WHERE_KW@17..22 "WHERE"
+          Expr::BinaryExpr(BINARY_EXPR@22..33)
+            PROP_ACCESS_EXPR@22..28
+              VAR_EXPR@22..24
+                WHITESPACE@22..23 " "
+                IDENT@23..24 "n"
+              DOT@24..25 "."
+              IDENT@25..28 "age"
+            WHITESPACE@28..29 " "
+            GT@29..30 ">"
+            LITERAL_EXPR@30..33
+              WHITESPACE@30..31 " "
+              INT_LITERAL@31..33 "30"
     ReturnClause(RETURN_CLAUSE@33..42)
       WHITESPACE@33..34 " "
       RETURN_KW@34..40 "RETURN"
@@ -45,5 +47,3 @@ SourceFile(SOURCE_FILE@0..42)
             VAR_EXPR@40..42
               WHITESPACE@40..41 " "
               IDENT@41..42 "n"
----errors---
-@10: WITH_KW clause is not implemented in cy-nom

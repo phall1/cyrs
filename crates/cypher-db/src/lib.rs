@@ -144,6 +144,18 @@ impl ParseOutput {
     pub fn parse(&self) -> &Parse {
         &self.0
     }
+
+    /// Strong-reference count of the wrapped `Arc<Parse>`.
+    ///
+    /// Exposed so tests and memory-diagnostics tooling can observe Salsa
+    /// memo retention (§11.6): after a `FileId` is evicted and the next
+    /// revision replaces the memo entry for its `SourceFile`, the old
+    /// `ParseOutput` held by the memo is dropped and any caller-held clone
+    /// of its `Arc<Parse>` sees its strong count drop to 1.
+    #[must_use]
+    pub fn strong_count(&self) -> usize {
+        Arc::strong_count(&self.0)
+    }
 }
 
 impl PartialEq for ParseOutput {

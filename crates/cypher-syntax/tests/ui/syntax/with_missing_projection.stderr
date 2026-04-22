@@ -1,0 +1,3 @@
+error[E0036]: expected expression in RETURN item
+ --> with_missing_projection.cypher:15
+

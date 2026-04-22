@@ -1,0 +1,3 @@
+error[E0060]: expected DELETE after DETACH
+ --> detach_without_delete.cypher:17
+

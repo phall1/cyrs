@@ -142,24 +142,18 @@ name    = "WITH simple projection"
 tags    = ["@WITH"]
 query   = "MATCH (n:Person) WITH n.name AS name RETURN name"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 [[scenario]]
 name    = "WITH WHERE filter"
 tags    = ["@WITH", "@WHERE"]
 query   = "MATCH (n:Person) WITH n WHERE n.age > 21 RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 [[scenario]]
 name    = "WITH ORDER BY LIMIT"
 tags    = ["@WITH"]
 query   = "MATCH (n:Person) WITH n ORDER BY n.name LIMIT 5 RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 # ---------------------------------------------------------------------------
 # @EXPRESSIONS
@@ -188,16 +182,12 @@ name    = "List literal expression"
 tags    = ["@EXPRESSIONS", "@LISTS"]
 query   = "RETURN [1, 2, 3]"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse list literals in RETURN; file bead: 'List literal expression grammar not implemented'"
 
 [[scenario]]
 name    = "Map literal expression"
 tags    = ["@EXPRESSIONS", "@MAPS"]
 query   = "RETURN {a: 1, b: 'two'}"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse map literals in RETURN; file bead: 'Map literal expression grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @AGGREGATIONS
@@ -208,16 +198,12 @@ name    = "COUNT aggregation"
 tags    = ["@AGGREGATIONS"]
 query   = "MATCH (n:Person) RETURN count(n)"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
 
 [[scenario]]
 name    = "SUM aggregation"
 tags    = ["@AGGREGATIONS"]
 query   = "MATCH (n:Order) RETURN sum(n.amount)"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse function calls; file bead: 'Function call expression grammar not implemented (count/sum/avg/etc)'"
 
 # ---------------------------------------------------------------------------
 # @PATTERNS
@@ -228,16 +214,12 @@ name    = "Variable-length path pattern"
 tags    = ["@PATTERNS"]
 query   = "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse variable-length relationship patterns (e.g. *1..3); file bead: 'Variable-length path quantifier grammar not implemented'"
 
 [[scenario]]
 name    = "Named path pattern"
 tags    = ["@PATTERNS"]
 query   = "MATCH p = (a)-[:KNOWS]->(b) RETURN p"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse named path assignment (p = ...); file bead: 'Named path pattern (p = ...) grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @CREATE / @MERGE / @SET / @REMOVE / @DELETE
@@ -248,40 +230,30 @@ name    = "CREATE node"
 tags    = ["@CREATE"]
 query   = "CREATE (n:Person {name: 'Alice'})"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse CREATE clause; file bead: 'CREATE clause grammar not implemented'"
 
 [[scenario]]
 name    = "MERGE node"
 tags    = ["@MERGE"]
 query   = "MERGE (n:Person {name: 'Alice'}) RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse MERGE clause; file bead: 'MERGE clause grammar not implemented'"
 
 [[scenario]]
 name    = "SET property"
 tags    = ["@SET"]
 query   = "MATCH (n:Person) SET n.active = true"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse SET clause; file bead: 'SET clause grammar not implemented'"
 
 [[scenario]]
 name    = "REMOVE property"
 tags    = ["@REMOVE"]
 query   = "MATCH (n:Person) REMOVE n.age"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse REMOVE clause; file bead: 'REMOVE clause grammar not implemented'"
 
 [[scenario]]
 name    = "DELETE node"
 tags    = ["@DELETE"]
 query   = "MATCH (n:Person) DELETE n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse DELETE clause; file bead: 'DELETE clause grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @UNWIND
@@ -292,8 +264,6 @@ name    = "UNWIND list"
 tags    = ["@UNWIND"]
 query   = "UNWIND [1, 2, 3] AS x RETURN x"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse UNWIND clause; file bead: 'UNWIND clause grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @STRINGS

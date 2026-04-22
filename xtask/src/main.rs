@@ -54,6 +54,8 @@ enum Cmd {
     CheckChangelogs,
     /// Verify diagnostic-code references are all registered (spec §10.2).
     CheckDiagCodes,
+    /// Build rustdoc with `-D warnings` (spec §17.15, bead cy-93c).
+    Doc,
 }
 
 fn main() -> Result<()> {
@@ -74,7 +76,30 @@ fn main() -> Result<()> {
         Cmd::CheckRecovery => xtask::check_recovery::run(),
         Cmd::CheckChangelogs => xtask::check_changelogs::run(),
         Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
+        Cmd::Doc => doc(),
     }
+}
+
+/// Rustdoc gate per spec §17.15 / bead cy-93c. Builds `cargo doc
+/// --workspace --no-deps --lib` with `RUSTDOCFLAGS=-D warnings` so any
+/// broken / private / ambiguous intra-doc link fails locally just like
+/// it does in CI.
+fn doc() -> Result<()> {
+    println!("==> cargo doc --workspace --no-deps --lib (RUSTDOCFLAGS=-D warnings)");
+    let status = Command::new("cargo")
+        .args(["doc", "--workspace", "--no-deps", "--lib"])
+        .env("RUSTDOCFLAGS", "-D warnings")
+        .status()
+        .map_err(|err| anyhow!("failed to spawn `cargo`: {err}"))?;
+    if !status.success() {
+        bail!(
+            "`cargo doc --workspace --no-deps --lib` exited with {}",
+            status
+                .code()
+                .map_or_else(|| "signal".to_string(), |c| c.to_string())
+        );
+    }
+    Ok(())
 }
 
 /// Run an external program, inheriting stdio. Returns an error on non-zero exit.
@@ -135,6 +160,10 @@ fn gate() -> Result<()> {
         "cargo",
         &["test", "--workspace", "--all-features", "--no-fail-fast"],
     )?;
+
+    // Rustdoc gate (spec §17.15, bead cy-93c): broken / private /
+    // ambiguous intra-doc links fail the local gate just like CI.
+    doc()?;
 
     if has_binary("cargo-deny") {
         run_deny_check()?;

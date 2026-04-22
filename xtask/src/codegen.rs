@@ -11,7 +11,7 @@
 //! `crates/cypher-ast/src/generated.rs` (spec 0001 §5.1, §5.2).
 //!
 //! The generator emits zero-cost wrapper structs around
-//! [`cypher_syntax::SyntaxNode`] — the rust-analyzer pattern. One wrapper
+//! `cypher_syntax::SyntaxNode` — the rust-analyzer pattern. One wrapper
 //! per named production whose `SyntaxKind` variant exists in
 //! `cypher-syntax::kind`. Productions whose variant is missing get listed
 //! in a `SKIPPED` comment block at the top of the generated file (and on
