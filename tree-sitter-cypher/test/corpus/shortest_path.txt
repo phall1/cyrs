@@ -1,0 +1,62 @@
+==================
+shortestPath named path
+==================
+
+MATCH p = shortestPath((a)-[*]-(b)) RETURN p
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (named_pattern_part
+          name: (identifier)
+          (shortest_path_pattern
+            (kw_shortest_path)
+            (node_pattern
+              (identifier))
+            (rel_pattern
+              (rel_detail
+                (rel_length)))
+            (node_pattern
+              (identifier)))))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+allShortestPaths with typed variable-length rel
+==================
+
+MATCH p = allShortestPaths((a)-[:KNOWS*1..5]->(b)) RETURN p
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (named_pattern_part
+          name: (identifier)
+          (shortest_path_pattern
+            (kw_all_shortest_paths)
+            (node_pattern
+              (identifier))
+            (rel_pattern
+              (rel_detail
+                (identifier)
+                (rel_length
+                  (int_literal)
+                  (int_literal))))
+            (node_pattern
+              (identifier)))))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

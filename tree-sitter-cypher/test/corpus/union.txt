@@ -1,0 +1,108 @@
+==================
+Simple UNION
+==================
+
+RETURN 1 UNION RETURN 2
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (literal_expr
+        (int_literal))))
+  (union_tail
+    (kw_union)
+    (return_clause
+      (kw_return)
+      (return_item
+        (literal_expr
+          (int_literal))))))
+
+==================
+UNION ALL
+==================
+
+RETURN 1 UNION ALL RETURN 2
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (literal_expr
+        (int_literal))))
+  (union_tail
+    (kw_union)
+    (kw_all)
+    (return_clause
+      (kw_return)
+      (return_item
+        (literal_expr
+          (int_literal))))))
+
+==================
+UNION across MATCH clauses
+==================
+
+MATCH (n) RETURN n UNION MATCH (m) RETURN m
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier))))
+  (union_tail
+    (kw_union)
+    (match_clause
+      (kw_match)
+      (pattern
+        (pattern_part
+          (node_pattern
+            (identifier)))))
+    (return_clause
+      (kw_return)
+      (return_item
+        (variable_expr
+          (identifier))))))
+
+==================
+Three-way UNION mixing UNION and UNION ALL
+==================
+
+RETURN 1 UNION RETURN 2 UNION ALL RETURN 3
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (literal_expr
+        (int_literal))))
+  (union_tail
+    (kw_union)
+    (return_clause
+      (kw_return)
+      (return_item
+        (literal_expr
+          (int_literal)))))
+  (union_tail
+    (kw_union)
+    (kw_all)
+    (return_clause
+      (kw_return)
+      (return_item
+        (literal_expr
+          (int_literal))))))

@@ -1,0 +1,54 @@
+==================
+Map projection property selectors
+==================
+
+MATCH (n) RETURN n { .name, .age }
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (map_projection
+        (map_projection_base
+          (identifier))
+        (map_projection_item
+          (identifier))
+        (map_projection_item
+          (identifier))))))
+
+==================
+Map projection mixing selector, literal, and star
+==================
+
+MATCH (n) RETURN n {.name, key: 42, *}
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (map_projection
+        (map_projection_base
+          (identifier))
+        (map_projection_item
+          (identifier))
+        (map_projection_item
+          (identifier)
+          (literal_expr
+            (int_literal)))
+        (map_projection_item)))))

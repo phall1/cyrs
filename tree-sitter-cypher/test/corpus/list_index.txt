@@ -1,0 +1,93 @@
+==================
+List index
+==================
+
+RETURN [1,2,3][0]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (subscript_expr
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (literal_expr
+          (int_literal))))))
+
+==================
+List slice with both bounds
+==================
+
+RETURN [1,2,3][0..2]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (subscript_expr
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (literal_expr
+          (int_literal))
+        (literal_expr
+          (int_literal))))))
+
+==================
+List slice with elided lower bound
+==================
+
+RETURN [1,2,3][..2]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (subscript_expr
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (literal_expr
+          (int_literal))))))
+
+==================
+List slice with elided upper bound
+==================
+
+RETURN [1,2,3][1..]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (subscript_expr
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (literal_expr
+          (int_literal))))))

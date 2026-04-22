@@ -8,11 +8,13 @@ MATCH (n) RETURN n
 
 (source_file
   (match_clause
+    (kw_match)
     (pattern
       (pattern_part
         (node_pattern
           (identifier)))))
   (return_clause
+    (kw_return)
     (return_item
       (variable_expr
         (identifier)))))
@@ -27,12 +29,14 @@ MATCH (n:Person) RETURN n
 
 (source_file
   (match_clause
+    (kw_match)
     (pattern
       (pattern_part
         (node_pattern
           (identifier)
           (identifier)))))
   (return_clause
+    (kw_return)
     (return_item
       (variable_expr
         (identifier)))))
@@ -47,16 +51,24 @@ MATCH (a)-[:KNOWS]->(b) RETURN a, b
 
 (source_file
   (match_clause
+    (kw_match)
     (pattern
       (pattern_part
-        (node_pattern (identifier))
+        (node_pattern
+          (identifier))
         (rel_pattern
           (rel_detail
             (identifier)))
-        (node_pattern (identifier)))))
+        (node_pattern
+          (identifier)))))
   (return_clause
-    (return_item (variable_expr (identifier)))
-    (return_item (variable_expr (identifier)))))
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))
+    (return_item
+      (variable_expr
+        (identifier)))))
 
 ==================
 OPTIONAL MATCH
@@ -68,10 +80,15 @@ OPTIONAL MATCH (n:Person) RETURN n
 
 (source_file
   (optional_match_clause
+    (kw_optional)
+    (kw_match)
     (pattern
       (pattern_part
         (node_pattern
           (identifier)
           (identifier)))))
   (return_clause
-    (return_item (variable_expr (identifier)))))
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

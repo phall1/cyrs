@@ -1,0 +1,125 @@
+==================
+CALL procedure no-args no-yield
+==================
+
+CALL db.labels()
+
+---
+
+(source_file
+  (call_clause
+    (kw_call)
+    (procedure_name
+      (identifier)
+      (identifier))))
+
+==================
+CALL procedure with YIELD
+==================
+
+CALL db.labels() YIELD label
+
+---
+
+(source_file
+  (call_clause
+    (kw_call)
+    (procedure_name
+      (identifier)
+      (identifier))
+    (yield_subclause
+      (kw_yield)
+      (yield_item
+        (identifier)))))
+
+==================
+CALL procedure with YIELD AS alias
+==================
+
+CALL db.labels() YIELD label AS l RETURN l
+
+---
+
+(source_file
+  (call_clause
+    (kw_call)
+    (procedure_name
+      (identifier)
+      (identifier))
+    (yield_subclause
+      (kw_yield)
+      (yield_item
+        (identifier)
+        (kw_as)
+        (identifier))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+CALL procedure with YIELD star
+==================
+
+CALL db.labels() YIELD *
+
+---
+
+(source_file
+  (call_clause
+    (kw_call)
+    (procedure_name
+      (identifier)
+      (identifier))
+    (yield_subclause
+      (kw_yield))))
+
+==================
+CALL procedure with namespaced dotted name and args
+==================
+
+CALL ns.pkg.my_proc(1, 'x')
+
+---
+
+(source_file
+  (call_clause
+    (kw_call)
+    (procedure_name
+      (identifier)
+      (identifier)
+      (identifier))
+    (literal_expr
+      (int_literal))
+    (literal_expr
+      (string_literal))))
+
+==================
+CALL block subquery is rejected (§9.3)
+==================
+
+CALL { MATCH (n) RETURN n } RETURN n
+
+---
+
+(source_file
+  (ERROR
+    (kw_call))
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier))))
+  (ERROR)
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

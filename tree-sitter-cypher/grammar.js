@@ -1,10 +1,36 @@
 /**
  * tree-sitter-cypher — Cypher / GQL grammar for the tree-sitter runtime.
  *
- * v0 scope matches the cyrs TCK v1 surface (see
- * `crates/cypher-tck/tck/v1.toml`). This grammar is a parallel
- * hand-maintained artefact — the Rust CST is authoritative. The parity
- * harness `cargo xtask tree-sitter-parity` keeps the two in lock-step.
+ * v1 scope (cy-h0p). Covers the cyrs v1 TCK surface plus additional
+ * openCypher v9 / GQL-aligned constructs the cyrs Rust parser will accept:
+ *
+ *   - v0 baseline: MATCH / OPTIONAL MATCH / WHERE / WITH / RETURN /
+ *     UNWIND / CREATE / MERGE / SET / REMOVE / DELETE.
+ *   - UNION / UNION ALL at the top level (between SingleQuery tails).
+ *   - CALL <procedure>(args) YIELD ... — the non-subquery form. The
+ *     block-subquery form `CALL { ... }` is banned by spec §9.3 and
+ *     falls out as an ERROR node because this rule requires `(` after
+ *     the procedure name.
+ *   - `shortestPath` / `allShortestPaths` patterns (spec §19).
+ *   - Map projection: `n { .name, .age, *, key: expr }` (spec §19).
+ *   - Pattern predicates: `EXISTS( (a)-->(b) )` (the call form). The
+ *     block form `EXISTS { ... }` is banned by spec §9.3 and falls out
+ *     as ERROR because the rule requires `(` after EXISTS.
+ *   - List comprehension: `[x IN xs WHERE p | expr]` including the
+ *     predicate-only and map-only forms.
+ *   - List predicates: `ALL|ANY|NONE|SINGLE(x IN xs WHERE p)`.
+ *   - List indexing / slicing: `xs[0]`, `xs[0..3]`, `xs[..3]`, `xs[1..]`.
+ *
+ * Rejections (§9.3): `CALL { ... }` block subquery, `EXISTS { ... }`
+ * block subquery, `SHOW ...`, `CYPHER` prefixes, `LOAD CSV`, APOC
+ * procedures. These all fall out naturally as ERROR nodes because
+ * there is no grammar rule that accepts them — `SHOW` / `LOAD` / `CYPHER`
+ * are not clause-start keywords; `CALL {` / `EXISTS {` do not match
+ * because the call-shape rule demands `(`.
+ *
+ * The Rust CST in `cypher-syntax` remains authoritative — this grammar
+ * is a parallel hand-maintained artefact kept in lock-step by the
+ * `cargo xtask tree-sitter-parity` harness.
  *
  * Notes:
  * - Keywords are matched case-insensitively via the `caseKw` helper. Cypher
@@ -28,6 +54,10 @@ const PREC = {
   unary: 10,
   postfix: 11,
   primary: 12,
+  // Map-projection "{...}" after a variable outranks map-literal parsing
+  // inside return items so `RETURN n { .name }` projects `n` rather than
+  // shift-reducing the trailing map as a separate return item.
+  map_projection: 13,
 };
 
 /** Case-insensitive keyword matcher. */
@@ -53,13 +83,47 @@ module.exports = grammar({
 
   word: ($) => $.identifier,
 
-  conflicts: ($) => [],
+  conflicts: ($) => [
+    // `EXISTS((n) ...)` is ambiguous until we see either `)` (function
+    // call of a variable inside a paren-expr) or `-` (pattern predicate).
+    // Declare the conflict explicitly so tree-sitter generates a GLR
+    // table rather than aborting; precedence picks `pattern_predicate`
+    // when a relationship follows.
+    [$.node_pattern, $.variable_expr],
+    [$.node_pattern, $.map_projection_base],
+    // `({})` is ambiguous: inside a paren-expr it's a map_literal; inside
+    // a node_pattern it's a property_map. Both share the empty-map shape.
+    [$.property_map, $.map_literal],
+  ],
 
   rules: {
     // ===================================================================
-    // Root
+    // Root — one or more statements, each a single-query with optional
+    // UNION tails. Statements are `;`-separated.
     // ===================================================================
-    source_file: ($) => seq(repeat1($._clause), optional(";")),
+    source_file: ($) =>
+      prec.right(
+        seq(
+          $._statement,
+          repeat(seq(";", $._statement)),
+          optional(";"),
+        ),
+      ),
+
+    _statement: ($) =>
+      prec.right(seq($._single_query, repeat($.union_tail))),
+
+    _single_query: ($) => repeat1($._clause),
+
+    /// `UNION` / `UNION ALL` followed by another single-query body.
+    union_tail: ($) =>
+      prec.right(
+        seq(
+          $.kw_union,
+          optional($.kw_all),
+          $._single_query,
+        ),
+      ),
 
     _clause: ($) =>
       choice(
@@ -73,31 +137,32 @@ module.exports = grammar({
         $.set_clause,
         $.remove_clause,
         $.delete_clause,
+        $.call_clause,
       ),
 
     // ===================================================================
     // Clauses
     // ===================================================================
     match_clause: ($) =>
-      prec.right(seq(caseKw("MATCH"), $.pattern, optional($.where_clause))),
+      prec.right(seq($.kw_match, $.pattern, optional($.where_clause))),
 
     optional_match_clause: ($) =>
       prec.right(
         seq(
-          caseKw("OPTIONAL"),
-          caseKw("MATCH"),
+          $.kw_optional,
+          $.kw_match,
           $.pattern,
           optional($.where_clause),
         ),
       ),
 
-    where_clause: ($) => seq(caseKw("WHERE"), $._expression),
+    where_clause: ($) => seq($.kw_where, $._expression),
 
     with_clause: ($) =>
       prec.right(
         seq(
-          caseKw("WITH"),
-          optional(caseKw("DISTINCT")),
+          $.kw_with,
+          optional($.kw_distinct),
           $._return_items,
           optional($.order_by),
           optional($.skip_subclause),
@@ -109,8 +174,8 @@ module.exports = grammar({
     return_clause: ($) =>
       prec.right(
         seq(
-          caseKw("RETURN"),
-          optional(caseKw("DISTINCT")),
+          $.kw_return,
+          optional($.kw_distinct),
           $._return_items,
           optional($.order_by),
           optional($.skip_subclause),
@@ -121,42 +186,42 @@ module.exports = grammar({
     _return_items: ($) => commaSep1($.return_item),
 
     return_item: ($) =>
-      seq($._expression, optional(seq(caseKw("AS"), $.identifier))),
+      seq($._expression, optional(seq($.kw_as, $.identifier))),
 
-    order_by: ($) => seq(caseKw("ORDER"), caseKw("BY"), commaSep1($.order_item)),
+    order_by: ($) => seq($.kw_order, $.kw_by, commaSep1($.order_item)),
 
     order_item: ($) =>
       seq(
         $._expression,
         optional(
           choice(
-            caseKw("ASCENDING"),
-            caseKw("ASC"),
-            caseKw("DESCENDING"),
-            caseKw("DESC"),
+            $.kw_ascending,
+            $.kw_asc,
+            $.kw_descending,
+            $.kw_desc,
           ),
         ),
       ),
 
-    skip_subclause: ($) => seq(caseKw("SKIP"), $._expression),
-    limit_subclause: ($) => seq(caseKw("LIMIT"), $._expression),
+    skip_subclause: ($) => seq($.kw_skip, $._expression),
+    limit_subclause: ($) => seq($.kw_limit, $._expression),
 
     unwind_clause: ($) =>
-      seq(caseKw("UNWIND"), $._expression, caseKw("AS"), $.identifier),
+      seq($.kw_unwind, $._expression, $.kw_as, $.identifier),
 
-    create_clause: ($) => seq(caseKw("CREATE"), $.pattern),
+    create_clause: ($) => seq($.kw_create, $.pattern),
 
     merge_clause: ($) =>
-      prec.right(seq(caseKw("MERGE"), $.pattern, repeat($.merge_action))),
+      prec.right(seq($.kw_merge, $.pattern, repeat($.merge_action))),
 
     merge_action: ($) =>
       seq(
-        caseKw("ON"),
-        choice(caseKw("CREATE"), caseKw("MATCH")),
+        $.kw_on,
+        choice($.kw_create, $.kw_match),
         $.set_clause,
       ),
 
-    set_clause: ($) => seq(caseKw("SET"), commaSep1($.set_item)),
+    set_clause: ($) => seq($.kw_set, commaSep1($.set_item)),
 
     set_item: ($) =>
       choice(
@@ -166,7 +231,7 @@ module.exports = grammar({
         seq($.identifier, $._label_list),
       ),
 
-    remove_clause: ($) => seq(caseKw("REMOVE"), commaSep1($.remove_item)),
+    remove_clause: ($) => seq($.kw_remove, commaSep1($.remove_item)),
 
     remove_item: ($) =>
       choice(
@@ -176,10 +241,41 @@ module.exports = grammar({
 
     delete_clause: ($) =>
       seq(
-        optional(caseKw("DETACH")),
-        caseKw("DELETE"),
+        optional($.kw_detach),
+        $.kw_delete,
         commaSep1($._expression),
       ),
+
+    /// `CALL <procedure>(args) YIELD (items | *)` — non-subquery form.
+    ///
+    /// `CALL { ... }` block subqueries are banned by spec §9.3; this rule
+    /// requires `(` after the procedure name so block forms fall through
+    /// as ERROR nodes rather than being accepted. The procedure name
+    /// itself is a dotted identifier path, e.g. `db.labels`,
+    /// `org.neo4j.internal.myProc`.
+    call_clause: ($) =>
+      prec.right(
+        seq(
+          $.kw_call,
+          $.procedure_name,
+          "(",
+          optional(commaSep1($._expression)),
+          ")",
+          optional($.yield_subclause),
+        ),
+      ),
+
+    procedure_name: ($) =>
+      seq($.identifier, repeat(seq(".", $.identifier))),
+
+    yield_subclause: ($) =>
+      seq(
+        $.kw_yield,
+        choice("*", commaSep1($.yield_item)),
+      ),
+
+    yield_item: ($) =>
+      seq($.identifier, optional(seq($.kw_as, $.identifier))),
 
     // ===================================================================
     // Patterns
@@ -192,7 +288,21 @@ module.exports = grammar({
       seq(field("name", $.identifier), "=", $._anonymous_pattern),
 
     _anonymous_pattern: ($) =>
-      seq($.node_pattern, repeat(seq($.rel_pattern, $.node_pattern))),
+      choice(
+        $.shortest_path_pattern,
+        seq($.node_pattern, repeat(seq($.rel_pattern, $.node_pattern))),
+      ),
+
+    /// `shortestPath(pattern)` / `allShortestPaths(pattern)` — the pattern
+    /// between the parentheses is a normal anonymous node/rel chain.
+    shortest_path_pattern: ($) =>
+      seq(
+        choice($.kw_shortest_path, $.kw_all_shortest_paths),
+        "(",
+        $.node_pattern,
+        repeat(seq($.rel_pattern, $.node_pattern)),
+        ")",
+      ),
 
     node_pattern: ($) =>
       seq(
@@ -263,14 +373,14 @@ module.exports = grammar({
 
     binary_expr: ($) =>
       choice(
-        prec.left(PREC.or, seq($._expression, caseKw("OR"), $._expression)),
-        prec.left(PREC.xor, seq($._expression, caseKw("XOR"), $._expression)),
-        prec.left(PREC.and, seq($._expression, caseKw("AND"), $._expression)),
+        prec.left(PREC.or, seq($._expression, $.kw_or, $._expression)),
+        prec.left(PREC.xor, seq($._expression, $.kw_xor, $._expression)),
+        prec.left(PREC.and, seq($._expression, $.kw_and, $._expression)),
         prec.left(
           PREC.comparison,
           seq(
             $._expression,
-            choice("=", "<>", "!=", "<", "<=", ">", ">=", caseKw("IN")),
+            choice("=", "<>", "!=", "<", "<=", ">", ">=", $.kw_in),
             $._expression,
           ),
         ),
@@ -279,9 +389,9 @@ module.exports = grammar({
           seq(
             $._expression,
             choice(
-              seq(caseKw("STARTS"), caseKw("WITH")),
-              seq(caseKw("ENDS"), caseKw("WITH")),
-              caseKw("CONTAINS"),
+              seq($.kw_starts, $.kw_with),
+              seq($.kw_ends, $.kw_with),
+              $.kw_contains,
             ),
             $._expression,
           ),
@@ -296,7 +406,7 @@ module.exports = grammar({
 
     unary_expr: ($) =>
       choice(
-        prec(PREC.not, seq(caseKw("NOT"), $._expression)),
+        prec(PREC.not, seq($.kw_not, $._expression)),
         prec(PREC.unary, seq("-", $._expression)),
         prec(PREC.unary, seq("+", $._expression)),
       ),
@@ -304,10 +414,14 @@ module.exports = grammar({
     _primary: ($) =>
       choice(
         $.literal_expr,
+        $.list_comprehension,
+        $.list_predicate,
         $.list_literal,
+        $.map_projection,
         $.map_literal,
         $.parameter,
         $.case_expr,
+        $.pattern_predicate,
         $.function_call,
         $.paren_expr,
         $._postfix,
@@ -344,9 +458,9 @@ module.exports = grammar({
         PREC.postfix,
         seq(
           $._primary,
-          caseKw("IS"),
-          optional(caseKw("NOT")),
-          caseKw("NULL"),
+          $.kw_is,
+          optional($.kw_not),
+          $.kw_null,
         ),
       ),
 
@@ -356,14 +470,33 @@ module.exports = grammar({
       prec(
         PREC.primary,
         seq(
-          field("name", choice($.identifier, caseKw("COUNT"), caseKw("EXISTS"))),
+          field("name", choice($.identifier, $.kw_count, $.kw_exists)),
           "(",
-          optional(seq(optional(caseKw("DISTINCT")), commaSep1($._expression))),
+          optional(seq(optional($.kw_distinct), commaSep1($._expression))),
           ")",
         ),
       ),
 
     variable_expr: ($) => $.identifier,
+
+    /// `EXISTS( <anonymous-pattern> )` — the call-form pattern predicate
+    /// from spec §19. The block form `EXISTS { ... }` is §9.3-banned and
+    /// does NOT fit this rule because `{` is not the required opener.
+    ///
+    /// Precedence `primary + 1` prefers the pattern-predicate parse over
+    /// the plain `EXISTS(expr)` function_call when the parenthesised
+    /// content is a node pattern starting with `(`.
+    pattern_predicate: ($) =>
+      prec(
+        PREC.primary + 1,
+        seq(
+          $.kw_exists,
+          "(",
+          $.node_pattern,
+          repeat1(seq($.rel_pattern, $.node_pattern)),
+          ")",
+        ),
+      ),
 
     literal_expr: ($) =>
       choice(
@@ -377,6 +510,53 @@ module.exports = grammar({
     list_literal: ($) =>
       seq("[", optional(commaSep1($._expression)), "]"),
 
+    /// `[x IN xs (WHERE pred)? (| map_expr)?]`
+    ///
+    /// Precedence above `list_literal` so the `x IN xs` prefix commits
+    /// to the comprehension form before the list-literal rule could
+    /// reduce `x` as a variable expression followed by `IN` as a
+    /// comparison operator inside a list element.
+    list_comprehension: ($) =>
+      prec(
+        PREC.primary + 1,
+        seq(
+          "[",
+          $.identifier,
+          $.kw_in,
+          $._expression,
+          optional(seq($.kw_where, $._expression)),
+          optional(seq("|", $._expression)),
+          "]",
+        ),
+      ),
+
+    /// `ALL|ANY|NONE|SINGLE(x IN xs WHERE pred)` — parses as a call shape
+    /// with a reserved predicate keyword as the function name. The
+    /// interior is the same `x IN xs WHERE pred` binding as the list
+    /// comprehension head (WHERE is required for list predicates).
+    list_predicate: ($) =>
+      prec(
+        PREC.primary + 1,
+        seq(
+          field(
+            "name",
+            choice(
+              $.kw_all,
+              $.kw_any,
+              $.kw_none,
+              $.kw_single,
+            ),
+          ),
+          "(",
+          $.identifier,
+          $.kw_in,
+          $._expression,
+          $.kw_where,
+          $._expression,
+          ")",
+        ),
+      ),
+
     map_literal: ($) =>
       seq(
         "{",
@@ -386,23 +566,115 @@ module.exports = grammar({
         "}",
       ),
 
+    /// `<base> { .prop | .prop AS alias | key: expr | * }` —
+    /// map projection (spec §19). Base is a variable or property access.
+    ///
+    /// Split into a dedicated `map_projection_base` rule so the
+    /// conflict declaration at the top of this grammar can disambiguate
+    /// between `variable_expr` and this wrapper; tree-sitter then
+    /// prefers the projection parse when a `{` follows.
+    map_projection: ($) =>
+      prec.left(
+        PREC.map_projection,
+        seq(
+          $.map_projection_base,
+          "{",
+          optional(commaSep1($.map_projection_item)),
+          "}",
+        ),
+      ),
+
+    map_projection_base: ($) => $.identifier,
+
+    map_projection_item: ($) =>
+      choice(
+        // .prop — selector
+        seq(".", $.identifier),
+        // key: expr — literal entry
+        seq($.identifier, ":", $._expression),
+        // * — all properties passthrough
+        "*",
+      ),
+
     case_expr: ($) =>
       seq(
-        caseKw("CASE"),
+        $.kw_case,
         optional($._expression),
         repeat1($.case_when_arm),
         optional($.case_else_arm),
-        caseKw("END"),
+        $.kw_end,
       ),
 
     case_when_arm: ($) =>
-      seq(caseKw("WHEN"), $._expression, caseKw("THEN"), $._expression),
+      seq($.kw_when, $._expression, $.kw_then, $._expression),
 
-    case_else_arm: ($) => seq(caseKw("ELSE"), $._expression),
+    case_else_arm: ($) => seq($.kw_else, $._expression),
 
     // ===================================================================
     // Tokens
     // ===================================================================
+    //
+    // Keywords are promoted to named leaf nodes so highlight queries in
+    // `queries/highlights.scm` can target them directly (tree-sitter
+    // cannot address anonymous regex tokens by their source text). Every
+    // keyword rule wraps `caseKw("...")` — the token-building helper at
+    // the top of this file — so matching stays case-insensitive per
+    // the Cypher spec.
+    //
+    // Bare-keyword rules below are referenced by clauses and expressions
+    // instead of inlining `caseKw` at each use site.
+    kw_match: ($) => caseKw("MATCH"),
+    kw_optional: ($) => caseKw("OPTIONAL"),
+    kw_where: ($) => caseKw("WHERE"),
+    kw_with: ($) => caseKw("WITH"),
+    kw_return: ($) => caseKw("RETURN"),
+    kw_unwind: ($) => caseKw("UNWIND"),
+    kw_create: ($) => caseKw("CREATE"),
+    kw_merge: ($) => caseKw("MERGE"),
+    kw_set: ($) => caseKw("SET"),
+    kw_remove: ($) => caseKw("REMOVE"),
+    kw_delete: ($) => caseKw("DELETE"),
+    kw_detach: ($) => caseKw("DETACH"),
+    kw_call: ($) => caseKw("CALL"),
+    kw_yield: ($) => caseKw("YIELD"),
+    kw_union: ($) => caseKw("UNION"),
+    kw_all: ($) => caseKw("ALL"),
+    kw_any: ($) => caseKw("ANY"),
+    kw_none: ($) => caseKw("NONE"),
+    kw_single: ($) => caseKw("SINGLE"),
+    kw_on: ($) => caseKw("ON"),
+    kw_as: ($) => caseKw("AS"),
+    kw_distinct: ($) => caseKw("DISTINCT"),
+    kw_order: ($) => caseKw("ORDER"),
+    kw_by: ($) => caseKw("BY"),
+    kw_skip: ($) => caseKw("SKIP"),
+    kw_limit: ($) => caseKw("LIMIT"),
+    kw_asc: ($) => caseKw("ASC"),
+    kw_ascending: ($) => caseKw("ASCENDING"),
+    kw_desc: ($) => caseKw("DESC"),
+    kw_descending: ($) => caseKw("DESCENDING"),
+    kw_case: ($) => caseKw("CASE"),
+    kw_when: ($) => caseKw("WHEN"),
+    kw_then: ($) => caseKw("THEN"),
+    kw_else: ($) => caseKw("ELSE"),
+    kw_end: ($) => caseKw("END"),
+    kw_is: ($) => caseKw("IS"),
+    kw_not: ($) => caseKw("NOT"),
+    kw_null: ($) => caseKw("NULL"),
+    kw_and: ($) => caseKw("AND"),
+    kw_or: ($) => caseKw("OR"),
+    kw_xor: ($) => caseKw("XOR"),
+    kw_in: ($) => caseKw("IN"),
+    kw_contains: ($) => caseKw("CONTAINS"),
+    kw_starts: ($) => caseKw("STARTS"),
+    kw_ends: ($) => caseKw("ENDS"),
+    kw_count: ($) => caseKw("COUNT"),
+    kw_exists: ($) => caseKw("EXISTS"),
+    kw_shortest_path: ($) => caseKw("shortestPath"),
+    kw_all_shortest_paths: ($) => caseKw("allShortestPaths"),
+    kw_true: ($) => caseKw("TRUE"),
+    kw_false: ($) => caseKw("FALSE"),
+
     parameter: ($) => seq("$", choice($.identifier, $.int_literal)),
 
     int_literal: ($) => /\d+/,
@@ -417,9 +689,9 @@ module.exports = grammar({
         ),
       ),
 
-    bool_literal: ($) => choice(caseKw("TRUE"), caseKw("FALSE")),
+    bool_literal: ($) => choice($.kw_true, $.kw_false),
 
-    null_literal: ($) => caseKw("NULL"),
+    null_literal: ($) => $.kw_null,
 
     // Identifier: regular `[A-Za-z_][A-Za-z0-9_]*` OR backtick-escaped.
     // The `word` rule points at this, so tree-sitter uses it for keyword

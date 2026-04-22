@@ -1,0 +1,92 @@
+======================================
+§9.3 ban: SHOW keyword is not a clause
+======================================
+
+SHOW DATABASES
+
+---
+
+(ERROR
+  (identifier)
+  (identifier))
+
+============================================
+§9.3 ban: CYPHER prefix is not accepted
+============================================
+
+CYPHER runtime=slotted MATCH (n) RETURN n
+
+---
+
+(source_file
+  (ERROR
+    (identifier)
+    (identifier)
+    (identifier))
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+===================================================
+§9.3 ban: LOAD CSV is not a clause
+===================================================
+
+LOAD CSV FROM 'f.csv' AS row RETURN row
+
+---
+
+(source_file
+  (ERROR
+    (identifier)
+    (identifier)
+    (identifier)
+    (string_literal)
+    (kw_as)
+    (identifier))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+=========================================================
+§9.3 ban: EXISTS block subquery is not an expression form
+=========================================================
+
+MATCH (n) WHERE EXISTS { MATCH (n)-->(m) } RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (ERROR
+    (kw_where)
+    (kw_exists))
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))
+        (rel_pattern)
+        (node_pattern
+          (identifier)))))
+  (ERROR)
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

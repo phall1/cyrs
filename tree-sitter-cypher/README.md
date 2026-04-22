@@ -11,7 +11,11 @@ kept in lock-step by the `cargo xtask tree-sitter-parity` harness.
 ## Parity claim
 
 For every scenario in `crates/cypher-tck/tck/v1.toml` (the cyrs TCK v1
-surface, 41 scenarios as of today):
+surface, 48 scenarios as of today) plus 12 supplementary scenarios
+compiled into `xtask tree-sitter-parity` to cover grammar-v1 surfaces
+that aren't yet in the TCK fixture (UNION, list comp with map, list
+slicing) and the spec §9.3 bans (`CALL { ... }` / `EXISTS { ... }` /
+`SHOW` / `CYPHER` prefix / `LOAD CSV`):
 
 - `outcome = "ok"` queries produce no `(ERROR)` nodes in the tree-sitter
   parse.
@@ -19,16 +23,19 @@ surface, 41 scenarios as of today):
 
 CI runs the parity harness on every PR; regressions fail.
 
-## Scope (v0)
+## Scope (v1 — bead cy-h0p)
 
 Clauses: `MATCH`, `OPTIONAL MATCH`, `WHERE`, `WITH`, `RETURN` (with
 `DISTINCT` / `ORDER BY` / `SKIP` / `LIMIT` / `ASC` / `DESC`),
 `UNWIND ... AS`, `CREATE`, `MERGE` (with `ON CREATE` / `ON MATCH`),
-`SET`, `REMOVE`, `DELETE` / `DETACH DELETE`.
+`SET`, `REMOVE`, `DELETE` / `DETACH DELETE`, `CALL <proc> YIELD ...`
+(non-subquery form). `UNION` / `UNION ALL` tails between single-query
+bodies.
 
 Patterns: node patterns `(v:Label {props})`, relationship patterns with
 directional arrows (`->`, `<-`, `-`), chained patterns, variable-length
-`*m..n` with elided bounds, named paths `p = (a)-[]->(b)`.
+`*m..n` with elided bounds, named paths `p = (a)-[]->(b)`,
+`shortestPath(...)` / `allShortestPaths(...)`.
 
 Expressions: integer / float / string (single and double quote) /
 boolean / null literals, list and map literals, function calls, binary
@@ -36,11 +43,34 @@ operators (`AND`, `OR`, `XOR`, `NOT`, `=`, `<>`, `<`, `<=`, `>`, `>=`,
 `+`, `-`, `*`, `/`, `%`, `^`, `CONTAINS`, `STARTS WITH`, `ENDS WITH`,
 `IN`), property access (`.`), subscript (`[i]`), slice (`[i..j]` with
 elided bounds), `IS NULL` / `IS NOT NULL`, `CASE WHEN … THEN … ELSE …
-END`, parenthesised expressions.
+END`, parenthesised expressions, list comprehensions
+(`[x IN xs WHERE p | f(x)]`), list predicates
+(`ALL|ANY|NONE|SINGLE(x IN xs WHERE p)`), map projection
+(`n { .name, .age, *, key: v }`), pattern predicates
+(`EXISTS( (a)-->(b) )`).
 
 Identifiers: regular and backtick-escaped.
 
 Comments: line (`//`) and block (`/* */`).
+
+### §9.3 bans (rejected with ERROR)
+
+`CALL { ... }` block subqueries, `EXISTS { ... }` block subqueries,
+`SHOW` statements, `CYPHER` prefixes, APOC procedures, `LOAD CSV`. The
+grammar contains no rule that accepts these shapes; they fall through
+as `(ERROR)` nodes. The `cargo xtask tree-sitter-parity` harness pins
+the rejection contract with dedicated scenarios.
+
+## Editor highlights
+
+`queries/highlights.scm`, `queries/locals.scm`, and
+`queries/injections.scm` ship with the grammar. Highlights target:
+every keyword (via named `kw_*` leaf nodes), literals, binders (node /
+rel / UNWIND / aliases / YIELD / list comprehension / list predicate),
+labels / types (after `:`), properties (after `.`), procedure names,
+parameters, operators and punctuation, and comments. `locals.scm`
+links references to nearest-scope definitions so Neovim / Helix / Zed
+can highlight the same variable consistently.
 
 ## Install (grammar developers)
 
