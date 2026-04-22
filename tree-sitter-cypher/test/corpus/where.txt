@@ -1,0 +1,78 @@
+==================
+WHERE equality predicate
+==================
+
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern (identifier) (identifier))))
+    (where_clause
+      (binary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier))
+        (literal_expr (string_literal)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+WHERE AND predicate
+==================
+
+MATCH (n) WHERE n.age > 21 AND n.active = true RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (binary_expr
+        (binary_expr
+          (property_access_expr (variable_expr (identifier)) (identifier))
+          (literal_expr (int_literal)))
+        (binary_expr
+          (property_access_expr (variable_expr (identifier)) (identifier))
+          (literal_expr (bool_literal))))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+WHERE NOT predicate
+==================
+
+MATCH (n) WHERE NOT n.deleted RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (unary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+WHERE IS NULL
+==================
+
+MATCH (n) WHERE n.name IS NULL RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (is_null_expr
+        (property_access_expr (variable_expr (identifier)) (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))

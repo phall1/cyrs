@@ -1,0 +1,62 @@
+==================
+SET property
+==================
+
+MATCH (n:Person) SET n.active = true
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (set_clause
+    (set_item
+      (property_access_expr (variable_expr (identifier)) (identifier))
+      (literal_expr (bool_literal)))))
+
+==================
+REMOVE property
+==================
+
+MATCH (n:Person) REMOVE n.age
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (remove_clause
+    (remove_item
+      (property_access_expr (variable_expr (identifier)) (identifier)))))
+
+==================
+DELETE node
+==================
+
+MATCH (n:Person) DELETE n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (delete_clause
+    (variable_expr (identifier))))
+
+==================
+DETACH DELETE
+==================
+
+MATCH (n) DETACH DELETE n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier)))))
+  (delete_clause
+    (variable_expr (identifier))))

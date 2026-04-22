@@ -1,0 +1,36 @@
+{
+  "grammars": [
+    {
+      "name": "cypher",
+      "camelcase": "Cypher",
+      "scope": "source.cypher",
+      "path": ".",
+      "file-types": [
+        "cyp",
+        "cypher"
+      ],
+      "injection-regex": "^cypher$"
+    }
+  ],
+  "metadata": {
+    "version": "0.0.1",
+    "license": "Apache-2.0 OR MIT",
+    "description": "Tree-sitter grammar for Cypher / GQL, parity-tested against the cyrs Rust parser",
+    "authors": [
+      {
+        "name": "cyrs contributors"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/phallsignup/cyrs"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true
+  }
+}

@@ -1,0 +1,77 @@
+==================
+MATCH simple node
+==================
+
+MATCH (n) RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+MATCH node with label
+==================
+
+MATCH (n:Person) RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)))))
+  (return_clause
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+MATCH relationship
+==================
+
+MATCH (a)-[:KNOWS]->(b) RETURN a, b
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern (identifier))
+        (rel_pattern
+          (rel_detail
+            (identifier)))
+        (node_pattern (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))
+    (return_item (variable_expr (identifier)))))
+
+==================
+OPTIONAL MATCH
+==================
+
+OPTIONAL MATCH (n:Person) RETURN n
+
+---
+
+(source_file
+  (optional_match_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))

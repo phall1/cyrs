@@ -1,0 +1,60 @@
+==================
+WITH simple projection
+==================
+
+MATCH (n:Person) WITH n.name AS name RETURN name
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (with_clause
+    (return_item
+      (property_access_expr (variable_expr (identifier)) (identifier))
+      (identifier)))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+WITH WHERE filter
+==================
+
+MATCH (n:Person) WITH n WHERE n.age > 21 RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (with_clause
+    (return_item (variable_expr (identifier)))
+    (where_clause
+      (binary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier))
+        (literal_expr (int_literal)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+WITH ORDER BY LIMIT
+==================
+
+MATCH (n:Person) WITH n ORDER BY n.name LIMIT 5 RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (with_clause
+    (return_item (variable_expr (identifier)))
+    (order_by
+      (order_item
+        (property_access_expr (variable_expr (identifier)) (identifier))))
+    (limit_subclause (literal_expr (int_literal))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))

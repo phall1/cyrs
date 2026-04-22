@@ -1,0 +1,87 @@
+==================
+String literal
+==================
+
+RETURN 'hello'
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (literal_expr (string_literal)))))
+
+==================
+Boolean literal
+==================
+
+RETURN true, false
+
+---
+
+(source_file
+  (return_clause
+    (return_item (literal_expr (bool_literal)))
+    (return_item (literal_expr (bool_literal)))))
+
+==================
+Null literal
+==================
+
+RETURN null
+
+---
+
+(source_file
+  (return_clause
+    (return_item (literal_expr (null_literal)))))
+
+==================
+List literal
+==================
+
+RETURN [1, 2, 3]
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (list_literal
+        (literal_expr (int_literal))
+        (literal_expr (int_literal))
+        (literal_expr (int_literal))))))
+
+==================
+Map literal
+==================
+
+RETURN {a: 1, b: 'two'}
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (map_literal
+        (identifier)
+        (literal_expr (int_literal))
+        (identifier)
+        (literal_expr (string_literal))))))
+
+==================
+Function call
+==================
+
+MATCH (n:Person) RETURN count(n)
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part (node_pattern (identifier) (identifier)))))
+  (return_clause
+    (return_item
+      (function_call
+        (variable_expr (identifier))))))
