@@ -1170,4 +1170,100 @@ mod tests {
         assert!(db.source_of(id).is_err());
         assert!(db.remove_file(id).is_err(), "double-remove must return Err");
     }
+
+    // -----------------------------------------------------------------------
+    // Salsa-memo GC proof (spec §11.6 / §15.X)
+    //
+    // After `didClose` + a revision bump, memoised derived values keyed on
+    // the evicted FileId must be reclaimed.  We observe reclamation by
+    // watching the `Arc<Parse>` strong count drop once Salsa replaces the
+    // memo entry on the next `parse_cst` call against the recycled
+    // SourceFile handle.
+    //
+    // `Database::remove_file` (spec §11.6, bead cy-bh5) pools freed Salsa
+    // input handles in `free_slots`; the next `open_file` reuses a pooled
+    // handle, resets its fields (which bumps the Salsa revision), and then
+    // the next `parse_cst` replaces the stale memo entry with the new
+    // ParseOutput.  The ParseOutput that was cached for the evicted FileId
+    // is then unreachable from Salsa — its Arc strong count drops to 1
+    // (only the test holds a clone).
+    // -----------------------------------------------------------------------
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn memoized_values_reclaimed_after_didClose_and_revision_bump() {
+        use cypher_db::ParseOutput;
+
+        let mut server = Server::new();
+
+        // Open file A, populate the parse_cst memo, and capture the
+        // ParseOutput so we can observe its Arc strong count.
+        let a_uri = "file:///tmp/a.cyp";
+        let a_id = open(&mut server, a_uri, "RETURN 1");
+        let a_parse: ParseOutput = server
+            .db
+            .parse_cst(a_id)
+            .expect("file A must parse while open");
+
+        // Salsa memo table + our local both hold the Arc → strong_count >= 2.
+        assert!(
+            a_parse.strong_count() >= 2,
+            "before eviction: Salsa memo must retain an Arc alongside our clone, got {}",
+            a_parse.strong_count()
+        );
+
+        // Simulate the didClose eviction path.
+        let removed = server.open_files.remove(a_uri);
+        assert_eq!(removed, Some(a_id));
+        server
+            .db
+            .remove_file(a_id)
+            .expect("remove_file must succeed");
+        assert!(!server.db.is_open(a_id));
+
+        // Bump the Salsa revision with an unrelated mutation — opening
+        // file B reuses A's pooled Salsa input handle (spec §11.6) and
+        // resets its fields, which bumps the revision for that input.
+        let b_id = open(&mut server, "file:///tmp/b.cyp", "RETURN 2");
+
+        // Trigger the next read on the recycled SourceFile handle.
+        // Salsa re-executes parse_cst; the old memo entry (ParseOutput for
+        // the evicted FileId) is swapped out of the memo table and parked
+        // in Salsa's `deleted_entries` buffer, to be dropped on the start
+        // of the next revision (Salsa 0.26 `function::insert_memo`).
+        let b_parse = server
+            .db
+            .parse_cst(b_id)
+            .expect("file B must parse while open");
+        assert_eq!(b_parse.parse().syntax().to_string(), "RETURN 2");
+
+        // Bump the revision one more time so Salsa's `reset_for_new_revision`
+        // runs and frees the entries parked in `deleted_entries`.  Any
+        // no-op mutation suffices; re-setting B's source to its current
+        // value still increments the revision.
+        server
+            .db
+            .update_file(b_id, "RETURN 2".into())
+            .expect("update must succeed");
+
+        // The old ParseOutput (for A) must no longer be held by Salsa:
+        // only our local clone remains, so strong_count drops to 1.
+        // This proves the memo keyed on the evicted FileId's SourceFile
+        // has been reclaimed on the next revision.
+        assert_eq!(
+            a_parse.strong_count(),
+            1,
+            "after didClose + revision bump + next query, Salsa must no \
+             longer retain the ParseOutput memoised for the evicted FileId \
+             (expected strong_count = 1, got {})",
+            a_parse.strong_count()
+        );
+
+        // And the previously-cached Arc is not identity-equal to any
+        // currently-cached ParseOutput for the recycled handle.
+        assert_ne!(
+            a_parse, b_parse,
+            "recycled SourceFile must produce a fresh ParseOutput after eviction"
+        );
+    }
 }
