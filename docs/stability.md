@@ -196,6 +196,64 @@ At that point the workspace receives a coordinated `0.99` → `1.0.0`
 bump across all sixteen crates and the CHANGELOG gains a formal
 "1.0 promise" section.
 
+## Performance budgets
+
+Cyrs enforces per-benchmark wall-clock budgets on top of the standard
+10% time-regression gate (spec §17.10).  The PR-blocking `bench` workflow
+runs the fast benches (parse, sema, plan, fmt, incremental, lsp-
+completion) against the main-branch baseline; the nightly
+`bench-nightly` workflow runs the heavy 10k-line large-file bench
+against absolute p95 budgets committed to
+`benches/large_file.budget.toml`.
+
+### bench_large_file (cy-y6a.1)
+
+The large-file gate enforces that end-to-end **parse**, **HIR-lower**,
+and **full diagnostic** pipelines can process a 10,000-line synthetic
+Cypher source within bounded wall-clock time.  A 10% regression on the
+fast benches is noise-tolerant; a budget breach on the large-file bench
+is a *policy* failure and means one of three things:
+
+1. A legitimate algorithmic regression — fix before merge.
+2. A workload-shape change (new clause templates in the generator,
+   growing line count) — the operator re-baselines.
+3. CI-runner noise large enough to exceed ×1.2 headroom — treat as
+   flaky and investigate the runner, not the code.
+
+Current budgets (milliseconds, p95):
+
+| Bench                | budget |
+|----------------------|--------|
+| `parse_10k`          | 35 ms  |
+| `hir_lower_10k`      | 70 ms  |
+| `diagnose_10k`       | 65 ms  |
+
+**On regression, page the operator.**  The nightly workflow does not
+auto-open a bug; the operator reviews the run and decides between
+"revert the regressing commit" and "bump the budget with
+justification".
+
+### Re-baselining after an intentional perf change
+
+If a commit legitimately changes the expected cost of the large-file
+pipeline (e.g. lowering no longer short-circuits a common pattern), the
+operator re-baselines:
+
+1. Run `cargo bench --bench large_file` from `benches/` on a quiet
+   machine.  Note the three reported p95s.
+2. Update `benches/large_file.budget.toml` — each field set to measured
+   p95 × 1.2, rounded up.
+3. Update the rustdoc table atop `benches/benches/large_file.rs` with
+   the same measured numbers.
+4. Update the budget table above in this document.
+5. Commit all four changes together with a `cy-…: bench — re-baseline
+   large_file budgets` message that names the perf change and links the
+   bead.
+
+The budget file is the authority at runtime — the rustdoc and this
+document are human-facing mirrors.  CI will re-run the nightly bench
+against the committed file on the next cron tick.
+
 ## See also
 
 - `AGENTS.md` §7 — diagnostic-code registry discipline

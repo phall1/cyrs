@@ -1,0 +1,61 @@
+# Nightly heavy-bench runner — bench_large_file (spec §17.10, bead cy-y6a.1).
+#
+# The `bench` workflow runs on every PR with a 10% time-regression gate, but
+# it only exercises the fast benches (parse, sema, plan, fmt, incremental,
+# lsp-completion).  The large-file workload is too slow to block PRs — a
+# single diagnose_10k iteration is ~50 ms on a modern dev box, and 50 + 10
+# samples times three groups + custom p95 gate adds minutes to the cycle —
+# so it runs nightly only, separate from the PR-blocking CI path.
+#
+# Policy: any p95 that exceeds the budget committed in
+# `benches/large_file.budget.toml` is a blocking regression; the bench
+# exits non-zero and this workflow surfaces the failure.  Re-baselining is
+# an explicit operator action (see docs/stability.md § "Performance
+# budgets").
+
+name: bench-nightly
+
+on:
+  schedule:
+    # 04:00 UTC daily — deliberately one hour after fuzz-nightly so the
+    # two don't fight for shared runners.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench-large-file:
+    name: bench-nightly (large_file)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "benches -> target"
+          key: bench-nightly-large-file
+
+      # Run only the large_file bench.  `--bench large_file` selects the
+      # custom-main bench (harness = false); the p95 gate is built in,
+      # so criterion's `--baseline main` comparison is not needed here —
+      # the checked-in budget file is the authority.
+      - name: cargo bench --bench large_file
+        working-directory: benches
+        run: cargo bench --bench large_file 2>&1 | tee /tmp/bench-large-file.txt
+
+      - name: upload criterion HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-large-file-report-${{ github.run_id }}
+          path: |
+            benches/target/criterion/parse_10k/
+            benches/target/criterion/hir_lower_10k/
+            benches/target/criterion/diagnose_10k/
+            /tmp/bench-large-file.txt
+          if-no-files-found: ignore
+          retention-days: 30
