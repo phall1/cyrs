@@ -294,6 +294,16 @@ query   = "MATCH (n) WHERE n.name CONTAINS 'lic' RETURN n"
 outcome = "ok"
 
 # ---------------------------------------------------------------------------
+# @LISTS — list predicates (cy-8x5, spec §19 row "List predicates")
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "List predicate ALL"
+tags    = ["@LISTS"]
+query   = "RETURN ALL(n IN [1, 2, 3] WHERE n > 0)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
 # v1 NOT green-tag: these should produce parse/sema errors
 # ---------------------------------------------------------------------------
 

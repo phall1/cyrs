@@ -314,6 +314,20 @@ fn desugar_expr(expr: &mut Expr) {
             }
             desugar_expr(map_expr);
         }
+        // List predicates survive desugaring as-is — they have no
+        // canonical rewrite in terms of simpler HIR forms (unlike
+        // `MapProjection` which expands to explicit `Expr::Map`).
+        // Recurse into iterable + predicate for nested normalisation.
+        Expr::ListPredicate {
+            iterable,
+            predicate,
+            ..
+        } => {
+            desugar_expr(iterable);
+            if let Some(p) = predicate {
+                desugar_expr(p);
+            }
+        }
         // ----------------------------------------------------------------
         // Desugared map projection — recurse into item expressions.
         // ----------------------------------------------------------------
@@ -525,6 +539,21 @@ mod tests {
                     filter_var.0,
                     render_expr(iterable),
                     render_expr(map_expr)
+                )
+            }
+            Expr::ListPredicate {
+                kind,
+                var,
+                iterable,
+                predicate,
+            } => {
+                let p = predicate
+                    .as_ref()
+                    .map_or_else(|| "None".to_string(), |e| render_expr(e));
+                format!(
+                    "ListPred({kind:?}, var={}, iterable={}, pred={p})",
+                    var.0,
+                    render_expr(iterable)
                 )
             }
             Expr::MapProjection { base, items } => {

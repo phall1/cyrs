@@ -539,6 +539,24 @@ impl ResolveCtx<'_> {
                 }
                 self.resolve_expr(map_expr, scope, sink);
             }
+            // cy-8x5 — list predicates. Traversal mirrors the
+            // list-comprehension shape: resolve iterable in the outer
+            // scope, then the optional predicate (which may reference
+            // the binder `var`). A dedicated child scope for the
+            // binder is added when the sema pass starts tracking
+            // expression-level scopes — for now the binder is already
+            // interned at HIR lowering so any reference resolves to
+            // the right `VarId`.
+            Expr::ListPredicate {
+                iterable,
+                predicate,
+                ..
+            } => {
+                self.resolve_expr(iterable, scope, sink);
+                if let Some(p) = predicate {
+                    self.resolve_expr(p, scope, sink);
+                }
+            }
             Expr::MapProjection { base, items } => {
                 self.resolve_expr(base, scope, sink);
                 for item in items {

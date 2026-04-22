@@ -29,8 +29,9 @@ use smol_str::SmolStr;
 use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
-    BinOp, Binding, Clause, Direction, Expr, HirId, MapProjectionItem, Pattern, PatternElement,
-    PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement, UnaryOp, VarId, VarKind,
+    BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, Pattern,
+    PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement, UnaryOp,
+    VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -685,6 +686,7 @@ impl LowerCtx {
             SyntaxKind::MAP_LITERAL => Some(self.lower_property_map(node)),
             SyntaxKind::CASE_EXPR => Some(self.lower_case_expr(node)),
             SyntaxKind::LIST_COMPREHENSION => Some(self.lower_list_comprehension(node)),
+            SyntaxKind::LIST_PREDICATE_EXPR => Some(self.lower_list_predicate(node)),
             SyntaxKind::MAP_PROJECTION => Some(self.lower_map_projection(node)),
             SyntaxKind::PATTERN_PREDICATE => Some(self.lower_pattern_predicate(node)),
             _ => None,
@@ -1039,6 +1041,70 @@ impl LowerCtx {
             iterable: Box::new(iterable),
             filter,
             map_expr,
+        }
+    }
+
+    /// Lower a `LIST_PREDICATE_EXPR` node into [`Expr::ListPredicate`]
+    /// (cy-8x5, spec §19 row "List predicates").
+    ///
+    /// Expected AST shape:
+    /// ```text
+    /// LIST_PREDICATE_EXPR
+    ///   (ANY_KW | ALL_KW | NONE_KW | SINGLE_KW)   — discriminant
+    ///   L_PAREN
+    ///   NAME                                      — binder x
+    ///   IN_KW
+    ///   <iterable>                                — xs
+    ///   (WHERE_KW <predicate>)?                   — optional p(x)
+    ///   R_PAREN
+    /// ```
+    ///
+    /// The binder is introduced as a fresh `Value` variable scoped to the
+    /// predicate expression only (parallel to `ListComprehension`'s
+    /// `filter_var` — callers descending into `predicate` must push a
+    /// child scope first; see `scope.rs`).
+    fn lower_list_predicate(&mut self, node: SyntaxNode) -> Expr {
+        // Discriminant — first keyword token child.
+        let kind = node
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find_map(|t| match t.kind() {
+                SyntaxKind::ANY_KW => Some(ListPredKind::Any),
+                SyntaxKind::ALL_KW => Some(ListPredKind::All),
+                SyntaxKind::NONE_KW => Some(ListPredKind::None),
+                SyntaxKind::SINGLE_KW => Some(ListPredKind::Single),
+                _ => None,
+            })
+            .unwrap_or(ListPredKind::Any);
+
+        // Binder name — NAME child.
+        let var_name = node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::NAME)
+            .and_then(|n| ident_text(&n))
+            .unwrap_or_else(|| "_".to_string());
+        let var = self.bind_var(&var_name, VarKind::Value, node.text_range());
+
+        // Iterable = first Expr child; predicate = second Expr child (present
+        // iff WHERE_KW is in the token stream).
+        let expr_children: Vec<Expr> = node
+            .children()
+            .filter(|n| n.kind() != SyntaxKind::NAME)
+            .filter_map(|n| self.try_lower_expr(n))
+            .collect();
+
+        let iterable = expr_children.first().cloned().unwrap_or(Expr::Null);
+        let predicate = if has_token(&node, SyntaxKind::WHERE_KW) {
+            expr_children.get(1).cloned().map(Box::new)
+        } else {
+            None
+        };
+
+        Expr::ListPredicate {
+            kind,
+            var,
+            iterable: Box::new(iterable),
+            predicate,
         }
     }
 

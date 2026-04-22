@@ -299,6 +299,23 @@ impl KindCtx<'_> {
                 }
                 self.check_expr(map_expr, ExprCtx::General, sink);
             }
+            // cy-8x5 — list-predicate type rules (spec §19 row
+            // "List predicates"):
+            //   iterable must be `LIST<T>`     → E5011 on structural mismatch
+            //   predicate, if present, Bool    → E2011 on a bare non-bool literal
+            //   result type is always Bool     (enforced by infer.rs)
+            Expr::ListPredicate {
+                iterable,
+                predicate,
+                ..
+            } => {
+                self.require_list_iterable(iterable, sink);
+                self.check_expr(iterable, ExprCtx::General, sink);
+                if let Some(p) = predicate {
+                    self.require_bool_predicate(p, sink);
+                    self.check_expr(p, ExprCtx::General, sink);
+                }
+            }
             Expr::MapProjection { base, items } => {
                 self.check_expr(base, ExprCtx::PropAccess, sink);
                 for item in items {
@@ -414,6 +431,68 @@ impl KindCtx<'_> {
                     "cannot {op} non-list expression of type `{ty}`; \
                      list indexing and slicing require a list target"
                 ),
+            ));
+        }
+    }
+
+    /// Emit E5011 if `iterable` is structurally non-list.
+    ///
+    /// Mirrors `require_indexable` in scope — schema-free, structural:
+    /// scalar literals, `Node` / `Relationship` / `Path` variables, map
+    /// literals, and pattern predicates are provably non-list.
+    /// `Value`-kinded variables, calls, and other composite expressions
+    /// are deferred to schema-aware / runtime inspection.
+    fn require_list_iterable(&self, iterable: &Expr, sink: &mut DiagnosticsSink) {
+        let reason: Option<&str> = match iterable {
+            Expr::Bool(_) => Some("Bool"),
+            Expr::Int(_) => Some("Int"),
+            Expr::Float(_) => Some("Float"),
+            Expr::String(_) => Some("String"),
+            Expr::Null => Some("Null"),
+            Expr::Map(_) => Some("Map"),
+            Expr::PatternPredicate(_) => Some("Pattern"),
+            Expr::Var(var) => match self.kind_of(*var) {
+                Some(VarKind::Node) => Some("Node"),
+                Some(VarKind::Relationship) => Some("Relationship"),
+                Some(VarKind::Path) => Some("Path"),
+                Some(VarKind::Value) | None => None,
+            },
+            _ => None,
+        };
+
+        if let Some(ty) = reason {
+            sink.push(Diagnostic::error(
+                DiagCode::E5011,
+                dummy_span(),
+                format!(
+                    "list-predicate iterable must be a list but found `{ty}`; \
+                     ANY/ALL/NONE/SINGLE require a `LIST<T>` source"
+                ),
+            ));
+        }
+    }
+
+    /// Emit E2011 if `predicate` is a bare non-boolean literal.
+    ///
+    /// Richer nested-expression bool checks are already covered by the
+    /// inference pass (which emits E2011 on `AND`/`OR`/`NOT` operands).
+    /// This helper catches the obvious case `ALL(x IN xs WHERE 1)`.
+    #[allow(clippy::unused_self)]
+    fn require_bool_predicate(&self, predicate: &Expr, sink: &mut DiagnosticsSink) {
+        let reason: Option<&str> = match predicate {
+            Expr::Int(_) => Some("Int"),
+            Expr::Float(_) => Some("Float"),
+            Expr::String(_) => Some("String"),
+            // `Null` is treated as Bool by openCypher ternary logic;
+            // leave it alone.
+            _ => None,
+        };
+
+        if let Some(ty) = reason {
+            sink.push(Diagnostic::error(
+                DiagCode::E2011,
+                dummy_span(),
+                format!("list-predicate WHERE clause requires a `Bool` predicate but found `{ty}`"),
             ));
         }
     }

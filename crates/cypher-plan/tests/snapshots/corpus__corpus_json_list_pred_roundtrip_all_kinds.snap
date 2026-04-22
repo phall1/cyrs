@@ -1,0 +1,116 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 1,
+      "op": "source"
+    },
+    {
+      "input": 0,
+      "items": [
+        {
+          "alias": "a",
+          "expr": {
+            "iterable": {
+              "id": 1,
+              "kind": "var"
+            },
+            "kind": "list_predicate",
+            "pred_kind": "any",
+            "predicate": {
+              "bin_op": "gt",
+              "kind": "bin_op",
+              "lhs": {
+                "id": 0,
+                "kind": "var"
+              },
+              "rhs": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            "var": 0
+          }
+        },
+        {
+          "alias": "b",
+          "expr": {
+            "iterable": {
+              "id": 1,
+              "kind": "var"
+            },
+            "kind": "list_predicate",
+            "pred_kind": "all",
+            "predicate": {
+              "bin_op": "gt",
+              "kind": "bin_op",
+              "lhs": {
+                "id": 0,
+                "kind": "var"
+              },
+              "rhs": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            "var": 0
+          }
+        },
+        {
+          "alias": "c",
+          "expr": {
+            "iterable": {
+              "id": 1,
+              "kind": "var"
+            },
+            "kind": "list_predicate",
+            "pred_kind": "none",
+            "predicate": {
+              "bin_op": "gt",
+              "kind": "bin_op",
+              "lhs": {
+                "id": 0,
+                "kind": "var"
+              },
+              "rhs": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            "var": 0
+          }
+        },
+        {
+          "alias": "d",
+          "expr": {
+            "iterable": {
+              "id": 1,
+              "kind": "var"
+            },
+            "kind": "list_predicate",
+            "pred_kind": "single",
+            "predicate": {
+              "bin_op": "gt",
+              "kind": "bin_op",
+              "lhs": {
+                "id": 0,
+                "kind": "var"
+              },
+              "rhs": {
+                "kind": "int",
+                "value": 0
+              }
+            },
+            "var": 0
+          }
+        }
+      ],
+      "op": "project"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

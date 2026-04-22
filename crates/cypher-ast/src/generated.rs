@@ -822,6 +822,64 @@ impl ListComprehension {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ListPredicateExpr {
+    syntax: SyntaxNode,
+}
+
+impl ListPredicateExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LIST_PREDICATE_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn source(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn where_clause(&self) -> Option<WhereClause> {
+        self.syntax.children().find_map(WhereClause::cast)
+    }
+
+    pub fn any_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ANY_KW)
+    }
+
+    pub fn all_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ALL_KW)
+    }
+
+    pub fn none_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::NONE_KW)
+    }
+
+    pub fn single_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::SINGLE_KW)
+    }
+
+    pub fn in_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::IN_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PatternComprehension {
     syntax: SyntaxNode,
 }
@@ -1019,6 +1077,7 @@ pub enum Expr {
     ListLiteral(ListLiteral),
     MapLiteral(MapLiteral),
     ListComprehension(ListComprehension),
+    ListPredicateExpr(ListPredicateExpr),
     PatternComprehension(PatternComprehension),
     CaseExpr(CaseExpr),
     BinaryExpr(BinaryExpr),
@@ -1049,6 +1108,9 @@ impl Expr {
         if let Some(inner) = ListComprehension::cast(syntax.clone()) {
             return Some(Self::ListComprehension(inner));
         }
+        if let Some(inner) = ListPredicateExpr::cast(syntax.clone()) {
+            return Some(Self::ListPredicateExpr(inner));
+        }
         if let Some(inner) = PatternComprehension::cast(syntax.clone()) {
             return Some(Self::PatternComprehension(inner));
         }
@@ -1076,6 +1138,7 @@ impl Expr {
             Self::ListLiteral(inner) => inner.syntax(),
             Self::MapLiteral(inner) => inner.syntax(),
             Self::ListComprehension(inner) => inner.syntax(),
+            Self::ListPredicateExpr(inner) => inner.syntax(),
             Self::PatternComprehension(inner) => inner.syntax(),
             Self::CaseExpr(inner) => inner.syntax(),
             Self::BinaryExpr(inner) => inner.syntax(),

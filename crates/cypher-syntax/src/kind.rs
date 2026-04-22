@@ -143,6 +143,13 @@ pub enum SyntaxKind {
     EXISTS_KW,
     SHORTESTPATH_KW,
     ALLSHORTESTPATHS_KW,
+    // List-predicate keywords (cy-8x5). `ALL_KW` already exists above —
+    // these three join the set so `ANY(x IN xs WHERE p)` etc. lex as
+    // dedicated keyword tokens rather than identifiers. Shared across
+    // GqlAligned and OpenCypherV9 (spec §9), so no dialect gate needed.
+    ANY_KW,
+    NONE_KW,
+    SINGLE_KW,
 
     // =====================================================================
     // Syntax nodes (320..768)
@@ -233,6 +240,13 @@ pub enum SyntaxKind {
     // to preserve numeric stability of the already-assigned variants above.
     INDEX_EXPR,
     SLICE_EXPR,
+
+    // List predicates: ANY / ALL / NONE / SINGLE (cy-8x5). Appended at the
+    // end of the node zone for the same stability reason as cy-7s6.1. The
+    // discriminant between the four is carried by the first keyword child
+    // token (ANY_KW / ALL_KW / NONE_KW / SINGLE_KW) so a single node kind
+    // covers all four surface forms.
+    LIST_PREDICATE_EXPR,
 
     // =====================================================================
     // Errors & EOF (768..1024)
@@ -348,6 +362,9 @@ impl SyntaxKind {
             175 => Self::EXISTS_KW,
             176 => Self::SHORTESTPATH_KW,
             177 => Self::ALLSHORTESTPATHS_KW,
+            178 => Self::ANY_KW,
+            179 => Self::NONE_KW,
+            180 => Self::SINGLE_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -416,6 +433,7 @@ impl SyntaxKind {
             384 => Self::ARG_LIST,
             385 => Self::INDEX_EXPR,
             386 => Self::SLICE_EXPR,
+            387 => Self::LIST_PREDICATE_EXPR,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -446,11 +464,11 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=ALLSHORTESTPATHS_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=SINGLE_KW`).
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::ALLSHORTESTPATHS_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::SINGLE_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -504,7 +522,11 @@ mod tests {
             SyntaxKind::IDENT,
             SyntaxKind::MATCH_KW,
             SyntaxKind::ALLSHORTESTPATHS_KW,
+            SyntaxKind::ANY_KW,
+            SyntaxKind::NONE_KW,
+            SyntaxKind::SINGLE_KW,
             SyntaxKind::SOURCE_FILE,
+            SyntaxKind::LIST_PREDICATE_EXPR,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

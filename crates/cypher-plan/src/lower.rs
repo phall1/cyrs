@@ -32,13 +32,14 @@ use indexmap::IndexMap;
 use smol_str::SmolStr;
 
 use cypher_hir::{
-    Clause, Direction as HirDir, Expr as HirExpr, Pattern, PatternElement, PatternPart, Projection,
-    RelLength as HirRelLen, RemoveItem, SetItem, Statement, VarId as HirVarId,
+    Clause, Direction as HirDir, Expr as HirExpr, ListPredKind as HirListPredKind, Pattern,
+    PatternElement, PatternPart, Projection, RelLength as HirRelLen, RemoveItem, SetItem,
+    Statement, VarId as HirVarId,
 };
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, NodeSpec, OpId, OrderKey, Projection as PlanProj,
-    ReadOp, RelLength, RelSpec, UnaryOp, UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey,
+    Projection as PlanProj, ReadOp, RelLength, RelSpec, UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -858,6 +859,18 @@ impl<'s> LowerCtx<'s> {
                 Expr::Null
             }
 
+            HirExpr::ListPredicate {
+                kind,
+                var,
+                iterable,
+                predicate,
+            } => Expr::ListPredicate {
+                kind: lower_list_pred_kind(*kind),
+                var: self.map_var(*var),
+                iterable: Box::new(self.lower_expr(iterable)),
+                predicate: predicate.as_ref().map(|p| Box::new(self.lower_expr(p))),
+            },
+
             HirExpr::MapProjection { .. } => {
                 // Map projections must be desugared to explicit Expr::Map
                 // before lowering (see cy-mla).
@@ -891,6 +904,23 @@ fn expr_to_var_id(expr: &HirExpr) -> Option<HirVarId> {
     match expr {
         HirExpr::Var(v) => Some(*v),
         _ => None,
+    }
+}
+
+/// Lower a HIR [`HirListPredKind`] to a plan [`ListPredKind`] (cy-8x5).
+///
+/// Both enums are `#[non_exhaustive]` at the public boundary; the
+/// wildcard arm maps unknown future kinds to `ListPredKind::All` so
+/// the plan stays well-typed. A later bead adding a new HIR kind also
+/// bumps this mapping.
+#[allow(clippy::match_same_arms)]
+fn lower_list_pred_kind(kind: HirListPredKind) -> ListPredKind {
+    match kind {
+        HirListPredKind::Any => ListPredKind::Any,
+        HirListPredKind::All => ListPredKind::All,
+        HirListPredKind::None => ListPredKind::None,
+        HirListPredKind::Single => ListPredKind::Single,
+        _ => ListPredKind::All,
     }
 }
 
