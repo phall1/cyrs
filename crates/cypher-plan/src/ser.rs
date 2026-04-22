@@ -542,6 +542,11 @@ enum ExprSer {
     Param {
         name: SmolStr,
     },
+    /// Pattern-predicate existential check — `EXISTS(<pattern>)` in
+    /// expression position (cy-lve).
+    Exists {
+        pattern: Box<ReadOp>,
+    },
 }
 
 impl Serialize for Expr {
@@ -614,6 +619,9 @@ impl Serialize for Expr {
                 predicate: predicate.as_ref().map(|p| Box::new(*p.clone())),
             },
             Expr::Param { name } => ExprSer::Param { name: name.clone() },
+            Expr::Exists { pattern } => ExprSer::Exists {
+                pattern: pattern.clone(),
+            },
         };
         proxy.serialize(s)
     }
@@ -683,6 +691,7 @@ impl<'de> Deserialize<'de> for Expr {
                 predicate: predicate.map(|p| Box::new(*p)),
             },
             ExprSer::Param { name } => Expr::Param { name },
+            ExprSer::Exists { pattern } => Expr::Exists { pattern },
         })
     }
 }

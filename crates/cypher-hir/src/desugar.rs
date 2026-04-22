@@ -1025,4 +1025,46 @@ mod tests {
         // Clause count should be identical on second pass.
         assert_eq!(once.clauses.len(), twice.clauses.len());
     }
+
+    // --- EXISTS(<pattern>) end-to-end lowering (cy-lve, spec §6.1) ----------
+
+    /// `RETURN EXISTS((a)-->(b))` must parse, lower, and land as an
+    /// `Expr::PatternPredicate` in the Return projection.
+    #[test]
+    fn lower_exists_pattern_predicate_in_return() {
+        let stmt = lower_statement("RETURN EXISTS((a)-->(b))");
+        assert_eq!(stmt.clauses.len(), 1);
+        let Clause::Return { projections, .. } = &stmt.clauses[0] else {
+            panic!("expected Return clause, got {:?}", stmt.clauses[0]);
+        };
+        assert_eq!(projections.len(), 1);
+        let Expr::PatternPredicate(pat) = &projections[0].expr else {
+            panic!(
+                "expected Expr::PatternPredicate, got {:?}",
+                projections[0].expr
+            );
+        };
+        assert_eq!(pat.parts.len(), 1);
+        assert_eq!(pat.parts[0].elements.len(), 3);
+    }
+
+    /// `MATCH (a) WHERE EXISTS((a)-->(:Movie)) RETURN a` — WHERE clause
+    /// carries the pattern predicate.
+    #[test]
+    fn lower_exists_pattern_predicate_in_where() {
+        let stmt = lower_statement("MATCH (a) WHERE EXISTS((a)-->(:Movie)) RETURN a");
+        // Expect: Match, Where (carries the pattern predicate), Return.
+        let where_clause = stmt
+            .clauses
+            .iter()
+            .find(|c| matches!(c, Clause::Where { .. }))
+            .expect("expected a Where clause");
+        let Clause::Where { predicate, .. } = where_clause else {
+            unreachable!();
+        };
+        let Expr::PatternPredicate(pat) = predicate else {
+            panic!("expected WHERE predicate to be Expr::PatternPredicate, got {predicate:?}");
+        };
+        assert_eq!(pat.parts.len(), 1);
+    }
 }

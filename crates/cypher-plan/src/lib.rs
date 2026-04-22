@@ -604,6 +604,26 @@ pub enum Expr {
         /// Parameter name as written in the query (`$name` or `{name}`).
         name: SmolStr,
     },
+    /// A pattern-predicate existential check — `EXISTS(<pattern>)` in
+    /// expression position (cy-lve, spec §6.1 / §19 row "Pattern
+    /// predicates in expressions").
+    ///
+    /// Evaluates to `true` iff the embedded read sub-plan would yield
+    /// at least one row when evaluated against the enclosing row's
+    /// variable bindings. Result type is `Bool`.
+    ///
+    /// The `pattern` sub-tree is embedded directly (like
+    /// [`ReadOp::OptionalJoin`]) because a pattern predicate is always
+    /// a fresh sub-plan at the point it appears in the enclosing
+    /// expression — its shape cannot be shared with other operators in
+    /// the outer DAG. Variables that appear both inside the pattern and
+    /// in the outer row remain unified via [`VarId`] (plan-scoped),
+    /// consistent with the rest of the plan's variable model.
+    Exists {
+        /// Embedded read-plan sub-tree; existence of ≥1 emitted row
+        /// makes this expression `true`, otherwise `false`.
+        pattern: Box<ReadOp>,
+    },
 }
 
 // `f64` is not `Eq` under stdlib rules (NaN breaks reflexivity), but the

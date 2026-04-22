@@ -478,6 +478,18 @@ fn format_expr(expr: &Expr) -> String {
             format!("{kw}(${} IN {}{pred})", var.0, format_expr(iterable))
         }
         Expr::Param { name } => format!("${name}"),
+        Expr::Exists { pattern } => {
+            // Render the embedded read sub-tree inline so tooling can
+            // see the pattern shape without walking into a second arena.
+            // Mirrors how `OptionalJoin`'s inner `pattern` sibling is
+            // printed (print_op_tree), but flattened to a single string.
+            let mut inner = String::new();
+            print_op_tree(pattern, 0, &mut inner);
+            // Strip trailing newline so the expression renders on one
+            // logical "line" (even though it may wrap).
+            let inner = inner.trim_end().to_string();
+            format!("EXISTS({inner})")
+        }
     }
 }
 

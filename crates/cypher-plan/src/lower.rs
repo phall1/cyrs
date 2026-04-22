@@ -263,21 +263,25 @@ fn check_remove_item(item: &RemoveItem, span: HirSpan) -> Result<(), PlanLowerEr
 fn check_expr(expr: &HirExpr, span: HirSpan) -> Result<(), PlanLowerError> {
     match expr {
         // Leaf nodes with no sub-expressions.
+        //
+        // `PatternPredicate` is listed here (accepting without recursing
+        // into the embedded pattern) because cy-lve turns it into
+        // `Expr::Exists { pattern: Box<ReadOp> }` during lowering — the
+        // embedded pattern is lowered by the existing pattern-match
+        // machinery at that point, which has its own precondition
+        // contract (name resolution + desugar still apply there).
         HirExpr::Null
         | HirExpr::Bool(_)
         | HirExpr::Int(_)
         | HirExpr::Float(_)
         | HirExpr::String(_)
         | HirExpr::Var(_)
-        | HirExpr::Param(_) => Ok(()),
+        | HirExpr::Param(_)
+        | HirExpr::PatternPredicate(_) => Ok(()),
 
         // Precondition violations.
         HirExpr::Unresolved(name) => Err(PlanLowerError::UnresolvedName {
             name: name.clone(),
-            span,
-        }),
-        HirExpr::PatternPredicate(_) => Err(PlanLowerError::UndesugaredExpr {
-            kind: "PatternPredicate",
             span,
         }),
         HirExpr::ListComprehension { .. } => Err(PlanLowerError::UndesugaredExpr {
@@ -1111,16 +1115,18 @@ impl<'s> LowerCtx<'s> {
                 Expr::Null
             }
 
-            HirExpr::PatternPredicate(_) => {
-                // Pattern predicates must be desugared before lowering
-                // (see cy-mla / cypher_hir::desugar). They cannot be
-                // represented as a plan Expr.
-                debug_assert!(
-                    false,
-                    "PatternPredicate encountered in HIR→Plan lowering; \
-                     run cypher_hir::desugar::desugar_statement (cy-mla) first"
-                );
-                Expr::Null
+            HirExpr::PatternPredicate(pattern) => {
+                // cy-lve: lower to plan `Expr::Exists` whose payload is
+                // the pattern's read-sub-plan. The embedded `ReadOp`
+                // mirrors the treatment of `OptionalJoin`: a fresh sub-
+                // tree introduced in-place, not an `OpId` into the main
+                // arena (spec §12.1 N13 note).
+                let (sub_op, _sub_vars) =
+                    self.lower_match_pattern(pattern, None, /* optional = */ false);
+                let inner_root = self.plan.ops[sub_op.0 as usize].clone();
+                Expr::Exists {
+                    pattern: Box::new(inner_root),
+                }
             }
 
             HirExpr::ListComprehension { .. } => {
@@ -2033,15 +2039,29 @@ mod tests {
         }
     }
 
-    /// Un-desugared `PatternPredicate` must surface as `UndesugaredExpr`.
+    /// Pattern predicates are now accepted by plan lowering (cy-lve) and
+    /// emerge as `Expr::Exists { pattern }`. This test locks the new
+    /// behaviour: an empty pattern still yields a plan, and the
+    /// projection carries the `Expr::Exists` variant.
     #[test]
-    fn lower_statement_returns_err_on_patternpredicate() {
+    fn lower_statement_accepts_patternpredicate_as_exists() {
         let expr = HirExpr::PatternPredicate(cypher_hir::Pattern { parts: vec![] });
         let stmt = stmt_with_return_expr(expr);
-        let err = lower_statement(&stmt).expect_err("pattern predicate must be rejected");
-        match err {
-            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "PatternPredicate"),
-            other => panic!("expected UndesugaredExpr(PatternPredicate), got {other:?}"),
+        let plan = lower_statement(&stmt).expect("pattern predicate must lower to Exists");
+        // Walk every projection: at least one must be `Expr::Exists { .. }`.
+        let mut saw_exists = false;
+        for op in &plan.ops {
+            if let ReadOp::Project { items, .. } = op {
+                for item in items {
+                    if matches!(item.expr, Expr::Exists { .. }) {
+                        saw_exists = true;
+                    }
+                }
+            }
         }
+        assert!(
+            saw_exists,
+            "expected plan to carry Expr::Exists after PatternPredicate lowering, got {plan:?}"
+        );
     }
 }
