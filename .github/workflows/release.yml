@@ -1,0 +1,107 @@
+# Release preparation workflow for the cyrs workspace (spec 0001 §18).
+#
+# ---
+# TRIGGER POLICY
+# ---
+# This workflow is `workflow_dispatch`-only until the first 0.1.0 release
+# lands.  It intentionally does NOT fire on pushes to `main`, nor on any
+# tag push.  The operator cuts a release by clicking "Run workflow" in
+# the Actions UI once the release-readiness bar (spec §17.17) is green.
+#
+# The job itself is non-destructive: it runs `release-plz release-pr`
+# which opens a PR bumping versions and pivoting `[Unreleased]` blocks
+# into dated sections in every per-crate `CHANGELOG.md`.  The operator
+# reviews that PR and merges it separately.  Nothing reaches crates.io
+# from this workflow directly; crates.io publication is a separate,
+# manually-triggered step documented in `docs/release-playbook.md`.
+#
+# ---
+# SECRETS REQUIRED (set in Settings → Secrets → Actions)
+# ---
+# - CARGO_REGISTRY_TOKEN — only needed by the playbook's publish step,
+#                          not this workflow.  Kept here for reference.
+# - GITHUB_TOKEN         — auto-injected; used by release-plz to open
+#                          the release PR against `main`.
+#
+# ---
+# TOOLING
+# ---
+# Prefers `release-plz` (https://release-plz.dev) over `cargo-release`
+# because it natively understands workspaces with per-crate CHANGELOGs
+# and opens a single release PR.  If `release-plz` is unavailable for
+# any reason, see the playbook for the `cargo release --dry-run`
+# fallback invocation.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run release-plz in dry-run mode (print planned changes, open no PR)"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  release-pr:
+    name: Open release PR (release-plz)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # release-plz needs full history to compute changelog diffs.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94"
+
+      - name: Cache cargo registry / build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+
+      - name: Verify workspace metadata parses
+        run: cargo metadata --format-version 1 >/dev/null
+
+      - name: Run release gate (spec §17.17)
+        run: cargo xtask release
+
+      - name: Install release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: "release-pr"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No CARGO_REGISTRY_TOKEN here — this workflow never publishes.
+          # The sibling playbook documents the publish step.
+        if: ${{ inputs.dry_run == false }}
+
+      - name: Dry-run release-plz
+        if: ${{ inputs.dry_run == true }}
+        uses: release-plz/action@v0.5
+        with:
+          command: "release-pr"
+          config: |
+            [workspace]
+            release = false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarise
+        run: |
+          echo "::notice::release-plz completed (dry_run=${{ inputs.dry_run }})."
+          echo "::notice::Review the opened release PR and merge it to bump versions."
+          echo "::notice::Publication to crates.io is a separate step — see docs/release-playbook.md."

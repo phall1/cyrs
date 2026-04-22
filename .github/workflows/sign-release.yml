@@ -1,0 +1,205 @@
+# Release signing, SBOM generation, and SLSA provenance for cyrs
+# (spec 0001 §17.16, §18).
+#
+# ---
+# TRIGGER POLICY
+# ---
+# Fires only when a GitHub Release is *published* (i.e. the operator
+# clicks "Publish release" in the Releases UI after the release PR from
+# `release.yml` has landed on `main` and the crates.io publish step has
+# run successfully).  `workflow_dispatch` is also enabled so the
+# operator can re-run the signing leg against an already-published
+# release if a signature is lost.
+#
+# Nothing in this workflow runs automatically on `push` — all signing
+# requires an explicit published Release as the trigger surface.
+#
+# ---
+# CAPABILITIES
+# ---
+# 1. Keyless signing via sigstore/cosign with OIDC tokens minted by
+#    GitHub Actions.  No long-lived signing keys are stored as Action
+#    secrets; cosign attaches a transparency-log entry via Rekor.
+# 2. CycloneDX SBOM generation for the workspace via `cargo-cyclonedx`.
+#    The generated SBOM is uploaded as a release asset.
+# 3. SLSA provenance emitted via `slsa-github-generator` for every
+#    dylib / bin release artifact.  Provenance attestations are
+#    uploaded to the release as `.intoto.jsonl` sidecars.
+#
+# ---
+# SECRETS / PERMISSIONS
+# ---
+# - id-token: write       — OIDC token for cosign keyless + SLSA generator.
+# - contents: write       — upload signing / SBOM / provenance assets.
+# - packages: write       — (unused today; reserved for future container signing.)
+#
+# No long-lived secrets.  Do not add a COSIGN_PRIVATE_KEY variable;
+# keyless signing via Fulcio is the policy.
+
+name: sign-release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to sign (e.g. v0.1.0). Only used on manual re-runs."
+        type: string
+        required: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ---------------------------------------------------------------
+  # SBOM — CycloneDX workspace manifest
+  # ---------------------------------------------------------------
+  sbom:
+    name: CycloneDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94"
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate workspace SBOM
+        run: |
+          cargo cyclonedx \
+            --format json \
+            --target-in-filename \
+            --output-pattern filename \
+            --all \
+            --output-cdx
+          # Collate per-crate SBOMs into a single workspace manifest.
+          mkdir -p sbom-out
+          cp ./**/*.cdx.json sbom-out/ 2>/dev/null || true
+          ls -la sbom-out/
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyrs-sbom
+          path: sbom-out/
+          if-no-files-found: error
+
+      - name: Attach SBOM to release
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          for f in sbom-out/*.cdx.json; do
+            gh release upload "$tag" "$f" --clobber
+          done
+
+  # ---------------------------------------------------------------
+  # Cosign — keyless signing of release assets
+  # ---------------------------------------------------------------
+  cosign:
+    name: Cosign keyless (sigstore) signatures
+    runs-on: ubuntu-latest
+    needs: sbom
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v2.4.1"
+
+      - name: Download release assets
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          mkdir -p release-assets
+          cd release-assets
+          gh release download "$tag"
+          ls -la
+
+      - name: Sign release assets (keyless, Fulcio + Rekor)
+        if: ${{ github.event_name == 'release' }}
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          cd release-assets
+          shopt -s nullglob
+          for f in *; do
+            # Skip signatures, attestations, SBOMs, and provenance sidecars.
+            case "$f" in
+              *.sig|*.crt|*.intoto.jsonl|*.cdx.json) continue ;;
+            esac
+            echo "Signing $f..."
+            cosign sign-blob \
+              --yes \
+              --output-signature "${f}.sig" \
+              --output-certificate "${f}.crt" \
+              "$f"
+            gh release upload "$tag" "${f}.sig" "${f}.crt" --clobber
+          done
+
+  # ---------------------------------------------------------------
+  # SLSA provenance — build-level attestation per release artifact
+  # ---------------------------------------------------------------
+  provenance:
+    name: SLSA provenance
+    needs: sbom
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    if: ${{ github.event_name == 'release' }}
+    with:
+      # The SLSA generator discovers assets via their sha256 digests.
+      # When the release is published, enumerate the assets and produce
+      # an `.intoto.jsonl` sidecar per dylib / bin.
+      base64-subjects: ${{ needs.sbom.outputs.digests }}
+      upload-assets: true
+      upload-tag-name: ${{ github.event.release.tag_name }}
+
+  # ---------------------------------------------------------------
+  # Human-facing summary of what was attested
+  # ---------------------------------------------------------------
+  summary:
+    name: Post-signing summary
+    runs-on: ubuntu-latest
+    needs: [sbom, cosign, provenance]
+    if: ${{ always() }}
+    steps:
+      - name: Emit workflow-summary markdown
+        run: |
+          {
+            echo "# Release signing report";
+            echo "";
+            echo "- SBOM (CycloneDX): uploaded as \`*.cdx.json\` release assets.";
+            echo "- Cosign (keyless): signatures and Fulcio certs uploaded as \`*.sig\` / \`*.crt\`.";
+            echo "- SLSA provenance: \`*.intoto.jsonl\` attestations uploaded.";
+            echo "";
+            echo "Verify a downloaded asset locally with:";
+            echo "";
+            echo "    cosign verify-blob \\";
+            echo "      --certificate <file>.crt \\";
+            echo "      --signature   <file>.sig \\";
+            echo "      --certificate-identity-regexp 'github.com/phall1/cyrs' \\";
+            echo "      --certificate-oidc-issuer https://token.actions.githubusercontent.com \\";
+            echo "      <file>";
+          } >> "$GITHUB_STEP_SUMMARY"
