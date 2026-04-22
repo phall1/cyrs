@@ -22,6 +22,8 @@ cypher-diag   = { workspace = true }
 cypher-fmt    = { workspace = true }
 # Spec 0002: the `schema load` subcommand drives the TOML loader.
 cypher-schema = { workspace = true, features = ["file"] }
+# Spec 0003: the `project load` subcommand drives the manifest loader.
+cypher-project = { workspace = true }
 clap       = { workspace = true }
 anyhow     = { workspace = true }
 tracing    = { workspace = true }

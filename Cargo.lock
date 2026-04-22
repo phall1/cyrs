@@ -373,6 +373,7 @@ dependencies = [
  "cypher-db",
  "cypher-diag",
  "cypher-fmt",
+ "cypher-project",
  "cypher-schema",
  "predicates",
  "tempfile",

@@ -72,6 +72,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: SchemaCmd,
     },
+    /// Project manifest operations (spec 0003).
+    Project {
+        #[command(subcommand)]
+        cmd: ProjectCmd,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -79,6 +84,15 @@ enum SchemaCmd {
     /// Load a TOML schema file and print a one-line summary.
     Load {
         /// Path to the `schema.toml` file (spec 0002).
+        path: PathBuf,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ProjectCmd {
+    /// Load a `cypher-project.toml` manifest and print a one-line summary.
+    Load {
+        /// Path to the `cypher-project.toml` file (spec 0003).
         path: PathBuf,
     },
 }
@@ -195,6 +209,9 @@ fn run(cli: &Cli) -> Result<u8> {
         Cmd::Schema { cmd } => match cmd {
             SchemaCmd::Load { path } => Ok(schema_load(path)),
         },
+        Cmd::Project { cmd } => match cmd {
+            ProjectCmd::Load { path } => Ok(project_load(path)),
+        },
     }
 }
 
@@ -212,6 +229,40 @@ fn schema_load(path: &Path) -> u8 {
                 schema.label_count(),
                 schema.rel_type_count(),
                 schema.parameter_count(),
+            );
+            EXIT_OK
+        }
+        Err(err) => {
+            eprintln!("error: {err}");
+            EXIT_DIAGNOSTICS
+        }
+    }
+}
+
+/// `cypher project load <path>` — parse a `cypher-project.toml` manifest
+/// and print a one-line summary. Spec 0003 §12.
+///
+/// Exit codes follow the rest of the CLI surface (spec §16):
+/// - `0` — manifest loaded successfully.
+/// - `1` — load error (unknown dialect, unknown lint rule, bad glob,
+///   schema load failure, I/O, malformed TOML).
+fn project_load(path: &Path) -> u8 {
+    match cypher_project::load_from_toml_path(path) {
+        Ok(m) => {
+            let dialect = match m.dialect.default {
+                cypher_project::DialectDefault::GqlAligned => "GqlAligned",
+                cypher_project::DialectDefault::OpenCypherV9 => "OpenCypherV9",
+            };
+            let schema_summary = match &m.schema {
+                Some(s) => format!("{} labels", s.label_count()),
+                None => "none".to_owned(),
+            };
+            println!(
+                "loaded project '{name}': {members} members, dialect={dialect}, \
+                 schema: {schema_summary}, lint rules: {lints}",
+                name = m.name,
+                members = m.members.len(),
+                lints = m.lint_levels.len(),
             );
             EXIT_OK
         }
