@@ -27,7 +27,12 @@ use rowan::TokenAtOffset;
 /// Neutral hover payload.  `markdown` empty and `range` collapsed on
 /// the cursor means "no content" — adapters can fold that into
 /// `Option<lsp_types::Hover>` / an agent `deferred: false` response.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new fields can land without
+/// forcing a SemVer-major release.  Construction is internal to
+/// `cypher-lang-services`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Hover {
     /// Markdown blurb shown in the tooltip.  Empty string means "no
     /// content" (the cursor landed on trivia / an unknown token).

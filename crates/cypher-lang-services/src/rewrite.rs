@@ -24,7 +24,12 @@ use cypher_syntax::TextRange;
 /// `{fix_id, range, replacement}` wire shape but stays neutral — the
 /// agent adapter builds the JSON object; LSP callers could map this to
 /// a `TextEdit` if they wanted.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new fields can land without
+/// forcing a SemVer-major release.  Construction is internal to
+/// `cypher-lang-services`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RewriteEdit {
     /// Fix id the edit came from.  Matches the id the caller asked for.
     pub fix_id: String,
@@ -35,7 +40,12 @@ pub struct RewriteEdit {
 }
 
 /// Outcome of applying a set of `fix_ids`.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new fields (e.g. a
+/// `bytes_changed` counter) can land without forcing a SemVer-major
+/// release.  Construction is internal to `cypher-lang-services`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RewritePayload {
     /// Every edit that was actually applied, in reverse byte-offset
     /// order (the order they were applied to the text).

@@ -64,6 +64,8 @@ fn to_lsp(item: NeutralItem) -> CompletionItem {
         ),
         NeutralKind::Parameter => (Some(CompletionItemKind::VARIABLE), None),
         NeutralKind::Property => (Some(CompletionItemKind::FIELD), None),
+        // `CompletionItemKind` is `#[non_exhaustive]` (cy-2i9.1).
+        _ => (None, None),
     };
 
     // Parameter items without explicit detail get a synthesised

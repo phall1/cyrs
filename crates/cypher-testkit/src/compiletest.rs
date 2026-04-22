@@ -663,11 +663,9 @@ impl SchemaProvider for JsonSchema {
         }
         let props = self.node_properties.get(label).map_or_else(Vec::new, |ps| {
             ps.iter()
-                .map(|p| PropertyDecl {
-                    name: SmolStr::new(&p.name),
-                    ty: parse_prop_type(&p.ty),
-                    required: p.required,
-                })
+                // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1); use
+                // `::new` rather than a struct literal.
+                .map(|p| PropertyDecl::new(SmolStr::new(&p.name), parse_prop_type(&p.ty), p.required))
                 .collect()
         });
         Some(props)
@@ -682,11 +680,8 @@ impl SchemaProvider for JsonSchema {
             .get(rel_type)
             .map_or_else(Vec::new, |ps| {
                 ps.iter()
-                    .map(|p| PropertyDecl {
-                        name: SmolStr::new(&p.name),
-                        ty: parse_prop_type(&p.ty),
-                        required: p.required,
-                    })
+                    // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1).
+                    .map(|p| PropertyDecl::new(SmolStr::new(&p.name), parse_prop_type(&p.ty), p.required))
                     .collect()
             });
         Some(props)
