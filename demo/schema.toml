@@ -1,0 +1,98 @@
+# Demo `schema.toml` — spec 0002 reference fixture.
+#
+# This file drives the demo in `demo/README.md` and the
+# `cypher schema load` CLI subcommand. It is deliberately small so the
+# whole shape fits on one screen. Every section maps 1:1 to a section
+# of spec 0002.
+
+# ---------------------------------------------------------------------------
+# [meta] — §8
+# ---------------------------------------------------------------------------
+#
+# `cyrs_schema_version` is required and pins the file-format version.
+# v0 of spec 0002 pins it to "0.1.0".
+[meta]
+cyrs_schema_version = "0.1.0"
+schema_name         = "movies"
+description         = "Tiny movie catalog used by the cyrs demo."
+
+# ---------------------------------------------------------------------------
+# [[label]] — §5
+# ---------------------------------------------------------------------------
+#
+# One `[[label]]` table array entry per declared node label. `properties`
+# is optional; `required` on an individual property defaults to `false`.
+
+[[label]]
+name = "Movie"
+properties = [
+    { name = "title",    type = "STRING",       required = true },
+    { name = "released", type = "INTEGER" },
+    { name = "tagline",  type = "NULLABLE STRING" },
+]
+
+[[label]]
+name = "Person"
+properties = [
+    { name = "name",      type = "STRING", required = true },
+    { name = "born_year", type = "INTEGER" },
+]
+
+[[label]]
+name = "Genre"
+properties = [
+    { name = "name", type = "STRING", required = true },
+]
+
+[[label]]
+name = "Studio"
+properties = [
+    { name = "name",    type = "STRING", required = true },
+    { name = "country", type = "STRING" },
+]
+
+# ---------------------------------------------------------------------------
+# [[rel_type]] — §6
+# ---------------------------------------------------------------------------
+#
+# Each entry declares a relationship type along with its allowed start /
+# end labels. An empty list means "any label" (endpoint-polymorphic).
+# Cardinality is many-to-many at v0 (§20).
+
+[[rel_type]]
+name         = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Movie"]
+properties   = [
+    { name = "role", type = "STRING" },
+]
+
+[[rel_type]]
+name         = "DIRECTED"
+start_labels = ["Person"]
+end_labels   = ["Movie"]
+properties   = []
+
+[[rel_type]]
+name         = "IN_GENRE"
+start_labels = ["Movie"]
+end_labels   = ["Genre"]
+properties   = []
+
+# ---------------------------------------------------------------------------
+# [[parameter]] — §7
+# ---------------------------------------------------------------------------
+#
+# Declared query parameters. `default` is an optional TOML scalar
+# (string / integer / float / bool). The LSP and agent surface these in
+# completion after a `$` trigger.
+
+[[parameter]]
+name    = "since_year"
+type    = "INTEGER"
+default = 1990
+
+[[parameter]]
+name    = "actor_name"
+type    = "STRING"
+default = "anonymous"
