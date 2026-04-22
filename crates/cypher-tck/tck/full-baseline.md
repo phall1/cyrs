@@ -22,18 +22,18 @@ acceptance is not yet equivalent to pass-rate.
 | Metric | Value |
 |---|---|
 | Feature files scanned | **220** |
-| Scenario cases (outline rows expanded) | **1339** |
-| Accepted by parser | **1086** (81.1 %) |
-| Rejected by parser | **253** (18.9 %) |
+| Scenario cases (outline rows expanded) | **3897** |
+| Accepted by parser | **3535** (90.7 %) |
+| Rejected by parser | **362** (9.3 %) |
 
 ## Per-area pass counts
 
 | Area | Accepted | Total | % |
 |---|---|---|---|
-| `clauses/call` | 0 | 39 | 0.0 % |
+| `clauses/call` | 0 | 52 | 0.0 % |
 | `clauses/create` | 76 | 78 | 97.4 % |
 | `clauses/delete` | 37 | 41 | 90.2 % |
-| `clauses/match` | 131 | 146 | 89.7 % |
+| `clauses/match` | 366 | 381 | 96.1 % |
 | `clauses/match-where` | 28 | 34 | 82.4 % |
 | `clauses/merge` | 62 | 75 | 82.7 % |
 | `clauses/remove` | 33 | 33 | 100.0 % |
@@ -44,27 +44,27 @@ acceptance is not yet equivalent to pass-rate.
 | `clauses/union` | 12 | 12 | 100.0 % |
 | `clauses/unwind` | 14 | 14 | 100.0 % |
 | `clauses/with` | 21 | 29 | 72.4 % |
-| `clauses/with-orderBy` | 31 | 42 | 73.8 % |
+| `clauses/with-orderBy` | 277 | 292 | 94.9 % |
 | `clauses/with-skip-limit` | 8 | 9 | 88.9 % |
 | `clauses/with-where` | 16 | 19 | 84.2 % |
-| `expressions/aggregation` | 22 | 23 | 95.7 % |
-| `expressions/boolean` | 32 | 32 | 100.0 % |
-| `expressions/comparison` | 25 | 25 | 100.0 % |
-| `expressions/conditional` | 1 | 1 | 100.0 % |
+| `expressions/aggregation` | 34 | 35 | 97.1 % |
+| `expressions/boolean` | 148 | 150 | 98.7 % |
+| `expressions/comparison` | 72 | 72 | 100.0 % |
+| `expressions/conditional` | 13 | 13 | 100.0 % |
 | `expressions/existentialSubqueries` | 0 | 10 | 0.0 % |
-| `expressions/graph` | 41 | 45 | 91.1 % |
-| `expressions/list` | 78 | 83 | 94.0 % |
+| `expressions/graph` | 52 | 61 | 85.2 % |
+| `expressions/list` | 171 | 185 | 92.4 % |
 | `expressions/literals` | 101 | 131 | 77.1 % |
-| `expressions/map` | 13 | 14 | 92.9 % |
+| `expressions/map` | 39 | 44 | 88.6 % |
 | `expressions/mathematical` | 5 | 6 | 83.3 % |
-| `expressions/null` | 9 | 13 | 69.2 % |
+| `expressions/null` | 40 | 44 | 90.9 % |
 | `expressions/path` | 7 | 7 | 100.0 % |
-| `expressions/pattern` | 1 | 35 | 2.9 % |
-| `expressions/precedence` | 27 | 27 | 100.0 % |
-| `expressions/quantifier` | 17 | 30 | 56.7 % |
+| `expressions/pattern` | 2 | 50 | 4.0 % |
+| `expressions/precedence` | 121 | 121 | 100.0 % |
+| `expressions/quantifier` | 536 | 604 | 88.7 % |
 | `expressions/string` | 29 | 32 | 90.6 % |
-| `expressions/temporal` | 17 | 17 | 100.0 % |
-| `expressions/typeConversion` | 25 | 25 | 100.0 % |
+| `expressions/temporal` | 1001 | 1004 | 99.7 % |
+| `expressions/typeConversion` | 47 | 47 | 100.0 % |
 | `useCases/countingSubgraphMatches` | 3 | 11 | 27.3 % |
 | `useCases/triadicSelection` | 17 | 19 | 89.5 % |
 

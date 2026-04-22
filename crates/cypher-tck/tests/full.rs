@@ -209,8 +209,21 @@ fn scan_feature(feature_path: &Path, features_root: &Path) -> Vec<ScenarioCase> 
 
         // Skip comments and tag lines outside of code blocks.  An empty
         // line additionally terminates a pending Examples block.
+        //
+        // cy-41u: empty lines MUST NOT drop `AfterQuery` or other
+        // in-progress phases; a `Scenario Outline` routinely separates its
+        // query block from the `Examples:` table with a blank line. Only
+        // `InExamples` (and only when the table has already begun) gets
+        // flushed on empty-line.
         if trimmed.starts_with('#') || trimmed.starts_with('@') || trimmed.is_empty() {
             if trimmed.is_empty()
+                && matches!(
+                    &phase,
+                    Phase::InExamples {
+                        header: Some(_),
+                        ..
+                    }
+                )
                 && let Phase::InExamples {
                     name,
                     query,
@@ -510,4 +523,46 @@ fn render_baseline(
            stabilises at 100 %.\n",
     );
     out
+}
+
+/// Regression guard for cy-41u: the six CASE shapes added by the bead
+/// all parse cleanly. If this ever fails, the TCK Conditional2
+/// scenarios that depend on CASE will regress silently because the
+/// harness just counts accept/reject — this test surfaces the root
+/// cause.
+#[test]
+fn probe_case_scenarios() {
+    let probes: &[(&str, &str)] = &[
+        ("generic", "RETURN CASE WHEN 1 = 1 THEN 'yes' ELSE 'no' END"),
+        (
+            "simple_when_int_neg",
+            "RETURN CASE -10 WHEN -10 THEN 'a' ELSE 'b' END AS r",
+        ),
+        (
+            "simple_when_int_0",
+            "RETURN CASE 0 WHEN 0 THEN 'a' ELSE 'b' END AS r",
+        ),
+        (
+            "simple_when_bool",
+            "RETURN CASE true WHEN true THEN 'a' ELSE 'b' END AS r",
+        ),
+        (
+            "simple_when_float",
+            "RETURN CASE 10.1 WHEN 10.1 THEN 'a' ELSE 'b' END AS r",
+        ),
+        (
+            "full_case_from_feature",
+            "RETURN CASE -10\n    WHEN -10 THEN 'minus ten'\n    WHEN 0 THEN 'zero'\n    ELSE 'other'\n  END AS result",
+        ),
+    ];
+    let mut any_fail = false;
+    for (name, q) in probes {
+        let ok = parse_ok(q);
+        println!("probe {name}: {}", if ok { "OK" } else { "FAIL" });
+        if !ok {
+            println!("  query: {q:?}");
+            any_fail = true;
+        }
+    }
+    assert!(!any_fail, "one or more CASE probes failed");
 }
