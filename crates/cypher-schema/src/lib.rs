@@ -25,6 +25,12 @@ use smol_str::SmolStr;
 mod standard_library;
 pub use standard_library::StandardLibrary;
 
+mod in_memory;
+pub use in_memory::{BuilderError, InMemorySchema, InMemorySchemaBuilder, RelDecl};
+
+#[cfg(feature = "file")]
+pub mod file;
+
 // ============================================================
 // SchemaProvider
 // ============================================================

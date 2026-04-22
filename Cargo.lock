@@ -502,6 +502,8 @@ dependencies = [
  "serde",
  "sha2",
  "smol_str",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
