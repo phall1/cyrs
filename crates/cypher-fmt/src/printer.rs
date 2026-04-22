@@ -228,6 +228,21 @@ impl Printer {
             self.pending = Pending::Nothing;
             self.pending_blank = false;
             self.at_line_start = false; // we will immediately emit text
+        } else if self.pending == Pending::Newline {
+            // Spec §17.3.3 P17.3.3 (cy-nu1): a real newline between two
+            // non-clause-starter significant tokens must survive the pass,
+            // otherwise idempotence breaks the moment a prior pass emits a
+            // newline that is re-tokenised as plain whitespace on round-trip
+            // (classic case: ERROR-recovery regions around an unterminated
+            // string literal). Preserve the break instead of collapsing it
+            // to a single space.
+            self.out.push('\n');
+            if self.pending_blank {
+                self.out.push('\n');
+            }
+            self.pending = Pending::Nothing;
+            self.pending_blank = false;
+            self.at_line_start = false; // we will immediately emit text
         } else {
             // Inline: apply pending space if this token wants one.
             let want_space_before = !Self::no_space_before(kind);
