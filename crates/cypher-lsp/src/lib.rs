@@ -80,6 +80,7 @@ pub fn server_capabilities() -> Result<serde_json::Value> {
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
         folding_range_provider: Some(lsp_types::FoldingRangeProviderCapability::Simple(true)),
         semantic_tokens_provider: Some(
@@ -172,6 +173,17 @@ pub(crate) struct Server {
     /// Dialect applied on every `didOpen` — set from the client's
     /// `initializationOptions.dialect` (spec §14.3, bead cy-0ls).
     pub(crate) dialect: DialectMode,
+    /// Workspace project loaded lazily on the first `didOpen` whose
+    /// URI is inside a directory tree containing a
+    /// `cypher-project.toml` (spec 0003, bead cy-kkw).  When present,
+    /// cross-file navigation engines use it to scope reference /
+    /// goto-definition / workspace-symbol queries.  `None` means
+    /// single-file mode — navigation falls back to in-file token
+    /// matching, exactly as before cy-kkw.
+    pub(crate) project: Option<cypher_project::ProjectManifest>,
+    /// Directories we've already probed for a project manifest, so we
+    /// don't walk `discover` up every single tree on every `didOpen`.
+    pub(crate) project_probed: std::collections::HashSet<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Server {
@@ -180,7 +192,8 @@ impl std::fmt::Debug for Server {
             .field("db", &"<Database>")
             .field("open_files", &self.open_files.len())
             .field("dialect", &self.dialect)
-            .finish()
+            .field("project", &self.project.as_ref().map(|p| p.name.as_str()))
+            .finish_non_exhaustive()
     }
 }
 
@@ -208,8 +221,85 @@ impl Server {
             db,
             open_files: HashMap::new(),
             dialect,
+            project: None,
+            project_probed: std::collections::HashSet::new(),
         }
     }
+}
+
+/// Try to discover + load a `cypher-project.toml` starting from the
+/// directory containing the given path.  Caches the result (or its
+/// absence) in `server.project_probed` so repeated calls are O(1).
+///
+/// When a manifest is found the server's `project` is set and, if the
+/// manifest carries a schema, the database's schema is too.  Member
+/// `.cyp` files that are not yet open are opened eagerly so
+/// cross-file references work even before the user visits them.
+pub(crate) fn ensure_project_loaded(server: &mut Server, hint: &std::path::Path) {
+    use std::path::PathBuf;
+
+    // Determine the directory to probe.
+    let dir: PathBuf = if hint.is_dir() {
+        hint.to_path_buf()
+    } else {
+        hint.parent().map_or_else(PathBuf::new, Path::to_path_buf)
+    };
+    if dir.as_os_str().is_empty() {
+        return;
+    }
+    if server.project_probed.contains(&dir) {
+        return;
+    }
+    server.project_probed.insert(dir.clone());
+
+    if server.project.is_some() {
+        return;
+    }
+
+    let Some(manifest_path) = cypher_project::discover(&dir) else {
+        return;
+    };
+    let manifest = match cypher_project::load_from_toml_path(&manifest_path) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!("failed to load {manifest_path:?}: {e}");
+            return;
+        }
+    };
+
+    // Wire the manifest's schema into the database (if any).  The
+    // init_options schema wins if already loaded — we only set when
+    // the DB has no schema yet.
+    if server.db.schema().is_none()
+        && let Some(ref schema) = manifest.schema
+    {
+        use std::sync::Arc;
+        server.db.set_schema(Some(
+            Arc::new(schema.clone()) as Arc<dyn cypher_schema::SchemaProvider>
+        ));
+    }
+
+    // Eagerly open every member file that isn't already open, so
+    // cross-file navigation finds references in unvisited files.
+    // Files opened via `didOpen` later will map to the same on-disk
+    // path but a different URI key; we dedupe by absolute path.
+    for member in &manifest.members {
+        let uri_str = format!("file://{}", member.display());
+        if server.open_files.contains_key(&uri_str) {
+            continue;
+        }
+        let Ok(contents) = std::fs::read_to_string(member) else {
+            continue;
+        };
+        let dialect = match manifest.dialect_for(member) {
+            cypher_project::DialectDefault::GqlAligned => DialectMode::GqlAligned,
+            cypher_project::DialectDefault::OpenCypherV9 => DialectMode::OpenCypherV9,
+        };
+        let file_id = server.db.open_file(member, contents, dialect);
+        server.open_files.insert(uri_str, file_id);
+    }
+
+    server.project = Some(manifest);
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +413,14 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
         lsp_types::request::References::METHOD => {
             let params: lsp_types::ReferenceParams = serde_json::from_value(req.params)?;
             let resp = handle_references(server, req.id, &params);
+            connection
+                .sender
+                .send(resp.into())
+                .map_err(|e| anyhow!("{e}"))?;
+        }
+        lsp_types::request::WorkspaceSymbolRequest::METHOD => {
+            let params: lsp_types::WorkspaceSymbolParams = serde_json::from_value(req.params)?;
+            let resp = handle_workspace_symbol(server, req.id, &params);
             connection
                 .sender
                 .send(resp.into())
@@ -727,16 +825,117 @@ fn handle_references(
     };
     let position = params.text_document_position.position;
     let include_declaration = params.context.include_declaration;
+
+    // Workspace-aware path (spec §14.2, bead cy-kkw): when a project
+    // manifest is loaded, ask the cross-file engine.  It returns
+    // references inside every member file including the schema.toml
+    // decl site.  Falls back to the single-file engine when the
+    // cursor does not resolve to a workspace symbol — preserves the
+    // cy-vhe behaviour on variable / binding refs.
+    if let Some(project) = server.project.as_ref() {
+        let locs = references_workspace(
+            &server.db,
+            project,
+            &server.open_files,
+            file_id,
+            position,
+            include_declaration,
+        );
+        if let Some(list) = locs {
+            return to_json_or_err(id, list);
+        }
+    }
+
     match references::compute(&server.db, file_id, uri, position, include_declaration) {
-        Some(locations) => match serde_json::to_value(locations) {
-            Ok(v) => Response::new_ok(id, v),
-            Err(e) => Response::new_err(
-                id,
-                lsp_server::ErrorCode::InternalError as i32,
-                e.to_string(),
-            ),
-        },
+        Some(locations) => to_json_or_err(id, locations),
         None => Response::new_ok(id, serde_json::Value::Null),
+    }
+}
+
+/// Workspace-aware references lookup.
+///
+/// Returns `None` when the cursor does not resolve to a workspace
+/// symbol (label / rel-type / param / named-path) so the caller can
+/// fall back to the single-file engine.  An empty vector means "the
+/// symbol is known but has no references anywhere" — still a valid
+/// answer the client should render as "no results".
+fn references_workspace(
+    db: &Database,
+    project: &cypher_project::ProjectManifest,
+    open_files: &HashMap<String, FileId>,
+    file_id: FileId,
+    position: lsp_types::Position,
+    include_declaration: bool,
+) -> Option<Vec<lsp_types::Location>> {
+    let source = db.source_of(file_id).ok()?;
+    let line_index = LineIndex::new(&source);
+    let offset = position_to_offset(&line_index, position)?;
+    let locs = cypher_lang_services::find_references(db, project, file_id, offset);
+    if locs.is_empty() {
+        return None;
+    }
+
+    // Optional declaration drop.
+    let decl = cypher_lang_services::goto_definition(db, project, file_id, offset);
+    let mut out = Vec::with_capacity(locs.len());
+    for loc in locs {
+        if !include_declaration
+            && let Some(ref d) = decl
+            && d == &loc
+        {
+            continue;
+        }
+        let Some(uri) = file_path_to_uri(&loc.path) else {
+            continue;
+        };
+        // Use the open-file cache when possible to avoid re-reading
+        // the disk; schema files we read directly.
+        let line_index = line_index_for_path(db, open_files, &loc.path)?;
+        let range = text_range_to_lsp(&line_index, loc.range);
+        out.push(lsp_types::Location { uri, range });
+    }
+    Some(out)
+}
+
+fn position_to_offset(
+    line_index: &LineIndex,
+    pos: lsp_types::Position,
+) -> Option<cypher_syntax::TextSize> {
+    let utf8 = line_index.from_utf16(cypher_syntax::WideLineCol {
+        line: pos.line,
+        col: pos.character,
+    });
+    let line_start = line_index.line_range(utf8.line)?.start();
+    Some(line_start + cypher_syntax::TextSize::from(utf8.col))
+}
+
+fn line_index_for_path(
+    db: &Database,
+    open_files: &HashMap<String, FileId>,
+    path: &std::path::Path,
+) -> Option<LineIndex> {
+    for (uri, file_id) in open_files {
+        let Some(disk) = uri_to_file_path(uri) else {
+            continue;
+        };
+        if disk == path
+            && let Ok(src) = db.source_of(*file_id)
+        {
+            return Some(LineIndex::new(&src));
+        }
+    }
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(LineIndex::new(&text))
+}
+
+fn to_json_or_err<T: serde::Serialize>(id: RequestId, v: T) -> Response {
+    match serde_json::to_value(v) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
     }
 }
 
@@ -778,17 +977,42 @@ fn handle_definition(
         return Response::new_ok(id, serde_json::Value::Null);
     };
     let position = params.text_document_position_params.position;
+
+    // Workspace-aware path (spec §14.2, bead cy-kkw): when a project
+    // manifest is loaded, ask the cross-file engine for a decl
+    // location.  Jumping to `:Person` in a .cyp file lands in
+    // schema.toml.  Falls back to the single-file engine for
+    // variable / binding jumps.
+    if let Some(project) = server.project.as_ref()
+        && let Some(resp) =
+            definition_workspace(&server.db, project, &server.open_files, file_id, position)
+    {
+        return to_json_or_err(id, resp);
+    }
+
     match definition::compute(&server.db, file_id, uri, position) {
-        Some(loc) => match serde_json::to_value(loc) {
-            Ok(v) => Response::new_ok(id, v),
-            Err(e) => Response::new_err(
-                id,
-                lsp_server::ErrorCode::InternalError as i32,
-                e.to_string(),
-            ),
-        },
+        Some(loc) => to_json_or_err(id, loc),
         None => Response::new_ok(id, serde_json::Value::Null),
     }
+}
+
+fn definition_workspace(
+    db: &Database,
+    project: &cypher_project::ProjectManifest,
+    open_files: &HashMap<String, FileId>,
+    file_id: FileId,
+    position: lsp_types::Position,
+) -> Option<lsp_types::GotoDefinitionResponse> {
+    let source = db.source_of(file_id).ok()?;
+    let line_index = LineIndex::new(&source);
+    let offset = position_to_offset(&line_index, position)?;
+    let loc = cypher_lang_services::goto_definition(db, project, file_id, offset)?;
+    let uri = file_path_to_uri(&loc.path)?;
+    let target_index = line_index_for_path(db, open_files, &loc.path)?;
+    let range = text_range_to_lsp(&target_index, loc.range);
+    Some(lsp_types::GotoDefinitionResponse::Scalar(
+        lsp_types::Location { uri, range },
+    ))
 }
 
 fn handle_completion(
@@ -919,10 +1143,22 @@ fn handle_notification(
             let text = params.text_document.text;
             let uri_str = uri.to_string();
 
-            let file_id = server
-                .db
-                .open_file(Path::new(uri_str.as_str()), text, server.dialect);
+            // Resolve the disk path when the URI is `file://…` — we
+            // use it both as the on-disk path handed to the database
+            // and as the hint for project discovery (spec 0003
+            // §2, bead cy-kkw).  Non-file URIs fall back to the
+            // URI string as a synthetic path; no project is loaded.
+            let on_disk = uri_to_file_path(&uri_str);
+            let path_for_db: std::path::PathBuf = on_disk
+                .clone()
+                .unwrap_or_else(|| std::path::PathBuf::from(uri_str.as_str()));
+
+            let file_id = server.db.open_file(&path_for_db, text, server.dialect);
             server.open_files.insert(uri_str, file_id);
+
+            if let Some(ref p) = on_disk {
+                ensure_project_loaded(server, p);
+            }
 
             publish_diagnostics(connection, server, &uri)?;
         }
@@ -991,6 +1227,129 @@ fn handle_notification(
         }
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// workspace/symbol — cross-file navigation (spec §14.2, bead cy-kkw)
+// ---------------------------------------------------------------------------
+
+fn handle_workspace_symbol(
+    server: &mut Server,
+    id: RequestId,
+    params: &lsp_types::WorkspaceSymbolParams,
+) -> Response {
+    let Some(project) = server.project.as_ref() else {
+        // No workspace manifest loaded — no cross-file scope exists.
+        // Return an empty list rather than null so clients that
+        // iterate results don't treat the response as an error.
+        return Response::new_ok(id, serde_json::Value::Array(vec![]));
+    };
+    let results =
+        cypher_lang_services::workspace_symbols(&server.db, project, params.query.as_str());
+    let mut infos: Vec<lsp_types::SymbolInformation> = Vec::with_capacity(results.len());
+    for symbol in results {
+        let Some(loc) = symbol
+            .declaration
+            .clone()
+            .or_else(|| symbol.references.first().cloned())
+        else {
+            continue;
+        };
+        let Some(line_index) = read_line_index(server, &loc.path) else {
+            continue;
+        };
+        let range = text_range_to_lsp(&line_index, loc.range);
+        let Some(uri) = file_path_to_uri(&loc.path) else {
+            continue;
+        };
+        #[allow(deprecated)] // `deprecated` is a required public field
+        infos.push(lsp_types::SymbolInformation {
+            name: symbol.name.to_string(),
+            kind: symbol_kind_to_lsp(symbol.kind),
+            tags: None,
+            deprecated: None,
+            location: lsp_types::Location { uri, range },
+            container_name: None,
+        });
+    }
+    match serde_json::to_value(infos) {
+        Ok(v) => Response::new_ok(id, v),
+        Err(e) => Response::new_err(
+            id,
+            lsp_server::ErrorCode::InternalError as i32,
+            e.to_string(),
+        ),
+    }
+}
+
+fn symbol_kind_to_lsp(kind: cypher_lang_services::SymbolKind) -> lsp_types::SymbolKind {
+    match kind {
+        cypher_lang_services::SymbolKind::Label => lsp_types::SymbolKind::CLASS,
+        cypher_lang_services::SymbolKind::RelType => lsp_types::SymbolKind::INTERFACE,
+        cypher_lang_services::SymbolKind::Param => lsp_types::SymbolKind::VARIABLE,
+        cypher_lang_services::SymbolKind::NamedPath => lsp_types::SymbolKind::KEY,
+        // Exhaustive today; any future kind surfaces as OBJECT while
+        // still advertising the symbol.
+        _ => lsp_types::SymbolKind::OBJECT,
+    }
+}
+
+fn text_range_to_lsp(line_index: &LineIndex, range: cypher_syntax::TextRange) -> lsp_types::Range {
+    lsp_types::Range {
+        start: offset_to_position(line_index, range.start()),
+        end: offset_to_position(line_index, range.end()),
+    }
+}
+
+fn offset_to_position(
+    line_index: &LineIndex,
+    offset: cypher_syntax::TextSize,
+) -> lsp_types::Position {
+    let utf8 = line_index.line_col(offset);
+    let utf16 = line_index.to_utf16(utf8);
+    lsp_types::Position {
+        line: utf16.line,
+        character: utf16.col,
+    }
+}
+
+/// Best-effort `file://…` URI → `PathBuf`.  Accepts the "narrow"
+/// form the stdlib crate normalises everything into; no
+/// percent-decoding beyond what `lsp_types::Uri::to_string` round-trips.
+pub(crate) fn uri_to_file_path(uri: &str) -> Option<std::path::PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    // Drop an optional `localhost` authority.
+    let rest = rest
+        .strip_prefix("localhost/")
+        .map_or_else(|| rest.to_string(), |r| format!("/{r}"));
+    Some(std::path::PathBuf::from(rest))
+}
+
+fn file_path_to_uri(path: &std::path::Path) -> Option<Uri> {
+    let uri_str = format!("file://{}", path.display());
+    uri_str.parse().ok()
+}
+
+/// Load the source of `path` and build a `LineIndex`.  Prefers the
+/// database-cached source when the path matches an open file; falls
+/// back to a filesystem read otherwise so schema-file ranges (which
+/// aren't tracked by the database) still resolve.
+pub(crate) fn read_line_index(server: &Server, path: &std::path::Path) -> Option<LineIndex> {
+    // If any open file has this on-disk path, reuse the cached source.
+    for (uri, file_id) in &server.open_files {
+        let Some(disk) = uri_to_file_path(uri) else {
+            continue;
+        };
+        if disk == path
+            && let Ok(src) = server.db.source_of(*file_id)
+        {
+            return Some(LineIndex::new(&src));
+        }
+    }
+    // Fallback: read the file directly.  Schema files are the
+    // expected case here.
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(LineIndex::new(&text))
 }
 
 // ---------------------------------------------------------------------------

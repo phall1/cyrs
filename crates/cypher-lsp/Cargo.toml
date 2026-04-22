@@ -27,6 +27,7 @@ cypher-fmt           = { workspace = true }
 cypher-hir           = { workspace = true }
 cypher-lang-services = { workspace = true }
 cypher-plan          = { workspace = true }
+cypher-project       = { workspace = true }
 cypher-schema        = { workspace = true }
 cypher-sema          = { workspace = true }
 cypher-syntax        = { workspace = true }

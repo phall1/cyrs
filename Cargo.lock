@@ -504,6 +504,7 @@ dependencies = [
  "cypher-hir",
  "cypher-lang-services",
  "cypher-plan",
+ "cypher-project",
  "cypher-schema",
  "cypher-sema",
  "cypher-syntax",
