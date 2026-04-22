@@ -549,6 +549,15 @@ impl OverlayCtx<'_> {
             Expr::Index { target, index } => {
                 format!("{}[{}]", self.fmt_expr(target, 0), self.fmt_expr(index, 0))
             }
+            Expr::Slice { target, start, end } => {
+                let s = start
+                    .as_ref()
+                    .map_or_else(String::new, |e| self.fmt_expr(e, 0));
+                let e = end
+                    .as_ref()
+                    .map_or_else(String::new, |e| self.fmt_expr(e, 0));
+                format!("{}[{s}..{e}]", self.fmt_expr(target, 0))
+            }
             Expr::List(items) => {
                 let inner: Vec<_> = items.iter().map(|e| self.fmt_expr(e, 0)).collect();
                 format!("[{}]", inner.join(", "))

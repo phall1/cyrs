@@ -229,6 +229,11 @@ pub enum SyntaxKind {
     NAME,
     ARG_LIST,
 
+    // List indexing / slicing (cy-7s6.1). Kept at the end of the node zone
+    // to preserve numeric stability of the already-assigned variants above.
+    INDEX_EXPR,
+    SLICE_EXPR,
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -409,6 +414,8 @@ impl SyntaxKind {
             382 => Self::STRING_OP_EXPR,
             383 => Self::NAME,
             384 => Self::ARG_LIST,
+            385 => Self::INDEX_EXPR,
+            386 => Self::SLICE_EXPR,
 
             768 => Self::ERROR,
             769 => Self::EOF,

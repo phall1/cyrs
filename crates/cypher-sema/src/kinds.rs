@@ -235,8 +235,19 @@ impl KindCtx<'_> {
                 self.check_expr(target, ExprCtx::PropAccess, sink);
             }
             Expr::Index { target, index } => {
+                self.require_indexable(target, /*op=*/ "index", sink);
                 self.check_expr(target, ExprCtx::General, sink);
                 self.check_expr(index, ExprCtx::General, sink);
+            }
+            Expr::Slice { target, start, end } => {
+                self.require_indexable(target, /*op=*/ "slice", sink);
+                self.check_expr(target, ExprCtx::General, sink);
+                if let Some(s) = start {
+                    self.check_expr(s, ExprCtx::General, sink);
+                }
+                if let Some(e) = end {
+                    self.check_expr(e, ExprCtx::General, sink);
+                }
             }
             Expr::List(items) => {
                 for e in items {
@@ -358,6 +369,52 @@ impl KindCtx<'_> {
             ExprCtx::General => {
                 // No kind restriction in general expression position.
             }
+        }
+    }
+
+    /// Structurally check that `target` is something that can be indexed or
+    /// sliced (i.e. plausibly a list). Emits `E5010` when the target is
+    /// provably non-list — a literal scalar, a Node / Relationship / Path
+    /// variable, a map literal, or a pattern predicate.
+    ///
+    /// The check is intentionally narrow: schema-free inference cannot
+    /// tell "variable holding Any" apart from "variable holding a list",
+    /// so those cases are left to the schema-aware pass (out of scope for
+    /// cy-7s6.1). v1 scope is LIST only; STRING indexing is deferred and
+    /// currently errors under this code (spec §19 / §20 follow-up).
+    fn require_indexable(&self, target: &Expr, op: &str, sink: &mut DiagnosticsSink) {
+        let reason: Option<&str> = match target {
+            Expr::Bool(_) => Some("Bool"),
+            Expr::Int(_) => Some("Int"),
+            Expr::Float(_) => Some("Float"),
+            Expr::String(_) => Some("String"),
+            Expr::Null => Some("Null"),
+            Expr::Map(_) => Some("Map"),
+            Expr::PatternPredicate(_) => Some("Pattern"),
+            Expr::Var(var) => match self.kind_of(*var) {
+                Some(VarKind::Node) => Some("Node"),
+                Some(VarKind::Relationship) => Some("Relationship"),
+                Some(VarKind::Path) => Some("Path"),
+                // Value-kinded variables may hold a list at runtime — no
+                // structural evidence to the contrary here.
+                Some(VarKind::Value) | None => None,
+            },
+            // Calls, params, other indexing / slicing expressions, list
+            // literals, list comprehensions, map projections, and
+            // arithmetic / logical expressions are not *structurally*
+            // non-list — defer to schema-aware / runtime checks.
+            _ => None,
+        };
+
+        if let Some(ty) = reason {
+            sink.push(Diagnostic::error(
+                DiagCode::E5010,
+                dummy_span(),
+                format!(
+                    "cannot {op} non-list expression of type `{ty}`; \
+                     list indexing and slicing require a list target"
+                ),
+            ));
         }
     }
 }

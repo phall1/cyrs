@@ -57,6 +57,23 @@ fn sig_expr(e: &Expr, out: &mut String) {
             sig_expr(index, out);
             out.push(')');
         }
+        Expr::Slice { target, start, end } => {
+            out.push_str("Slice(");
+            sig_expr(target, out);
+            out.push(',');
+            if let Some(s) = start {
+                sig_expr(s, out);
+            } else {
+                out.push('_');
+            }
+            out.push(',');
+            if let Some(e) = end {
+                sig_expr(e, out);
+            } else {
+                out.push('_');
+            }
+            out.push(')');
+        }
         Expr::List(items) => {
             out.push('[');
             for (i, item) in items.iter().enumerate() {
@@ -547,6 +564,13 @@ fn cypher_valid() -> impl Strategy<Value = String> {
         Just("// comment\nMATCH (n) RETURN n".to_string()),
         Just("/* block */\nMATCH (n) RETURN n".to_string()),
         Just("MATCH (n) /* inline */ RETURN n".to_string()),
+        // cy-7s6.1 — list indexing + slicing shape matrix.
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[-1]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[..3]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3][0]".to_string()),
     ]
 }
 

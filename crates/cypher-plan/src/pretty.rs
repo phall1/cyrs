@@ -396,6 +396,11 @@ fn format_expr(expr: &Expr) -> String {
         Expr::Index { target, index } => {
             format!("{}[{}]", format_expr(target), format_expr(index))
         }
+        Expr::Slice { target, start, end } => {
+            let s = start.as_ref().map_or_else(String::new, |e| format_expr(e));
+            let e = end.as_ref().map_or_else(String::new, |e| format_expr(e));
+            format!("{}[{s}..{e}]", format_expr(target))
+        }
         Expr::List(items) => {
             let s = items.iter().map(format_expr).collect::<Vec<_>>().join(", ");
             format!("[{s}]")

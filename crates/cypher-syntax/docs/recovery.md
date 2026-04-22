@@ -465,6 +465,28 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: default per spec §4.3.
 - Virtual insertion: none planned until production lands.
 
+### IndexExpr
+
+- Status: **implemented** (cy-7s6.1).
+- Synchronisation set: `]` closes the bracket; clause-level keywords +
+  `;` + EOF act as outer recovery anchors.
+- Skip-and-recover: an unclosed bracket emits `UNCLOSED_INDEX_BRACKET`
+  (E0064) and closes the `INDEX_EXPR` node at the current token — the
+  Pratt loop resumes on the next postfix / infix / clause boundary.
+- Virtual insertion: none.
+
+### SliceExpr
+
+- Status: **implemented** (cy-7s6.1).
+- Synchronisation set: `]` closes the bracket; `..` separates start
+  from end inside it. Outside the bracket, default clause anchors
+  apply.
+- Skip-and-recover: same as `IndexExpr` — missing `]` emits
+  `UNCLOSED_INDEX_BRACKET` (E0064). Either bound may be elided (produces
+  a `SLICE_EXPR` with one or zero child expressions), which is the spec
+  shape and not a diagnostic.
+- Virtual insertion: none.
+
 ### FunctionCall
 
 - Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).

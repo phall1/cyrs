@@ -476,6 +476,15 @@ impl ResolveCtx<'_> {
                 self.resolve_expr(target, scope, sink);
                 self.resolve_expr(index, scope, sink);
             }
+            Expr::Slice { target, start, end } => {
+                self.resolve_expr(target, scope, sink);
+                if let Some(s) = start {
+                    self.resolve_expr(s, scope, sink);
+                }
+                if let Some(e) = end {
+                    self.resolve_expr(e, scope, sink);
+                }
+            }
             Expr::List(items) => {
                 for e in items {
                     self.resolve_expr(e, scope, sink);

@@ -659,6 +659,56 @@ impl RelDetail {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IndexExpr {
+    syntax: SyntaxNode,
+}
+
+impl IndexExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::INDEX_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn receiver(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn index(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SliceExpr {
+    syntax: SyntaxNode,
+}
+
+impl SliceExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SLICE_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn receiver(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn start(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn end(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FunctionCall {
     syntax: SyntaxNode,
 }
@@ -962,6 +1012,8 @@ impl Clause {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
+    IndexExpr(IndexExpr),
+    SliceExpr(SliceExpr),
     FunctionCall(FunctionCall),
     ParenExpr(ParenExpr),
     ListLiteral(ListLiteral),
@@ -976,6 +1028,12 @@ pub enum Expr {
 
 impl Expr {
     pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if let Some(inner) = IndexExpr::cast(syntax.clone()) {
+            return Some(Self::IndexExpr(inner));
+        }
+        if let Some(inner) = SliceExpr::cast(syntax.clone()) {
+            return Some(Self::SliceExpr(inner));
+        }
         if let Some(inner) = FunctionCall::cast(syntax.clone()) {
             return Some(Self::FunctionCall(inner));
         }
@@ -1011,6 +1069,8 @@ impl Expr {
 
     pub fn syntax(&self) -> &SyntaxNode {
         match self {
+            Self::IndexExpr(inner) => inner.syntax(),
+            Self::SliceExpr(inner) => inner.syntax(),
             Self::FunctionCall(inner) => inner.syntax(),
             Self::ParenExpr(inner) => inner.syntax(),
             Self::ListLiteral(inner) => inner.syntax(),

@@ -1,0 +1,6 @@
+error[E5010]: cannot index non-list expression of type `Node`; list indexing and slicing require a list target
+  ┌─ e5010_index_non_list.cypher:1:1
+  │
+1 │ // E5010: indexing / slicing a non-list expression is a type error.
+  │ ^
+

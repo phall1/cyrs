@@ -184,6 +184,12 @@ query   = "RETURN [1, 2, 3]"
 outcome = "ok"
 
 [[scenario]]
+name    = "List indexing expression"
+tags    = ["@EXPRESSIONS", "@LISTS"]
+query   = "UNWIND [1, 2, 3] AS xs RETURN xs[0]"
+outcome = "ok"
+
+[[scenario]]
 name    = "Map literal expression"
 tags    = ["@EXPRESSIONS", "@MAPS"]
 query   = "RETURN {a: 1, b: 'two'}"

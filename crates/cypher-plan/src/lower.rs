@@ -767,6 +767,11 @@ impl<'s> LowerCtx<'s> {
                 target: Box::new(self.lower_expr(target)),
                 index: Box::new(self.lower_expr(index)),
             },
+            HirExpr::Slice { target, start, end } => Expr::Slice {
+                target: Box::new(self.lower_expr(target)),
+                start: start.as_ref().map(|s| Box::new(self.lower_expr(s))),
+                end: end.as_ref().map(|e| Box::new(self.lower_expr(e))),
+            },
             HirExpr::List(items) => Expr::List(items.iter().map(|e| self.lower_expr(e)).collect()),
             HirExpr::Map(pairs) => Expr::Map(
                 pairs

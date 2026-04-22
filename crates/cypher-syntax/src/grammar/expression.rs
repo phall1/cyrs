@@ -445,7 +445,9 @@ struct PostfixOp {
 enum PostfixKind {
     /// `.ident` — property access.
     Dot,
-    /// `[expr]` — index / subscript.
+    /// `[expr]` or `[i..j]` — list indexing / slicing. The helper
+    /// [`index_or_slice_postfix`] disambiguates after the opening `[`
+    /// (cy-7s6.1).
     Index,
     /// `(arg, arg, ...)` — function call. Only allowed when the lhs is
     /// an IDENT — the Pratt loop checks this via `postfix_op`.
@@ -495,20 +497,7 @@ fn apply_postfix(
             }
             m.complete(p, SyntaxKind::PROP_ACCESS_EXPR)
         }
-        PostfixKind::Index => {
-            let m = lhs.precede(p);
-            p.bump(SyntaxKind::L_BRACK);
-            if expr_bp_depth(p, 0, depth + 1).is_none() {
-                p.error_code(sc::EXPECTED_INDEX_EXPR, "expected index expression");
-            }
-            if !p.eat(SyntaxKind::R_BRACK) {
-                p.error_code(
-                    sc::EXPECTED_RBRACK_INDEX,
-                    "expected ']' to close index expression",
-                );
-            }
-            m.complete(p, SyntaxKind::SUBSCRIPT_EXPR)
-        }
+        PostfixKind::Index => index_or_slice_postfix(p, lhs, depth),
         PostfixKind::Call => call_postfix(p, lhs, depth),
         PostfixKind::IsNull => {
             let m = lhs.precede(p);
@@ -545,6 +534,78 @@ fn call_postfix(p: &mut Parser<'_>, lhs: CompletedMarker, depth: u32) -> Complet
 fn call_arg(p: &mut Parser<'_>, depth: u32) {
     if expr_bp_depth(p, 0, depth + 1).is_none() {
         p.error_code(sc::EXPECTED_CALL_ARG, "expected function argument");
+    }
+}
+
+/// Parse the `[...]` postfix form and classify it as either
+/// [`SyntaxKind::INDEX_EXPR`] (`xs[0]`) or [`SyntaxKind::SLICE_EXPR`]
+/// (`xs[i..j]`, `xs[..j]`, `xs[i..]`). Both forms can elide inner
+/// expressions: a slice with both bounds elided is `xs[..]`.
+///
+/// Recovery: an unclosed bracket yields diagnostic
+/// [`sc::UNCLOSED_INDEX_BRACKET`] (E0064) — distinct from the legacy
+/// `SUBSCRIPT_EXPR` path's E0033 so tooling can tell the two apart.
+///
+/// Grammar:
+/// ```text
+/// IndexExpr = Expr '[' Expr ']'
+/// SliceExpr = Expr '[' Expr? '..' Expr? ']'
+/// ```
+///
+/// cy-7s6.1 (spec §19 row "List indexing / slicing").
+fn index_or_slice_postfix(p: &mut Parser<'_>, lhs: CompletedMarker, depth: u32) -> CompletedMarker {
+    let m = lhs.precede(p);
+    p.bump(SyntaxKind::L_BRACK);
+
+    // Start marker: we don't yet know if this is an INDEX_EXPR or SLICE_EXPR.
+    // Decide based on whether:
+    //   - the first token is `..` (slice with elided start), or
+    //   - after parsing an expression we see `..` (slice form), or
+    //   - after parsing an expression we see `]` (index form).
+
+    // Elided-start form: `[..j]` or `[..]`.
+    if p.at(SyntaxKind::DOT_DOT) {
+        p.bump(SyntaxKind::DOT_DOT);
+        // Optional end expression.
+        if !p.at(SyntaxKind::R_BRACK) && expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(sc::EXPECTED_INDEX_EXPR, "expected slice end expression");
+        }
+        if !p.eat(SyntaxKind::R_BRACK) {
+            p.error_code(
+                sc::UNCLOSED_INDEX_BRACKET,
+                "expected ']' to close indexing bracket",
+            );
+        }
+        return m.complete(p, SyntaxKind::SLICE_EXPR);
+    }
+
+    // Non-elided: parse the first expression.
+    if expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(sc::EXPECTED_INDEX_EXPR, "expected index expression");
+    }
+
+    if p.at(SyntaxKind::DOT_DOT) {
+        // Slice form with start expression: `[i..]` or `[i..j]`.
+        p.bump(SyntaxKind::DOT_DOT);
+        if !p.at(SyntaxKind::R_BRACK) && expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(sc::EXPECTED_INDEX_EXPR, "expected slice end expression");
+        }
+        if !p.eat(SyntaxKind::R_BRACK) {
+            p.error_code(
+                sc::UNCLOSED_INDEX_BRACKET,
+                "expected ']' to close indexing bracket",
+            );
+        }
+        m.complete(p, SyntaxKind::SLICE_EXPR)
+    } else {
+        // Plain index form: `[i]`.
+        if !p.eat(SyntaxKind::R_BRACK) {
+            p.error_code(
+                sc::UNCLOSED_INDEX_BRACKET,
+                "expected ']' to close indexing bracket",
+            );
+        }
+        m.complete(p, SyntaxKind::INDEX_EXPR)
     }
 }
 
