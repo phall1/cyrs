@@ -32,7 +32,16 @@ on:
     # 05:00 UTC daily — one hour after bench-nightly and fuzz-nightly
     # so shared runners don't contend.
     - cron: "0 5 * * *"
+    # 03:00 UTC Sunday — weekly 4-hour RSS soak (cy-wcv).  Scheduled
+    # earlier than the daily run so both can execute independently on
+    # overlapping weeks without runner contention.
+    - cron: "0 3 * * 0"
   workflow_dispatch:
+    inputs:
+      hours:
+        description: "CY_SOAK_HOURS for operator-triggered 24h soak (default 24)"
+        required: false
+        default: "24"
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,6 +49,9 @@ env:
 jobs:
   nightly-benches:
     name: nightly-benches (regression gate)
+    # Skip when triggered by the weekly soak cron (03:00 Sunday); the
+    # soak job below handles that schedule on its own.
+    if: github.event.schedule != '0 3 * * 0'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -158,9 +170,11 @@ jobs:
   # without a loading spinner.  Runs nightly (not on pre-commit) because
   # the wasm toolchain is not universally installed; the `cargo xtask
   # wasm-size` driver itself skips gracefully when a tool is missing.
+  # Skipped on the weekly Sunday soak cron so the soak runner is free.
   # ---------------------------------------------------------------------------
   wasm-size:
     name: cypher-wasm size gate (≤ 2 MB brotli)
+    if: github.event.schedule != '0 3 * * 0'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -191,3 +205,61 @@ jobs:
           path: crates/cypher-wasm/pkg/
           if-no-files-found: ignore
           retention-days: 30
+
+  # cy-wcv (spec §11.6 / §17.10): long-horizon RSS soak.
+  #
+  # Runs weekly (Sunday 03:00 UTC) for 4h — enough to see the steady-state
+  # plateau and trigger the slope gate (≥100 KiB/hr over last 8 h — in a
+  # 4h run the effective slope window is the post-warmup tail, ~3h).
+  #
+  # Operator-triggered via `workflow_dispatch` with a custom `hours` input
+  # selects longer horizons (typically 24). The workflow timeout is
+  # generous enough to cover up to a 24h run (GitHub Actions ceiling is
+  # 6h per job on public runners; operators should use a self-hosted
+  # runner or split the job for a full 24h).
+  soak_4h:
+    name: 24h soak (short weekly / long on-demand)
+    # Runs on the weekly Sunday cron, or when dispatched manually.  Skipped
+    # on the daily 05:00 nightly cron.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.schedule == '0 3 * * 0'
+    runs-on: ubuntu-latest
+    # 4h cron + margin + 24h ceiling for workflow_dispatch. Actions caps
+    # public runners at 6h; operators must use a self-hosted runner for
+    # the full 24h horizon.
+    timeout-minutes: 360
+    env:
+      # Weekly cron = 4h plateau check.  Operator-triggered = the `hours`
+      # input (default 24).  Non-cron non-dispatch (defence in depth)
+      # falls back to 4h.
+      CY_SOAK_HOURS: >-
+        ${{ github.event_name == 'workflow_dispatch'
+            && (inputs.hours || '24')
+            || '4' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "benches -> target"
+          key: soak-24h
+
+      - name: cargo bench (incremental_24h soak)
+        working-directory: benches
+        run: |
+          set -eo pipefail
+          echo "CY_SOAK_HOURS=${CY_SOAK_HOURS}"
+          cargo bench --bench bench_incremental_24h 2>&1 | tee /tmp/bench-incremental-24h.txt
+
+      - name: upload soak log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-24h-report-${{ github.run_id }}
+          path: |
+            /tmp/bench-incremental-24h.txt
+          if-no-files-found: ignore
+          retention-days: 60
