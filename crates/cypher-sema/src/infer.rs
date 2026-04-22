@@ -18,13 +18,19 @@
 //! | `IN` right-hand side must be a list | [`E2013`] |
 //! | `IS NULL` / `IS NOT NULL` result is `Bool` (no type constraint) | — |
 //! | Literal type assignment | — |
+//! | Builtin argument kind mismatch (`id(42)`, …) | [`E5012`] |
 //!
 //! **Deferred (see spec §20):**
-//! - Function-call arity and return-type checks are deferred until a
-//!   `StandardLibrary` / `SchemaProvider` is available (cy-36u). Without
-//!   schema, all calls return [`Type::Any`].
+//! - Function-call arity and return-type checks for *unknown* functions
+//!   remain deferred until a `StandardLibrary` / `SchemaProvider` is
+//!   available (cy-36u). Registered builtins — the small table in
+//!   [`crate::builtins`] — are checked here: the return type is resolved
+//!   and argument shapes are validated against [`ArgShape`]. Unknown
+//!   calls still return [`Type::Any`].
 //! - Parameter-type unification across sites (E2005) is deferred; this pass
 //!   yields [`Type::Any`] for every [`Expr::Param`].
+//!
+//! [`ArgShape`]: crate::builtins::ArgShape
 //!
 //! # No schema-aware checks
 //!
@@ -37,6 +43,7 @@
 //! [`E2011`]: cypher_diag::DiagCode::E2011
 //! [`E2012`]: cypher_diag::DiagCode::E2012
 //! [`E2013`]: cypher_diag::DiagCode::E2013
+//! [`E5012`]: cypher_diag::DiagCode::E5012
 
 use cypher_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cypher_hir::{
@@ -45,6 +52,7 @@ use cypher_hir::{
 };
 use indexmap::IndexMap;
 
+use crate::builtins;
 use crate::ty::Type;
 use crate::unify::unify;
 
@@ -274,17 +282,25 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
-            // Function calls — deferred (no catalog in schema-free mode).
-            // All args are still visited so their errors are reported.
-            // Returns Any.
+            // Function calls.
+            //
+            // Unknown functions fall through to the schema-aware pass
+            // (cy-36u, spec §20) and type to `Any`. Registered builtins
+            // (cy-5gh, cy-zo9, cy-zo9.1) have their argument kinds
+            // checked against the declared `ArgShape` — mismatches emit
+            // E5012 on the offending arg — and their return type is
+            // resolved via `Builtin::resolve_return`.
             // ---------------------------------------------------------------
-            Expr::Call { args, .. } => {
-                for arg in args {
-                    self.infer_expr(arg);
+            Expr::Call { name, args, .. } => {
+                let arg_tys: Vec<Type> = args.iter().map(|a| self.infer_expr(a)).collect();
+                if let Some(sig) = builtins::lookup(name) {
+                    self.check_builtin_args(sig, args, &arg_tys);
+                    sig.resolve_return(&arg_tys)
+                } else {
+                    // Unknown function — arity / return-type checks
+                    // deferred to schema-aware pass (cy-36u).
+                    Type::Any
                 }
-                // Function arity / return-type checks deferred to schema-aware
-                // pass (cy-36u). See spec §20.
-                Type::Any
             }
 
             // ---------------------------------------------------------------
@@ -582,6 +598,38 @@ impl InferCtx<'_> {
     }
 
     // -----------------------------------------------------------------------
+    // Builtin argument-shape check (cy-zo9.1, §7.4 / §10.2)
+    // -----------------------------------------------------------------------
+
+    /// Validate each positional argument of a registered builtin against
+    /// its declared [`ArgShape`]. Emits [`E5012`] with a span pointing
+    /// to the offending argument on mismatch.
+    ///
+    /// Argument / parameter counts may diverge (arity is a schema-aware
+    /// check — E3007 — not our job here): we iterate over the shorter
+    /// slice and leave arity diagnostics to the schema-aware pass.
+    ///
+    /// [`ArgShape`]: crate::builtins::ArgShape
+    /// [`E5012`]: cypher_diag::DiagCode::E5012
+    fn check_builtin_args(&mut self, sig: &builtins::Builtin, args: &[Expr], arg_tys: &[Type]) {
+        for ((shape, arg_expr), arg_ty) in sig.params.iter().zip(args.iter()).zip(arg_tys.iter()) {
+            if !shape.accepts(arg_ty) {
+                let span = expr_span(arg_expr);
+                self.sink.push(Diagnostic::error(
+                    DiagCode::E5012,
+                    span,
+                    format!(
+                        "builtin `{}` argument has type `{}` but expected `{}`",
+                        sig.name,
+                        type_name(arg_ty),
+                        shape.describe(),
+                    ),
+                ));
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Variable type helper
     // -----------------------------------------------------------------------
 
@@ -626,6 +674,15 @@ fn type_name(ty: &Type) -> &'static str {
 /// spans. Once HIR expressions carry spans, callers should pass them directly.
 fn dummy_span() -> HirSpan {
     HirSpan::empty(HirOffset::new(0))
+}
+
+/// Best-effort span for a HIR expression. The HIR's [`Expr`] variants do
+/// not yet carry per-expression spans (deferred — see the module-level
+/// docs), so this is structurally equivalent to [`dummy_span`] today.
+/// A dedicated helper keeps the call sites ready for the follow-up that
+/// plumbs real spans through the lowering layer.
+fn expr_span(_expr: &Expr) -> HirSpan {
+    dummy_span()
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,7 +1098,170 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // 16. Relationship variable in RETURN — no type error.
+    // 16 (cy-zo9.1). Builtin `id` — kind-checked via ArgShape.
+    //
+    //   - `id(n)` where `n` is a Node → accepted, returns INTEGER.
+    //   - `id(r)` where `r` is a Relationship → accepted, returns INTEGER.
+    //   - `id(p)` where `p` is a Path → accepted, returns INTEGER.
+    //   - `id(42)` → rejected with E5012, span on the `42` arg.
+    // -----------------------------------------------------------------------
+    #[test]
+    fn snap_infer_id_of_node_ok_returns_int() {
+        let mut stmt = Statement::new(zero_range());
+        let n = intern_var(&mut stmt, "n", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: false,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: Some(n),
+                        labels: vec![],
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: Expr::Call {
+                    name: SmolStr::new("id"),
+                    args: vec![Expr::Var(n)],
+                    distinct: false,
+                },
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!("infer_id_of_node_ok_returns_int", run(&stmt));
+
+        // Sanity: the return-type resolution is INTEGER regardless of
+        // the diagnostic channel.
+        let b = crate::builtins::lookup("id").unwrap();
+        assert_eq!(b.resolve_return(&[Type::Node(None)]), Type::Int);
+    }
+
+    #[test]
+    fn snap_infer_id_of_rel_ok() {
+        let mut stmt = Statement::new(zero_range());
+        let a = intern_var(&mut stmt, "a", VarKind::Node);
+        let r = intern_var(&mut stmt, "r", VarKind::Relationship);
+        let b = intern_var(&mut stmt, "b", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid_a = alloc(&mut stmt);
+        let rid = alloc(&mut stmt);
+        let nid_b = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: false,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![
+                        PatternElement::Node {
+                            id: nid_a,
+                            bind: Some(a),
+                            labels: vec![],
+                            props: None,
+                            span: zero_range(),
+                        },
+                        PatternElement::Rel {
+                            id: rid,
+                            bind: Some(r),
+                            types: vec![],
+                            direction: Direction::Outgoing,
+                            length: RelLength::Single,
+                            props: None,
+                            span: zero_range(),
+                        },
+                        PatternElement::Node {
+                            id: nid_b,
+                            bind: Some(b),
+                            labels: vec![],
+                            props: None,
+                            span: zero_range(),
+                        },
+                    ],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: Expr::Call {
+                    name: SmolStr::new("id"),
+                    args: vec![Expr::Var(r)],
+                    distinct: false,
+                },
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!("infer_id_of_rel_ok", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_id_of_int_literal_errors_e5012() {
+        // RETURN id(42)
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("id"),
+            args: vec![Expr::Int(42)],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_id_of_int_literal_errors_e5012", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_id_of_string_literal_errors_e5012() {
+        // RETURN id("x")
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("id"),
+            args: vec![Expr::String(SmolStr::new("x"))],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_id_of_string_literal_errors_e5012", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_id_case_insensitive_match() {
+        // `ID(42)` — case-insensitive lookup still triggers E5012.
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("ID"),
+            args: vec![Expr::Int(42)],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_id_case_insensitive_match", run(&stmt));
+    }
+
+    #[test]
+    fn snap_infer_unknown_function_still_any() {
+        // Unknown functions are not in the builtin table; no E5012 is
+        // emitted and the result type stays `Any` for the schema-aware
+        // pass to refine.
+        let stmt = return_stmt(Expr::Call {
+            name: SmolStr::new("someUserFn"),
+            args: vec![Expr::Int(42)],
+            distinct: false,
+        });
+        insta::assert_snapshot!("infer_unknown_function_still_any", run(&stmt));
+    }
+
+    // -----------------------------------------------------------------------
+    // 17. Relationship variable in RETURN — no type error.
     // -----------------------------------------------------------------------
     #[test]
     fn snap_infer_rel_var_in_return_ok() {

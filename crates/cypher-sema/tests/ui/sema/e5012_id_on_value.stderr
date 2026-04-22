@@ -1,0 +1,6 @@
+error[E5012]: builtin `id` argument has type `Int` but expected `Node | Relationship | Path`
+  ┌─ e5012_id_on_value.cypher:1:1
+  │
+1 │ // E5012: id() builtin rejects scalar arguments (cy-zo9.1)
+  │ ^
+
