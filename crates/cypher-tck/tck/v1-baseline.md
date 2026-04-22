@@ -1,9 +1,9 @@
-# TCK v1 Green-Tag Conformance Baseline
+# TCK v1 Conformance Baseline
 
-*Captured: 2026-04-21 against cy-3xz (WITH clause landed).*
+*Captured: 2026-04-22 against cy-p5q (full-TCK vendoring + per-scenario `Expected`).*
 
 This file records the **current** conformance of the cyrs parser
-against the vendored v1 openCypher TCK fixtures
+against the hand-written v1 openCypher TCK fixtures
 (`crates/cypher-tck/tck/v1.toml`).  Future PRs that regress any of
 the currently-passing scenarios will fail `cargo test -p cypher-tck`;
 that test is the CI gate.  No separate `xtask check-tck` is needed —
@@ -13,8 +13,8 @@ the Rust test harness already enforces the invariant.
 
 | Metric | Value |
 |---|---|
-| Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **40** (100 %) |
+| Scenarios matching ≥1 v1 tag | **48** |
+| Passing | **48** (100 %) |
 | Ignored (known parser gaps) | **0** (0 %) |
 | Failing | **0** |
 

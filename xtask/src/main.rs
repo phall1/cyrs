@@ -48,6 +48,13 @@ enum Cmd {
     },
     /// Fetch and vendor the openCypher TCK corpus (spec §17.5).
     TckFetch,
+    /// Regenerate `crates/cypher-tck/tck/full-baseline.md` by running
+    /// the full-tck harness (spec §17.5, bead cy-p5q).
+    ///
+    /// Thin wrapper around `cargo test -p cypher-tck --features
+    /// full-tck tck_full_baseline -- --nocapture`.
+    #[command(name = "tck-baseline")]
+    TckBaseline,
     /// Grammar <-> recovery.md symmetry gate (spec §4.3, §17.18).
     CheckRecovery,
     /// Verify every crate has a well-formed `CHANGELOG.md` (spec §18).
@@ -83,6 +90,7 @@ fn main() -> Result<()> {
             println!("[xtask tck-fetch] lands with the TCK harness");
             Ok(())
         }
+        Cmd::TckBaseline => tck_baseline(),
         Cmd::CheckRecovery => xtask::check_recovery::run(),
         Cmd::CheckChangelogs => xtask::check_changelogs::run(),
         Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
@@ -90,6 +98,29 @@ fn main() -> Result<()> {
         Cmd::Doc => doc(),
         Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
     }
+}
+
+/// Regenerate the full-TCK pass-rate baseline (spec §17.5, bead
+/// cy-p5q).  Runs the `tck_full_baseline` integration test with the
+/// `full-tck` Cargo feature enabled; the test writes
+/// `crates/cypher-tck/tck/full-baseline.md` as a side-effect.
+fn tck_baseline() -> Result<()> {
+    println!("==> cargo test -p cypher-tck --features full-tck tck_full_baseline");
+    run(
+        "cargo",
+        &[
+            "test",
+            "-p",
+            "cypher-tck",
+            "--features",
+            "full-tck",
+            "--test",
+            "full",
+            "tck_full_baseline",
+            "--",
+            "--nocapture",
+        ],
+    )
 }
 
 /// Rustdoc gate per spec §17.15 / bead cy-93c. Builds `cargo doc

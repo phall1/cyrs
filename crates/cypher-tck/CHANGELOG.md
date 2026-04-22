@@ -12,11 +12,26 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+- cy-p5q (§17.5): vendor the full openCypher TCK at tag `2024.3`
+  under `tck/full/`, 220 feature files / 1339 scenarios.
+- cy-p5q (§17.5): new Cargo feature `full-tck` that runs the full
+  corpus via `tests/full.rs` and emits a per-area parser-acceptance
+  baseline to `tck/full-baseline.md`.
+- cy-p5q (§17.5): `cargo xtask tck-baseline` convenience wrapper.
+
 ### Changed
+
+- cy-p5q (§17.5): retire `Expected::Green | Red` (per-tag) in favour
+  of `Expected::Supported | Error | Ignored` (per-scenario).
+  `v1_gates()` renamed to `v1_tags()` and now returns a flat
+  whitelist.  The v1.toml on-disk format is unchanged.
 
 ### Deprecated
 
 ### Removed
+
+- cy-p5q (§17.5): `FeatureGate` struct removed.  Use the per-scenario
+  `Expected` enum instead.
 
 ### Fixed
 
