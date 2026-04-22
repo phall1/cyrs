@@ -1,0 +1,203 @@
+# Cyrs Stability Policy
+
+> **Status:** pre-1.0 (workspace ships at `0.0.x`).  Everything in this
+> workspace can still change.  This document describes what we *intend*
+> to keep stable as we approach 1.0 so that downstream consumers can
+> plan against an explicit contract rather than guess from the change
+> log.
+
+Cyrs is a compiler front-end — the SemVer contract that matters to
+consumers is the public Rust API of the fifteen `cypher-*` crates, plus
+two on-the-wire protocols (agent JSON + LSP) and the schema file
+format.  This document enumerates each surface and tags it as
+**stable**, **unstable**, or **internal**.
+
+## Stable surfaces
+
+These surfaces will not change in breaking ways across minor version
+bumps once 1.0 lands.  Pre-1.0 we already avoid gratuitous churn here
+and track changes in `CHANGELOG.md`:
+
+- **Diagnostic codes and their messages.**  The registry in
+  `crates/cypher-diag/src/codes.rs` (AGENTS.md §7, spec §10.2) is
+  append-only.  Codes never change meaning; retired codes are never
+  reused.  Message wording may be polished, but the code → message
+  mapping must stay recognisable to existing consumers.  CI's
+  `check-diag-codes` xtask enforces registry integrity.
+- **Agent JSON wire protocol.**  The `op` names and required-field
+  semantics documented in `crates/cypher-agent/src/main.rs` (spec §15.2)
+  are stable: `parse`, `check`, `complete`, `hover`, `format`,
+  `rewrite`, `plan`, `explain`, `schema_set`, `schema_clear`,
+  `shutdown`.  New optional fields on requests or responses are
+  non-breaking; removing or renaming is a major version bump.
+- **Dialect-mode enum names.**  `DialectMode::GqlAligned` and
+  `DialectMode::OpenCypherV9` are wire-observable values (JSON tags,
+  LSP `initializationOptions`, schema defaults).  The enum is marked
+  `#[non_exhaustive]` (cy-2i9.1) so new dialects can land without a
+  SemVer-major break; existing variant names are permanent.
+- **Schema file format** per spec 0002 (§8).  Schemas are versioned
+  via the `cyrs_schema_version` field; the shapes of `properties`,
+  `labels`, `relationships`, `functions`, and `procedures` entries are
+  stable within a pinned `cyrs_schema_version`.  A new major schema
+  version is a coordinated roll-out, not an in-place break.
+- **MSRV policy.**  The workspace pins MSRV in `rust-toolchain.toml`
+  (currently `1.94`).  MSRV bumps are *Cargo-minor* events — every
+  release that bumps MSRV gets a minor version bump (pre-1.0: a patch
+  bump); MSRV bumps do not land in patch releases.  Spec §18.
+
+## Unstable (may change across minor versions pre-1.0)
+
+These surfaces are public Rust types that the frontend pipeline *will*
+extend during development.  Many have `#[non_exhaustive]` attributes
+pinned on them to soften the blow — adding a new enum variant or
+struct field is a non-breaking change, but semantic shape changes are
+not.
+
+- **HIR shape** — `cypher_hir::{Expr, Clause, Statement, PatternElement,
+  SetItem, RemoveItem, BinOp, UnaryOp, VarKind, MapProjectionItem}`
+  internals.  Lowering shape evolves with each new Cypher construct
+  brought in.  See "Deferred: intra-workspace `non_exhaustive`" below
+  for why these are not yet attributed.
+- **Plan IR shape** — `cypher_plan::{ReadOp, WriteOp, Expr, OpId, BinOp,
+  UnaryOp, Direction, RelLength, UnionKind, SortDir}`.  Attributed
+  `#[non_exhaustive]` (cy-2i9.1) so new operators / expressions don't
+  force SemVer-major releases, but the variant *set* is still growing.
+- **Type lattice** — `cypher_sema::ty::Type`.  The 14-ish variant type
+  lattice will grow with each semantic improvement; see `Deferred`.
+- **LSP extensions beyond baseline LSP spec.**  Cyrs's LSP server
+  implements the standard LSP protocol; any non-standard `workspace/
+  executeCommand` operations (e.g. `explainPlan`, `lowerToHir`) are
+  unstable, can rename, and are version-gated by the
+  `workspace.cyrs.experimental` initialization option.
+- **Compiletest UI fixture format.**  `crates/*/tests/ui/**` files and
+  the `cargo xtask bless` transform are evolved with the fixtures
+  themselves; downstream consumers should not depend on the exact
+  rendering.
+
+## Internal (no guarantees)
+
+- **Salsa tracked query signatures.**  The `cypher-db` query functions
+  (`parse_cst`, `ast`, `resolved_names`, `plan`, `all_diagnostics`,
+  etc.) are implementation details of incrementality.  Their memoised
+  return shapes can change whenever the schema / analysis layer does;
+  downstream code should query the `Database` trait, not the Salsa
+  internals.
+- **Codegen'd AST.**  `crates/cypher-ast/src/generated.rs` is produced
+  by `cargo xtask codegen` from `cypher-syntax/src/grammar/
+  cypher.ungrammar`.  The *grammar* is a spec-governed artifact; the
+  *generated Rust* is an implementation detail.  `SyntaxKind` is
+  additionally marked `#[non_exhaustive]` so grammar growth is
+  automatically non-breaking.
+- **Private modules.**  Anything not re-exported from a crate's
+  `lib.rs` top-level (or inside a `#[doc(hidden)]` module) carries no
+  stability promise.
+
+## `non_exhaustive` coverage
+
+cy-2i9.1 applied `#[non_exhaustive]` to the following public surface
+to soften future variant / field additions:
+
+**Enums**
+
+- `cypher_hir::{Direction, RelLength}`
+- `cypher_plan::{Direction, RelLength, UnionKind, SortDir, ReadOp,
+  WriteOp, Expr, BinOp, UnaryOp}`
+- `cypher_sema::DialectMode`
+- `cypher_schema::{Cardinality, ProcMode}`
+- `cypher_db::DialectMode`
+- `cypher_diag::{Severity, Applicability}`
+- `cypher_lang_services::CompletionItemKind`
+- `cypher_syntax::SyntaxKind` *(pre-existing; cy-2i9.1 preserves it)*
+- `cypher_fmt::FormatError` *(pre-existing)*
+
+**Structs**
+
+- `cypher_diag::Diagnostic`
+- `cypher_schema::PropertyDecl`  *(constructor: `PropertyDecl::new`)*
+- `cypher_lang_services::{CompletionItem, Hover, RewriteEdit,
+  RewritePayload}`
+- `cypher_db::UnknownFileId`
+
+### Deferred: intra-workspace `non_exhaustive`
+
+The following enums / structs are **listed in the bead but not yet
+attributed** because they are matched exhaustively across the workspace
+(cross-crate, from `cypher-sema` / `cypher-plan` / `cypher-db` /
+`cypher-lang-services` / `cypher-lsp`).  Adding `#[non_exhaustive]`
+would force a wildcard arm at every cross-crate match site — 28+
+sites in `cypher-sema` alone for `HirExpr` / `Clause` / `SetItem` etc.
+We prefer to land the attribute in a follow-up bead that performs the
+mechanical match-arm churn in one focused commit rather than
+piggyback it on the SemVer gating work:
+
+- `cypher_hir::{VarKind, Clause, PatternElement, Expr, SetItem,
+  RemoveItem, MapProjectionItem, BinOp, UnaryOp}`
+- `cypher_sema::ty::Type`
+- `cypher_schema::PropertyType`
+- `cypher_hir::{Statement, Binding}` (structs — many cross-crate
+  constructions)
+- `cypher_plan::{AggExpr, OrderKey}` (structs — integration-test
+  fixtures construct via literals)
+- `cypher_schema::{EndpointDecl, FunctionSignature, ProcedureSignature,
+  ParamDecl, YieldDecl, FnCategories}`
+
+None of the deferred types are stable today; all are documented as
+**unstable** above.  Downstream consumers that match on them must
+already accept the churn from variant additions landing each bead; the
+follow-up bead only changes the *compile-time signal* from "non-
+exhaustive" errors to silent "wildcard ignored" behaviour, which is
+the SemVer-safer default for 1.0.
+
+## Known acknowledged breakers
+
+At time of writing `cargo semver-checks` identifies no pre-existing
+breaking changes on the published (0.0.x) surfaces — nothing has been
+released to crates.io, so there is no prior baseline to diff against.
+The CI gate below is effectively advisory until the first crates.io
+release; after that, each PR's diff is checked against the baseline
+branch (`main`) rather than against a published version.
+
+If a future bead requires a breaking change we cannot attribute
+around, it must be logged here with:
+
+1. Date + bead id
+2. The affected public type / function
+3. The consumer-visible impact ("rename of field X to Y on struct Z")
+4. Migration note (constructor to use, wildcard arm to add, etc.)
+
+## CI gate
+
+`.github/workflows/ci.yml` adds a `semver-checks` job
+(cy-2i9.1) that runs
+[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks)
+on every pull request.  The job compares the PR's public API against
+`main`'s most recent commit.  It is advisory pre-1.0 (no published
+crate baseline) but will land hard failures once the first crates.io
+release ships.
+
+## 1.0 cutover plan
+
+Cyrs ships 1.0 when:
+
+1. **Workspace semantics are locked** (spec 0003, TBD).  This mostly
+   means: HIR lowering rules are frozen, type lattice shape is
+   frozen, Plan IR operator set covers the spec §12.1 workload.
+2. **The `non_exhaustive` pass is complete**, including the deferred
+   intra-workspace types above.  No `non_exhaustive`-driven churn is
+   pending.
+3. **A 24-hour fuzz soak is clean** on all five fuzz targets
+   (`fuzz_lexer`, `fuzz_parser`, `fuzz_formatter`, `fuzz_sema`,
+   `fuzz_plan`) — spec §17.4.
+4. **`cargo-semver-checks` PR gate is hard-blocking** (not
+   advisory), having run for at least one release cycle with the
+   workspace at `0.x`.
+
+At that point the workspace receives a coordinated `0.99` → `1.0.0`
+bump across all sixteen crates and the CHANGELOG gains a formal
+"1.0 promise" section.
+
+## See also
+
+- `AGENTS.md` §7 — diagnostic-code registry discipline
+- `docs/specs/0001-cypher-frontend.md` — spec (locked)
+- `CHANGELOG.md` — per-release change log
