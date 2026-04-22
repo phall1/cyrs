@@ -1006,6 +1006,7 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "CALL_ARGS",
         "PAREN_EXPR",
         "LIST_COMPREHENSION",
+        "LIST_PREDICATE_EXPR",
         "PATTERN_COMPREHENSION",
         "PATTERN_PREDICATE",
         "PARAM_EXPR",
@@ -1074,6 +1075,9 @@ fn known_keyword_kinds() -> BTreeSet<&'static str> {
         "EXISTS_KW",
         "SHORTESTPATH_KW",
         "ALLSHORTESTPATHS_KW",
+        "ANY_KW",
+        "NONE_KW",
+        "SINGLE_KW",
     ]
     .into_iter()
     .collect()

@@ -539,6 +539,16 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: default per spec §4.3.
 - Virtual insertion: none planned until production lands.
 
+### ListPredicateExpr
+
+- Status: **LIVE** (cy-8x5) — `ANY|ALL|NONE|SINGLE(x IN xs [WHERE p])`.
+- Synchronisation set: clause-level keywords + `;` + EOF (default).
+- Skip-and-recover: on missing `(` the parser emits E0065 and continues at
+  the identifier; missing `IN` emits E0066 and keeps parsing the iterable;
+  missing `)` emits E0067 at the token boundary (virtual-token insertion
+  per §4.3).
+- Virtual insertion: E0065 / E0066 / E0067 as described above.
+
 ### PatternComprehension
 
 - Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).

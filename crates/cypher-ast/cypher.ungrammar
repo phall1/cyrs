@@ -246,6 +246,7 @@ Expr =
 | ListLiteral
 | MapLiteral
 | ListComprehension
+| ListPredicateExpr
 | PatternComprehension
 | CaseExpr
 | NullCheck
@@ -317,6 +318,14 @@ MapLiteral =
 // `[ v IN xs WHERE p(v) | e(v) ]`. Desugared in HIR (spec §6.1).
 ListComprehension =
   '[' bind:NameDef 'IN' source:Expr WhereClause? ('|' projection:Expr)? ']'
+
+// `ANY|ALL|NONE|SINGLE(v IN xs WHERE p(v))` — list predicate (cy-8x5).
+// The discriminant is the first keyword token child; the `WHERE` clause
+// is optional (bare `ANY(x IN xs)` returns true iff xs is non-empty).
+// Result type is BOOLEAN. Shared across GqlAligned / OpenCypherV9.
+ListPredicateExpr =
+  ('ANY' | 'ALL' | 'NONE' | 'SINGLE')
+  '(' bind:NameDef 'IN' source:Expr WhereClause? ')'
 
 // `[ (a)-[r]->(b) WHERE p | e ]`. Desugared in HIR (spec §6.1).
 PatternComprehension =

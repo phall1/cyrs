@@ -16,10 +16,10 @@ use std::fmt::Write as _;
 
 use cypher_ast::{
     ArgList, BinaryExpr, CallClause, CaseExpr, CreateClause, DeleteClause, FunctionCall, LabelExpr,
-    ListComprehension, ListLiteral, MapLiteral, MatchClause, MergeAction, MergeClause, NodePattern,
-    OrderBy, ParenExpr, Pattern, PatternComprehension, PatternPredicate, PropertyMap, RelDetail,
-    RemoveClause, ReturnClause, ReturnItem, SetClause, SourceFile, UnaryExpr, UnwindClause,
-    WhereClause, WithClause, YieldItem,
+    ListComprehension, ListLiteral, ListPredicateExpr, MapLiteral, MatchClause, MergeAction,
+    MergeClause, NodePattern, OrderBy, ParenExpr, Pattern, PatternComprehension, PatternPredicate,
+    PropertyMap, RelDetail, RemoveClause, ReturnClause, ReturnItem, SetClause, SourceFile,
+    UnaryExpr, UnwindClause, WhereClause, WithClause, YieldItem,
 };
 use cypher_syntax::{SyntaxNode, parse};
 use rowan::{NodeOrToken, WalkEvent};
@@ -108,6 +108,9 @@ fn ast_name(node: &SyntaxNode) -> Option<&'static str> {
     }
     if ListComprehension::cast(node.clone()).is_some() {
         return Some("Expr::ListComprehension");
+    }
+    if ListPredicateExpr::cast(node.clone()).is_some() {
+        return Some("Expr::ListPredicateExpr");
     }
     if PatternComprehension::cast(node.clone()).is_some() {
         return Some("Expr::PatternComprehension");
