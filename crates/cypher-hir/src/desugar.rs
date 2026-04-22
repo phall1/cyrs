@@ -713,6 +713,44 @@ mod tests {
         insta::assert_snapshot!("desugar_subscript_nested", render_expr(&expr));
     }
 
+    // --- Snapshot tests: slice desugar (cy-7s6.1) ---------------------------
+
+    #[test]
+    fn snap_desugar_slice_bounded() {
+        // xs[0..3] — both bounds present, no rewrite.
+        let mut expr = Expr::Slice {
+            target: Box::new(Expr::Var(VarId(0))),
+            start: Some(Box::new(Expr::Int(0))),
+            end: Some(Box::new(Expr::Int(3))),
+        };
+        desugar_expr(&mut expr);
+        insta::assert_snapshot!("desugar_slice_bounded", render_expr(&expr));
+    }
+
+    #[test]
+    fn snap_desugar_slice_elided_start() {
+        // xs[..3] — elided start stays `None`.
+        let mut expr = Expr::Slice {
+            target: Box::new(Expr::Var(VarId(0))),
+            start: None,
+            end: Some(Box::new(Expr::Int(3))),
+        };
+        desugar_expr(&mut expr);
+        insta::assert_snapshot!("desugar_slice_elided_start", render_expr(&expr));
+    }
+
+    #[test]
+    fn snap_desugar_slice_elided_end() {
+        // xs[0..] — elided end stays `None`.
+        let mut expr = Expr::Slice {
+            target: Box::new(Expr::Var(VarId(0))),
+            start: Some(Box::new(Expr::Int(0))),
+            end: None,
+        };
+        desugar_expr(&mut expr);
+        insta::assert_snapshot!("desugar_slice_elided_end", render_expr(&expr));
+    }
+
     // --- Snapshot tests: list comprehension ---------------------------------
 
     #[test]

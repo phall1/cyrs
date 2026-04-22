@@ -561,6 +561,13 @@ fn cypher_valid() -> impl Strategy<Value = String> {
         Just("// comment\nMATCH (n) RETURN n".to_string()),
         Just("/* block */\nMATCH (n) RETURN n".to_string()),
         Just("MATCH (n) /* inline */ RETURN n".to_string()),
+        // cy-7s6.1 — list indexing + slicing shape matrix.
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[-1]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[..3]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..]".to_string()),
+        Just("UNWIND [1, 2, 3] AS xs RETURN xs[0..3][0]".to_string()),
     ]
 }
 
