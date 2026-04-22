@@ -22,6 +22,14 @@ bumps, cross-cutting gates, coordinated releases).  See spec 0001 §18.
   "no matches" from "engine deferred to v2".
 - `cy-urk` (§18): per-crate `CHANGELOG.md` skeletons and this
   workspace-level changelog.
+- `cy-zgz` (§18): release-prep landing — CHANGELOG for
+  `cypher-lang-services` (was missing), shields.io badges on every
+  publishable crate README, `.github/workflows/release.yml`
+  (release-plz, `workflow_dispatch`-only), `.github/workflows/
+  sign-release.yml` (cosign keyless + CycloneDX SBOM + SLSA
+  provenance, triggered on `release:published`), and
+  `docs/release-playbook.md` for the operator cut / sign / publish
+  / recovery flows.
 
 ### Changed
 
