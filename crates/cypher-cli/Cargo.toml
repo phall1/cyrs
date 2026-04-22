@@ -26,11 +26,23 @@ cypher-fmt    = { workspace = true }
 cypher-schema = { workspace = true, features = ["file"] }
 # Spec 0003: the `project load` subcommand drives the manifest loader.
 cypher-project = { workspace = true }
+# cy-k2r (spec 0001 §14, bead cy-o8c tranche 3): the `cypher-lang-services`
+# workspace symbol index (cy-kkw's `workspace_nav`) powers the `index
+# scip` subcommand.  Reuse of the existing index is the bead's hard
+# constraint — duplicating the walk into `cypher-cli` would violate
+# AGENTS.md §2.C3 "no overlay crates" and drift from what the LSP
+# surfaces on the same workspace.
+cypher-lang-services = { workspace = true }
 clap       = { workspace = true }
 anyhow     = { workspace = true }
 serde_json = { workspace = true }
 tracing    = { workspace = true }
 tracing-subscriber = { workspace = true }
+# cy-k2r: SCIP/LSIF index emitter for the `cypher index scip` subcommand
+# (spec §14, bead cy-o8c tranche 3).  Pinned crate-local per AGENTS.md §3
+# — no new workspace-shared scip pin.  0.7.1 is the latest stable on
+# crates.io.
+scip = "0.7.1"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

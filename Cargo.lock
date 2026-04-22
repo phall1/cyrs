@@ -406,10 +406,12 @@ dependencies = [
  "cypher-db",
  "cypher-diag",
  "cypher-fmt",
+ "cypher-lang-services",
  "cypher-project",
  "cypher-schema",
  "insta",
  "predicates",
+ "scip",
  "serde_json",
  "tempfile",
  "tracing",
@@ -445,7 +447,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol_str",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -555,7 +557,7 @@ dependencies = [
  "serde",
  "smol_str",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.18",
  "toml",
  "walkdir",
 ]
@@ -581,7 +583,7 @@ dependencies = [
  "serde",
  "sha2",
  "smol_str",
- "thiserror",
+ "thiserror 2.0.18",
  "toml",
 ]
 
@@ -617,7 +619,7 @@ dependencies = [
  "serde",
  "smol_str",
  "text-size",
- "thiserror",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1324,6 +1326,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "pyo3"
 version = "0.22.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1618,6 +1640,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scip"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4d0e81b39f590b2edbe2369760641511898ed34062aed2e18e6d05eead3d6b7"
+dependencies = [
+ "protobuf",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1836,11 +1867,31 @@ checksum = "259cdf8ed4e4aca6f1e9d011e10bd53f524a2d0637d7b28450f6c64ac298c4c6"
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.18",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
