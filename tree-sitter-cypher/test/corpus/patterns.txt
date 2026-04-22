@@ -1,0 +1,61 @@
+==================
+Variable-length path
+==================
+
+MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern (identifier))
+        (rel_pattern
+          (rel_detail
+            (identifier)
+            (rel_length (int_literal) (int_literal))))
+        (node_pattern (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))
+    (return_item (variable_expr (identifier)))))
+
+==================
+Named path
+==================
+
+MATCH p = (a)-[:KNOWS]->(b) RETURN p
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (named_pattern_part
+          name: (identifier)
+          (node_pattern (identifier))
+          (rel_pattern (rel_detail (identifier)))
+          (node_pattern (identifier))))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+Node with property map
+==================
+
+MATCH (n {name: 'Alice'}) RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (property_map
+            (identifier)
+            (literal_expr (string_literal)))))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))

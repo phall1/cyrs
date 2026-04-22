@@ -56,6 +56,12 @@ enum Cmd {
     CheckDiagCodes,
     /// Build rustdoc with `-D warnings` (spec §17.15, bead cy-93c).
     Doc,
+    /// Tree-sitter grammar ↔ cyrs TCK v1 parity gate (bead cy-od5.1).
+    ///
+    /// Regenerates the grammar, runs `tree-sitter test`, and then diffs
+    /// every TCK v1 scenario's parse outcome between tree-sitter and cyrs.
+    #[command(name = "tree-sitter-parity")]
+    TreeSitterParity,
 }
 
 fn main() -> Result<()> {
@@ -77,6 +83,7 @@ fn main() -> Result<()> {
         Cmd::CheckChangelogs => xtask::check_changelogs::run(),
         Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
         Cmd::Doc => doc(),
+        Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
     }
 }
 

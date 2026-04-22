@@ -1,0 +1,86 @@
+==================
+RETURN literal integer
+==================
+
+RETURN 1
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (literal_expr (int_literal)))))
+
+==================
+RETURN arithmetic expression
+==================
+
+RETURN 1 + 2
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (binary_expr
+        (literal_expr (int_literal))
+        (literal_expr (int_literal))))))
+
+==================
+RETURN multiple projections
+==================
+
+RETURN 1 AS a, 2 AS b
+
+---
+
+(source_file
+  (return_clause
+    (return_item
+      (literal_expr (int_literal))
+      (identifier))
+    (return_item
+      (literal_expr (int_literal))
+      (identifier))))
+
+==================
+RETURN DISTINCT
+==================
+
+MATCH (n:Person) RETURN DISTINCT n.name
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern (identifier) (identifier)))))
+  (return_clause
+    (return_item
+      (property_access_expr
+        (variable_expr (identifier))
+        (identifier)))))
+
+==================
+RETURN ORDER BY SKIP LIMIT
+==================
+
+MATCH (n:Person) RETURN n ORDER BY n.name SKIP 0 LIMIT 10
+
+---
+
+(source_file
+  (match_clause
+    (pattern
+      (pattern_part
+        (node_pattern (identifier) (identifier)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))
+    (order_by
+      (order_item
+        (property_access_expr
+          (variable_expr (identifier))
+          (identifier))))
+    (skip_subclause (literal_expr (int_literal)))
+    (limit_subclause (literal_expr (int_literal)))))

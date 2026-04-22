@@ -1,0 +1,39 @@
+==================
+CREATE node
+==================
+
+CREATE (n:Person {name: 'Alice'})
+
+---
+
+(source_file
+  (create_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)
+          (property_map
+            (identifier)
+            (literal_expr (string_literal))))))))
+
+==================
+MERGE node
+==================
+
+MERGE (n:Person {name: 'Alice'}) RETURN n
+
+---
+
+(source_file
+  (merge_clause
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)
+          (property_map
+            (identifier)
+            (literal_expr (string_literal)))))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))

@@ -157,6 +157,63 @@ for the recording.
 
 ---
 
+## Tree-sitter grammar
+
+A parallel [tree-sitter][ts] grammar for Cypher / GQL lives at
+[`tree-sitter-cypher/`](./tree-sitter-cypher) for editor integrations
+(Neovim, Helix, GitHub highlighter). The Rust parser in
+`cypher-syntax` is authoritative; the tree-sitter grammar is a
+hand-maintained artefact kept in lock-step by the
+`cargo xtask tree-sitter-parity` gate.
+
+**Parity claim:** the grammar parses the same TCK v1 surface as the Rust
+parser — every `outcome = "ok"` scenario in
+`crates/cypher-tck/tck/v1.toml` parses without `(ERROR)` nodes, every
+`outcome = "error"` scenario produces at least one. Regressions fail CI.
+
+### Neovim (nvim-treesitter)
+
+```lua
+local parser_config = require("nvim-treesitter.parsers").get_parser_configs()
+parser_config.cypher = {
+  install_info = {
+    url = "https://github.com/phallsignup/cyrs",
+    location = "tree-sitter-cypher",
+    files = { "src/parser.c" },
+    branch = "main",
+    generate_requires_npm = true,
+    requires_generate_from_grammar = true,
+  },
+  filetype = "cypher",
+}
+```
+
+Then `:TSInstall cypher`.
+
+### Helix (`~/.config/helix/languages.toml`)
+
+```toml
+[[language]]
+name = "cypher"
+scope = "source.cypher"
+file-types = ["cyp", "cypher"]
+roots = []
+comment-token = "//"
+
+[[grammar]]
+name = "cypher"
+source = { git = "https://github.com/phallsignup/cyrs", subpath = "tree-sitter-cypher" }
+```
+
+Then `hx --grammar fetch && hx --grammar build`.
+
+See [`tree-sitter-cypher/README.md`](./tree-sitter-cypher/README.md) for
+the full scope list and developer workflow.
+
+[ts]: https://tree-sitter.github.io/
+
+---
+
 ## Testing
 
 Spec §17 grades testing to the rust-compiler standard:

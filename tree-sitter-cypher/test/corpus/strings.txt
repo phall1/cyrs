@@ -1,0 +1,53 @@
+==================
+String STARTS WITH
+==================
+
+MATCH (n) WHERE n.name STARTS WITH 'A' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (binary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier))
+        (literal_expr (string_literal)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+String ENDS WITH
+==================
+
+MATCH (n) WHERE n.name ENDS WITH 'e' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (binary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier))
+        (literal_expr (string_literal)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
+
+==================
+String CONTAINS
+==================
+
+MATCH (n) WHERE n.name CONTAINS 'lic' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (pattern (pattern_part (node_pattern (identifier))))
+    (where_clause
+      (binary_expr
+        (property_access_expr (variable_expr (identifier)) (identifier))
+        (literal_expr (string_literal)))))
+  (return_clause
+    (return_item (variable_expr (identifier)))))
