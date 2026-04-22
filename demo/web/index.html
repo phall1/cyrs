@@ -1,0 +1,93 @@
+<!doctype html>
+<!--
+    cypher-wasm Monaco playground — spec 0004 §4 + §7 demo page.
+
+    No build step.  Loads one of two wasm-bindgen bundles:
+
+    * "agent-wasm" (spec 0004 §4) — ../../crates/cypher-wasm/pkg
+      populated by `cargo xtask wasm-build`.
+    * "lsp-wasm"   (spec 0004 §7) — ./pkg-lsp
+      populated by `cargo xtask lsp-web-build` (cy-m0d).
+
+    Both modes produce identical diagnostic output on the corpus; the
+    toggle below lets a reviewer switch between them at runtime.
+
+    Monaco is pulled from a pinned unpkg CDN path via AMD so no bundler
+    is required.
+
+    Serve with:
+
+        npx serve demo/web
+
+    or any other static HTTP server; cannot be opened via `file://`
+    because ES modules + wasm fetch require same-origin HTTPS / HTTP.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>cyrs · cypher-wasm playground</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        body {
+            margin: 0;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+        }
+        header {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #8884;
+            display: flex;
+            gap: 1rem;
+            align-items: baseline;
+        }
+        header h1 {
+            font-size: 1rem;
+            margin: 0;
+        }
+        header .muted {
+            color: #6668;
+            font-size: 0.85rem;
+        }
+        #editor {
+            width: 100%;
+            height: 100%;
+        }
+        #status {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.8rem;
+            padding: 0.4rem 1rem;
+            border-top: 1px solid #8884;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        #status.err {
+            background: #f5000018;
+        }
+    </style>
+    <script src="https://unpkg.com/monaco-editor@0.52.2/min/vs/loader.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <header>
+        <h1>cypher-wasm · Monaco demo</h1>
+        <span class="muted">spec 0004 §4 / §7 · proto version <span id="proto">?</span></span>
+        <fieldset id="mode-toggle" style="margin-left:auto; border:none; padding:0;">
+            <label style="margin-right:0.75rem;">
+                <input type="radio" name="mode" value="agent-wasm" checked />
+                agent-wasm
+            </label>
+            <label>
+                <input type="radio" name="mode" value="lsp-wasm" />
+                lsp-wasm
+            </label>
+        </fieldset>
+    </header>
+    <div id="editor"></div>
+    <div id="status">loading…</div>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

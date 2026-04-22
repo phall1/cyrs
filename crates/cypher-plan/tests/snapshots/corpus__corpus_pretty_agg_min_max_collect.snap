@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS min_age, $1 AS max_age, $2 AS names]
+  Aggregate keys=[] aggs=[min($0.age), max($0.age), collect($0.name)]
+    Source (:Person AS $0)

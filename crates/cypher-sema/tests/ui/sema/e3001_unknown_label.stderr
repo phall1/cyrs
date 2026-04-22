@@ -1,0 +1,6 @@
+error[E3001]: unknown label `:Ghost`
+  ┌─ e3001_unknown_label.cypher:3:6
+  │
+3 │ MATCH (n:Ghost) RETURN n
+  │      ^^^^^^^^^^
+

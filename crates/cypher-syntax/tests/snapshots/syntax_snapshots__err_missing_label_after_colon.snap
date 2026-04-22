@@ -1,0 +1,30 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 391
+expression: "format_with_errors(\"MATCH (n:) RETURN n\")"
+---
+SOURCE_FILE@0..19
+  STATEMENT@0..19
+    MATCH_CLAUSE@0..10
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..10
+        PATTERN_PART@5..10
+          NODE_PATTERN@5..10
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..9
+              COLON@8..9 ":"
+            R_PAREN@9..10 ")"
+    RETURN_CLAUSE@10..19
+      WHITESPACE@10..11 " "
+      RETURN_KW@11..17 "RETURN"
+      RETURN_BODY@17..19
+        RETURN_ITEMS@17..19
+          RETURN_ITEM@17..19
+            VAR_EXPR@17..19
+              WHITESPACE@17..18 " "
+              IDENT@18..19 "n"
+---errors---
+@9: expected label after ':'

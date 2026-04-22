@@ -1,0 +1,1449 @@
+//! In-process integration test for cypher-lsp. Spec 0001 §14, §17.11; bead cy-d48.
+//!
+//! Previously this file spawned the `cypher-lsp` binary over stdio,
+//! which hangs in the GitHub Actions macOS/Linux runners — so the tests
+//! were `#[ignore]`d and the §17.11 LSP conformance gate was silently
+//! unchecked in CI.  The rewrite drives the server in-process via
+//! `lsp_server::Connection::memory()`: the server runs in a worker
+//! thread and the test thread speaks LSP over a pair of crossbeam
+//! channels.  No stdio, no child process, no CI hangs.
+//!
+//! Coverage (matches the spec §17.11 list of required flows):
+//!
+//! * `initialize` + feature echo
+//! * `textDocument/didOpen` → `publishDiagnostics`
+//! * `textDocument/didChange` → fresh `publishDiagnostics`
+//! * `textDocument/didClose` → empty `publishDiagnostics` + `FileId`
+//!   eviction from the `Database` (cy-it7)
+//! * Unknown-URI `didClose` is a no-op
+//! * `shutdown` + `exit` exit cleanly
+
+use std::thread;
+use std::time::Duration;
+
+use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
+use serde_json::{Value, json};
+
+// ---------------------------------------------------------------------------
+// Harness
+// ---------------------------------------------------------------------------
+
+/// Wall-clock ceiling on any single `receiver.recv` wait.  The server
+/// runs in a worker thread and responds synchronously, so 2s is generous;
+/// anything longer means the server is stuck and the test should fail
+/// loudly rather than spin forever.
+const RECV_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Harness tying a server thread to a client-side `Connection`.
+///
+/// Drop the harness to implicitly send `shutdown` + `exit` and join
+/// the worker.  Callers that want to assert clean exit should call
+/// [`TestHarness::shutdown_exit`] instead and then drop.
+struct TestHarness {
+    client: Connection,
+    server_thread: Option<thread::JoinHandle<anyhow::Result<()>>>,
+    next_id: i32,
+}
+
+impl TestHarness {
+    fn new() -> Self {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::Builder::new()
+            .name("cypher-lsp-test-server".into())
+            .spawn(move || cypher_lsp::serve(&server))
+            .expect("spawn server thread");
+        Self {
+            client,
+            server_thread: Some(server_thread),
+            next_id: 0,
+        }
+    }
+
+    fn next_id(&mut self) -> RequestId {
+        self.next_id += 1;
+        RequestId::from(self.next_id)
+    }
+
+    fn send_request(&mut self, method: &str, params: Value) -> RequestId {
+        let id = self.next_id();
+        let req = Request::new(id.clone(), method.to_owned(), params);
+        self.client
+            .sender
+            .send(Message::Request(req))
+            .expect("send request");
+        id
+    }
+
+    fn send_notification(&self, method: &str, params: Value) {
+        let notif = Notification::new(method.to_owned(), params);
+        self.client
+            .sender
+            .send(Message::Notification(notif))
+            .expect("send notification");
+    }
+
+    /// Receive the next message from the server, failing the test after
+    /// [`RECV_TIMEOUT`].
+    fn recv(&self) -> Message {
+        self.client
+            .receiver
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("server response within timeout")
+    }
+
+    /// Receive the next message and assert it's a notification with the
+    /// given method.  Panics with the actual message on mismatch so the
+    /// test log shows what the server sent instead.
+    fn recv_notification(&self, method: &str) -> Notification {
+        match self.recv() {
+            Message::Notification(n) if n.method == method => n,
+            other => panic!("expected notification {method:?}, got {other:?}"),
+        }
+    }
+
+    /// Receive the next message and assert it's a response to `expected_id`.
+    fn recv_response(&self, expected_id: &RequestId) -> Response {
+        match self.recv() {
+            Message::Response(r) if &r.id == expected_id => r,
+            other => panic!("expected response for {expected_id:?}, got {other:?}"),
+        }
+    }
+
+    /// Initialize the session and assert the spec §14.2 features land
+    /// on the wire.  Separated from `new` so tests that only care about
+    /// shutdown semantics can skip the feature assertions.
+    fn initialize(&mut self) {
+        let id = self.send_request(
+            "initialize",
+            json!({
+                "processId": null,
+                "rootUri": null,
+                "features": {}
+            }),
+        );
+
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
+        let caps = resp.result.expect("initialize result");
+        let caps = &caps["features"];
+
+        assert_eq!(
+            caps["textDocumentSync"],
+            json!(1),
+            "textDocumentSync must be Full"
+        );
+        assert!(
+            caps["documentFormattingProvider"]
+                .as_bool()
+                .unwrap_or(false),
+            "documentFormattingProvider must be true"
+        );
+        assert!(
+            caps["hoverProvider"].as_bool().unwrap_or(false),
+            "hoverProvider must be true"
+        );
+        assert!(
+            caps["definitionProvider"].as_bool().unwrap_or(false),
+            "definitionProvider must be true"
+        );
+        assert!(
+            caps["referencesProvider"].as_bool().unwrap_or(false),
+            "referencesProvider must be true"
+        );
+        assert!(
+            caps["completionProvider"].is_object(),
+            "completionProvider must be advertised"
+        );
+        let triggers = caps["completionProvider"]["triggerCharacters"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for ch in [":", ".", "$"] {
+            assert!(
+                triggers.contains(&ch),
+                "completionProvider must list {ch:?} as a trigger character"
+            );
+        }
+        assert!(
+            caps["codeActionProvider"].as_bool().unwrap_or(false)
+                || caps["codeActionProvider"].is_object(),
+            "codeActionProvider must be advertised (Simple(true) or full options)"
+        );
+        assert!(
+            caps["foldingRangeProvider"].as_bool().unwrap_or(false)
+                || caps["foldingRangeProvider"].is_object(),
+            "foldingRangeProvider must be advertised"
+        );
+        let commands = caps["executeCommandProvider"]["commands"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for c in ["cypher.explainPlan", "cypher.lowerToHir"] {
+            assert!(
+                commands.contains(&c),
+                "executeCommandProvider must list {c:?}; got {commands:?}"
+            );
+        }
+        assert!(
+            caps["documentRangeFormattingProvider"]
+                .as_bool()
+                .unwrap_or(false),
+            "documentRangeFormattingProvider must be advertised"
+        );
+        assert!(
+            caps["semanticTokensProvider"].is_object(),
+            "semanticTokensProvider must be advertised"
+        );
+        assert!(
+            caps["inlayHintProvider"].as_bool().unwrap_or(false)
+                || caps["inlayHintProvider"].is_object(),
+            "inlayHintProvider must be advertised"
+        );
+        assert!(
+            caps["renameProvider"].is_object(),
+            "renameProvider must be advertised with prepareProvider=true"
+        );
+        assert_eq!(
+            caps["renameProvider"]["prepareProvider"],
+            json!(true),
+            "renameProvider.prepareProvider must be true so clients call prepareRename first"
+        );
+        assert!(
+            caps["signatureHelpProvider"].is_object(),
+            "signatureHelpProvider must be advertised"
+        );
+        let sig_triggers = caps["signatureHelpProvider"]["triggerCharacters"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for ch in ["(", ","] {
+            assert!(
+                sig_triggers.contains(&ch),
+                "signatureHelpProvider must list {ch:?} as a trigger character"
+            );
+        }
+
+        self.send_notification("initialized", json!({}));
+    }
+
+    fn did_open(&self, uri: &str, text: &str) {
+        self.send_notification(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "cypher",
+                    "version": 1,
+                    "text": text,
+                }
+            }),
+        );
+    }
+
+    fn did_change(&self, uri: &str, text: &str, version: i64) {
+        self.send_notification(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": [{ "text": text }]
+            }),
+        );
+    }
+
+    fn did_close(&self, uri: &str) {
+        self.send_notification(
+            "textDocument/didClose",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+    }
+
+    fn hover(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/hover",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "hover error: {:?}", resp.error);
+        resp.result.expect("hover result present")
+    }
+
+    fn definition(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/definition",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "definition error: {:?}", resp.error);
+        resp.result.expect("definition result present")
+    }
+
+    fn references(
+        &mut self,
+        uri: &str,
+        line: u32,
+        character: u32,
+        include_declaration: bool,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/references",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+                "context": { "includeDeclaration": include_declaration },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "references error: {:?}", resp.error);
+        resp.result.expect("references result present")
+    }
+
+    fn completion(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/completion",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "completion error: {:?}", resp.error);
+        resp.result.expect("completion result present")
+    }
+
+    /// Initialize with raw `initializationOptions` — used by the
+    /// schema-aware tests to drive spec §14.3.  Skips the default
+    /// feature assertions since those are covered by the other
+    /// tests already.
+    fn initialize_with_options(&mut self, options: Value) {
+        let id = self.send_request(
+            "initialize",
+            json!({
+                "processId": null,
+                "rootUri": null,
+                "features": {},
+                "initializationOptions": options,
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "initialize error: {:?}", resp.error);
+        self.send_notification("initialized", json!({}));
+    }
+
+    fn semantic_tokens_full(&mut self, uri: &str) -> Value {
+        let id = self.send_request(
+            "textDocument/semanticTokens/full",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "semanticTokens/full error: {:?}",
+            resp.error
+        );
+        resp.result.expect("semanticTokens/full result present")
+    }
+
+    fn inlay_hint(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "inlayHint error: {:?}", resp.error);
+        resp.result.expect("inlayHint result present")
+    }
+
+    fn execute_command(&mut self, command: &str, args: Value) -> Response {
+        let id = self.send_request(
+            "workspace/executeCommand",
+            json!({ "command": command, "arguments": args }),
+        );
+        self.recv_response(&id)
+    }
+
+    fn folding_range(&mut self, uri: &str) -> Value {
+        let id = self.send_request(
+            "textDocument/foldingRange",
+            json!({ "textDocument": { "uri": uri } }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "foldingRange error: {:?}", resp.error);
+        resp.result.expect("foldingRange result present")
+    }
+
+    fn range_formatting(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/rangeFormatting",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "rangeFormatting error: {:?}",
+            resp.error
+        );
+        resp.result.expect("rangeFormatting result present")
+    }
+
+    fn did_save(&self, uri: &str, text: Option<&str>) {
+        let params = if let Some(t) = text {
+            json!({
+                "textDocument": { "uri": uri },
+                "text": t
+            })
+        } else {
+            json!({ "textDocument": { "uri": uri } })
+        };
+        self.send_notification("textDocument/didSave", params);
+    }
+
+    fn code_action(
+        &mut self,
+        uri: &str,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
+    ) -> Value {
+        let id = self.send_request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": uri },
+                "range": {
+                    "start": { "line": start_line, "character": start_char },
+                    "end":   { "line": end_line,   "character": end_char },
+                },
+                "context": { "diagnostics": [] }
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "codeAction error: {:?}", resp.error);
+        resp.result.expect("codeAction result present")
+    }
+
+    fn prepare_rename(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/prepareRename",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "prepareRename error: {:?}",
+            resp.error
+        );
+        resp.result.expect("prepareRename result present")
+    }
+
+    fn rename(&mut self, uri: &str, line: u32, character: u32, new_name: &str) -> Response {
+        let id = self.send_request(
+            "textDocument/rename",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+                "newName": new_name,
+            }),
+        );
+        self.recv_response(&id)
+    }
+
+    fn signature_help(&mut self, uri: &str, line: u32, character: u32) -> Value {
+        let id = self.send_request(
+            "textDocument/signatureHelp",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character },
+            }),
+        );
+        let resp = self.recv_response(&id);
+        assert!(
+            resp.error.is_none(),
+            "signatureHelp error: {:?}",
+            resp.error
+        );
+        resp.result.expect("signatureHelp result present")
+    }
+
+    fn shutdown_exit(&mut self) {
+        let id = self.send_request("shutdown", Value::Null);
+        let resp = self.recv_response(&id);
+        assert!(resp.error.is_none(), "shutdown error: {:?}", resp.error);
+        self.send_notification("exit", Value::Null);
+    }
+}
+
+impl Drop for TestHarness {
+    fn drop(&mut self) {
+        // Best-effort: if the test forgot to call shutdown_exit, drop the
+        // client sender so the server's recv loop disconnects cleanly.
+        let (dummy_sender, _) = crossbeam_channel::unbounded();
+        let sender = std::mem::replace(&mut self.client.sender, dummy_sender);
+        drop(sender);
+        if let Some(handle) = self.server_thread.take() {
+            // Join with a deadline so a stuck server fails the test run
+            // visibly instead of hanging forever.
+            let join_deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while std::time::Instant::now() < join_deadline {
+                if handle.is_finished() {
+                    let _ = handle.join();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            eprintln!("warning: server thread did not join within 5s; leaking");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn lsp_initialize_advertises_v1_capabilities() {
+    let mut h = TestHarness::new();
+    h.initialize();
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_open_publishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_open.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+
+    let notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+    assert!(
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "valid MATCH (n) RETURN n must produce no diagnostics, got {}",
+        params["diagnostics"]
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_change_republishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_change.cyp";
+    h.did_open(uri, "RETURN 1");
+    let open_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let _ = open_notif;
+
+    h.did_change(uri, "MATCH (m) RETURN m", 2);
+    let change_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(change_notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+    // Valid MATCH (m) RETURN m has no diagnostics.
+    assert!(
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "valid MATCH (m) RETURN m must produce no diagnostics"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_close_clears_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_close.cyp";
+    h.did_open(uri, "RETURN 42");
+    // Consume the didOpen diagnostics.
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    h.did_close(uri);
+    let close_notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(close_notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+    assert!(
+        params["diagnostics"].as_array().is_some_and(Vec::is_empty),
+        "didClose publishDiagnostics must be empty (client-state clear)"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_keyword_returns_markdown() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH (line 0, character 0).
+    let result = h.hover(uri, 0, 0);
+    let contents = &result["contents"];
+    let body = contents.as_str().unwrap_or_else(|| {
+        contents["value"]
+            .as_str()
+            .expect("hover contents must carry markdown")
+    });
+    assert!(
+        body.contains("MATCH"),
+        "MATCH keyword hover must mention MATCH; got {body:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_variable_returns_kind() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the n inside MATCH (n) — line 0, character 7.
+    let result = h.hover(uri, 0, 7);
+    let body = result["contents"]
+        .as_str()
+        .or_else(|| result["contents"]["value"].as_str())
+        .unwrap_or("");
+    assert!(
+        body.contains("variable") && body.contains("`n`"),
+        "variable hover must name the binding; got {body:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_hover_on_whitespace_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hover_none.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor past the end of the document.
+    let result = h.hover(uri, 5, 0);
+    assert!(
+        result.is_null(),
+        "hover beyond EOF must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_definition_on_variable_returns_location() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_def_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing n in RETURN n — line 0, character 17.
+    let result = h.definition(uri, 0, 17);
+    assert_eq!(
+        result["uri"],
+        json!(uri),
+        "definition location must point at the same file"
+    );
+    let range = &result["range"];
+    assert_eq!(range["start"]["line"], json!(0));
+    // The defined-at range covers the n inside MATCH (n) — character 7.
+    assert_eq!(range["start"]["character"], json!(7));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_definition_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_def_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH — keyword, not an identifier.
+    let result = h.definition(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "definition on a keyword must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_references_on_variable_returns_all_sites() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_refs_var.cyp";
+    // Three occurrences of `n`: MATCH (n), WHERE n.x, RETURN n.
+    h.did_open(uri, "MATCH (n) WHERE n.x = 1 RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing `n` in `RETURN n`.
+    let fixture = "MATCH (n) WHERE n.x = 1 RETURN n";
+    let last_n = u32::try_from(fixture.len() - 1).expect("fixture fits in u32");
+
+    // include_declaration = true → all three sites.
+    let result = h.references(uri, 0, last_n, true);
+    let items = result.as_array().expect("references must be an array");
+    assert_eq!(
+        items.len(),
+        3,
+        "references with declaration must be 3; got {items:?}"
+    );
+    for item in items {
+        assert_eq!(item["uri"], json!(uri));
+    }
+    let starts: Vec<u64> = items
+        .iter()
+        .filter_map(|i| i["range"]["start"]["character"].as_u64())
+        .collect();
+    // MATCH (n) → col 7, WHERE n.x → col 16, RETURN n → col 31.
+    assert!(
+        starts.contains(&7),
+        "must include MATCH site; got {starts:?}"
+    );
+    assert!(
+        starts.contains(&16),
+        "must include WHERE site; got {starts:?}"
+    );
+    assert!(
+        starts.contains(&31),
+        "must include RETURN site; got {starts:?}"
+    );
+
+    // include_declaration = false → drops the MATCH (n) defined-at range.
+    let result = h.references(uri, 0, last_n, false);
+    let items = result.as_array().expect("array");
+    assert_eq!(
+        items.len(),
+        2,
+        "references without declaration must be 2; got {items:?}"
+    );
+    let starts: Vec<u64> = items
+        .iter()
+        .filter_map(|i| i["range"]["start"]["character"].as_u64())
+        .collect();
+    assert!(
+        !starts.contains(&7),
+        "defined-at site (col 7) must be excluded; got {starts:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_references_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_refs_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the M of MATCH — keyword, not an identifier.
+    let result = h.references(uri, 0, 0, true);
+    assert!(
+        result.is_null(),
+        "references on a keyword must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_completion_default_returns_keywords() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_kw.cyp";
+    h.did_open(uri, "");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor at column 0 of an empty doc → keyword context.
+    let result = h.completion(uri, 0, 0);
+    let items = result
+        .as_array()
+        .expect("completion items must be an array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    for kw in ["MATCH", "WHERE", "RETURN", "WITH"] {
+        assert!(
+            labels.contains(&kw),
+            "keyword completion must include {kw:?}; got {labels:?}"
+        );
+    }
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_completion_after_dollar_returns_parameter_placeholder() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_param.cyp";
+    // Buffer where the user has typed "RETURN $" — cursor right after $.
+    h.did_open(uri, "RETURN $");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 8);
+    let items = result.as_array().expect("array");
+    assert!(!items.is_empty(), "parameter completion must not be empty");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"param"),
+        "fresh buffer must surface a generic `param` placeholder; got {labels:?}"
+    );
+}
+
+#[test]
+fn lsp_completion_after_dollar_lists_existing_parameters() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_param2.cyp";
+    // Buffer references $name + $age earlier; user typing $ at the end.
+    h.did_open(uri, "MATCH (n {name: $name, age: $age}) RETURN $");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let cursor: u32 = u32::try_from("MATCH (n {name: $name, age: $age}) RETURN $".len())
+        .expect("test fixture fits in u32");
+    let result = h.completion(uri, 0, cursor);
+    let items = result.as_array().expect("array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"name"),
+        "must surface $name; got {labels:?}"
+    );
+    assert!(labels.contains(&"age"), "must surface $age; got {labels:?}");
+}
+
+#[test]
+fn lsp_completion_after_colon_empty_without_schema() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_completion_label.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // No schema loaded → label completion returns no items rather than
+    // guessing.  Spec §14.3 (cy-0ls) is the user-visible knob.
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "label completion without schema must be empty; got {items:?}"
+    );
+}
+
+#[test]
+fn lsp_signature_help_inside_call_returns_shape() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_inside.cyp";
+    // Cursor sits right after the opening paren of a call — classic
+    // signatureHelp trigger.  With no schema loaded, the engine still
+    // returns a well-formed SignatureHelp (empty signatures list).
+    h.did_open(uri, "RETURN count(");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 13);
+    assert!(
+        result.is_object(),
+        "signatureHelp must return an object inside a call; got {result}"
+    );
+    assert_eq!(
+        result["activeParameter"],
+        json!(0),
+        "cursor immediately after `(` is parameter 0"
+    );
+    assert!(
+        result["signatures"].is_array(),
+        "signatures must be an array; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_signature_help_tracks_active_parameter() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_commas.cyp";
+    // Two commas before the cursor → activeParameter 2.
+    h.did_open(uri, "RETURN foo(a, b, ");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 17);
+    assert_eq!(
+        result["activeParameter"],
+        json!(2),
+        "after two commas activeParameter must be 2; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_signature_help_outside_call_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sig_outside.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.signature_help(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "signatureHelp outside any paren group must be null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_prepare_rename_on_variable_returns_range() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_prep_var.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Cursor on the trailing n.
+    let result = h.prepare_rename(uri, 0, 17);
+    assert!(
+        result.is_object(),
+        "prepareRename on a variable must return a range; got {result}"
+    );
+    assert_eq!(result["start"]["line"], json!(0));
+    assert_eq!(result["start"]["character"], json!(17));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_prepare_rename_on_keyword_returns_null() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_prep_kw.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.prepare_rename(uri, 0, 0);
+    assert!(
+        result.is_null(),
+        "prepareRename on a keyword must return null; got {result}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_rename_variable_produces_workspace_edit() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_rename_var.cyp";
+    h.did_open(uri, "MATCH (n) WHERE n.x = 1 RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Rename the trailing n → nn.
+    let resp = h.rename(uri, 0, 31, "nn");
+    assert!(resp.error.is_none(), "rename error: {:?}", resp.error);
+    let value = resp.result.expect("rename result present");
+    let edits = value["documentChanges"][0]["edits"]
+        .as_array()
+        .expect("documentChanges[0].edits must be an array");
+    assert_eq!(
+        edits.len(),
+        3,
+        "rename of `n` must emit one edit per occurrence (3); got {edits:?}"
+    );
+    for e in edits {
+        assert_eq!(e["newText"], json!("nn"));
+    }
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_rename_with_invalid_new_name_returns_error() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_rename_bad.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Numeric new name is not a valid identifier.
+    let resp = h.rename(uri, 0, 7, "1bad");
+    assert!(
+        resp.error.is_some(),
+        "invalid new name must surface an error so the client rejects the edit"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_code_action_on_clean_query_returns_empty() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_code_action_clean.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // A clean query has no diagnostics, so no fix-its, so no actions.
+    let result = h.code_action(uri, 0, 0, 0, 18);
+    let actions = result.as_array().expect("codeAction must return an array");
+    assert!(
+        actions.is_empty(),
+        "clean query produces no code actions; got {actions:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_code_action_on_syntax_error_returns_empty_for_now() {
+    // Until the diagnostic-emitting passes start populating
+    // Diagnostic::fixes, the code-action endpoint returns an empty
+    // list even on a query with syntax errors.  Pinning this
+    // behaviour so the day a pass grows fix-its we get a visible
+    // (green-→-red) test delta.
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_code_action_err.cyp";
+    h.did_open(uri, "MATCH (n WHERE x");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.code_action(uri, 0, 0, 0, 16);
+    let actions = result.as_array().expect("codeAction must return an array");
+    assert!(
+        actions.is_empty(),
+        "no pass currently emits FixIts — expect empty; got {actions:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_folding_range_multi_line_query_yields_ranges() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_folding.cyp";
+    // Three-line query; every clause spans exactly one line, so no
+    // single-clause fold, but the enclosing statement node should
+    // span ≥ 2 lines.
+    h.did_open(uri, "MATCH (n)\nWHERE n.x = 1\nRETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.folding_range(uri);
+    let ranges = result.as_array().expect("foldingRange returns an array");
+    assert!(
+        !ranges.is_empty(),
+        "a 3-line query must produce at least one FoldingRange; got {result}"
+    );
+    let first = &ranges[0];
+    assert!(first["startLine"].as_u64().is_some());
+    assert!(first["endLine"].as_u64().is_some());
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_folding_range_single_line_returns_empty() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_folding_oneliner.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.folding_range(uri);
+    let ranges = result.as_array().expect("array");
+    assert!(
+        ranges.is_empty(),
+        "a one-line query produces no FoldingRanges; got {ranges:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_range_formatting_whole_doc_produces_edit() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_range_fmt.cyp";
+    // Lowercase `return` — formatter will uppercase it.
+    h.did_open(uri, "return 1");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Range covers the whole doc (line 0..=0 of the single-line file).
+    let result = h.range_formatting(uri, 0, 0, 0, 8);
+    let edits = result.as_array().expect("rangeFormatting returns array");
+    assert!(
+        !edits.is_empty(),
+        "whole-doc range request on an unformatted file must return edits"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_range_formatting_partial_range_returns_empty_v1() {
+    // v1 limitation: partial-range formatting isn't implemented;
+    // the handler returns an empty TextEdit list rather than a
+    // potentially-wrong slice.  Pinning the behaviour so a future
+    // upgrade flips this test red.
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_range_fmt_partial.cyp";
+    h.did_open(uri, "MATCH (n)\nWHERE n.x = 1\nRETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Request only the WHERE line.
+    let result = h.range_formatting(uri, 1, 0, 1, 13);
+    let edits = result.as_array().expect("array");
+    assert!(
+        edits.is_empty(),
+        "v1 partial rangeFormatting returns empty; got {edits:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_save_with_text_republishes_diagnostics() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_save.cyp";
+    h.did_open(uri, "RETURN 1");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // didSave with includeText=true delivers new content → server
+    // treats it as an implicit didChange and republishes diagnostics.
+    h.did_save(uri, Some("MATCH (n) RETURN n"));
+    let notif = h.recv_notification("textDocument/publishDiagnostics");
+    let params: Value = serde_json::from_value(notif.params).unwrap();
+    assert_eq!(params["uri"], json!(uri));
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_save_without_text_is_silent_no_op() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_save_noop.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // didSave without includeText is a no-op — no additional
+    // publishDiagnostics should arrive before shutdown.  If the
+    // server emitted one, shutdown_exit's recv_response would see it
+    // instead of the shutdown response and panic.
+    h.did_save(uri, None);
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_explain_plan_returns_markdown() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_explain.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.explainPlan", json!([{ "uri": uri }]));
+    assert!(resp.error.is_none(), "explainPlan error: {:?}", resp.error);
+    let body = resp
+        .result
+        .expect("explainPlan result")
+        .as_str()
+        .map(str::to_owned)
+        .expect("explainPlan returns a JSON string");
+    assert!(
+        !body.is_empty(),
+        "explainPlan must return non-empty markdown"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_lower_to_hir_returns_overlay() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_hir.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.lowerToHir", json!([{ "uri": uri }]));
+    assert!(resp.error.is_none(), "lowerToHir error: {:?}", resp.error);
+    let body = resp
+        .result
+        .expect("lowerToHir result")
+        .as_str()
+        .map(str::to_owned)
+        .expect("lowerToHir returns a JSON string");
+    assert!(
+        !body.is_empty(),
+        "lowerToHir must return non-empty overlay text"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_execute_command_unknown_returns_error() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_exec_unknown.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let resp = h.execute_command("cypher.fakeCommand", json!([{ "uri": uri }]));
+    assert!(
+        resp.error.is_some(),
+        "unknown command must surface a JSON-RPC error"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_schema_file_drives_completion() {
+    // Write a tiny schema JSON to a temp file and pass its path via
+    // `schemaSource: file`.  Completion after `:` then surfaces the
+    // schema's labels.
+    let tmp = tempfile::NamedTempFile::new().expect("create tmp file");
+    std::fs::write(
+        tmp.path(),
+        r#"{"labels": ["Person", "Movie"], "rel_types": ["ACTED_IN"]}"#,
+    )
+    .expect("write schema");
+
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "file",
+        "schemaPath": tmp.path().to_string_lossy(),
+        "dialect": "GqlAligned",
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(
+        labels.contains(&"Person"),
+        "label completion must include Person from the loaded schema; got {labels:?}"
+    );
+    assert!(
+        labels.contains(&"Movie"),
+        "label completion must include Movie; got {labels:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_schema_none_means_no_labels() {
+    // Explicit `schemaSource: none` — equivalent to omitting options.
+    // Completion after `:` still returns empty (existing behaviour).
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "none",
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema_none.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "schemaSource=none → no label completion; got {items:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_init_options_malformed_schema_json_falls_back_to_no_schema() {
+    // Garbage JSON at the schemaPath.  The server must not fail
+    // initialize — it logs and keeps running with no schema.
+    let tmp = tempfile::NamedTempFile::new().expect("create tmp file");
+    std::fs::write(tmp.path(), "this is not json").expect("write garbage");
+
+    let mut h = TestHarness::new();
+    h.initialize_with_options(json!({
+        "schemaSource": "file",
+        "schemaPath": tmp.path().to_string_lossy(),
+    }));
+
+    let uri = "file:///tmp/lsp_test_init_schema_bad.cyp";
+    h.did_open(uri, "MATCH (n:");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.completion(uri, 0, 9);
+    let items = result.as_array().expect("array");
+    assert!(
+        items.is_empty(),
+        "malformed schema JSON falls back to no schema; got {items:?}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_semantic_tokens_full_emits_tokens() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_sem_full.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.semantic_tokens_full(uri);
+    let data = result["data"]
+        .as_array()
+        .expect("semanticTokens data array");
+    // MATCH (kw), (, n (variable), ), RETURN (kw), n (variable) → at
+    // least 4 emitted 5-tuples; tuple count is data.len() / 5.
+    assert!(
+        data.len() >= 20,
+        "expected ≥4 tokens (=20 u32s); got {} entries",
+        data.len()
+    );
+    assert_eq!(
+        data.len() % 5,
+        0,
+        "semantic-tokens array length must be a multiple of 5"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_inlay_hint_emits_hint_for_bound_variable() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_inlay.cyp";
+    h.did_open(uri, "MATCH (n) RETURN n");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    // Request covers the whole single-line query.
+    let result = h.inlay_hint(uri, 0, 0, 0, 18);
+    let hints = result.as_array().expect("inlayHint returns an array");
+    assert!(
+        !hints.is_empty(),
+        "a bound MATCH (n) must produce at least one inlay hint; got {hints:?}"
+    );
+    let first = &hints[0];
+    assert!(
+        first["label"].as_str().is_some_and(|s| s.contains("Node")),
+        "first inlay hint must name the Node kind; got {first}"
+    );
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_inlay_hint_empty_query_has_no_hints() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    let uri = "file:///tmp/lsp_test_inlay_empty.cyp";
+    h.did_open(uri, "");
+    let _ = h.recv_notification("textDocument/publishDiagnostics");
+
+    let result = h.inlay_hint(uri, 0, 0, 0, 0);
+    let hints = result.as_array().expect("array");
+    assert!(hints.is_empty(), "empty query has no bindings");
+
+    h.shutdown_exit();
+}
+
+#[test]
+fn lsp_did_close_unknown_uri_is_silent() {
+    let mut h = TestHarness::new();
+    h.initialize();
+
+    // Close a URI we never opened.  The server must log + return without
+    // publishing anything or crashing.  We then send shutdown and expect
+    // the response to land normally — no stray diagnostic in between.
+    h.did_close("file:///tmp/lsp_test_ghost.cyp");
+
+    h.shutdown_exit();
+}

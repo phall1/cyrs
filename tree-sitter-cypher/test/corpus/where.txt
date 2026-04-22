@@ -1,0 +1,129 @@
+==================
+WHERE equality predicate
+==================
+
+MATCH (n:Person) WHERE n.name = 'Alice' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (binary_expr
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier))
+        (literal_expr
+          (string_literal)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+WHERE AND predicate
+==================
+
+MATCH (n) WHERE n.age > 21 AND n.active = true RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (binary_expr
+        (binary_expr
+          (property_access_expr
+            (variable_expr
+              (identifier))
+            (identifier))
+          (literal_expr
+            (int_literal)))
+        (kw_and)
+        (binary_expr
+          (property_access_expr
+            (variable_expr
+              (identifier))
+            (identifier))
+          (literal_expr
+            (bool_literal
+              (kw_true)))))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+WHERE NOT predicate
+==================
+
+MATCH (n) WHERE NOT n.deleted RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (unary_expr
+        (kw_not)
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+WHERE IS NULL
+==================
+
+MATCH (n) WHERE n.name IS NULL RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (is_null_expr
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier))
+        (kw_is)
+        (kw_null))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

@@ -1,0 +1,6 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "format_with(\"MATCH (n:Person) RETURN n.name, n.age, n.email\", &opts).unwrap()"
+---
+MATCH (n:Person)
+RETURN n.name, n.age, n.email

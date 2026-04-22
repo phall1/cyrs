@@ -1,0 +1,1 @@
+MATCH (a)-[r]->(b) WHERE a.x = 1 RETURN r

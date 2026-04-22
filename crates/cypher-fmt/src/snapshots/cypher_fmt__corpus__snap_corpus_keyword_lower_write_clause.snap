@@ -1,0 +1,6 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "format_with(\"CREATE (n:Person {name: 'Alice'}) RETURN n\", &opts).unwrap()"
+---
+create (n:Person {name: 'Alice'})
+return n

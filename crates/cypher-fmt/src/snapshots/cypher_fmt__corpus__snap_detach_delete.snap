@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person {name: 'Temp'}) DETACH DELETE n\")"
+---
+MATCH (n:Person {name: 'Temp'})
+DETACH
+DELETE n

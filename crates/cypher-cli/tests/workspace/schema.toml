@@ -1,0 +1,23 @@
+# Shared schema for the tranche 1 fixture. Spec 0002.
+#
+# All three member .cyp files consult this schema via the workspace
+# database; a label that appears here in schema.toml is visible to every
+# member regardless of which file declared it.
+
+[[label]]
+name = "Movie"
+properties = [
+    { name = "title",    type = "STRING",  required = true },
+    { name = "released", type = "INTEGER" },
+]
+
+[[label]]
+name = "Person"
+properties = [
+    { name = "name", type = "STRING", required = true },
+]
+
+[[rel_type]]
+name         = "ACTED_IN"
+start_labels = ["Person"]
+end_labels   = ["Movie"]

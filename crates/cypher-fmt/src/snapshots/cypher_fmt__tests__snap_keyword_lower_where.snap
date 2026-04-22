@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "format_with(\"MATCH (n) WHERE n.age > 21 RETURN n\", &opts).unwrap()"
+---
+match (n)
+where n.age > 21
+return n

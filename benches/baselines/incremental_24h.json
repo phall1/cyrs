@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Provisional baseline for bench_incremental_24h (cy-wcv, spec §11.6 / §17.10).",
+    "Captured on darwin/aarch64 at bead cy-wcv landing with CY_SOAK_HOURS=0.1667 (~10 min)",
+    "as a wiring smoke — NOT a representative 4h/24h trace. The first weekly",
+    "soak_4h run on ubuntu-latest will replace these numbers with a real plateau.",
+    "Per-mode fields:",
+    "  baseline_rss_mib  — RSS at t=0 (first sample).",
+    "  steady_rss_mib    — RSS at the last sample.",
+    "  tail_slope_kib_per_hr  — OLS slope over the trailing SLOPE_WINDOW_HOURS window.",
+    "Gate: |tail_slope_kib_per_hr| must stay under 100 KiB/hr for CY_SOAK_HOURS >= 4."
+  ],
+  "horizon_hours_smoke": 0.1667,
+  "sample_interval_seconds": 60,
+  "slope_gate_kib_per_hr": 100.0,
+  "slope_window_hours": 8.0,
+  "agent_single_fileid": {
+    "baseline_rss_mib": 1.6,
+    "steady_rss_mib": 3.9,
+    "tail_slope_kib_per_hr": 56.49,
+    "samples_observed": 12
+  },
+  "lsp_fileid_churn": {
+    "baseline_rss_mib": 3.9,
+    "steady_rss_mib": 3.1,
+    "tail_slope_kib_per_hr": 0.0,
+    "samples_observed": 12
+  }
+}

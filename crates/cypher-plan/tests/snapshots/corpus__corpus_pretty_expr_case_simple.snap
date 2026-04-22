@@ -1,0 +1,6 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [CASE $0.status WHEN "active" THEN 1 WHEN "inactive" THEN 0 ELSE -(1) END AS score]
+  Source (AS $0)

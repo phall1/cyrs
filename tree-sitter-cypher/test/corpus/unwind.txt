@@ -1,0 +1,25 @@
+==================
+UNWIND list
+==================
+
+UNWIND [1, 2, 3] AS x RETURN x
+
+---
+
+(source_file
+  (unwind_clause
+    (kw_unwind)
+    (list_literal
+      (literal_expr
+        (int_literal))
+      (literal_expr
+        (int_literal))
+      (literal_expr
+        (int_literal)))
+    (kw_as)
+    (identifier))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

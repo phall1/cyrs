@@ -1,0 +1,94 @@
+==================
+String STARTS WITH
+==================
+
+MATCH (n) WHERE n.name STARTS WITH 'A' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (binary_expr
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier))
+        (kw_starts)
+        (kw_with)
+        (literal_expr
+          (string_literal)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+String ENDS WITH
+==================
+
+MATCH (n) WHERE n.name ENDS WITH 'e' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (binary_expr
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier))
+        (kw_ends)
+        (kw_with)
+        (literal_expr
+          (string_literal)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+String CONTAINS
+==================
+
+MATCH (n) WHERE n.name CONTAINS 'lic' RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (binary_expr
+        (property_access_expr
+          (variable_expr
+            (identifier))
+          (identifier))
+        (kw_contains)
+        (literal_expr
+          (string_literal)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

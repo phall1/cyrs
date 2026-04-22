@@ -1,0 +1,8 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n)\\n// aggregate\\nWITH count(n) AS total\\nRETURN total\")"
+---
+MATCH (n)
+// aggregate
+WITH COUNT(n) AS total
+RETURN total

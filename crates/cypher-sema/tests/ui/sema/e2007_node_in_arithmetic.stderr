@@ -1,0 +1,12 @@
+error[E2007]: variable `n` has kind `Node` but is used in an arithmetic expression; only `Value` variables are valid here
+  ┌─ e2007_node_in_arithmetic.cypher:1:1
+  │
+1 │ // E2007: node variable used in arithmetic context
+  │ ^
+
+error[E2009]: arithmetic operand must be numeric (`Int`, `Float`, or `Num`) but found `Node`
+  ┌─ e2007_node_in_arithmetic.cypher:1:1
+  │
+1 │ // E2007: node variable used in arithmetic context
+  │ ^
+

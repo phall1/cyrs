@@ -1,0 +1,6 @@
+---
+source: crates/cypher-sema/src/schema_aware.rs
+expression: "run(&stmt, &schema)"
+---
+diagnostics: 1
+  E3004: property `since` expects type `Int` but got `String`

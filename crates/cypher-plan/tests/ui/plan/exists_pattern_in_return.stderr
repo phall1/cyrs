@@ -1,0 +1,2 @@
+Project [EXISTS(Expand ($0)-[(->) $4]->(:Movie AS $3)) AS _]
+  Source (AS $0)

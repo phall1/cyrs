@@ -1,0 +1,61 @@
+==================
+Pattern predicate in WHERE with anonymous rel
+==================
+
+MATCH (n) WHERE EXISTS((n)-->(m)) RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (pattern_predicate
+        (kw_exists)
+        (node_pattern
+          (identifier))
+        (rel_pattern)
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))
+
+==================
+Pattern predicate with typed relationship
+==================
+
+MATCH (n) WHERE EXISTS((n)-[:KNOWS]->(m)) RETURN n
+
+---
+
+(source_file
+  (match_clause
+    (kw_match)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier))))
+    (where_clause
+      (kw_where)
+      (pattern_predicate
+        (kw_exists)
+        (node_pattern
+          (identifier))
+        (rel_pattern
+          (rel_detail
+            (identifier)))
+        (node_pattern
+          (identifier)))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

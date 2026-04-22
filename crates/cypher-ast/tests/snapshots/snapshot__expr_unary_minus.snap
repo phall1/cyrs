@@ -1,0 +1,17 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 390
+expression: "dump(\"RETURN -1\")"
+---
+SourceFile(SOURCE_FILE@0..9)
+  STATEMENT@0..9
+    ReturnClause(RETURN_CLAUSE@0..9)
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..9
+        RETURN_ITEMS@6..9
+          ReturnItem(RETURN_ITEM@6..9)
+            Expr::UnaryExpr(UNARY_EXPR@6..9)
+              WHITESPACE@6..7 " "
+              MINUS@7..8 "-"
+              LITERAL_EXPR@8..9
+                INT_LITERAL@8..9 "1"

@@ -1,0 +1,3 @@
+error[E0052]: expected '}' to close map literal
+ --> map_unclosed.cypher:12
+

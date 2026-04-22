@@ -1,0 +1,3 @@
+error[E0061]: expected CREATE or MATCH after ON in MERGE action
+ --> merge_on_missing_action.cypher:13
+

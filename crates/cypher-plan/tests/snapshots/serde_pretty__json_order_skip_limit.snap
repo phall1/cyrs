@@ -1,0 +1,47 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "op": "source"
+    },
+    {
+      "input": 0,
+      "keys": [
+        {
+          "dir": "asc",
+          "expr": {
+            "kind": "prop",
+            "prop": "name",
+            "target": {
+              "id": 0,
+              "kind": "var"
+            }
+          }
+        }
+      ],
+      "op": "order_by"
+    },
+    {
+      "count": {
+        "kind": "int",
+        "value": 10
+      },
+      "input": 1,
+      "op": "skip"
+    },
+    {
+      "count": {
+        "kind": "int",
+        "value": 5
+      },
+      "input": 2,
+      "op": "limit"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

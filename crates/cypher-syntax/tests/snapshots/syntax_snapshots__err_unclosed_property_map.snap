@@ -1,0 +1,36 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 386
+expression: "format_with_errors(\"MATCH (n {x: 1 RETURN n\")"
+---
+SOURCE_FILE@0..23
+  STATEMENT@0..23
+    MATCH_CLAUSE@0..14
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..14
+        PATTERN_PART@5..14
+          NODE_PATTERN@5..14
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            PROPERTY_MAP@8..14
+              WHITESPACE@8..9 " "
+              L_BRACE@9..10 "{"
+              IDENT@10..11 "x"
+              COLON@11..12 ":"
+              LITERAL_EXPR@12..14
+                WHITESPACE@12..13 " "
+                INT_LITERAL@13..14 "1"
+    RETURN_CLAUSE@14..23
+      WHITESPACE@14..15 " "
+      RETURN_KW@15..21 "RETURN"
+      RETURN_BODY@21..23
+        RETURN_ITEMS@21..23
+          RETURN_ITEM@21..23
+            VAR_EXPR@21..23
+              WHITESPACE@21..22 " "
+              IDENT@22..23 "n"
+---errors---
+@15: expected '}' to close property map
+@15: expected ')' to close node pattern

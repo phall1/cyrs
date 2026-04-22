@@ -1,0 +1,38 @@
+---
+source: crates/cypher-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "input": 0,
+      "items": [
+        {
+          "alias": "result",
+          "expr": {
+            "arms": [
+              [
+                {
+                  "kind": "bool",
+                  "value": true
+                },
+                {
+                  "kind": "str",
+                  "value": "yes"
+                }
+              ]
+            ],
+            "kind": "case",
+            "otherwise": {
+              "kind": "str",
+              "value": "no"
+            }
+          }
+        }
+      ],
+      "op": "project"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

@@ -1,0 +1,86 @@
+# fmt_parse_roundtrip-specific extras — well-formed statements that
+# exercise every clause the formatter handles. The roundtrip oracle
+# (parse(fmt(s)) structurally-eq parse(s); fmt(fmt(s))==fmt(s)) is
+# strongest when libFuzzer splices *valid* fragments into the input
+# stream, so this dict leans heavily on complete, parseable shapes.
+
+# Single-clause statements.
+"RETURN 1"
+"RETURN 'hello'"
+"RETURN true"
+"RETURN null"
+"RETURN [1,2,3]"
+"RETURN {k:1, j:2}"
+
+# MATCH → RETURN round-trips.
+"MATCH (n) RETURN n"
+"MATCH (n:Person) RETURN n"
+"MATCH (n:Person {id: 1}) RETURN n"
+"MATCH (n)-[:KNOWS]->(m) RETURN n, m"
+"MATCH (n)-[r:KNOWS*1..3]->(m) RETURN n, r, m"
+"MATCH (n)<-[:KNOWS]-(m) RETURN n, m"
+"MATCH p = (n)-[*]->(m) RETURN p"
+
+# WITH pipelines.
+"MATCH (n) WITH n RETURN n"
+"MATCH (n) WITH n AS m RETURN m"
+"MATCH (n) WITH n WHERE n.k > 0 RETURN n"
+"MATCH (n) WITH DISTINCT n RETURN n"
+"MATCH (n) WITH n ORDER BY n.k LIMIT 10 RETURN n"
+
+# WHERE forms.
+"MATCH (n) WHERE n.k = 1 RETURN n"
+"MATCH (n) WHERE n.k <> 1 RETURN n"
+"MATCH (n) WHERE n.k > 1 AND n.j < 10 RETURN n"
+"MATCH (n) WHERE n.k IN [1,2,3] RETURN n"
+"MATCH (n) WHERE n.k STARTS WITH 'a' RETURN n"
+"MATCH (n) WHERE n.k IS NOT NULL RETURN n"
+"MATCH (n) WHERE NOT n.k = 1 RETURN n"
+
+# UNWIND.
+"UNWIND [1,2,3] AS x RETURN x"
+"UNWIND range(1,10) AS x RETURN x"
+"UNWIND [] AS x RETURN x"
+
+# CREATE / MERGE / SET / DELETE.
+"CREATE (n)"
+"CREATE (n:Person {name: 'a'})"
+"CREATE (a)-[:KNOWS]->(b)"
+"MERGE (n:Person {id: 1})"
+"MERGE (n) ON CREATE SET n.k = 1"
+"MATCH (n) SET n.k = 1"
+"MATCH (n) SET n += {k: 1}"
+"MATCH (n) REMOVE n.k"
+"MATCH (n) DELETE n"
+"MATCH (n) DETACH DELETE n"
+
+# CASE.
+"RETURN CASE WHEN true THEN 1 ELSE 0 END"
+"RETURN CASE 1 WHEN 1 THEN 'a' WHEN 2 THEN 'b' ELSE 'c' END"
+
+# List / map shapes.
+"RETURN [x IN [1,2,3] | x * x]"
+"RETURN [x IN [1,2,3] WHERE x > 1 | x]"
+"RETURN [1,2,3][0]"
+"RETURN [1,2,3][0..2]"
+"RETURN {a: 1, b: [2, 3], c: {d: 4}}"
+
+# Function calls.
+"RETURN count(*)"
+"RETURN size([1,2,3])"
+"RETURN coalesce(null, 1)"
+"RETURN toLower('AB'), toUpper('ab')"
+
+# UNION.
+"MATCH (n) RETURN n UNION MATCH (m) RETURN m"
+"MATCH (n) RETURN n UNION ALL MATCH (m) RETURN m"
+
+# OPTIONAL MATCH.
+"OPTIONAL MATCH (n) RETURN n"
+"MATCH (a) OPTIONAL MATCH (a)-[:R]->(b) RETURN a, b"
+
+# ORDER / SKIP / LIMIT tails.
+"MATCH (n) RETURN n ORDER BY n.k"
+"MATCH (n) RETURN n ORDER BY n.k DESC"
+"MATCH (n) RETURN n SKIP 1 LIMIT 2"
+"MATCH (n) RETURN DISTINCT n.k ORDER BY n.k DESC SKIP 0 LIMIT 100"

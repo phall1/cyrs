@@ -1,0 +1,92 @@
+# Nightly 24-hour fuzz run (spec 0001 §17.4).
+#
+# Each of the five targets runs for ~20 minutes on dedicated steps.
+# Total wall-clock ≈ 100 minutes. Crash artifacts are uploaded so the
+# on-call developer can reproduce and triage.
+#
+# Policy: any new panic on the nightly corpus is a blocking bug (§17.4).
+# The workflow itself is non-blocking in the sense that it is a separate
+# cron job, but the ticket it creates is P0 by policy.
+
+name: fuzz-nightly
+
+on:
+  schedule:
+    # 03:00 UTC daily — after the nightly toolchain cut, before business hours.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: "Fuzz duration per target in seconds (default 1200 = 20 min)"
+        required: false
+        default: "1200"
+
+env:
+  CARGO_TERM_COLOR: always
+  # Default fuzz time per target: 1200 s (20 min). Override via workflow_dispatch.
+  FUZZ_TIME: ${{ github.event.inputs.max_total_time || '1200' }}
+
+jobs:
+  fuzz-nightly:
+    name: fuzz nightly (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    # New panics on nightly corpus are blocking bugs per §17.4, but the
+    # individual job failing should not prevent other targets from running.
+    continue-on-error: false
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_lexer
+          - fuzz_parser
+          - fuzz_formatter
+          - fuzz_sema
+          - fuzz_plan
+          - fuzz_structured_parse
+          - fmt_parse_roundtrip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-fuzz }
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: fuzz-nightly-${{ matrix.target }}
+
+      - name: build ${{ matrix.target }}
+        run: cargo +nightly fuzz build ${{ matrix.target }}
+
+      - name: run ${{ matrix.target }} (${{ env.FUZZ_TIME }} s)
+        run: |
+          # Byte-level targets consume the per-target dictionary; the
+          # structured-RNG target does not (its input is an RNG seed,
+          # not source text). Gate the dict flag accordingly.
+          case "${{ matrix.target }}" in
+            fuzz_structured_parse)
+              dict_flag=""
+              ;;
+            *)
+              dict_flag="-dict=fuzz/dicts/${{ matrix.target }}.dict"
+              ;;
+          esac
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            -- $dict_flag -max_total_time=${{ env.FUZZ_TIME }}
+
+      # If the fuzz run above crashes, libfuzzer writes an artifact under
+      # fuzz/artifacts/<target>/. Upload them so the crash is reproducible.
+      - name: upload crash artifacts (if any)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}-${{ github.run_id }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 30

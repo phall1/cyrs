@@ -1,0 +1,45 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 179
+expression: "format_with_errors(\"MATCH (n:Person {name: 'Alice', age: 30}) RETURN n\")"
+---
+SOURCE_FILE@0..50
+  STATEMENT@0..50
+    MATCH_CLAUSE@0..41
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..41
+        PATTERN_PART@5..41
+          NODE_PATTERN@5..41
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..15
+              COLON@8..9 ":"
+              IDENT@9..15 "Person"
+            PROPERTY_MAP@15..40
+              WHITESPACE@15..16 " "
+              L_BRACE@16..17 "{"
+              IDENT@17..21 "name"
+              COLON@21..22 ":"
+              LITERAL_EXPR@22..30
+                WHITESPACE@22..23 " "
+                STRING_LITERAL@23..30 "'Alice'"
+              COMMA@30..31 ","
+              WHITESPACE@31..32 " "
+              IDENT@32..35 "age"
+              COLON@35..36 ":"
+              LITERAL_EXPR@36..39
+                WHITESPACE@36..37 " "
+                INT_LITERAL@37..39 "30"
+              R_BRACE@39..40 "}"
+            R_PAREN@40..41 ")"
+    RETURN_CLAUSE@41..50
+      WHITESPACE@41..42 " "
+      RETURN_KW@42..48 "RETURN"
+      RETURN_BODY@48..50
+        RETURN_ITEMS@48..50
+          RETURN_ITEM@48..50
+            VAR_EXPR@48..50
+              WHITESPACE@48..49 " "
+              IDENT@49..50 "n"

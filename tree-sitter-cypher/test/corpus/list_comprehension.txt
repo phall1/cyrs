@@ -1,0 +1,195 @@
+==================
+List comprehension with predicate only
+==================
+
+RETURN [x IN [1, 2, 3] WHERE x > 1]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_comprehension
+        (identifier)
+        (kw_in)
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List comprehension with map only
+==================
+
+RETURN [x IN [1, 2, 3] | x + 1]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_comprehension
+        (identifier)
+        (kw_in)
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List comprehension with predicate and map
+==================
+
+RETURN [x IN [1, 2, 3] WHERE x > 1 | x + 1]
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_comprehension
+        (identifier)
+        (kw_in)
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List predicate ALL
+==================
+
+RETURN ALL(n IN [1, 2, 3] WHERE n > 0)
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_predicate
+        name: (kw_all)
+        (identifier)
+        (kw_in)
+        (list_literal
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal))
+          (literal_expr
+            (int_literal)))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List predicate ANY
+==================
+
+RETURN ANY(n IN xs WHERE n > 0)
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_predicate
+        name: (kw_any)
+        (identifier)
+        (kw_in)
+        (variable_expr
+          (identifier))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List predicate NONE
+==================
+
+RETURN NONE(n IN xs WHERE n > 0)
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_predicate
+        name: (kw_none)
+        (identifier)
+        (kw_in)
+        (variable_expr
+          (identifier))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))
+
+==================
+List predicate SINGLE
+==================
+
+RETURN SINGLE(n IN xs WHERE n > 0)
+
+---
+
+(source_file
+  (return_clause
+    (kw_return)
+    (return_item
+      (list_predicate
+        name: (kw_single)
+        (identifier)
+        (kw_in)
+        (variable_expr
+          (identifier))
+        (kw_where)
+        (binary_expr
+          (variable_expr
+            (identifier))
+          (literal_expr
+            (int_literal)))))))

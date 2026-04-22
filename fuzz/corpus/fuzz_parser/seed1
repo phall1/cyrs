@@ -1,0 +1,1 @@
+MATCH (a:Person {name: $name})-[:KNOWS]->(b) RETURN b.name ORDER BY b.name

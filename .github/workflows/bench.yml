@@ -1,0 +1,172 @@
+# Criterion benchmark runner + 10% regression gate (spec §17.10, bead cy-svp).
+#
+# Runs on every PR against main.  Uploads criterion JSON output as an artifact.
+# A Python step then compares PR results against the stored `main` baseline and
+# fails the job if any benchmark regressed by more than 10%.
+#
+# Baseline strategy
+# -----------------
+# The `main` baseline is produced by the `bench-baseline` job which runs on
+# every direct push to main.  It stores a criterion JSON summary as a named
+# Actions artifact (`bench-baseline-main`).  The PR job downloads that artifact
+# and does the comparison.  If no baseline artifact exists yet (first run) the
+# comparison step is skipped and only the raw results are uploaded.
+
+name: bench
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # -----------------------------------------------------------------------
+  # On push to main: regenerate the reference baseline artifact.
+  # -----------------------------------------------------------------------
+  bench-baseline:
+    name: bench (main baseline)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "benches -> target"
+          key: benches-baseline
+
+      # Run all four benches and emit machine-readable JSON (criterion --output-format=bencher
+      # produces one JSON object per benchmark to stdout; criterion also writes detailed
+      # reports under target/criterion/).
+      - name: cargo bench (baseline)
+        working-directory: benches
+        run: |
+          cargo bench --no-fail-fast 2>&1 | tee /tmp/bench-raw.txt
+
+      # Distil criterion output into a simple JSON map  { bench_name: mean_ns }
+      # so the comparison step (below) stays shell-portable.
+      - name: extract criterion summary
+        run: |
+          python3 - <<'EOF'
+          import os, json, pathlib
+
+          # Criterion writes per-bench JSON to target/criterion/<name>/new/estimates.json
+          results = {}
+          base = pathlib.Path("benches/target/criterion")
+          for est in base.glob("*/new/estimates.json"):
+              bench_name = est.parts[-3]  # …/criterion/<name>/new/estimates.json
+              data = json.loads(est.read_text())
+              results[bench_name] = data["mean"]["point_estimate"]
+
+          pathlib.Path("bench-summary.json").write_text(json.dumps(results, indent=2))
+          print("Baseline summary:", json.dumps(results, indent=2))
+          EOF
+
+      - name: upload baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-baseline-main
+          path: bench-summary.json
+          # Keep baseline for 90 days; PRs only need the most recent one.
+          retention-days: 90
+
+  # -----------------------------------------------------------------------
+  # On PR: run benches, download baseline, compare, fail if >10% regression.
+  # -----------------------------------------------------------------------
+  bench-pr:
+    name: bench (PR — 10% gate)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "benches -> target"
+          key: benches-pr
+
+      - name: cargo bench (PR)
+        working-directory: benches
+        run: cargo bench --no-fail-fast 2>&1 | tee /tmp/bench-raw.txt
+
+      - name: extract PR criterion summary
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+
+          results = {}
+          base = pathlib.Path("benches/target/criterion")
+          for est in base.glob("*/new/estimates.json"):
+              bench_name = est.parts[-3]
+              data = json.loads(est.read_text())
+              results[bench_name] = data["mean"]["point_estimate"]
+
+          pathlib.Path("bench-pr.json").write_text(json.dumps(results, indent=2))
+          print("PR summary:", json.dumps(results, indent=2))
+          EOF
+
+      - name: upload PR bench results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results-pr-${{ github.sha }}
+          path: bench-pr.json
+          retention-days: 30
+
+      # Try to download the main baseline.  If it doesn't exist yet (first PR
+      # before any push to main has landed) we skip the comparison.
+      - name: download main baseline
+        id: dl-baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: bench-baseline-main
+          path: baseline-dir
+        continue-on-error: true
+
+      - name: compare against baseline (10% gate)
+        if: steps.dl-baseline.outcome == 'success'
+        run: |
+          python3 - <<'EOF'
+          import json, sys, pathlib
+
+          THRESHOLD = 0.10  # 10 % regression gate (spec §17.10)
+
+          baseline = json.loads(pathlib.Path("baseline-dir/bench-summary.json").read_text())
+          pr       = json.loads(pathlib.Path("bench-pr.json").read_text())
+
+          regressions = []
+          for name, base_ns in baseline.items():
+              if name not in pr:
+                  print(f"  [skip]  {name!r} not found in PR results")
+                  continue
+              pr_ns   = pr[name]
+              delta   = (pr_ns - base_ns) / base_ns
+              marker  = "REGRESSED" if delta > THRESHOLD else "ok"
+              print(f"  {marker:10s}  {name}: baseline={base_ns:.1f} ns  pr={pr_ns:.1f} ns  delta={delta:+.1%}")
+              if delta > THRESHOLD:
+                  regressions.append((name, delta))
+
+          if regressions:
+              print()
+              print("FAIL: the following benchmarks regressed by more than 10%:")
+              for name, delta in regressions:
+                  print(f"  {name}: {delta:+.1%}")
+              sys.exit(1)
+          else:
+              print()
+              print("PASS: no benchmark regressed by more than 10%.")
+          EOF
+
+      - name: note (no baseline yet)
+        if: steps.dl-baseline.outcome != 'success'
+        run: |
+          echo "No main baseline artifact found — skipping regression comparison."
+          echo "Push the branch to main first to establish a baseline, then re-run."

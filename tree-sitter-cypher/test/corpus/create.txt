@@ -1,0 +1,46 @@
+==================
+CREATE node
+==================
+
+CREATE (n:Person {name: 'Alice'})
+
+---
+
+(source_file
+  (create_clause
+    (kw_create)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)
+          (property_map
+            (identifier)
+            (literal_expr
+              (string_literal))))))))
+
+==================
+MERGE node
+==================
+
+MERGE (n:Person {name: 'Alice'}) RETURN n
+
+---
+
+(source_file
+  (merge_clause
+    (kw_merge)
+    (pattern
+      (pattern_part
+        (node_pattern
+          (identifier)
+          (identifier)
+          (property_map
+            (identifier)
+            (literal_expr
+              (string_literal)))))))
+  (return_clause
+    (kw_return)
+    (return_item
+      (variable_expr
+        (identifier)))))

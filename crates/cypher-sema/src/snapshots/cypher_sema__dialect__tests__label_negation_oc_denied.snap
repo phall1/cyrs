@@ -1,0 +1,5 @@
+---
+source: crates/cypher-sema/src/dialect.rs
+expression: "run_check(&GATE_LABEL_NEGATION, DialectMode::OpenCypherV9)"
+---
+denied: E4010: construct `label_negation` is not allowed in dialect `OpenCypherV9`; allowed in: GqlAligned

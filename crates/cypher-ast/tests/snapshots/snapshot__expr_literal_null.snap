@@ -1,0 +1,15 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 346
+expression: "dump(\"RETURN null\")"
+---
+SourceFile(SOURCE_FILE@0..11)
+  STATEMENT@0..11
+    ReturnClause(RETURN_CLAUSE@0..11)
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..11
+        RETURN_ITEMS@6..11
+          ReturnItem(RETURN_ITEM@6..11)
+            LITERAL_EXPR@6..11
+              WHITESPACE@6..7 " "
+              NULL_KW@7..11 "null"

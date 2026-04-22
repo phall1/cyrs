@@ -1,0 +1,6 @@
+error[E2009]: arithmetic operand must be numeric (`Int`, `Float`, or `Num`) but found `Bool`
+  ┌─ e2009_subtraction_bool.cypher:1:1
+  │
+1 │ // E2009: boolean operand in subtraction
+  │ ^
+

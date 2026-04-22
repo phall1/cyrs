@@ -1,0 +1,88 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "label": [
+        "Person"
+      ],
+      "op": "source"
+    },
+    {
+      "aggs": [
+        {
+          "args": [
+            {
+              "id": 0,
+              "kind": "var"
+            }
+          ],
+          "distinct": false,
+          "func": "count"
+        },
+        {
+          "args": [
+            {
+              "kind": "prop",
+              "prop": "age",
+              "target": {
+                "id": 0,
+                "kind": "var"
+              }
+            }
+          ],
+          "distinct": false,
+          "func": "avg"
+        }
+      ],
+      "input": 0,
+      "keys": [
+        {
+          "kind": "prop",
+          "prop": "city",
+          "target": {
+            "id": 0,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "aggregate"
+    },
+    {
+      "input": 1,
+      "items": [
+        {
+          "alias": "city",
+          "expr": {
+            "kind": "prop",
+            "prop": "city",
+            "target": {
+              "id": 0,
+              "kind": "var"
+            }
+          }
+        },
+        {
+          "alias": "cnt",
+          "expr": {
+            "id": 1,
+            "kind": "var"
+          }
+        },
+        {
+          "alias": "avg_age",
+          "expr": {
+            "id": 2,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "project"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

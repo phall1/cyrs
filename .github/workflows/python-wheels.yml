@@ -1,0 +1,226 @@
+# Python wheel matrix for `cypher-py` (spec 0004 §6.2, §10.3).
+#
+# ---
+# TRIGGER POLICY
+# ---
+# * `workflow_dispatch` — operator-driven build for local-testing or
+#   pre-release wheel dry-runs.
+# * `release: [published]` — fires when a GitHub release is published,
+#   uploading wheels as release assets.
+#
+# Deliberately no push / PR trigger: wheels are expensive to build
+# across the matrix, so the regular CI leg only runs `cargo
+# check`/`cargo clippy`/`cargo test` on cypher-py (see `ci.yml`).
+#
+# ---
+# PUBLISH POLICY
+# ---
+# This workflow uploads wheels as GitHub release assets ONLY.  Actual
+# PyPI publication is deferred to `cy-zgz` (release playbook) and is
+# operator-controlled — no `twine upload` runs from CI.  Mirrors the
+# cypher-wasm / cypher-ffi "no publish step" policy (spec 0004 §12).
+#
+# ---
+# ABI3 RATIONALE
+# ---
+# The wheel is built with pyo3's `abi3-py310` feature.  One wheel per
+# `{OS, arch}` covers CPython 3.10 / 3.11 / 3.12 / 3.13 via the
+# stable ABI — no per-version builds required (spec 0004 §6.2).
+# The pytest leg still runs against every supported Python version
+# on every OS so we catch regressions that only surface through
+# version-specific behaviour.
+#
+# ---
+# SIZE GATE
+# ---
+# Each wheel is size-checked against a 5 MB ceiling (spec 0004 §6
+# acceptance criterion).  Breach fails the job; the operator decides
+# whether to tune dep set, toggle LTO, or bump the budget.
+
+name: python-wheels
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Budget in bytes — 5 MiB ceiling per wheel (spec 0004 §6).
+  WHEEL_SIZE_BUDGET_BYTES: "5242880"
+
+jobs:
+  # -----------------------------------------------------------------
+  # Build wheels — one job per {OS, arch}; abi3 means one wheel per
+  # job covers 3.10 + 3.11 + 3.12 + 3.13.
+  # -----------------------------------------------------------------
+  build:
+    name: build (${{ matrix.platform.os }} / ${{ matrix.platform.arch }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: linux,   arch: x86_64,  runner: ubuntu-latest,     target: x86_64-unknown-linux-gnu }
+          - { os: linux,   arch: aarch64, runner: ubuntu-latest-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos,   arch: x86_64,  runner: macos-latest,      target: x86_64-apple-darwin }
+          - { os: macos,   arch: aarch64, runner: macos-14,          target: aarch64-apple-darwin }
+          - { os: windows, arch: x86_64,  runner: windows-latest,    target: x86_64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94"
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache cargo registry / build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "cypher-py-${{ matrix.platform.os }}-${{ matrix.platform.arch }}"
+
+      - name: Set up Python (3.10 — abi3 floor)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: >-
+            --release
+            --strip
+            --manifest-path crates/cypher-py/Cargo.toml
+            --out dist
+          # Linux builds use manylinux2014 for broad compat; the action
+          # ignores this setting on macOS / Windows.
+          manylinux: auto
+          target: ${{ matrix.platform.target }}
+
+      - name: Enforce 5 MB size gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh dist/
+          for wheel in dist/*.whl; do
+            size="$(wc -c < "$wheel" | tr -d ' ')"
+            echo "wheel: $wheel — ${size} bytes"
+            if [ "$size" -gt "$WHEEL_SIZE_BUDGET_BYTES" ]; then
+              echo "::error ::wheel $wheel exceeds ${WHEEL_SIZE_BUDGET_BYTES}-byte budget (spec 0004 §6)"
+              exit 1
+            fi
+          done
+
+      - name: Upload wheels (CI artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  # -----------------------------------------------------------------
+  # Test the built wheels against every supported Python version.
+  # abi3 means each wheel loads across 3.10 → 3.13; we still run
+  # `pytest` against each to catch version-specific regressions.
+  # -----------------------------------------------------------------
+  test:
+    name: test (${{ matrix.platform.os }} / py${{ matrix.python-version }})
+    needs: build
+    # We only test on native-arch runners — cross-arch wheel smoke tests
+    # would need qemu and are not worth the matrix explosion for the
+    # initial landing.  The build job still produces all 5 wheels.
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: linux,   runner: ubuntu-latest }
+          - { os: macos,   runner: macos-14 }
+          - { os: windows, runner: windows-latest }
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          # Linux runner consumes the x86_64 wheel; macOS-14 is
+          # aarch64; Windows is x86_64.  If we later add an aarch64
+          # Windows or x86_64 Mac to the test matrix we'll parameterise
+          # this too.
+          name: >-
+            wheels-${{ matrix.platform.os }}-${{
+              matrix.platform.os == 'macos' && 'aarch64' || 'x86_64'
+            }}
+          path: dist
+
+      - name: Install wheel + pytest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          # Find the single abi3 wheel for this platform and install it.
+          wheel="$(ls dist/*.whl | head -n1)"
+          echo "installing $wheel"
+          python -m pip install "$wheel"
+
+      - name: Verify import + proto version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c "import cypher; assert cypher.PROTO_VERSION >= 1, cypher.PROTO_VERSION; print('cypher', cypher.PROTO_VERSION, 'OK')"
+
+      - name: Run pytest smoke suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest crates/cypher-py/tests/ -v
+
+      # mypy --strict catches stub drift against the built wheel — the
+      # type-stub gate called out in spec 0004 §6.3.
+      - name: Install + run mypy --strict against stub
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install mypy
+          python -m mypy --strict crates/cypher-py/python/cypher/__init__.pyi
+
+  # -----------------------------------------------------------------
+  # Optional upload to the GitHub Release on `release: published`.
+  # Gated on `release` context so `workflow_dispatch` runs don't
+  # attempt to write to a non-existent release.
+  # -----------------------------------------------------------------
+  upload:
+    name: upload wheels to release
+    if: github.event_name == 'release'
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List downloaded wheels
+        run: ls -lh dist/
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl

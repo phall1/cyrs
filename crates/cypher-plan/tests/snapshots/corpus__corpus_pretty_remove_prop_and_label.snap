@@ -1,0 +1,8 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Source (:Person AS $0)
+WriteOps:
+  RemoveProperty $0.age
+  RemoveLabels $0 :Inactive

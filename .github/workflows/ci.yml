@@ -1,0 +1,425 @@
+# CI for the cyrs workspace (spec 0001 §17.15).
+#
+# Matrix dimensions (§17.15):
+#   toolchain : stable | beta | nightly
+#   os        : ubuntu-latest (x86_64) | ubuntu-latest-arm (aarch64)
+#             | macos-latest (x86_64)  | macos-14 (aarch64, Apple Silicon)
+#             | windows-latest (x86_64)
+#   features  : default | no-default-features | lsp-only | fmt-only | schema-only
+#
+# Policy (§17.15):
+#   - nightly is non-blocking (continue-on-error: true)
+#   - stable + beta are fully blocking
+#   - clippy / rustfmt / doc run at -D warnings
+#   - cargo-audit + cargo-deny are in a separate supply-chain job (bead cy-fju)
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+
+jobs:
+  # ---------------------------------------------------------------
+  # Fast signal: fmt + clippy on one leg
+  # ---------------------------------------------------------------
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      # `missing_docs` was promoted to `deny` in cy-p47 — no suppression
+      # here any more.  If a PR introduces a new `pub` item without a
+      # rustdoc, the build fails.
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # ---------------------------------------------------------------
+  # Grammar <-> recovery.md coverage invariant (spec §4.3, §17.18)
+  # ---------------------------------------------------------------
+  check-recovery:
+    name: check-recovery (spec §4.3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo xtask check-recovery
+        run: cargo run -p xtask -- check-recovery
+
+  # ---------------------------------------------------------------
+  # Non-coupling gate (spec §2.C1, §2.C2)
+  # ---------------------------------------------------------------
+  non-coupling:
+    name: non-coupling gate (spec §2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: run denylist script
+        run: bash scripts/check-noncoupling.sh
+
+  # ---------------------------------------------------------------
+  # Changelog gate: every crate + workspace root has a well-formed
+  # CHANGELOG.md (spec §18, bead cy-urk).
+  # ---------------------------------------------------------------
+  check-changelogs:
+    name: check-changelogs (spec §18)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo xtask check-changelogs
+        run: cargo run -p xtask -- check-changelogs
+
+  # ---------------------------------------------------------------
+  # Diagnostic-code registry gate: every DiagCode::E1001-style
+  # reference in crates/**/*.rs must be registered in
+  # cypher-diag/src/codes.rs (spec §10.2, bead cy-wnm).
+  # ---------------------------------------------------------------
+  check-diag-codes:
+    name: check-diag-codes (spec §10.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo xtask check-diag-codes
+        run: cargo run -p xtask -- check-diag-codes
+
+  # ---------------------------------------------------------------
+  # Full CI matrix (spec §17.15):
+  #   toolchain × OS × feature-set
+  #
+  # The "default" feature set runs `cargo test`; all other feature
+  # sets run `cargo check` (they test compilation in isolation).
+  #
+  # Nightly legs are non-blocking per §17.15 policy.
+  #
+  # ARM runners:
+  #   ubuntu-latest-arm  — GitHub-hosted Linux aarch64
+  #   macos-14           — Apple M1 (aarch64); macos-latest is x86_64
+  # ---------------------------------------------------------------
+  matrix:
+    name: >-
+      ${{ matrix.toolchain }} / ${{ matrix.os }} / ${{ matrix.features }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.toolchain == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── stable × ubuntu-latest (x86_64) ────────────────────
+          - { toolchain: stable,  os: ubuntu-latest,     features: default             }
+          - { toolchain: stable,  os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: stable,  os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: stable,  os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: stable,  os: ubuntu-latest,     features: schema-only         }
+          # ── stable × ubuntu-latest-arm (aarch64) ───────────────
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: default             }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: stable,  os: ubuntu-latest-arm, features: schema-only         }
+          # ── stable × macos-latest (x86_64) ─────────────────────
+          - { toolchain: stable,  os: macos-latest,      features: default             }
+          - { toolchain: stable,  os: macos-latest,      features: no-default-features }
+          - { toolchain: stable,  os: macos-latest,      features: lsp-only            }
+          - { toolchain: stable,  os: macos-latest,      features: fmt-only            }
+          - { toolchain: stable,  os: macos-latest,      features: schema-only         }
+          # ── stable × macos-14 (aarch64 / Apple Silicon) ────────
+          - { toolchain: stable,  os: macos-14,          features: default             }
+          - { toolchain: stable,  os: macos-14,          features: no-default-features }
+          - { toolchain: stable,  os: macos-14,          features: lsp-only            }
+          - { toolchain: stable,  os: macos-14,          features: fmt-only            }
+          - { toolchain: stable,  os: macos-14,          features: schema-only         }
+          # ── stable × windows-latest (x86_64) ───────────────────
+          - { toolchain: stable,  os: windows-latest,    features: default             }
+          - { toolchain: stable,  os: windows-latest,    features: no-default-features }
+          - { toolchain: stable,  os: windows-latest,    features: lsp-only            }
+          - { toolchain: stable,  os: windows-latest,    features: fmt-only            }
+          - { toolchain: stable,  os: windows-latest,    features: schema-only         }
+          # ── beta × ubuntu-latest (x86_64) ──────────────────────
+          - { toolchain: beta,    os: ubuntu-latest,     features: default             }
+          - { toolchain: beta,    os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: beta,    os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: beta,    os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: beta,    os: ubuntu-latest,     features: schema-only         }
+          # ── beta × ubuntu-latest-arm (aarch64) ─────────────────
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: default             }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: beta,    os: ubuntu-latest-arm, features: schema-only         }
+          # ── beta × macos-latest (x86_64) ───────────────────────
+          - { toolchain: beta,    os: macos-latest,      features: default             }
+          - { toolchain: beta,    os: macos-latest,      features: no-default-features }
+          - { toolchain: beta,    os: macos-latest,      features: lsp-only            }
+          - { toolchain: beta,    os: macos-latest,      features: fmt-only            }
+          - { toolchain: beta,    os: macos-latest,      features: schema-only         }
+          # ── beta × macos-14 (aarch64) ──────────────────────────
+          - { toolchain: beta,    os: macos-14,          features: default             }
+          - { toolchain: beta,    os: macos-14,          features: no-default-features }
+          - { toolchain: beta,    os: macos-14,          features: lsp-only            }
+          - { toolchain: beta,    os: macos-14,          features: fmt-only            }
+          - { toolchain: beta,    os: macos-14,          features: schema-only         }
+          # ── beta × windows-latest (x86_64) ─────────────────────
+          - { toolchain: beta,    os: windows-latest,    features: default             }
+          - { toolchain: beta,    os: windows-latest,    features: no-default-features }
+          - { toolchain: beta,    os: windows-latest,    features: lsp-only            }
+          - { toolchain: beta,    os: windows-latest,    features: fmt-only            }
+          - { toolchain: beta,    os: windows-latest,    features: schema-only         }
+          # ── nightly × ubuntu-latest (x86_64) — non-blocking ────
+          - { toolchain: nightly, os: ubuntu-latest,     features: default             }
+          - { toolchain: nightly, os: ubuntu-latest,     features: no-default-features }
+          - { toolchain: nightly, os: ubuntu-latest,     features: lsp-only            }
+          - { toolchain: nightly, os: ubuntu-latest,     features: fmt-only            }
+          - { toolchain: nightly, os: ubuntu-latest,     features: schema-only         }
+          # ── nightly × ubuntu-latest-arm — non-blocking ─────────
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: default             }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: no-default-features }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: lsp-only            }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: fmt-only            }
+          - { toolchain: nightly, os: ubuntu-latest-arm, features: schema-only         }
+          # ── nightly × macos-latest — non-blocking ──────────────
+          - { toolchain: nightly, os: macos-latest,      features: default             }
+          - { toolchain: nightly, os: macos-latest,      features: no-default-features }
+          - { toolchain: nightly, os: macos-latest,      features: lsp-only            }
+          - { toolchain: nightly, os: macos-latest,      features: fmt-only            }
+          - { toolchain: nightly, os: macos-latest,      features: schema-only         }
+          # ── nightly × macos-14 — non-blocking ──────────────────
+          - { toolchain: nightly, os: macos-14,          features: default             }
+          - { toolchain: nightly, os: macos-14,          features: no-default-features }
+          - { toolchain: nightly, os: macos-14,          features: lsp-only            }
+          - { toolchain: nightly, os: macos-14,          features: fmt-only            }
+          - { toolchain: nightly, os: macos-14,          features: schema-only         }
+          # ── nightly × windows-latest — non-blocking ────────────
+          - { toolchain: nightly, os: windows-latest,    features: default             }
+          - { toolchain: nightly, os: windows-latest,    features: no-default-features }
+          - { toolchain: nightly, os: windows-latest,    features: lsp-only            }
+          - { toolchain: nightly, os: windows-latest,    features: fmt-only            }
+          - { toolchain: nightly, os: windows-latest,    features: schema-only         }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      # Cache keyed on (os, toolchain) so each combination gets its own
+      # warm cache — avoids cross-contamination between toolchain ABI changes.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: ${{ matrix.os }}-${{ matrix.toolchain }}
+
+      # ── default features: run the full test suite ───────────────
+      - name: cargo test (default features)
+        if: matrix.features == 'default'
+        run: cargo test --workspace --no-fail-fast
+
+      # ── no-default-features: check only (no std entry-points) ──
+      - name: cargo check (no-default-features)
+        if: matrix.features == 'no-default-features'
+        run: cargo check -p cypher --no-default-features
+
+      # ── lsp-only: check the meta crate lsp-only slice + the LSP binary
+      # cypher-lsp has no lib target so we verify both the slice feature
+      # on the meta crate and the binary crate itself.
+      - name: cargo check (lsp-only)
+        if: matrix.features == 'lsp-only'
+        run: |
+          cargo check -p cypher --no-default-features --features lsp-only
+          cargo check -p cypher-lsp
+
+      # ── fmt-only: check the formatter slice compiles in isolation
+      - name: cargo check (fmt-only)
+        if: matrix.features == 'fmt-only'
+        run: cargo check -p cypher --no-default-features --features fmt-only
+
+      # ── schema-only: check the schema slice compiles in isolation
+      - name: cargo check (schema-only)
+        if: matrix.features == 'schema-only'
+        run: cargo check -p cypher --no-default-features --features schema-only
+
+  # ---------------------------------------------------------------
+  # Docs: rustdoc passes at -D warnings (spec §17.15, bead cy-93c)
+  #
+  # `--lib` skips binary crates' docs (which rustdoc can't link from
+  # cleanly without `--document-private-items`).  `-D warnings` is
+  # inherited from the workflow-level RUSTDOCFLAGS env and also set
+  # explicitly here so the job is self-contained / copy-pasteable.
+  # ---------------------------------------------------------------
+  docs:
+    name: rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: cargo doc --workspace --no-deps (deny warnings)
+        run: cargo doc --workspace --no-deps --lib
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
+  # Coverage (spec §17.9) lives in .github/workflows/coverage.yml (bead cy-1p9).
+  # Miri (spec §17.12) lives in .github/workflows/miri.yml (bead cy-tt1).
+
+  # ---------------------------------------------------------------
+  # Supply chain: cargo-audit + cargo-deny (spec §17.16)
+  # ---------------------------------------------------------------
+  supply-chain:
+    name: audit + deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-audit,cargo-deny }
+      - name: cargo audit
+        run: cargo audit
+      - name: cargo deny check
+        run: cargo deny check
+
+  # ---------------------------------------------------------------
+  # PR gate: fuzz smoke (spec §17.4) — ~60 s per target, 5 targets total.
+  # Non-blocking (continue-on-error) so a new crash doesn't block the
+  # merge of unrelated PRs; nightly run is where new panics are blocking.
+  # ---------------------------------------------------------------
+  fuzz-smoke:
+    name: fuzz smoke (5 min)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-fuzz }
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: fuzz-smoke
+      - name: build fuzz targets
+        run: |
+          for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan fuzz_structured_parse fmt_parse_roundtrip; do
+            cargo +nightly fuzz build "$target"
+          done
+      # Dictionaries (cy-h07): per-target dicts under fuzz/dicts/<target>.dict.
+      # libFuzzer splices these tokens into mutated inputs, raising the
+      # probability of crossing syntactic boundaries that random bytes never
+      # reach. Every byte-level target gets its own.
+      - name: fuzz_lexer (60 s)
+        run: cargo +nightly fuzz run fuzz_lexer fuzz/corpus/fuzz_lexer -- -dict=fuzz/dicts/fuzz_lexer.dict -max_total_time=60
+      - name: fuzz_parser (60 s)
+        run: cargo +nightly fuzz run fuzz_parser fuzz/corpus/fuzz_parser -- -dict=fuzz/dicts/fuzz_parser.dict -max_total_time=60
+      - name: fuzz_formatter (60 s)
+        run: cargo +nightly fuzz run fuzz_formatter fuzz/corpus/fuzz_formatter -- -dict=fuzz/dicts/fuzz_formatter.dict -max_total_time=60
+      - name: fuzz_sema (60 s)
+        run: cargo +nightly fuzz run fuzz_sema fuzz/corpus/fuzz_sema -- -dict=fuzz/dicts/fuzz_sema.dict -max_total_time=60
+      - name: fuzz_plan (60 s)
+        run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -dict=fuzz/dicts/fuzz_plan.dict -max_total_time=60
+      # Differential fmt↔parse roundtrip (cy-h07, spec §17.3 P17.3.4).
+      - name: fmt_parse_roundtrip (60 s)
+        run: cargo +nightly fuzz run fmt_parse_roundtrip fuzz/corpus/fmt_parse_roundtrip -- -dict=fuzz/dicts/fmt_parse_roundtrip.dict -max_total_time=60
+      # Grammar-aware target (cy-h07.1) — no dict: its input is an RNG
+      # seed, not source text, so a Cypher dict would be meaningless here.
+      - name: fuzz_structured_parse (60 s)
+        run: cargo +nightly fuzz run fuzz_structured_parse fuzz/corpus/fuzz_structured_parse -- -max_total_time=60
+
+  # ---------------------------------------------------------------
+  # tree-sitter grammar: generate, self-test, and parity-gate against
+  # cyrs TCK v1 (bead cy-od5.1). The grammar lives at the repo root
+  # (tree-sitter-cypher/) as an independent npm/tree-sitter project.
+  # ---------------------------------------------------------------
+  tree-sitter:
+    name: tree-sitter grammar + parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: npm install (tree-sitter-cypher)
+        working-directory: tree-sitter-cypher
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-package-lock
+          fi
+      - name: tree-sitter generate
+        working-directory: tree-sitter-cypher
+        run: npx tree-sitter generate
+      - name: tree-sitter test
+        working-directory: tree-sitter-cypher
+        run: npx tree-sitter test
+      - name: cargo xtask tree-sitter-parity
+        run: cargo run -p xtask -- tree-sitter-parity
+
+  # ---------------------------------------------------------------
+  # SemVer gate (cy-2i9.1): cargo-semver-checks on every PR.
+  #
+  # Compares the PR's public API against the base branch; flags any
+  # accidental breaking changes so they can be either fixed (preferred)
+  # or acknowledged in docs/stability.md before merging.  Advisory pre-
+  # first-crates.io-release (no baseline available for most crates);
+  # hard-blocks once we ship 0.1.0.
+  # ---------------------------------------------------------------
+  semver-checks:
+    name: cargo-semver-checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: cypher-syntax,cypher-ast,cypher-hir,cypher-schema,cypher-sema,cypher-diag,cypher-plan,cypher-fmt,cypher-db,cypher-lang-services,cypher-lsp,cypher-agent,cypher-cli,cypher-tck,cypher
+
+  # ---------------------------------------------------------------
+  # MSRV check: spec §18 pins 1.94.
+  # ---------------------------------------------------------------
+  msrv:
+    name: msrv (1.94)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - run: cargo check --workspace --all-features

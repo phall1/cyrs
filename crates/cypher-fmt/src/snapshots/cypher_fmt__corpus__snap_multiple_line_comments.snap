@@ -1,0 +1,10 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"// step 1: find nodes\\nMATCH (n:Person)\\n// step 2: filter\\nWHERE n.age > 21\\n// step 3: return\\nRETURN n\")"
+---
+// step 1: find nodes
+MATCH (n:Person)
+// step 2: filter
+WHERE n.age > 21
+// step 3: return
+RETURN n

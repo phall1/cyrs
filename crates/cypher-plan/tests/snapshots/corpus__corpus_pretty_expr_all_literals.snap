@@ -1,0 +1,6 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [null AS nul, false AS flag, 42 AS num, 2.71 AS flt, "hello" AS str, [1, 2, 3] AS lst, {key: "value", n: 99} AS mp]
+  Source (AS $0)

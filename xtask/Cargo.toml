@@ -1,0 +1,28 @@
+[package]
+name         = "xtask"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+publish      = false
+description  = "Developer tasks for the Cypher workspace: codegen, bless, release gates."
+
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[dependencies]
+anyhow    = { workspace = true }
+clap      = { workspace = true }
+# Regex is only used by the check-diag-codes subcommand; pin to the
+# slim default-features set so we don't pull unicode-segmentation etc.
+regex     = { version = "1", default-features = false, features = ["std", "perf"] }
+ungrammar = "1.16"
+
+[lints]
+workspace = true

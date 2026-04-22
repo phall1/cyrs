@@ -1,0 +1,60 @@
+---
+source: crates/cypher-cli/tests/integration.rs
+expression: stdout
+---
+{
+  "adds": [
+    {
+      "kind": "add",
+      "category": "label",
+      "path": "Director",
+      "detail": "added label `Director`"
+    },
+    {
+      "kind": "add",
+      "category": "label_property",
+      "path": "Person.email",
+      "detail": "property `Person.email` added as optional"
+    },
+    {
+      "kind": "add",
+      "category": "rel_type_endpoints",
+      "path": "ACTED_IN.end_labels",
+      "detail": "relationship `ACTED_IN` end_labels gained `Person`"
+    }
+  ],
+  "removes": [
+    {
+      "kind": "remove",
+      "category": "label",
+      "path": "Movie",
+      "detail": "removed label `Movie`"
+    }
+  ],
+  "breaking": [
+    {
+      "kind": "breaking",
+      "category": "label",
+      "path": "Movie",
+      "detail": "removed label `Movie`"
+    },
+    {
+      "kind": "breaking",
+      "category": "label_property",
+      "path": "Person.age",
+      "detail": "property `Person.age` type changed from `INTEGER` to `STRING`"
+    },
+    {
+      "kind": "breaking",
+      "category": "parameter_default",
+      "path": "$since_year",
+      "detail": "parameter `$since_year` lost its default value (was `1990`)"
+    },
+    {
+      "kind": "breaking",
+      "category": "rel_type_endpoints",
+      "path": "ACTED_IN.end_labels",
+      "detail": "relationship `ACTED_IN` end_labels lost `Movie`"
+    }
+  ]
+}

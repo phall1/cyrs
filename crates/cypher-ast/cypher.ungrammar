@@ -1,0 +1,413 @@
+// cypher.ungrammar — canonical grammar description for cypher-ast.
+//
+// Normatively references spec 0001 §5 (AST layer) and §19 (v1 dialect and
+// scope matrix). Input to `cargo xtask codegen` (bead cy-dpq), which will
+// generate the typed AST wrappers over the `cypher-syntax` CST. This file
+// is not compiled; it is text. Where this file is silent and the spec is
+// silent, defer to openCypher v9 per AGENTS.md §23.
+//
+// Scope is the v1 matrix in §19. Constructs listed as deferred there get
+// a `// DEFERRED: spec §19 / §20` comment at their point of absence, not
+// a production. Do not encode operator precedence here; the Pratt parser
+// owns that. List syntactic alternatives under `Expr` only.
+//
+// Token conventions:
+//   'text'        terminal token matched by its source text (keyword/punct)
+//   TOKEN_KIND    named token from cypher-syntax::SyntaxKind
+//   Node          non-terminal defined below
+//   a | b         alternation
+//   (a b c)       sequence
+//   a*            zero-or-more
+//   a+            one-or-more
+//   a?            optional
+//   field:Node    labeled field (codegen accessor name)
+
+//------------------------------------------------------------------------
+// Root
+//------------------------------------------------------------------------
+
+SourceFile =
+  (Statement (';' Statement)* ';'?)?
+
+Statement =
+  SingleQuery
+| Union
+
+//------------------------------------------------------------------------
+// Queries
+//------------------------------------------------------------------------
+
+SingleQuery =
+  Clause+
+
+Union =
+  head:SingleQuery UnionTail+
+
+UnionTail =
+  'UNION' 'ALL'? tail:SingleQuery
+
+Clause =
+  MatchClause
+| WithClause
+| ReturnClause
+| UnwindClause
+| CallClause
+| CreateClause
+| MergeClause
+| SetClause
+| RemoveClause
+| DeleteClause
+
+//------------------------------------------------------------------------
+// Reading clauses
+//------------------------------------------------------------------------
+
+MatchClause =
+  'OPTIONAL'? 'MATCH' Pattern (',' Pattern)* WhereClause?
+
+WithClause =
+  'WITH' 'DISTINCT'? ReturnItems WhereClause? OrderBy? Skip? Limit?
+
+ReturnClause =
+  'RETURN' 'DISTINCT'? ReturnItems OrderBy? Skip? Limit?
+
+UnwindClause =
+  'UNWIND' expr:Expr 'AS' bind:NameDef
+
+CallClause =
+  'CALL' name:QualifiedName ( '(' ArgList? ')' )? YieldClause?
+// DEFERRED: `CALL { <subquery> }` form — spec §19 / §20 D1.
+
+YieldClause =
+  'YIELD' ( '*' | YieldItem (',' YieldItem)* ) WhereClause?
+
+//------------------------------------------------------------------------
+// Writing clauses
+//------------------------------------------------------------------------
+
+CreateClause =
+  'CREATE' Pattern (',' Pattern)*
+
+MergeClause =
+  'MERGE' Pattern MergeAction*
+
+MergeAction =
+  'ON' ('CREATE' | 'MATCH') SetClause
+
+SetClause =
+  'SET' SetItem (',' SetItem)*
+
+RemoveClause =
+  'REMOVE' RemoveItem (',' RemoveItem)*
+
+DeleteClause =
+  'DETACH'? 'DELETE' Expr (',' Expr)*
+
+//------------------------------------------------------------------------
+// Shared fragments
+//------------------------------------------------------------------------
+
+WhereClause =
+  'WHERE' Expr
+
+OrderBy =
+  'ORDER' 'BY' SortItem (',' SortItem)*
+
+SortItem =
+  Expr ('ASC' | 'DESC')?
+
+Skip =
+  'SKIP' Expr
+
+Limit =
+  'LIMIT' Expr
+
+// Per spec §7.3 / §19 row "RETURN / DISTINCT / *":
+// `*` may stand alone or be mixed with explicit items as a trailing form.
+// TODO: verify against TCK — the `*` mid-list form is openCypher-permissive.
+ReturnItems =
+  '*' (',' ReturnItem)*
+| ReturnItem (',' ReturnItem)* (',' '*')?
+
+ReturnItem =
+  Expr ('AS' alias:NameDef)?
+
+YieldItem =
+  name:NameRef ('AS' alias:NameDef)?
+
+// SetItem covers (spec §19, row "SET properties, labels, map"):
+//   a.prop = expr            property assignment
+//   a:Lab1:Lab2              label add
+//   a = { ... }              whole-node/rel replace
+//   a += { ... }             merge form (map-merge into existing entity)
+SetItem =
+  PropertyAssign
+| LabelAdd
+| NodeReplace
+| NodeMerge
+
+PropertyAssign =
+  target:PropertyAccess '=' value:Expr
+
+LabelAdd =
+  target:NameRef LabelExpr
+
+NodeReplace =
+  target:NameRef '=' value:Expr
+
+NodeMerge =
+  target:NameRef '+=' value:Expr
+
+// RemoveItem covers property removal and label removal (spec §19).
+RemoveItem =
+  PropertyRemove
+| LabelRemove
+
+PropertyRemove =
+  target:PropertyAccess
+
+LabelRemove =
+  target:NameRef LabelExpr
+
+//------------------------------------------------------------------------
+// Patterns
+//------------------------------------------------------------------------
+
+// A Pattern is a single path expression (with optional path-binder). A
+// clause like MATCH splits multiple patterns with `,` at the clause level,
+// which is why MatchClause/CreateClause list `Pattern (',' Pattern)*`.
+Pattern =
+  (bind:NameDef '=')? PathPattern
+
+PathPattern =
+  ShortestPathPattern
+| PathElement+
+
+ShortestPathPattern =
+  ('shortestPath' | 'allShortestPaths') '(' PathElement+ ')'
+
+PathElement =
+  NodePattern (RelPattern NodePattern)*
+
+NodePattern =
+  '(' NameDef? LabelExpr? PropertyMap? ')'
+
+// Relationship syntax — directed and undirected. The three arrow shapes
+// map to ARROW_L/ARROW_R tokens from cypher-syntax::SyntaxKind.
+RelPattern =
+  '<-' '[' RelDetail? ']' '-'
+| '-'  '[' RelDetail? ']' '->'
+| '-'  '[' RelDetail? ']' '-'
+
+RelDetail =
+  NameDef? TypeExpr? RangeHops? PropertyMap?
+
+// Variable-length hops: `*`, `*n`, `*n..`, `*n..m`, `*..m`.
+RangeHops =
+  '*' (IntLiteral ('..' IntLiteral?)?)?
+| '*' '..' IntLiteral
+
+// v1 label usage is a simple colon-separated list on nodes, and a
+// `|`-separated disjunction on relationships (spec §19 row
+// "Pattern: relationship type disjunction"). Richer GQL label-expr
+// algebra (`!`, `&`, parenthesised) tracks §9.2 and lives behind the
+// dialect gate — the ungrammar lists only the v1 surface.
+LabelExpr =
+  (':' Label)+
+
+TypeExpr =
+  ':' RelType ('|' RelType)*
+
+PropertyMap =
+  '{' (PropertyKV (',' PropertyKV)*)? '}'
+
+PropertyKV =
+  key:PropertyKey ':' value:Expr
+
+//------------------------------------------------------------------------
+// Expressions
+//
+// Pratt precedence is the parser's job. This file only enumerates the
+// syntactic shapes the AST must wrap. One large alternation under Expr,
+// with a dedicated production per shape.
+//------------------------------------------------------------------------
+
+Expr =
+  Literal
+| ParameterExpr
+| VariableRef
+| PropertyAccess
+| IndexAccess
+| IndexExpr
+| SliceExpr
+| FunctionCall
+| CountStar
+| ParenExpr
+| ListLiteral
+| MapLiteral
+| ListComprehension
+| ListPredicateExpr
+| PatternComprehension
+| CaseExpr
+| NullCheck
+| ExistsPredicate
+| BinaryExpr
+| UnaryExpr
+| StringPatternExpr
+| MembershipExpr
+| PatternPredicate
+
+// DEFERRED: `EXISTS { <subquery> }` and `COUNT { ... }` expression forms
+// — spec §19 / §20 D1.
+
+Literal =
+  IntLiteral
+| FloatLiteral
+| StringLiteral
+| BoolLiteral
+| NullLiteral
+
+IntLiteral    = INT_NUMBER
+FloatLiteral  = FLOAT_NUMBER
+StringLiteral = STRING
+BoolLiteral   = 'TRUE' | 'FALSE'
+NullLiteral   = 'NULL'
+
+ParameterExpr =
+  PARAMETER
+
+VariableRef =
+  NameRef
+
+// Chained dotted access: `a.b.c`. The parser decomposes nested heads.
+PropertyAccess =
+  receiver:Expr '.' key:PropertyKey
+
+IndexAccess =
+  receiver:Expr '[' index:Expr ']'
+
+// cy-7s6.1: typed list indexing and slicing. `IndexExpr` matches
+// `xs[0]` / `xs[-1]`; `SliceExpr` matches `xs[i..j]`, `xs[..j]`,
+// `xs[i..]`. Both can chain (`xs[0..3][0]`). v1 scope is LIST only;
+// STRING indexing lands in a follow-up bead (see HIR lowering note).
+IndexExpr =
+  receiver:Expr '[' index:Expr ']'
+
+SliceExpr =
+  receiver:Expr '[' start:Expr? '..' end:Expr? ']'
+
+// `DISTINCT` inside a call is the inline aggregation form (`count(DISTINCT x)`).
+FunctionCall =
+  name:QualifiedName '(' 'DISTINCT'? ArgList? ')'
+
+ArgList =
+  Expr (',' Expr)*
+
+CountStar =
+  'COUNT' '(' '*' ')'
+
+ParenExpr =
+  '(' Expr ')'
+
+ListLiteral =
+  '[' (Expr (',' Expr)*)? ']'
+
+MapLiteral =
+  '{' (PropertyKV (',' PropertyKV)*)? '}'
+
+// `[ v IN xs WHERE p(v) | e(v) ]`. Desugared in HIR (spec §6.1).
+ListComprehension =
+  '[' bind:NameDef 'IN' source:Expr WhereClause? ('|' projection:Expr)? ']'
+
+// `ANY|ALL|NONE|SINGLE(v IN xs WHERE p(v))` — list predicate (cy-8x5).
+// The discriminant is the first keyword token child; the `WHERE` clause
+// is optional (bare `ANY(x IN xs)` returns true iff xs is non-empty).
+// Result type is BOOLEAN. Shared across GqlAligned / OpenCypherV9.
+ListPredicateExpr =
+  ('ANY' | 'ALL' | 'NONE' | 'SINGLE')
+  '(' bind:NameDef 'IN' source:Expr WhereClause? ')'
+
+// `[ (a)-[r]->(b) WHERE p | e ]`. Desugared in HIR (spec §6.1).
+PatternComprehension =
+  '[' path:PathPattern WhereClause? '|' projection:Expr ']'
+
+// `CASE` with optional scrutinee, one or more `CaseWhenArm` children,
+// and an optional trailing `CaseElseArm` — spec §19 row "CASE" (cy-41u).
+// The arms and else branch are wrapped in dedicated nodes so the typed
+// AST can address them directly; the parser emits the corresponding
+// `CASE_WHEN_ARM` / `CASE_ELSE_ARM` SyntaxKind nodes.
+CaseExpr =
+  'CASE' scrutinee:Expr? arms:CaseWhenArm+ else_arm:CaseElseArm? 'END'
+
+CaseWhenArm =
+  'WHEN' when_value:Expr 'THEN' then_value:Expr
+
+CaseElseArm =
+  'ELSE' value:Expr
+
+NullCheck =
+  operand:Expr 'IS' 'NOT'? 'NULL'
+
+// Predicate form only. The `EXISTS { <subquery> }` form is deferred.
+ExistsPredicate =
+  'EXISTS' '(' (PathPattern | Expr) ')'
+
+// Pattern predicate in expression position, e.g. `(a)-[:R]->(:X)` in WHERE.
+// Desugared in HIR (spec §6.1).
+PatternPredicate =
+  PathPattern
+
+// Arithmetic, comparison, boolean. The parser assigns precedence; the
+// ungrammar only claims the shape.
+BinaryExpr =
+  lhs:Expr op:BinaryOp rhs:Expr
+
+BinaryOp =
+  '+' | '-' | '*' | '/' | '%' | '^'
+| '=' | '<>' | '!=' | '<' | '<=' | '>' | '>='
+| 'AND' | 'OR' | 'XOR'
+
+UnaryExpr =
+  op:UnaryOp operand:Expr
+
+UnaryOp =
+  '-' | 'NOT'
+
+// String-pattern operators share precedence with comparison but have
+// distinct shapes worth naming for codegen.
+StringPatternExpr =
+  lhs:Expr op:StringPatternOp rhs:Expr
+
+StringPatternOp =
+  '=~'
+| 'STARTS' 'WITH'
+| 'ENDS'   'WITH'
+| 'CONTAINS'
+
+MembershipExpr =
+  lhs:Expr 'IN' rhs:Expr
+
+//------------------------------------------------------------------------
+// Names
+//------------------------------------------------------------------------
+
+NameDef =
+  IDENT
+| QUOTED_IDENT
+
+NameRef =
+  IDENT
+| QUOTED_IDENT
+
+QualifiedName =
+  IDENT ('.' IDENT)*
+
+Label =
+  IDENT
+
+RelType =
+  IDENT
+
+PropertyKey =
+  IDENT
+| QUOTED_IDENT

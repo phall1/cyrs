@@ -1,0 +1,20 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 266
+expression: "format_with_errors(\"RETURN a[0]\")"
+---
+SOURCE_FILE@0..11
+  STATEMENT@0..11
+    RETURN_CLAUSE@0..11
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..11
+        RETURN_ITEMS@6..11
+          RETURN_ITEM@6..11
+            INDEX_EXPR@6..11
+              VAR_EXPR@6..8
+                WHITESPACE@6..7 " "
+                IDENT@7..8 "a"
+              L_BRACK@8..9 "["
+              LITERAL_EXPR@9..10
+                INT_LITERAL@9..10 "0"
+              R_BRACK@10..11 "]"

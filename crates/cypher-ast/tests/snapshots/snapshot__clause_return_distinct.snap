@@ -1,0 +1,31 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+assertion_line: 225
+expression: "dump(\"MATCH (n) RETURN DISTINCT n.name\")"
+---
+SourceFile(SOURCE_FILE@0..32)
+  STATEMENT@0..32
+    MatchClause(MATCH_CLAUSE@0..9)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    ReturnClause(RETURN_CLAUSE@9..32)
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      WHITESPACE@16..17 " "
+      DISTINCT_KW@17..25 "DISTINCT"
+      RETURN_BODY@25..32
+        RETURN_ITEMS@25..32
+          ReturnItem(RETURN_ITEM@25..32)
+            PROP_ACCESS_EXPR@25..32
+              VAR_EXPR@25..27
+                WHITESPACE@25..26 " "
+                IDENT@26..27 "n"
+              DOT@27..28 "."
+              IDENT@28..32 "name"

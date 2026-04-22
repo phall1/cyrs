@@ -1,0 +1,20 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 241
+expression: "format_with_errors(\"RETURN TRUE, FALSE\")"
+---
+SOURCE_FILE@0..18
+  STATEMENT@0..18
+    RETURN_CLAUSE@0..18
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..18
+        RETURN_ITEMS@6..18
+          RETURN_ITEM@6..11
+            LITERAL_EXPR@6..11
+              WHITESPACE@6..7 " "
+              TRUE_KW@7..11 "TRUE"
+          COMMA@11..12 ","
+          RETURN_ITEM@12..18
+            LITERAL_EXPR@12..18
+              WHITESPACE@12..13 " "
+              FALSE_KW@13..18 "FALSE"

@@ -1,0 +1,64 @@
+[package]
+name         = "cypher-cli"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Command-line tool for the cyrs Cypher / GQL frontend (parse, format, check, plan, explain)."
+
+[[bin]]
+name = "cypher"
+path = "src/main.rs"
+
+[dependencies]
+cypher-db     = { workspace = true }
+cypher-diag   = { workspace = true }
+cypher-fmt    = { workspace = true }
+# Spec 0002: the `schema load/check/diff` subcommands drive the TOML
+# loader, linter, and diff library. `file` enables the loader; `serde`
+# is transitively enabled so the diff report serialises to JSON.
+cypher-schema = { workspace = true, features = ["file"] }
+# Spec 0003: the `project load` subcommand drives the manifest loader.
+cypher-project = { workspace = true }
+# cy-k2r (spec 0001 §14, bead cy-o8c tranche 3): the `cypher-lang-services`
+# workspace symbol index (cy-kkw's `workspace_nav`) powers the `index
+# scip` subcommand.  Reuse of the existing index is the bead's hard
+# constraint — duplicating the walk into `cypher-cli` would violate
+# AGENTS.md §2.C3 "no overlay crates" and drift from what the LSP
+# surfaces on the same workspace.
+cypher-lang-services = { workspace = true }
+clap       = { workspace = true }
+anyhow     = { workspace = true }
+serde_json = { workspace = true }
+tracing    = { workspace = true }
+tracing-subscriber = { workspace = true }
+# cy-k2r: SCIP/LSIF index emitter for the `cypher index scip` subcommand
+# (spec §14, bead cy-o8c tranche 3).  Pinned crate-local per AGENTS.md §3
+# — no new workspace-shared scip pin.  0.7.1 is the latest stable on
+# crates.io.
+scip = "0.7.1"
+# protobuf is pulled in transitively by `scip` (it owns the generated
+# proto bindings).  We name it here so `protobuf::Message` — the trait
+# that exposes `write_to_bytes` / `parse_from_bytes` on the SCIP proto
+# types — is accessible.  Version pinned to match scip's own `=3.7.2`
+# pin so the trait impls resolve against the same monomorphisation.
+protobuf = "=3.7.2"
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+tempfile   = { workspace = true }
+insta      = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

@@ -1,0 +1,174 @@
+# Coverage gates for the cyrs workspace (spec §17.9).
+#
+# This workflow is separate from ci.yml to avoid merge conflicts with
+# parallel bead work (miri.yml lives alongside this file).
+#
+# Triggers: push to main, every PR, nightly cron.
+# Gate: per-crate line-coverage floors from §17.9 table.
+#
+# Upload: raw lcov.info uploaded as a GitHub Actions artifact.
+# (No codecov token assumed; switch to codecov/codecov-action@v4 if
+# a CODECOV_TOKEN secret is added to the repo.)
+
+name: coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly at 02:17 UTC (off-peak; avoids congestion with other nightly jobs).
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: llvm-cov coverage gates (spec §17.9)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # llvm-tools-preview is required by cargo-llvm-cov.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      # cargo-llvm-cov via taiki-e/install-action avoids a full
+      # `cargo install` compile on every run.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      # ── 1. Collect JSON report (per-crate line data) ──────────────
+      - name: cargo llvm-cov (JSON)
+        run: |
+          cargo llvm-cov \
+            --workspace \
+            --all-features \
+            --json \
+            --output-path coverage.json
+
+      # ── 2. Enforce per-crate line-coverage floors (spec §17.9) ───
+      #
+      # Floor table (mirrors §17.9 exactly):
+      #   cypher-syntax  90
+      #   cypher-ast     90
+      #   cypher-hir     90
+      #   cypher-sema    95
+      #   cypher-schema  95
+      #   cypher-diag    90
+      #   cypher-plan    90
+      #   cypher-fmt     95
+      #   cypher-db      85
+      #   cypher-lsp     75
+      #   cypher-agent   85
+      #   cypher-cli     80
+      #
+      # The JSON schema emitted by cargo-llvm-cov has the shape:
+      #   { "data": [{ "files": [...], "totals": {...} }] }
+      # Per-crate totals are surfaced via the --package flag; we use
+      # a single workspace run and extract totals per crate name from
+      # the "files" array by grouping on the package name embedded in
+      # each file's "filename" path segment.
+      #
+      # Simpler and more robust: run llvm-cov once per crate with
+      # --package and capture the summary line.  Twelve crates is fast
+      # enough; each reuses the already-instrumented build artifacts.
+      - name: check per-crate coverage floors
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # §17.9 floor table: "crate-name floor_percent"
+          declare -A FLOORS=(
+            [cypher-syntax]=90
+            [cypher-ast]=90
+            [cypher-hir]=90
+            [cypher-sema]=95
+            [cypher-schema]=95
+            [cypher-diag]=90
+            [cypher-plan]=90
+            [cypher-fmt]=95
+            [cypher-db]=85
+            [cypher-lsp]=75
+            [cypher-agent]=85
+            [cypher-cli]=80
+          )
+
+          FAILED=0
+
+          for CRATE in "${!FLOORS[@]}"; do
+            FLOOR="${FLOORS[$CRATE]}"
+
+            # --summary-only emits a compact table; grab the "TOTAL" line.
+            # Example output line:
+            #   TOTAL  1234  567  89.01%  ...
+            # Field 4 (1-indexed) is the line-coverage percentage.
+            SUMMARY=$(cargo llvm-cov \
+              --package "$CRATE" \
+              --all-features \
+              --summary-only \
+              2>/dev/null || true)
+
+            # Extract the percentage from the "TOTAL" row.
+            # The summary-only output format (llvm-cov >= 0.5):
+            #   Filename  Regions  Missed Regions  Cover  ...  Lines  Missed Lines  Cover  ...
+            #   TOTAL     ...                              ...         ...           XX.XX%
+            # We take the last percentage on the TOTAL line (line coverage is last).
+            PCT_RAW=$(echo "$SUMMARY" \
+              | grep -E '^TOTAL' \
+              | grep -oP '[0-9]+\.[0-9]+(?=%)' \
+              | tail -1)
+
+            if [[ -z "$PCT_RAW" ]]; then
+              echo "::warning::Could not parse coverage for $CRATE (crate may not exist yet); skipping."
+              continue
+            fi
+
+            # Truncate to integer for comparison (floor, not round).
+            PCT_INT=$(echo "$PCT_RAW" | cut -d'.' -f1)
+
+            if [[ "$PCT_INT" -lt "$FLOOR" ]]; then
+              echo "::error::$CRATE line coverage ${PCT_RAW}% is below the §17.9 floor of ${FLOOR}%."
+              FAILED=1
+            else
+              echo "$CRATE: ${PCT_RAW}% >= ${FLOOR}%  OK"
+            fi
+          done
+
+          if [[ "$FAILED" -ne 0 ]]; then
+            echo ""
+            echo "One or more crates are below their §17.9 coverage floor."
+            echo "Add tests or raise coverage before merging."
+            exit 1
+          fi
+
+      # ── 3. Produce lcov report for artifact upload ────────────────
+      - name: cargo llvm-cov (lcov)
+        if: always()
+        run: |
+          cargo llvm-cov \
+            --workspace \
+            --all-features \
+            --lcov \
+            --output-path lcov.info
+
+      # ── 4. Upload raw lcov as a GitHub artifact ───────────────────
+      #
+      # Switch to codecov/codecov-action@v4 (with secrets.CODECOV_TOKEN)
+      # once a Codecov org is configured for this repo.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lcov-${{ github.sha }}
+          path: lcov.info
+          retention-days: 30

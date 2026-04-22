@@ -1,0 +1,6 @@
+error[E5011]: list-predicate iterable must be a list but found `Node`; ANY/ALL/NONE/SINGLE require a `LIST<T>` source
+  ┌─ e5011_list_predicate_non_list.cypher:1:1
+  │
+1 │ // E5011: the iterable passed to ANY / ALL / NONE / SINGLE must be a
+  │ ^
+

@@ -1,0 +1,8 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person)\\n// filter active users\\nWHERE n.active = true\\nRETURN n\")"
+---
+MATCH (n:Person)
+// filter active users
+WHERE n.active = TRUE
+RETURN n

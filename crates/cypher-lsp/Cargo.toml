@@ -1,0 +1,95 @@
+[package]
+name         = "cypher-lsp"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Language Server Protocol implementation for Cypher / GQL (spec 0001 §14)."
+
+[lib]
+name = "cypher_lsp"
+path = "src/lib.rs"
+# The `web-lsp` feature builds this crate for `wasm32-unknown-unknown`
+# as a `cdylib` (JS worker entry point via wasm-bindgen).  The native
+# build produces the usual rlib so the binary at `src/main.rs` + tests
+# keep linking against it unchanged.
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "cypher-lsp"
+path = "src/main.rs"
+
+[features]
+# Default is the stdio native build — spec 0004 §7.1.  `web-lsp`
+# swaps the transport to a `postMessage`-compatible bridge intended
+# for `wasm32-unknown-unknown` inside a `DedicatedWorkerGlobalScope`.
+# The native path does NOT link `wasm-bindgen` or any browser-only
+# dep; the feature gate keeps it clean.
+default = []
+web-lsp = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
+
+[dependencies]
+cypher-db            = { workspace = true }
+cypher-diag          = { workspace = true, features = ["lsp"] }
+cypher-fmt           = { workspace = true }
+cypher-hir           = { workspace = true }
+cypher-lang-services = { workspace = true }
+cypher-plan          = { workspace = true }
+cypher-project       = { workspace = true }
+cypher-schema        = { workspace = true }
+cypher-sema          = { workspace = true }
+cypher-syntax        = { workspace = true }
+smol_str      = { workspace = true }
+# Spec 0004 §7.1: `lsp-server` carries stdio framing + JSON-RPC
+# shutdown bookkeeping we rely on natively (cdylib `cypher-lsp`
+# binary).  Its runtime deps (crossbeam-channel, log, serde,
+# serde_json) are all wasm-compatible — `ctrlc` is a dev-dep of
+# lsp-server and never reaches our build — so the crate also links
+# cleanly under `--target wasm32-unknown-unknown --features web-lsp`.
+# On the web path only the `Message`/`Request`/`Response`/
+# `Notification`/`RequestId` data types are used; the `Connection`
+# stdio threads never run (see `src/transport.rs` for the split).
+# This keeps the web transport a thin in-process bridge — spec 0004 §7,
+# bead cy-m0d — without vendoring a replacement for these types.
+lsp-server    = { workspace = true }
+lsp-types     = { workspace = true }
+rowan         = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+anyhow        = { workspace = true }
+tracing       = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Spec 0004 §7 — web-lsp transport.  Optional; only pulled in when the
+# `web-lsp` feature is enabled.  `web-sys`'s `MessagePort` / worker
+# glue gives us postMessage without any extra glue code (spec 0004 §7.2).
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys       = { version = "0.3", optional = true }
+web-sys      = { version = "0.3", optional = true, features = [
+    "DedicatedWorkerGlobalScope",
+    "MessageEvent",
+    "console",
+] }
+
+[dev-dependencies]
+serde_json      = { workspace = true }
+anyhow          = { workspace = true }
+tempfile        = { workspace = true }
+# `Connection::memory()` returns a pair of crossbeam channels; the test
+# harness owns one side and needs the type in scope to construct a dummy
+# sender during teardown (mem::replace trick in Drop).
+crossbeam-channel = "0.5"
+# (smol_str moved to runtime deps — used by init_options JsonSchema.)
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

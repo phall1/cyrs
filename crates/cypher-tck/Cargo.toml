@@ -1,0 +1,36 @@
+[package]
+name         = "cypher-tck"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "openCypher TCK v1 conformance harness for the cyrs frontend (spec 0001 §17.5)."
+
+[features]
+# Enable the full vendored openCypher TCK corpus under
+# `tck/full/` as an extra integration test (`tests/full.rs`).  Off by
+# default — the corpus has ~1.3k scenarios and runs against the whole
+# parser surface, so it is too slow / too many unsupported features to
+# gate on pre-commit.  See crate README + `tck/full/VENDORED.md`.
+full-tck = []
+
+[dependencies]
+cypher-db = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+toml  = { workspace = true }
+serde = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

@@ -1,0 +1,8 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Expand ($0)-[(->) $1]->( AS $2)
+  Source (AS $0)
+WriteOps:
+  Delete [$1]

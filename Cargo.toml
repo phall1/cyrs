@@ -1,0 +1,168 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/cypher-syntax",
+    "crates/cypher-ast",
+    "crates/cypher-hir",
+    "crates/cypher-sema",
+    "crates/cypher-schema",
+    "crates/cypher-project",
+    "crates/cypher-diag",
+    "crates/cypher-plan",
+    "crates/cypher-fmt",
+    "crates/cypher-db",
+    "crates/cypher-lang-services",
+    "crates/cypher-lsp",
+    "crates/cypher-agent",
+    "crates/cypher-cli",
+    "crates/cypher-tck",
+    "crates/cypher-testkit",
+    "crates/cypher",
+    "crates/cypher-wasm",
+    "crates/cypher-ffi",
+    "crates/cypher-py",
+    "xtask",
+]
+# fuzz/ is a cargo-fuzz sub-package managed by `cargo fuzz`; it must NOT
+# be a workspace member so that `cargo check --workspace` (the PR gate)
+# does not touch it. cargo fuzz builds it with nightly + special RUSTFLAGS.
+#
+# benches/ is a standalone Criterion sub-package (spec §17.10). Excluded for
+# the same reason: it has its own [workspace] table and must not be pulled in
+# by the workspace resolver.
+exclude = ["fuzz", "benches"]
+default-members = ["crates/cypher-cli"]
+
+[workspace.package]
+version      = "0.0.1"
+edition      = "2024"
+rust-version = "1.94"
+license      = "Apache-2.0 OR MIT"
+authors      = ["Patrick Hall <phallsignup@gmail.com>"]
+repository   = "https://github.com/phall1/cyrs"
+homepage     = "https://github.com/phall1/cyrs"
+description  = "A standalone, domain-free Rust front-end for Cypher / GQL: lexer, recovering parser, lossless CST, typed AST, HIR, schema-aware semantic analysis, formatter, LSP, and agent API."
+readme       = "README.md"
+keywords     = ["cypher", "gql", "graph", "parser", "lsp"]
+categories   = ["database", "parser-implementations", "development-tools::debugging"]
+
+# ---------------------------------------------------------------------------
+# Shared dependency pins. Child crates depend on these via `workspace = true`.
+# Versions chosen to match widely-deployed releases; bumps are spec-governed.
+# ---------------------------------------------------------------------------
+
+[workspace.dependencies]
+# syntax layer
+rowan     = "0.15"
+logos     = "0.14"
+smol_str  = "0.3"
+text-size = "1.1"
+drop_bomb = "0.1"
+
+# general
+anyhow       = "1"
+thiserror    = "2"
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+indexmap     = { version = "2", features = ["serde"] }
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+once_cell    = "1"
+
+# diagnostics rendering
+codespan-reporting = "0.11"
+
+# lsp
+lsp-server = "0.7"
+lsp-types  = "0.97"
+
+# cli
+clap = { version = "4", features = ["derive", "env"] }
+
+# dev / testing
+insta           = { version = "1", features = ["yaml", "json", "redactions"] }
+proptest        = "1"
+criterion       = { version = "0.5", features = ["html_reports"] }
+pretty_assertions = "1"
+expect-test    = "1.5"
+tempfile       = "3"
+assert_cmd     = "2"
+predicates     = "3"
+toml           = "0.8"
+
+# incremental query engine (spec §11.1 — only cypher-db and above may use this)
+salsa = "0.26"
+
+# internal — version is set for cargo publish; local development still uses path.
+cypher-syntax        = { version = "0.0.1", path = "crates/cypher-syntax" }
+cypher-ast           = { version = "0.0.1", path = "crates/cypher-ast" }
+cypher-hir           = { version = "0.0.1", path = "crates/cypher-hir" }
+cypher-sema          = { version = "0.0.1", path = "crates/cypher-sema" }
+cypher-schema        = { version = "0.0.1", path = "crates/cypher-schema" }
+cypher-project       = { version = "0.0.1", path = "crates/cypher-project" }
+cypher-diag          = { version = "0.0.1", path = "crates/cypher-diag" }
+cypher-plan          = { version = "0.0.1", path = "crates/cypher-plan" }
+cypher-fmt           = { version = "0.0.1", path = "crates/cypher-fmt" }
+cypher-db            = { version = "0.0.1", path = "crates/cypher-db" }
+cypher-lang-services = { version = "0.0.1", path = "crates/cypher-lang-services" }
+cypher-tck           = { version = "0.0.1", path = "crates/cypher-tck" }
+# cypher-testkit is dev-only (publish = false) — no version so `cargo
+# publish` strips it cleanly from published dev-dependencies.
+cypher-testkit       = { path = "crates/cypher-testkit" }
+cypher               = { version = "0.0.1", path = "crates/cypher" }
+
+# ---------------------------------------------------------------------------
+# Lints. Spec §17.13 forbids unsafe workspace-wide.
+# ---------------------------------------------------------------------------
+
+[workspace.lints.rust]
+unsafe_code            = "forbid"
+unused_must_use        = "deny"
+missing_debug_implementations = "warn"
+# Spec §C2.4 / §17.15: every public item in the workspace surface
+# carries a rustdoc comment.  Promoted from `warn` to `deny` in
+# cy-p47 once the legacy backlog hit zero.  Catalog files that
+# enumerate grammar productions (cypher-ast/src/generated.rs —
+# codegen output, cypher-syntax/src/kind.rs, cypher-hir/src/lib.rs,
+# cypher-db/src/inputs.rs) carry a file-level
+# `#![allow(missing_docs)]`: each variant's semantics live in the
+# grammar / Salsa-input spec and per-item docstrings would be
+# pure boilerplate.
+missing_docs           = "deny"
+rust_2018_idioms       = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all      = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# carve-outs consistent with rust-analyzer house style
+module_name_repetitions = "allow"
+must_use_candidate      = "allow"
+missing_errors_doc      = "allow"
+missing_panics_doc      = "allow"
+too_many_lines          = "allow"
+similar_names           = "allow"
+needless_pass_by_value  = "allow"
+return_self_not_must_use = "allow"
+# stricter than default: catch todos in CI
+todo                    = "warn"
+unimplemented           = "warn"
+dbg_macro               = "deny"
+print_stdout            = "allow"  # CLI/agent binaries legitimately print
+print_stderr            = "allow"
+
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = true
+panic         = "abort"
+
+[profile.dev]
+debug = "limited"
+
+# Dedicated profile for fuzz targets.
+[profile.fuzz]
+inherits      = "release"
+debug         = true
+codegen-units = 1
+lto           = false
+opt-level     = 3

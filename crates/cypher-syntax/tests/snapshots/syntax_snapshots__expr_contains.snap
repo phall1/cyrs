@@ -1,0 +1,21 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+assertion_line: 324
+expression: "format_with_errors(\"RETURN a CONTAINS 'foo'\")"
+---
+SOURCE_FILE@0..23
+  STATEMENT@0..23
+    RETURN_CLAUSE@0..23
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..23
+        RETURN_ITEMS@6..23
+          RETURN_ITEM@6..23
+            STRING_OP_EXPR@6..23
+              VAR_EXPR@6..8
+                WHITESPACE@6..7 " "
+                IDENT@7..8 "a"
+              WHITESPACE@8..9 " "
+              CONTAINS_KW@9..17 "CONTAINS"
+              LITERAL_EXPR@17..23
+                WHITESPACE@17..18 " "
+                STRING_LITERAL@18..23 "'foo'"

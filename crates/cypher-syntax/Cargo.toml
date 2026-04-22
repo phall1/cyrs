@@ -1,0 +1,45 @@
+[package]
+name         = "cypher-syntax"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Lossless CST and recovering parser for Cypher / GQL (spec 0001 §4)."
+
+[dependencies]
+rowan      = { workspace = true }
+logos      = { workspace = true }
+smol_str   = { workspace = true }
+text-size  = { workspace = true }
+drop_bomb  = { workspace = true }
+thiserror  = { workspace = true }
+serde      = { workspace = true, optional = true }
+
+[features]
+default     = ["incremental"]
+# cy-zv0: A/B flag for the incremental-reparse smart path. Defaulted on.
+# Disabling forces the whole-file reparse fallback in `edit::incremental_reparse`.
+# Consumers can flip this in CI to pin the old behaviour while the smart
+# path is being validated.
+incremental = []
+serde       = ["dep:serde", "smol_str/serde", "text-size/serde"]
+
+[dev-dependencies]
+expect-test       = { workspace = true }
+insta             = { workspace = true }
+cypher-testkit    = { workspace = true }
+proptest          = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

@@ -1,0 +1,66 @@
+# OSS-Fuzz project manifest for cyrs (cypher-frontend).
+#
+# This file is the artifact submitted upstream to
+# https://github.com/google/oss-fuzz — it is NOT consumed by this repo's
+# CI. To onboard:
+#
+#   1. Fork google/oss-fuzz.
+#   2. Create projects/cyrs/ mirroring this directory's contents
+#      (project.yaml + Dockerfile + build.sh).
+#   3. Open a PR per
+#      https://google.github.io/oss-fuzz/getting-started/new-project-guide/
+#
+# Do NOT make operational changes here without a corresponding PR against
+# the upstream fork — OSS-Fuzz reads the pinned revision, not this tree.
+
+homepage: "https://github.com/phall/cyrs"
+language: rust
+primary_contact: "phallsignup@gmail.com"
+
+# Notification list — anyone on this list gets crash-report emails from
+# ClusterFuzz and access to the triage dashboard. Keep minimal; every
+# new addition must be approved by the operator.
+auto_ccs:
+  - "phallsignup@gmail.com"
+
+# Sanitizers OSS-Fuzz should build + run. ASan is mandatory; UBSan adds
+# coverage of UB that ASan misses. MSan is skipped because libfuzzer-sys
+# does not currently interop cleanly with MSan on Rust (see upstream
+# issue google/oss-fuzz#7871).
+sanitizers:
+  - address
+  - undefined
+
+# Architectures to build. ClusterFuzz defaults to x86_64; aarch64 adds
+# nightly runs that exercise alignment assumptions.
+architectures:
+  - x86_64
+
+# Fuzzing engine. libfuzzer is the only engine cargo-fuzz drives today;
+# honggfuzz + AFL++ support would require porting the fuzz_target!
+# macro, which is out of scope for onboarding.
+fuzzing_engines:
+  - libfuzzer
+
+# Allow maintainer to disable via a PR if an upstream outage is
+# temporarily blocking builds. Default on.
+disabled: false
+
+# OSS-Fuzz coverage dashboard tag.
+main_repo: "https://github.com/phall/cyrs.git"
+
+# File-in-scope regex for coverage reporting — drop tests/ fixtures and
+# generated artefacts from the coverage count so the reported number is
+# the real one.
+file_github_repo: "phall/cyrs"
+
+# Minimum fuzz-runtime per target on the OSS-Fuzz pool. The default is
+# 1500 s; our per-target budget is comfortably above that.
+# NOTE: OSS-Fuzz ignores this field on the project level; it belongs in
+# the per-fuzzer JSON config. Left here as documentation.
+
+# Labels recognised by the OSS-Fuzz dashboard.
+labels:
+  - "parser"
+  - "query language"
+  - "rust"

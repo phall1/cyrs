@@ -1,0 +1,314 @@
+//! Pattern productions — nodes, fixed-length relationships, labels,
+//! property maps. Spec `cypher.ungrammar` `Pattern` / `NodePattern` /
+//! `RelPattern` / `LabelExpr` / `PropertyMap`.
+//!
+//! # cy-nom scope
+//! - `NodePattern = '(' IDENT? LabelList? PropertyMap? ')'`
+//! - `RelPattern` supports the three arrow shapes `-[]-`, `-[]->`,
+//!   `<-[]-`, chained to extend a path.
+//! - Label lists: `(':' IDENT)+`.
+//! - Property-map values are full `Expr`s.
+//!
+//! Deferred (each tagged with `cy-nom: v1 scope — ...` at its stub):
+//! variable-length rels (`*m..n`), path binders (`p = <path>`), pipe-
+//! disjunction rel-type expressions, shortestPath / allShortestPaths
+//! patterns, pattern predicates in expression position.
+
+use crate::SyntaxKind;
+use crate::parser::{Parser, syntax_codes as sc};
+
+use super::expression;
+
+/// `Pattern (',' Pattern)*`
+pub(crate) fn pattern_list(p: &mut Parser<'_>) {
+    pattern(p);
+    while p.at(SyntaxKind::COMMA) {
+        p.bump(SyntaxKind::COMMA);
+        pattern(p);
+    }
+}
+
+/// `Pattern = (bind:NameDef '=')? PathPattern` — spec ungrammar `Pattern`.
+///
+/// A leading `IDENT =` binds the path expression to the named variable
+/// (`p = (a)-[]->(b)`). The `NAMED_PATTERN_PART` wrapper surrounds the
+/// inner `PATTERN_PART`; without the binder we emit only the
+/// `PATTERN_PART`, matching the previous cy-nom shape so existing AST
+/// consumers don't see gratuitous wrappers.
+pub(crate) fn pattern(p: &mut Parser<'_>) {
+    let m = p.start();
+    if is_path_binder(p) {
+        let bind = p.start();
+        name_binder(p);
+        p.bump(SyntaxKind::EQ);
+        path_pattern(p);
+        bind.complete(p, SyntaxKind::NAMED_PATTERN_PART);
+    } else {
+        path_pattern(p);
+    }
+    m.complete(p, SyntaxKind::PATTERN);
+}
+
+/// A path binder is `IDENT '='` before an `L_PAREN` — the `=` disambiguates
+/// from a bare node pattern or a following clause. We require the `=`
+/// token to sit between two valid positions, so one-token lookahead
+/// suffices.
+fn is_path_binder(p: &mut Parser<'_>) -> bool {
+    if !(p.current() == SyntaxKind::IDENT || p.current() == SyntaxKind::QUOTED_IDENT) {
+        return false;
+    }
+    p.nth(1) == SyntaxKind::EQ
+}
+
+/// `PathPattern = NodePattern (RelPattern NodePattern)*`
+fn path_pattern(p: &mut Parser<'_>) {
+    let m = p.start();
+    if !p.at(SyntaxKind::L_PAREN) {
+        p.error_code(
+            sc::EXPECTED_LPAREN_NODE,
+            "expected '(' to start a node pattern",
+        );
+        m.complete(p, SyntaxKind::PATTERN_PART);
+        return;
+    }
+    node_pattern(p);
+    while at_rel_start(p) {
+        rel_pattern(p);
+        if p.at(SyntaxKind::L_PAREN) {
+            node_pattern(p);
+        } else {
+            p.error_code(
+                sc::EXPECTED_NODE_AFTER_REL,
+                "expected node pattern after relationship",
+            );
+            break;
+        }
+    }
+    m.complete(p, SyntaxKind::PATTERN_PART);
+}
+
+fn at_rel_start(p: &mut Parser<'_>) -> bool {
+    matches!(p.current(), SyntaxKind::MINUS | SyntaxKind::ARROW_L)
+}
+
+/// `NodePattern = '(' IDENT? LabelList? PropertyMap? ')'`
+fn node_pattern(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_PAREN));
+    let m = p.start();
+    p.bump(SyntaxKind::L_PAREN);
+
+    // Optional name binder.
+    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+        name_binder(p);
+    }
+    // Optional label list.
+    if p.at(SyntaxKind::COLON) {
+        label_expr(p);
+    }
+    // Optional property map.
+    if p.at(SyntaxKind::L_BRACE) {
+        property_map(p);
+    }
+
+    if !p.eat(SyntaxKind::R_PAREN) {
+        // Virtual-token insertion per spec §4.3: emit diagnostic at the
+        // expected position and continue. No bytes are consumed.
+        p.error_code(
+            sc::EXPECTED_RPAREN_NODE,
+            "expected ')' to close node pattern",
+        );
+    }
+    m.complete(p, SyntaxKind::NODE_PATTERN);
+}
+
+/// Relationship pattern: `-[...]-`, `-[...]->`, or `<-[...]-`. Only
+/// fixed-length; variable-length (`*m..n`) is deferred per cy-nom scope.
+fn rel_pattern(p: &mut Parser<'_>) {
+    debug_assert!(at_rel_start(p));
+    let m = p.start();
+
+    let left_arrow = if p.at(SyntaxKind::ARROW_L) {
+        p.bump(SyntaxKind::ARROW_L);
+        true
+    } else {
+        // `-` or `-[...]-*`
+        if !p.eat(SyntaxKind::MINUS) {
+            p.error_code(
+                sc::EXPECTED_DASH_REL_START,
+                "expected '-' at relationship start",
+            );
+        }
+        false
+    };
+
+    // Optional detail in square brackets.
+    if p.at(SyntaxKind::L_BRACK) {
+        rel_detail(p);
+    }
+
+    // Closing arrow. The left_arrow case requires a plain `-`; otherwise
+    // we accept either `-` or `->`.
+    if left_arrow {
+        if !p.eat(SyntaxKind::MINUS) {
+            p.error_code(
+                sc::EXPECTED_DASH_REL_CLOSE,
+                "expected '-' to close relationship",
+            );
+        }
+    } else if !(p.eat(SyntaxKind::ARROW_R) || p.eat(SyntaxKind::MINUS)) {
+        p.error_code(
+            sc::EXPECTED_DASH_OR_ARROW,
+            "expected '-' or '->' to close relationship",
+        );
+    }
+
+    m.complete(p, SyntaxKind::REL_PATTERN);
+}
+
+/// `'[' RelDetail? ']'` — contents mirror `NodePattern`'s inner trio but
+/// without the outer parens. Variable-length hops (`*m..n`) land later.
+fn rel_detail(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_BRACK));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACK);
+
+    // Optional name binder.
+    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+        name_binder(p);
+    }
+    // Optional type expression: `:Type` (pipe disjunction deferred).
+    if p.at(SyntaxKind::COLON) {
+        rel_type_expr(p);
+    }
+    // Optional variable-length quantifier: `*`, `*n`, `*n..`, `*n..m`, `*..m`.
+    if p.at(SyntaxKind::STAR) {
+        rel_length(p);
+    }
+    // Optional property map.
+    if p.at(SyntaxKind::L_BRACE) {
+        property_map(p);
+    }
+
+    if !p.eat(SyntaxKind::R_BRACK) {
+        p.error_code(
+            sc::EXPECTED_RBRACK_REL,
+            "expected ']' to close relationship detail",
+        );
+    }
+    m.complete(p, SyntaxKind::REL_DETAIL);
+}
+
+/// Label / rel-type names are (per Cypher) unrestricted identifiers — any
+/// keyword spelling is a valid label. Accept `IDENT` / `QUOTED_IDENT` and any
+/// token whose kind is in the keyword zone; the concrete token kind still
+/// round-trips in the CST so diagnostic-producing passes keep the span.
+fn eat_label_or_type_name(p: &mut Parser<'_>) -> bool {
+    if p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT) {
+        return true;
+    }
+    if p.current().is_keyword() {
+        p.bump_any();
+        return true;
+    }
+    false
+}
+
+/// `(':' IDENT)+`
+fn label_expr(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::COLON));
+    let m = p.start();
+    while p.at(SyntaxKind::COLON) {
+        p.bump(SyntaxKind::COLON);
+        if !eat_label_or_type_name(p) {
+            p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
+            break;
+        }
+    }
+    m.complete(p, SyntaxKind::LABEL_EXPR);
+}
+
+/// `RangeHops = '*' (IntLiteral ('..' IntLiteral?)?)? | '*' '..' IntLiteral`
+/// — the variable-length hop quantifier inside `REL_DETAIL`. Spec
+/// `cypher.ungrammar` `RangeHops`; emitted as `REL_LENGTH`.
+fn rel_length(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::STAR));
+    let m = p.start();
+    p.bump(SyntaxKind::STAR);
+    // Three shapes: `*`, `*n ...`, `*.. m`.
+    if p.at(SyntaxKind::INT_LITERAL) {
+        p.bump(SyntaxKind::INT_LITERAL);
+        if p.at(SyntaxKind::DOT_DOT) {
+            p.bump(SyntaxKind::DOT_DOT);
+            // Upper bound is optional.
+            p.eat(SyntaxKind::INT_LITERAL);
+        }
+    } else if p.at(SyntaxKind::DOT_DOT) {
+        p.bump(SyntaxKind::DOT_DOT);
+        p.eat(SyntaxKind::INT_LITERAL);
+    }
+    m.complete(p, SyntaxKind::REL_LENGTH);
+}
+
+/// `':' IDENT` — rel-type expression. Pipe disjunction (`A|B`) is
+/// deferred per cy-nom scope.
+fn rel_type_expr(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::COLON));
+    let m = p.start();
+    p.bump(SyntaxKind::COLON);
+    if !eat_label_or_type_name(p) {
+        p.error_code(
+            sc::EXPECTED_REL_TYPE,
+            "expected relationship type after ':'",
+        );
+    }
+    // cy-nom: v1 scope — `A|B` rel-type disjunction lands in a follow-up bead.
+    m.complete(p, SyntaxKind::REL_TYPE_EXPR);
+}
+
+/// `'{' (key ':' Expr (',' key ':' Expr)*)? '}'`
+fn property_map(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_BRACE));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACE);
+
+    if !p.at(SyntaxKind::R_BRACE) {
+        property_kv(p);
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            property_kv(p);
+        }
+    }
+
+    if !p.eat(SyntaxKind::R_BRACE) {
+        p.error_code(
+            sc::EXPECTED_RBRACE_PROP,
+            "expected '}' to close property map",
+        );
+    }
+    m.complete(p, SyntaxKind::PROPERTY_MAP);
+}
+
+fn property_kv(p: &mut Parser<'_>) {
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_PROP_KEY, "expected property key");
+    }
+    if !p.eat(SyntaxKind::COLON) {
+        p.error_code(sc::EXPECTED_COLON_PROP, "expected ':' in property entry");
+    }
+    if expression::expr(p).is_none() {
+        p.error_code(
+            sc::EXPECTED_PROP_VALUE,
+            "expected expression for property value",
+        );
+    }
+}
+
+/// A plain `IDENT` / `QUOTED_IDENT` wrapped in a `NAME` node, for binders that
+/// live inside patterns.
+fn name_binder(p: &mut Parser<'_>) {
+    let m = p.start();
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_IDENT, "expected identifier");
+    }
+    m.complete(p, SyntaxKind::NAME);
+}

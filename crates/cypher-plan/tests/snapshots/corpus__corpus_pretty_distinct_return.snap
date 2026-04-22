@@ -1,0 +1,7 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Distinct
+  Project [$0.city AS city]
+    Source (:Person AS $0)

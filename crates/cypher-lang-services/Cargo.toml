@@ -1,0 +1,33 @@
+[package]
+name         = "cypher-lang-services"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Shared language-service engines (completion, hover, rewrite) used by cypher-lsp and cypher-agent (spec 0001 §14 / §15)."
+
+[dependencies]
+cypher-ast     = { workspace = true }
+cypher-db      = { workspace = true }
+cypher-diag    = { workspace = true }
+cypher-hir     = { workspace = true }
+cypher-project = { workspace = true }
+cypher-schema  = { workspace = true }
+cypher-sema    = { workspace = true }
+cypher-syntax  = { workspace = true }
+cypher-fmt     = { workspace = true }
+rowan          = { workspace = true }
+smol_str       = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

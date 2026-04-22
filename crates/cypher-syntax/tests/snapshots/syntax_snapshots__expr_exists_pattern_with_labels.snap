@@ -1,0 +1,43 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN EXISTS((a:Person)-[:KNOWS]->(b:Person))\")"
+---
+SOURCE_FILE@0..46
+  STATEMENT@0..46
+    RETURN_CLAUSE@0..46
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..46
+        RETURN_ITEMS@6..46
+          RETURN_ITEM@6..46
+            PATTERN_PREDICATE@6..46
+              WHITESPACE@6..7 " "
+              EXISTS_KW@7..13 "EXISTS"
+              L_PAREN@13..14 "("
+              PATTERN@14..45
+                PATTERN_PART@14..45
+                  NODE_PATTERN@14..24
+                    L_PAREN@14..15 "("
+                    NAME@15..16
+                      IDENT@15..16 "a"
+                    LABEL_EXPR@16..23
+                      COLON@16..17 ":"
+                      IDENT@17..23 "Person"
+                    R_PAREN@23..24 ")"
+                  REL_PATTERN@24..35
+                    MINUS@24..25 "-"
+                    REL_DETAIL@25..33
+                      L_BRACK@25..26 "["
+                      REL_TYPE_EXPR@26..32
+                        COLON@26..27 ":"
+                        IDENT@27..32 "KNOWS"
+                      R_BRACK@32..33 "]"
+                    ARROW_R@33..35 "->"
+                  NODE_PATTERN@35..45
+                    L_PAREN@35..36 "("
+                    NAME@36..37
+                      IDENT@36..37 "b"
+                    LABEL_EXPR@37..44
+                      COLON@37..38 ":"
+                      IDENT@38..44 "Person"
+                    R_PAREN@44..45 ")"
+              R_PAREN@45..46 ")"

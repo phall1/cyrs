@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) RETURN n ORDER BY n.name ASC\")"
+---
+MATCH (n)
+RETURN n
+ORDER BY n.name ASC

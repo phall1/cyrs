@@ -1,0 +1,6 @@
+error[E2013]: `IN` right-hand side must be a list but found `Int`
+  ┌─ e2013_in_not_a_list.cypher:1:1
+  │
+1 │ // E2013: right-hand side of IN must be a list
+  │ ^
+

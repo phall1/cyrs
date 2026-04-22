@@ -1,0 +1,7 @@
+---
+source: crates/cypher-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WHERE (n.a > 1 AND n.b < 10) OR (n.c = 'x' AND n.d IS NOT NULL) RETURN n\")"
+---
+MATCH (n)
+WHERE (n.a > 1 AND n.b < 10) OR (n.c = 'x' AND n.d IS NOT NULL)
+RETURN n

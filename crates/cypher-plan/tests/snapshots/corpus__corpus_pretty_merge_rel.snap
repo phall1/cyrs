@@ -1,0 +1,9 @@
+---
+source: crates/cypher-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Source (:Person AS $1)
+WriteOps:
+  MergeRel ($0)-[:FOLLOWS AS $2]->($1)
+    ON CREATE:
+      SetProperty $2.since = 2024
