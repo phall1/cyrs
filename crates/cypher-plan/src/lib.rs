@@ -100,7 +100,12 @@ pub enum RelLength {
     Single,
     /// Variable number of hops (`-[r*min..max]->`). Bounds of `None` mean
     /// unbounded in that direction.
-    Variable { min: Option<u64>, max: Option<u64> },
+    Variable {
+        /// Lower bound on the number of hops; `None` means no lower bound.
+        min: Option<u64>,
+        /// Upper bound on the number of hops; `None` means no upper bound.
+        max: Option<u64>,
+    },
 }
 
 /// Disposition of a `UNION`. Spec §12.1.

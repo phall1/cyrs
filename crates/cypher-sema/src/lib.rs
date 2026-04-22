@@ -45,7 +45,11 @@ use smol_str::SmolStr;
 /// Knobs exposed to consumers. Added rather than changed; never breaks.
 #[derive(Debug, Default, Clone)]
 pub struct SemaOptions {
+    /// Type hints supplied by the caller for `$param` references.
+    /// Unresolved parameters default to `Type::Any`.
     pub parameter_hints: Vec<(SmolStr, Type)>,
+    /// When `true`, re-binding a name already visible in scope emits
+    /// `E1002` instead of silently shadowing.
     pub warn_shadowing: bool,
     /// Dialect to use for gate checks (§9). Defaults to [`DialectMode::GqlAligned`].
     pub dialect: DialectMode,

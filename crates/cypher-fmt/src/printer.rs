@@ -63,6 +63,7 @@ enum Pending {
 }
 
 impl Printer {
+    /// Construct a fresh `Printer` initialised with the given options.
     pub fn new(opts: FormatOptions) -> Self {
         Self {
             opts,

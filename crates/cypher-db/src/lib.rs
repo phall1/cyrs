@@ -171,6 +171,12 @@ assert_sync!(ParseOutput);
 /// - `dialect` — parsing dialect (spec §9).
 /// - `options_digest` — hash of analysis options.  Full shape deferred to
 ///   bead cy-nk7; zero is a valid "no options" value.
+//
+// `#[salsa::input]` emits accessor + setter methods for every field;
+// those are collectively described by the module-level docs on
+// `SourceFile` above, not per-method.  Suppress `missing_docs` on the
+// macro expansion.
+#[allow(missing_docs)]
 #[salsa::input]
 pub struct SourceFile {
     /// Raw UTF-8 source text for this file.
@@ -368,6 +374,14 @@ impl Default for LegacyDatabase {
     }
 }
 
+// `LegacyDatabase` is the pre-workspace u32-FileId façade kept for
+// backward compatibility while binary crates migrate to the new
+// `workspace::Database`.  Its methods are intentionally thin
+// wrappers and document themselves; the module-level doc already
+// explains the migration status.  `#[allow(missing_docs)]` on the
+// whole impl avoids churning through 10+ trivial one-liners that
+// will be deleted alongside the façade.
+#[allow(missing_docs)]
 impl LegacyDatabase {
     #[must_use]
     pub fn new() -> Self {

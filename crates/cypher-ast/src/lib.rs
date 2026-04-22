@@ -20,8 +20,13 @@ pub use generated::*;
 /// `cast`/`syntax` methods directly (matching the spec §5.1 shape); this
 /// trait is the portable handle hand-written or macro-based wrappers use.
 pub trait AstNode: Sized {
+    /// `true` iff a node with this `kind` can be cast to `Self`.
     fn can_cast(kind: SyntaxKind) -> bool;
+    /// Attempt to cast a raw `SyntaxNode` to this typed wrapper.
+    /// Returns `None` when the node's `SyntaxKind` doesn't match.
     fn cast(syntax: SyntaxNode) -> Option<Self>;
+    /// Return the underlying `SyntaxNode`.  Zero-cost — typed
+    /// wrappers are `repr(transparent)`-style views.
     fn syntax(&self) -> &SyntaxNode;
 }
 

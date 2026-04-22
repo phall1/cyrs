@@ -43,10 +43,13 @@ pub trait SchemaProvider: Send + Sync + 'static {
     /// All declared relationship types.
     fn relationship_types(&self) -> Vec<SmolStr>;
 
+    /// Convenience predicate: does the schema declare `name` as a label?
     fn has_label(&self, name: &str) -> bool {
         self.labels().iter().any(|l| l == name)
     }
 
+    /// Convenience predicate: does the schema declare `name` as a
+    /// relationship type?
     fn has_relationship_type(&self, name: &str) -> bool {
         self.relationship_types().iter().any(|r| r == name)
     }
@@ -89,15 +92,26 @@ pub trait SchemaProvider: Send + Sync + 'static {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PropertyDecl {
+    /// Property name as it appears in `n.prop` expressions.
     pub name: SmolStr,
+    /// Declared type (spec §8.2).  Consumers that don't care about
+    /// typing can surface `PropertyType::Any`.
     pub ty: PropertyType,
+    /// `true` when the schema requires every instance to carry this
+    /// property (nullable otherwise).
     pub required: bool,
 }
 
 /// The propertable-value type language. Intentionally simpler than the
 /// full Cypher value type — schemas describe what values are *stored*.
+///
+/// Variants map 1:1 to spec §8.2's type lattice; the variant names
+/// are self-documenting.  `#[allow(missing_docs)]` applies to the
+/// primitive variants; variants with nontrivial invariants
+/// (`Enum`, `Opaque`) keep their own docstrings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(missing_docs)]
 pub enum PropertyType {
     String,
     Int,
@@ -131,13 +145,18 @@ pub enum PropertyType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EndpointDecl {
+    /// Source label of a matching pattern (left-hand side of the arrow).
     pub from: SmolStr,
+    /// Target label of a matching pattern (right-hand side of the arrow).
     pub to: SmolStr,
+    /// Multiplicity between `from` and `to` endpoints.
     pub cardinality: Cardinality,
 }
 
+/// Relationship multiplicity between two label endpoints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(missing_docs)]
 pub enum Cardinality {
     OneToOne,
     OneToMany,
@@ -157,10 +176,15 @@ pub enum Cardinality {
 /// `params`. Only `variadic.ty` is semantically significant; `name` is
 /// diagnostic-only and `default` is unused.
 pub struct FunctionSignature {
+    /// Function name as it appears in a `count(…)` call.
     pub name: SmolStr,
+    /// Fixed-arity parameter list in declaration order.
     pub params: Vec<ParamDecl>,
+    /// Optional trailing variadic parameter (spec §8.2 shorthand).
     pub variadic: Option<ParamDecl>,
+    /// How the return type is computed (constant vs argument-derived).
     pub return_ty: ReturnTy,
+    /// Purity / determinism flags used by the sema purity checker.
     pub categories: FnCategories,
 }
 
@@ -212,11 +236,18 @@ impl core::fmt::Debug for ReturnTy {
     }
 }
 
+/// Purity / determinism / aggregation flags for a function.  The
+/// sema pass uses these to decide which syntactic positions a
+/// function may appear in (aggregates in `RETURN`, pure functions
+/// in `WHERE`, etc.).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FnCategories {
+    /// `true` iff the function has no side effects.
     pub pure: bool,
+    /// `true` iff the function is an aggregate (e.g. `count`, `sum`).
     pub aggregate: bool,
+    /// `true` iff identical inputs always produce identical outputs.
     pub deterministic: bool,
 }
 
@@ -224,32 +255,47 @@ pub struct FnCategories {
 /// list in addition to inputs.
 #[derive(Debug, Clone)]
 pub struct ProcedureSignature {
+    /// Procedure name as invoked by `CALL <name>(…)`.
     pub name: SmolStr,
+    /// Input parameters in declaration order.
     pub params: Vec<ParamDecl>,
+    /// Columns produced by `YIELD`; each row of the call produces a
+    /// record with these fields.
     pub yields: Vec<YieldDecl>,
+    /// Read / Write / Schema classification (spec §8.2).
     pub mode: ProcMode,
 }
 
+/// Procedure access mode (spec §8.2).  Used by sema to gate
+/// procedures in read-only contexts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[allow(missing_docs)]
 pub enum ProcMode {
     Read,
     Write,
     Schema,
 }
 
+/// A single parameter of a function or procedure signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ParamDecl {
+    /// Parameter name.  Diagnostic-only for variadic parameters.
     pub name: SmolStr,
+    /// Declared parameter type.
     pub ty: PropertyType,
+    /// Optional default value as a source-level literal.
     pub default: Option<SmolStr>,
 }
 
+/// A single output column of a `YIELD` clause on a procedure call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct YieldDecl {
+    /// Column name as it appears after `YIELD`.
     pub name: SmolStr,
+    /// Declared column type.
     pub ty: PropertyType,
 }
 

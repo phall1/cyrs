@@ -174,6 +174,7 @@ impl Fnv64 {
 /// This is a separate `#[salsa::input]` from [`SourceFile`] so that changing
 /// options for one file does not touch the source revision of any other file.
 /// The `options_digest` derived query reads only this struct.
+#[allow(missing_docs)]
 #[salsa::input]
 pub struct FileOptions {
     /// Full analysis options for this file.
@@ -191,6 +192,7 @@ pub struct FileOptions {
 /// derived queries regardless of which file they belong to.
 ///
 /// `schema` is `None` when no schema is configured (schema-free mode, §7.1).
+#[allow(missing_docs)]
 #[salsa::input]
 pub struct WorkspaceInputs {
     /// Workspace-scoped schema.  `None` = schema-free analysis.

@@ -43,19 +43,6 @@ equal-weight downstream consumers.
 
 ---
 
-## Why it lives in this monorepo
-
-`cypher` is standalone and domain-free. It lives next to
-[`intel/`](../intel) because `intel` will migrate onto it as its query
-surface — the first concrete downstream consumer. The coupling is one
-trait: [`cypher-schema::SchemaProvider`](./crates/cypher-schema), already
-implemented by `intel/crates/intel-cypher-schema`.
-
-If `cypher` reaches parity and earns its own life, it spins out cleanly.
-The monorepo is a development convenience, not an architectural coupling.
-
----
-
 ## Status
 
 Pre-0.1. The spec is accepted and locked; implementation is in progress.
@@ -126,7 +113,7 @@ cargo bench --workspace                             # criterion benchmarks
 [`AGENTS.md`](./AGENTS.md) is the canonical context an agent reads before
 working on the front-end. Commits cite the spec section and the
 corresponding bead ID (`cy-{3char}`). Beads live at `br` and track
-ongoing work the same way `intel/` tracks adapter traces.
+ongoing work. 
 
 ---
 

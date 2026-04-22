@@ -13,6 +13,18 @@
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
+// The HIR surface is a grammar catalog — `Clause`, `Expr`,
+// `Pattern`, `SetItem`, `RemoveItem`, `Projection`, etc. each have
+// one variant per grammar production, and the struct fields on
+// those variants (id, span, arguments, …) follow the same
+// enumerated shape.  Per-variant / per-field docstrings would
+// duplicate §6 of `docs/specs/0001-cypher-frontend.md` and rot
+// with the grammar.  Semantic meaning lives at the module level
+// (see the top-of-file doc comment + the spec); exempt the whole
+// file from `missing_docs` rather than paper them all over.
+// See also the parallel allowlist in `cypher-syntax/src/kind.rs`
+// and `cypher-ast/src/generated.rs`.
+#![allow(missing_docs)]
 
 pub mod desugar;
 pub mod lower;

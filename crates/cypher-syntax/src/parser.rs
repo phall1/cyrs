@@ -54,16 +54,23 @@ pub struct Parse {
 }
 
 impl Parse {
+    /// Root `SyntaxNode` view of the parsed tree.  Cheap to clone —
+    /// the underlying `GreenNode` is ref-counted.
     #[must_use]
     pub fn syntax(&self) -> SyntaxNode {
         SyntaxNode::new_root(self.green.clone())
     }
 
+    /// Raw rowan green tree backing the parse.  Usually
+    /// `syntax()` is what you want; `green()` is exposed for
+    /// callers that want to share the tree by reference.
     #[must_use]
     pub fn green(&self) -> &GreenNode {
         &self.green
     }
 
+    /// Accumulated syntax errors in source order.  Empty when the
+    /// parse was fully clean.
     #[must_use]
     pub fn errors(&self) -> &[SyntaxError] {
         &self.errors
@@ -97,7 +104,11 @@ pub fn parse(src: &str) -> Parse {
 pub struct SyntaxError {
     /// Numeric value of the `DiagCode` discriminant (e.g. 3 for E0003).
     pub code: u16,
+    /// Human-readable message (rustc-style lower-case initial, no
+    /// trailing period).
     pub message: String,
+    /// Byte offset at which the error was emitted.  Typically the
+    /// position of the offending token.
     pub offset: text_size::TextSize,
 }
 

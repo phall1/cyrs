@@ -34,18 +34,16 @@ bar (§17).
 
 - An executor. No storage, no runtime, no plan execution. Consumers own
   that (§1.3 N1, §12.5).
-- Coupled to anything in `../` (no imports from `trench/`, `intel/`, or
-  any sibling workspace). Treat `cypher/` as if it lived in its own git
-  repo — because it eventually will (§0 TL;DR, §2.C4).
+- Coupled to anything other project
 - A place for domain concepts. No `Actor`, `Event`, `Operation`,
   `Capability`, `provenance`, `branch`, `bitemporal`, `expertise`, or any
-  other trench-ontology word. CI greps for these (§2.C2).
+  other word. CI greps for these (§2.C2).
 - An "overlay crate" host. Domain extensions live in consumer
   repositories and plug in via the traits in §8. No overlay crate is
   permitted in this workspace, ever (§2.C3).
 
-If a task asks you to add a domain concept, an executor, or a
-trench/intel dependency, **stop** and ask the operator — it is almost
+If a task asks you to add a domain concept, an executor, or another dependency
+dependency, **stop** and ask the operator — it is almost
 certainly out of scope.
 
 ---
@@ -55,9 +53,6 @@ certainly out of scope.
 Hard invariants. CI enforces them. Violating any of these is a blocking
 bug even if tests pass.
 
-- **C2.1 — no intel/trench deps.** No `Cargo.toml` in this workspace
-  lists any crate from outside `cypher/`. Grep: `^(intel-|trench-)` in
-  any `Cargo.toml` dep table → fail.
 - **C2.2 — no domain names.** The denylist: `Actor`, `Event`,
   `Operation`, `Capability`, `provenance`, `branch`, `bitemporal`,
   `expertise`. CI greps all `.rs` files minus `tests/` fixtures. One-off
@@ -66,8 +61,7 @@ bug even if tests pass.
 - **C2.3 — no overlay crates.** Every crate in `crates/` is either a
   layer from §3.1 or the meta-crate `cypher`. Nothing else lands here.
 - **C2.4 — published-shaped.** `README.md`, `LICENSE-APACHE`,
-  `LICENSE-MIT`, crate-level docs, `docs.rs`-clean. If trench disappeared
-  tomorrow, `cargo publish` on each library crate would still work.
+  `LICENSE-MIT`, crate-level docs, `docs.rs`-clean. 
 - **C2.5 — own toolchain.** `rust-toolchain.toml` lives here. MSRV
   `1.94`. Do not reach into parent workspace state.
 

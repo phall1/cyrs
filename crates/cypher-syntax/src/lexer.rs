@@ -17,8 +17,12 @@ use crate::SyntaxKind;
 /// A single lexed token: kind, original text, and byte range.
 #[derive(Debug, Clone)]
 pub struct LexToken {
+    /// Classification of the token (keyword, identifier, literal, …).
     pub kind: SyntaxKind,
+    /// Exact source text the token spans.  Trivia tokens keep their
+    /// whitespace / comment text verbatim.
     pub text: SmolStr,
+    /// Byte range the token occupies in the source.
     pub range: TextRange,
 }
 
@@ -34,7 +38,10 @@ pub struct LexError {
     /// Numeric discriminant of the corresponding `DiagCode` in
     /// `cypher-diag` (e.g. `4` for `E0004`).
     pub code: u16,
+    /// Human-readable message (rustc-style lower-case initial, no
+    /// trailing period).
     pub message: String,
+    /// Byte range of the offending lexeme.
     pub range: TextRange,
 }
 

@@ -46,10 +46,20 @@ impl Language for Lang {
     }
 }
 
+/// Cypher-flavoured alias for `rowan::SyntaxNode` — a typed handle on
+/// a node in the CST.
 pub type SyntaxNode = rowan::SyntaxNode<Lang>;
+/// Cypher-flavoured alias for `rowan::SyntaxToken` — a leaf token in
+/// the CST.
 pub type SyntaxToken = rowan::SyntaxToken<Lang>;
+/// Cypher-flavoured alias for `rowan::SyntaxElement` — a sum of
+/// `SyntaxNode | SyntaxToken` used when walking a tree.
 pub type SyntaxElement = rowan::SyntaxElement<Lang>;
+/// Cypher-flavoured alias for `rowan::SyntaxNodeChildren` — a node's
+/// immediate child iterator.
 pub type SyntaxNodeChildren = rowan::SyntaxNodeChildren<Lang>;
+/// Cypher-flavoured alias for `rowan::api::PreorderWithTokens` — a
+/// pre-order walk that visits both nodes and tokens.
 pub type PreorderWithTokens = rowan::api::PreorderWithTokens<Lang>;
 
 /// Byte offset range in the source text. Re-exported from `text-size` for

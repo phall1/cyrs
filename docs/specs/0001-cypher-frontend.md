@@ -65,7 +65,7 @@ access to parse / diagnose / complete / rewrite / plan.
 ### 1.3. Non-goals (v1)
 
 N1. No execution. Consumers execute the Plan IR.
-N2. No domain knowledge (no trench/intel concepts in the workspace).
+N2. No domain knowledge.
 N3. No Neo4j-dialect compatibility in v1 (can be added by a future spec).
 N4. No subquery support (CALL { ... }, EXISTS { ... }) in v1.
 N5. No LOAD CSV, SHOW, ALTER, user-defined procedure/function registry in v1.
@@ -96,9 +96,6 @@ The spec is implemented when all of:
 Load-bearing invariants. Any future change to this workspace must preserve all
 of them, or it is not permitted.
 
-C2.1. No crate in this workspace depends on `intel-*` or any other trench
-crate. Grep-enforced in CI.
-
 C2.2. No module, type, or function in this workspace names a domain concept
 from trench (no `Actor`, `Event`, `Operation`, `Capability`, `provenance`,
 `branch`, `bitemporal`, `expertise`, etc.). Grep-enforced in CI with a
@@ -114,7 +111,7 @@ C2.4. The workspace is published-shaped from day one: `README.md`,
 disappeared tomorrow, the workspace would still be releasable on crates.io.
 
 C2.5. MSRV and toolchain pinning live in the cypher workspace's own
-`rust-toolchain.toml`. No shared workspace-level state with `intel/`.
+`rust-toolchain.toml`. 
 
 ---
 
