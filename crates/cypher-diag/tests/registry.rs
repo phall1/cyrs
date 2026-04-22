@@ -67,7 +67,8 @@ fn all_count_pinned() {
     // bump this number. This ensures the registry stays exhaustive.
     //
     // Breakdown (spec §10.2):
-    //   64  syntax         (E0001–E0064, cy-a4d + cy-3xz + cy-7s6.1)
+    //   66  syntax         (E0001–E0064, E0068–E0069,
+    //                         cy-a4d + cy-3xz + cy-7s6.1 + cy-5gh)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    7  schema-aware   (E3001–E3004, E3006–E3008, cy-36u)
@@ -77,7 +78,7 @@ fn all_count_pinned() {
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  107  total
+    //  109  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -85,6 +86,8 @@ fn all_count_pinned() {
     // cy-3xz: added E0047–E0052 for list/map literal grammar.
     // cy-7s6.1: added E0064 (unclosed index bracket) and E5010
     //           (index / slice of non-list) for list-indexing support.
-    const EXPECTED: usize = 107;
+    // cy-5gh: added E0068 (expected IN in list comp) and E0069
+    //         (expected `|` or `]` in list comp) for list comprehensions.
+    const EXPECTED: usize = 109;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
