@@ -343,6 +343,41 @@ jobs:
         run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -max_total_time=60
 
   # ---------------------------------------------------------------
+  # tree-sitter grammar: generate, self-test, and parity-gate against
+  # cyrs TCK v1 (bead cy-od5.1). The grammar lives at the repo root
+  # (tree-sitter-cypher/) as an independent npm/tree-sitter project.
+  # ---------------------------------------------------------------
+  tree-sitter:
+    name: tree-sitter grammar + parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: npm install (tree-sitter-cypher)
+        working-directory: tree-sitter-cypher
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-package-lock
+          fi
+      - name: tree-sitter generate
+        working-directory: tree-sitter-cypher
+        run: npx tree-sitter generate
+      - name: tree-sitter test
+        working-directory: tree-sitter-cypher
+        run: npx tree-sitter test
+      - name: cargo xtask tree-sitter-parity
+        run: cargo run -p xtask -- tree-sitter-parity
+
+  # ---------------------------------------------------------------
   # MSRV check: spec §18 pins 1.94.
   # ---------------------------------------------------------------
   msrv:
