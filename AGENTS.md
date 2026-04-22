@@ -89,7 +89,7 @@ cypher-lsp           → cypher-lang-services, cypher-db, cypher-diag,
                        cypher-fmt, lsp-server, lsp-types
 cypher-agent         → cypher-lang-services, cypher-db, cypher-diag,
                        cypher-fmt, serde_json
-cypher-cli           → cypher-db, cypher-diag, cypher-fmt
+cypher-cli           → cypher-db, cypher-diag, cypher-fmt, cypher-schema
 cypher-tck           → cypher-db
 cypher-testkit       → any (dev only, not published)
 cypher               → all non-binary crates above
