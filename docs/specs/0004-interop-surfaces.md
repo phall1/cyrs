@@ -55,16 +55,15 @@ confirmations that the new surfaces do not breach it.
 and `cypher-py` are genuine interop layers — each wraps the existing
 `cypher-lang-services` engine and exposes it in a foreign runtime's idiom.
 None of them carries domain knowledge, none adds analysis logic, and none
-re-exports a "trench-flavoured" variant of a Cypher type. The thin-shell rule
+re-exports a consumer-specific variant of a Cypher type. The thin-shell rule
 spec 0001 §3.1 applies to binaries is lifted verbatim to these three new
 adapter crates: if you find yourself writing a parse, semantic, or format
 pass inside them, the logic belongs upstream in a library crate.
 
 **2.2. §2.C2 (denylist) applies unchanged.** The new crates are included in
-the CI grep sweep for `Actor`, `Event`, `Operation`, `Capability`,
-`provenance`, `branch`, `bitemporal`, `expertise`. Foreign-language wrappers
-and test fixtures inherit the rule; the denylist is language-agnostic and
-covers `.rs`, `.ts`, `.py`, and C header strings produced by cbindgen.
+the CI grep sweep. Foreign-language wrappers and test fixtures inherit the
+rule; the denylist is language-agnostic and covers `.rs`, `.ts`, `.py`, and C
+header strings produced by cbindgen.
 
 ---
 
@@ -130,7 +129,7 @@ spec-governed action. See spec 0001 §15 for the agent wire contract and
 ## 5. C FFI surface (`cypher-ffi`)
 
 **5.1. ABI scope.** Exports cover the agent v1 op surface reduced to the
-seven C-representable operations: `cypher_parse`, `cypher_check`,
+seven C-representable entrypoints: `cypher_parse`, `cypher_check`,
 `cypher_complete`, `cypher_hover`, `cypher_format`, `cypher_rewrite`,
 `cypher_plan`. Each takes a `CypherDatabase*` handle and a UTF-8 input;
 each returns a Rust-allocated result struct plus a status code. Diagnostics
@@ -217,7 +216,7 @@ contract is untouched. Clients built for stdio `cypher-lsp` can reuse their
 `lsp-types` integration against the web build by swapping the transport
 adapter only.
 
-**7.3. Capability parity.** The web build exposes the identical LSP capability
+**7.3. Feature parity.** The web build exposes the identical LSP feature
 set as the stdio build: completion, hover, go-to-definition, find-references,
 diagnostics, formatting, rename, document symbols. Feature-gating hides the
 `lsp-server` stdio wiring but does not gate any analysis path; logic parity

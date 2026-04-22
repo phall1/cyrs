@@ -35,9 +35,8 @@ bar (§17).
 - An executor. No storage, no runtime, no plan execution. Consumers own
   that (§1.3 N1, §12.5).
 - Coupled to anything other project
-- A place for domain concepts. No `Actor`, `Event`, `Operation`,
-  `Capability`, `provenance`, `branch`, `bitemporal`, `expertise`, or any
-  other word. CI greps for these (§2.C2).
+- A place for domain concepts. No reserved downstream vocabulary. CI
+  greps for the denylist (§2.C2).
 - An "overlay crate" host. Domain extensions live in consumer
   repositories and plug in via the traits in §8. No overlay crate is
   permitted in this workspace, ever (§2.C3).
@@ -53,11 +52,9 @@ certainly out of scope.
 Hard invariants. CI enforces them. Violating any of these is a blocking
 bug even if tests pass.
 
-- **C2.2 — no domain names.** The denylist: `Actor`, `Event`,
-  `Operation`, `Capability`, `provenance`, `branch`, `bitemporal`,
-  `expertise`. CI greps all `.rs` files minus `tests/` fixtures. One-off
-  fixture strings in corpus files are allowed; source code names are
-  not.
+- **C2.2 — no domain names.** The denylist is enforced by CI. Greps run
+  across all `.rs` files minus `tests/` fixtures. One-off fixture strings
+  in corpus files are allowed; source code names are not.
 - **C2.3 — no overlay crates.** Every crate in `crates/` is either a
   layer from §3.1 or the meta-crate `cypher`. Nothing else lands here.
 - **C2.4 — published-shaped.** `README.md`, `LICENSE-APACHE`,
@@ -361,7 +358,7 @@ rewriting.
 
 ## 13. When you are stuck
 
-Order of operations:
+Order of attack:
 
 1. **Reread the bead.** Acceptance criteria answer most questions.
 2. **Reread the relevant spec section.** Every bead cites one.

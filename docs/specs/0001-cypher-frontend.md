@@ -37,9 +37,9 @@ A Rust-native Cypher **front-end platform** — lexer, recovering parser, lossle
 CST, typed AST, HIR with name resolution, schema-aware semantic analysis,
 diagnostics engine, incremental analysis database, formatter, LSP server,
 agent-facing JSON API, and CLI. **No execution.** **No domain coupling.** The
-workspace lives at `trench.lang/cypher/` but could be extracted to its own git
-repo at any moment; trench, Neo4j, Memgraph, and Kuzu are equivalently-weighted
-downstream consumers from the library's point of view.
+workspace could be extracted to its own git repo at any moment, and downstream
+consumers are equivalently-weighted from the
+library's point of view.
 
 The bar is rust-compiler-grade: compiletest-style golden tests, snapshot tests,
 property tests, fuzzing, mutation testing, openCypher TCK conformance,
@@ -54,9 +54,9 @@ that spans stable/beta/nightly × Linux/macOS/Windows.
 ### 1.1. Problem
 
 Existing Rust Cypher parsing is hobby-grade. The serious Cypher tooling lives
-outside Rust (Neo4j's Scala/Java front-end, `libcypher-parser` in C, ANTLR
-grammars). A Rust-native Cypher front-end that competes with those stacks does
-not yet exist, and a best-in-class implementation is the unlock for:
+outside Rust (`libcypher-parser` in C, ANTLR grammars, and other mature
+implementations). A Rust-native Cypher front-end that competes with those
+stacks does not yet exist, and a best-in-class implementation is the unlock for:
 
 - agent-authored query workflows where the LLM edits Cypher in a sandbox and
   receives span-accurate diagnostics, completions, and quick-fixes on every
@@ -78,8 +78,7 @@ G4. Emit rustc-grade diagnostics: stable error codes, severities, labeled
 spans, notes, fix-its, related information.
 G5. Run incrementally: edit a 10,000-line query file and only reparse /
 recheck what changed.
-G6. Ship an LSP server that a Neo4j user, a Memgraph user, or a trench user
-can plug into VS Code today.
+G6. Ship an LSP server that an editor user can plug into VS Code today.
 G7. Ship an agent-JSON API for LLM-driven workflows that gives single-call
 access to parse / diagnose / complete / rewrite / plan.
 
@@ -87,7 +86,7 @@ access to parse / diagnose / complete / rewrite / plan.
 
 N1. No execution. Consumers execute the Plan IR.
 N2. No domain knowledge.
-N3. No Neo4j-dialect compatibility in v1 (can be added by a future spec).
+N3. No additional dialect compatibility in v1 (can be added by a future spec).
 N4. No subquery support (CALL { ... }, EXISTS { ... }) in v1.
 N5. No LOAD CSV, SHOW, ALTER, user-defined procedure/function registry in v1.
 N6. No cost-based optimizer; the Plan IR is logical, not physical.
@@ -108,7 +107,7 @@ The spec is implemented when all of:
 - Golden compiletest corpus is stable across runs (byte-identical stderr).
 - LSP passes the `lsp-types` conformance harness and a custom integration
   suite covering completion, hover, diagnostics, rename, formatting.
-- Agent JSON API round-trips the same operations end-to-end.
+- Agent JSON API round-trips the same requests end-to-end.
 
 ---
 
@@ -118,9 +117,7 @@ Load-bearing invariants. Any future change to this workspace must preserve all
 of them, or it is not permitted.
 
 C2.2. No module, type, or function in this workspace names a domain concept
-from trench (no `Actor`, `Event`, `Operation`, `Capability`, `provenance`,
-`branch`, `bitemporal`, `expertise`, etc.). Grep-enforced in CI with a
-denylist.
+from any downstream consumer. Grep-enforced in CI with a denylist.
 
 C2.3. Domain-specific extensions (schema, custom functions, write-clause
 semantics, temporal extensions, auditing) are expressed by consumers
@@ -128,8 +125,9 @@ implementing the trait interfaces in §8. The consumer crate lives outside this
 workspace. No "overlay crate" is permitted inside this workspace.
 
 C2.4. The workspace is published-shaped from day one: `README.md`,
-`LICENSE-APACHE`, `LICENSE-MIT`, crate-level docs, `docs.rs`-clean. If trench
-disappeared tomorrow, the workspace would still be releasable on crates.io.
+`LICENSE-APACHE`, `LICENSE-MIT`, crate-level docs, `docs.rs`-clean. If any
+current downstream consumer disappeared tomorrow, the workspace would still be
+releasable on crates.io.
 
 C2.5. MSRV and toolchain pinning live in the cypher workspace's own
 `rust-toolchain.toml`. 
@@ -431,7 +429,7 @@ Type = Any
      | Unknown                        // inference failure marker
 ```
 
-Operations are typed via a small unification engine. `Any` is the universal
+Expressions are typed via a small unification engine. `Any` is the universal
 subtype (queries without schema produce Any-typed property reads; only
 structural errors surface). `Num` unifies to whichever of Int/Float is
 reachable; division of Int by Int is Int in openCypher (no automatic
@@ -918,9 +916,9 @@ benchmark suite (§17.10).
 One request per line on stdin, one response per line on stdout. Each line
 is a UTF-8 JSON object. Protocol version is carried in every request.
 
-### 15.2. Operations
+### 15.2. Requests
 
-| Operation      | Input                                                       | Output                                           |
+| Request        | Input                                                       | Output                                           |
 | -------------- | ----------------------------------------------------------- | ------------------------------------------------ |
 | `parse`        | `{text, dialect}`                                           | `{cst_json, syntax_errors}`                      |
 | `check`        | `{text, dialect, schema_digest?}`                           | `{diagnostics}`                                  |
@@ -936,7 +934,7 @@ is a UTF-8 JSON object. Protocol version is carried in every request.
 
 ### 15.3. Semantics
 
-- All operations are synchronous: one line in, one line out.
+- All requests are synchronous: one line in, one line out.
 - Errors in the request itself (bad JSON, unknown op) surface as `{error:
   {code, message}}` and never crash the server.
 - Schemas supplied via `schema_set` live in-process for the session. The
@@ -1201,8 +1199,8 @@ so it runs unconditionally, not matrix-gated.
 
 - Semantic versioning. `0.x` until the library API is judged stable;
   after 1.0 every breaking change is a major bump.
-- MSRV: pinned in `rust-toolchain.toml`. v1 MSRV target: `1.94` (matches
-  the trench workspace; consumers are not penalised).
+- MSRV: pinned in `rust-toolchain.toml`. v1 MSRV target: `1.94` (matches the
+  surrounding toolchain baseline; consumers are not penalised).
 - Public API surface minimised: anything not re-exported from the meta-
   crate `cypher` or from a binary is considered internal and may break in
   minor releases.
