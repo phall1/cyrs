@@ -1447,4 +1447,217 @@ mod tests {
         });
         insta::assert_snapshot!("infer_rel_var_in_return_ok", run(&stmt));
     }
+
+    // -----------------------------------------------------------------------
+    // 18 (cy-qh8). Null-safe property chain through CASE / IS NULL.
+    //
+    // Spec §7.2 (nullability) + §19 row "CASE". The schema-free type of a
+    // property read is `Any`; `Any` admits `Null` silently and unifies with
+    // every type. `CASE WHEN n.x IS NULL THEN 0 ELSE n.x END` therefore
+    // infers as the union of the THEN-branch (`Int`) and the ELSE-branch
+    // (`Any`), exercised via `Type::union`.
+    //
+    // These snapshots lock the null-flow behaviour: if a future change
+    // narrowed property reads on OPTIONAL-MATCH-bound variables (e.g.
+    // `Any ∪ Null`), or strengthened CASE union canonicalisation, the
+    // snapshots below would surface the shift.
+    // -----------------------------------------------------------------------
+
+    /// Render `run()` plus the inferred type of the first RETURN projection,
+    /// using a private `InferCtx` so the snapshot captures both the
+    /// diagnostic channel and the resulting [`Type`].
+    fn run_with_return_type(stmt: &Statement) -> String {
+        let mut out = run(stmt);
+
+        // Reconstruct the inferred return-type for the canonical one-
+        // projection RETURN shape used by these cy-qh8 snapshots.
+        let ret_expr = stmt.clauses.iter().rev().find_map(|c| match c {
+            Clause::Return { projections, .. } if !projections.is_empty() => {
+                Some(&projections[0].expr)
+            }
+            _ => None,
+        });
+        if let Some(expr) = ret_expr {
+            let mut sink = DiagnosticsSink::new();
+            let mut ctx = InferCtx {
+                bindings: &stmt.bindings,
+                sink: &mut sink,
+            };
+            let ty = ctx.infer_expr(expr);
+            writeln!(out, "return[0]: {ty:?}").unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn snap_infer_case_null_check_on_optional_prop() {
+        // OPTIONAL MATCH (e) RETURN
+        //   CASE WHEN e.address IS NULL THEN 'no email' ELSE e.address END
+        //
+        // `e` is a Node binding; the OPTIONAL-MATCH flag lives on the clause.
+        // In schema-free inference the property read is `Any` regardless of
+        // optionality, so the CASE result is `Union([String, Any])`.
+        let mut stmt = Statement::new(zero_range());
+        let e = intern_var(&mut stmt, "e", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: true,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: Some(e),
+                        labels: vec![],
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        let prop = || Expr::Prop {
+            target: Box::new(Expr::Var(e)),
+            prop: SmolStr::new("address"),
+        };
+        let case_expr = Expr::Case {
+            scrutinee: None,
+            arms: vec![(
+                Expr::IsNull {
+                    operand: Box::new(prop()),
+                    negated: false,
+                },
+                Expr::String(SmolStr::new("no email")),
+            )],
+            otherwise: Some(Box::new(prop())),
+        };
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: case_expr,
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!(
+            "infer_case_null_check_on_optional_prop",
+            run_with_return_type(&stmt)
+        );
+    }
+
+    #[test]
+    fn snap_infer_case_default_int_else_prop() {
+        // RETURN CASE WHEN n.x IS NULL THEN 0 ELSE n.x END
+        //
+        // THEN branch = Int, ELSE branch = Any (property read, schema-free).
+        // CASE result = Type::union([Int, Any]) — a canonical, order-stable
+        // union. Snapshot locks this shape.
+        let mut stmt = Statement::new(zero_range());
+        let n = intern_var(&mut stmt, "n", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: false,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: Some(n),
+                        labels: vec![],
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        let prop = || Expr::Prop {
+            target: Box::new(Expr::Var(n)),
+            prop: SmolStr::new("x"),
+        };
+        let case_expr = Expr::Case {
+            scrutinee: None,
+            arms: vec![(
+                Expr::IsNull {
+                    operand: Box::new(prop()),
+                    negated: false,
+                },
+                Expr::Int(0),
+            )],
+            otherwise: Some(Box::new(prop())),
+        };
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: case_expr,
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!(
+            "infer_case_default_int_else_prop",
+            run_with_return_type(&stmt)
+        );
+    }
+
+    #[test]
+    fn snap_infer_optional_prop_read_is_any() {
+        // OPTIONAL MATCH (e) RETURN e.address
+        //
+        // Documents the schema-free null-flow baseline: a bare property read
+        // through an OPTIONAL-MATCH-bound variable infers as `Any`, because
+        // `VarKind::Node` ignores the clause-level `optional` flag. A future
+        // bead that promoted optional bindings to `Union([Node, Null])`
+        // would flip this snapshot — the moment it does, the fixture above
+        // catches the ripple through CASE.
+        let mut stmt = Statement::new(zero_range());
+        let e = intern_var(&mut stmt, "e", VarKind::Node);
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Match {
+            id: mid,
+            optional: true,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: Some(e),
+                        labels: vec![],
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        let ret_id = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Return {
+            id: ret_id,
+            projections: vec![Projection {
+                expr: Expr::Prop {
+                    target: Box::new(Expr::Var(e)),
+                    prop: SmolStr::new("address"),
+                },
+                alias: None,
+                span: zero_range(),
+            }],
+            distinct: false,
+            span: zero_range(),
+        });
+        insta::assert_snapshot!(
+            "infer_optional_prop_read_is_any",
+            run_with_return_type(&stmt)
+        );
+    }
 }
