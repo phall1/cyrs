@@ -19,6 +19,10 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 - cy-0ek.1 (spec 0002 §12): `cypher schema load <path>` — parse a TOML
   schema file and print a one-line human-readable summary; exit 1 on
   any load error.
+- cy-o8c.1 (spec 0003 §12): `cypher project load <path>` — parse a
+  `cypher-project.toml` manifest and print a one-line summary
+  (name, members, dialect, schema labels, lint-rule count); exit 1 on
+  any load error.
 
 ### Changed
 

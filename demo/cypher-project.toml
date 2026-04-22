@@ -1,0 +1,58 @@
+# Demo `cypher-project.toml` — spec 0003 reference fixture.
+#
+# This file drives `cypher project load demo/cypher-project.toml` and the
+# forthcoming multi-file demo. It is deliberately small so the whole shape
+# fits on one screen. Every section maps 1:1 to a section of spec 0003.
+
+# ---------------------------------------------------------------------------
+# [project] — §4.1
+# ---------------------------------------------------------------------------
+#
+# `name` is the only required key. `version` and `description` are optional
+# and advisory at v0.
+[project]
+name        = "cyrs-demo"
+version     = "0.1.0"
+description = "Tiny multi-file Cypher project used by the cyrs demo."
+
+# ---------------------------------------------------------------------------
+# [project.dialect] — §4.2
+# ---------------------------------------------------------------------------
+#
+# `default` picks the dialect applied to any member not matched by
+# `per_file`. Accepted values: "GqlAligned" (the v1 default) or
+# "OpenCypherV9". `per_file` is an optional glob → dialect map for legacy
+# corners of a project that still need openCypher v9 semantics.
+[project.dialect]
+default = "GqlAligned"
+
+# ---------------------------------------------------------------------------
+# [project.members] — §4.3
+# ---------------------------------------------------------------------------
+#
+# Globs are relative to this manifest's directory. `include` defaults to
+# ["**/*.cyp"] and `exclude` defaults to ["**/target/**", "**/.git/**"]
+# if either key is omitted. The demo narrows to just `samples/*.cyp`.
+[project.members]
+include = ["samples/*.cyp"]
+exclude = ["**/target/**", "**/.git/**"]
+
+# ---------------------------------------------------------------------------
+# [project.schema] — §4.4
+# ---------------------------------------------------------------------------
+#
+# Path to a `schema.toml` (spec 0002) relative to this manifest.
+# Omit the whole table for schema-free analysis.
+[project.schema]
+path = "schema.toml"
+
+# ---------------------------------------------------------------------------
+# [project.lint] — §4.5
+# ---------------------------------------------------------------------------
+#
+# Project-local lint levels. Keys must appear in the v0 registry
+# (spec 0003 §6); values are one of "allow", "warn", "deny".
+# Unknown rule names are a load error.
+[project.lint]
+"dead-pattern-var"     = "warn"
+"unused-import-schema" = "deny"
