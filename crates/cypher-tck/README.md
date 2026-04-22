@@ -1,5 +1,11 @@
 # cypher-tck
 
+[![crates.io](https://img.shields.io/crates/v/cypher-tck.svg)](https://crates.io/crates/cypher-tck)
+[![docs.rs](https://img.shields.io/docsrs/cypher-tck)](https://docs.rs/cypher-tck)
+[![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+
 openCypher TCK conformance harness for the
 [cyrs](https://github.com/phall1/cyrs) frontend.  See spec 0001 §17.5.
 

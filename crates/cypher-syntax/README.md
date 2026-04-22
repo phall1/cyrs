@@ -1,5 +1,11 @@
 # cypher-syntax
 
+[![crates.io](https://img.shields.io/crates/v/cypher-syntax.svg)](https://crates.io/crates/cypher-syntax)
+[![docs.rs](https://img.shields.io/docsrs/cypher-syntax)](https://docs.rs/cypher-syntax)
+[![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+
 Lossless concrete syntax tree (CST) and recovering parser for Cypher / GQL.
 Layer 1 of the [cyrs](https://github.com/phall1/cyrs) frontend stack.
 

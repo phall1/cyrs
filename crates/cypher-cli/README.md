@@ -1,5 +1,11 @@
 # cypher-cli
 
+[![crates.io](https://img.shields.io/crates/v/cypher-cli.svg)](https://crates.io/crates/cypher-cli)
+[![docs.rs](https://img.shields.io/docsrs/cypher-cli)](https://docs.rs/cypher-cli)
+[![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+
 Command-line tool for the [cyrs](https://github.com/phall1/cyrs) Cypher /
 GQL frontend. Installs a `cypher` binary with subcommands for `parse`,
 `check`, `fmt`, `plan`, and `explain`. See spec 0001 §16.

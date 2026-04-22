@@ -1,5 +1,11 @@
 # cypher-fmt
 
+[![crates.io](https://img.shields.io/crates/v/cypher-fmt.svg)](https://crates.io/crates/cypher-fmt)
+[![docs.rs](https://img.shields.io/docsrs/cypher-fmt)](https://docs.rs/cypher-fmt)
+[![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+
 Formatter for Cypher / GQL source code. CST-driven and idempotent:
 `fmt(fmt(x)) == fmt(x)`, and the output round-trips through the parser
 byte-for-byte up to trailing whitespace. See spec 0001 §13.
