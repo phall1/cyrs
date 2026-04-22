@@ -19,6 +19,7 @@ members = [
     "crates/cypher-testkit",
     "crates/cypher",
     "crates/cypher-wasm",
+    "crates/cypher-ffi",
     "xtask",
 ]
 # fuzz/ is a cargo-fuzz sub-package managed by `cargo fuzz`; it must NOT

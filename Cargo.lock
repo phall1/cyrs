@@ -449,6 +449,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cypher-ffi"
+version = "0.0.1"
+dependencies = [
+ "cypher-db",
+ "cypher-diag",
+ "cypher-fmt",
+ "cypher-lang-services",
+ "cypher-syntax",
+]
+
+[[package]]
 name = "cypher-fmt"
 version = "0.0.1"
 dependencies = [
