@@ -16,6 +16,13 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+# Library target — grammar-aware generator + shared fuzz helpers (cy-h07.1).
+# `cargo fuzz build` only compiles the bin targets, so the lib is free; its
+# unit tests run via `cd fuzz && cargo test --lib`.
+[lib]
+name = "cyrs_fuzz"
+path = "src/lib.rs"
+
 [[bin]]
 name = "fuzz_lexer"
 path = "fuzz_targets/fuzz_lexer.rs"
@@ -46,6 +53,16 @@ path = "fuzz_targets/fuzz_plan.rs"
 test = false
 doc  = false
 
+# Grammar-aware target (cy-h07.1). Uses the generator in `src/generator.rs`
+# to synthesise valid Cypher from the fuzz input as an RNG seed, then
+# asserts parse + fmt + sema + plan all run without error.
+[[bin]]
+name  = "fuzz_structured_parse"
+path  = "fuzz_targets/fuzz_structured_parse.rs"
+test  = false
+doc   = false
+bench = false
+
 [dependencies]
 libfuzzer-sys = "0.4"
 cypher-syntax = { path = "../crates/cypher-syntax" }
@@ -54,6 +71,17 @@ cypher-hir    = { path = "../crates/cypher-hir" }
 cypher-sema   = { path = "../crates/cypher-sema" }
 cypher-diag   = { path = "../crates/cypher-diag" }
 cypher-plan   = { path = "../crates/cypher-plan" }
+
+# Deterministic RNG for the grammar-aware generator (cy-h07.1). We pin
+# `rand_chacha` directly so the generator's byte output stays stable across
+# upstream `rand` version bumps.
+rand_core    = { version = "0.6", default-features = false }
+rand         = { version = "0.8", default-features = false, features = ["std_rng"] }
+rand_chacha  = { version = "0.3", default-features = false }
+
+# Needed by `fuzz_structured_parse` to walk the CST looking for ERROR
+# nodes — same version cypher-syntax uses internally.
+rowan        = "0.15"
 
 [profile.release]
 debug         = true

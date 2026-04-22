@@ -328,19 +328,26 @@ jobs:
           key: fuzz-smoke
       - name: build fuzz targets
         run: |
-          for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan; do
+          for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan fuzz_structured_parse; do
             cargo +nightly fuzz build "$target"
           done
+      # Dictionary (cy-h07.1): libFuzzer splices these tokens into mutated
+      # inputs, raising the probability of crossing syntactic boundaries
+      # that random bytes never reach. Every byte-level target gets it.
       - name: fuzz_lexer (60 s)
-        run: cargo +nightly fuzz run fuzz_lexer fuzz/corpus/fuzz_lexer -- -max_total_time=60
+        run: cargo +nightly fuzz run fuzz_lexer fuzz/corpus/fuzz_lexer -- -dict=fuzz/dicts/cypher.dict -max_total_time=60
       - name: fuzz_parser (60 s)
-        run: cargo +nightly fuzz run fuzz_parser fuzz/corpus/fuzz_parser -- -max_total_time=60
+        run: cargo +nightly fuzz run fuzz_parser fuzz/corpus/fuzz_parser -- -dict=fuzz/dicts/cypher.dict -max_total_time=60
       - name: fuzz_formatter (60 s)
-        run: cargo +nightly fuzz run fuzz_formatter fuzz/corpus/fuzz_formatter -- -max_total_time=60
+        run: cargo +nightly fuzz run fuzz_formatter fuzz/corpus/fuzz_formatter -- -dict=fuzz/dicts/cypher.dict -max_total_time=60
       - name: fuzz_sema (60 s)
-        run: cargo +nightly fuzz run fuzz_sema fuzz/corpus/fuzz_sema -- -max_total_time=60
+        run: cargo +nightly fuzz run fuzz_sema fuzz/corpus/fuzz_sema -- -dict=fuzz/dicts/cypher.dict -max_total_time=60
       - name: fuzz_plan (60 s)
-        run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -max_total_time=60
+        run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -dict=fuzz/dicts/cypher.dict -max_total_time=60
+      # Grammar-aware target (cy-h07.1) — no dict: its input is an RNG
+      # seed, not source text, so a Cypher dict would be meaningless here.
+      - name: fuzz_structured_parse (60 s)
+        run: cargo +nightly fuzz run fuzz_structured_parse fuzz/corpus/fuzz_structured_parse -- -max_total_time=60
 
   # ---------------------------------------------------------------
   # tree-sitter grammar: generate, self-test, and parity-gate against
