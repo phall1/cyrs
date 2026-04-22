@@ -1,0 +1,20 @@
+# bench_large_file — p95 wall-clock budgets in milliseconds (spec §17.10,
+# bead cy-y6a.1).  These are *nightly-only* gates; the large-file workload
+# is too slow for PR-blocking CI.
+#
+# Re-baseline protocol:
+#   1. Run `cargo bench --bench large_file` from benches/ on a quiet
+#      machine and note the three reported p95s.
+#   2. Set each field below to measured-p95 × 1.2, rounded up.
+#   3. Update the table in the rustdoc atop benches/benches/large_file.rs
+#      with the same measured numbers so the two sources stay in sync.
+#   4. Document the re-baseline in docs/stability.md § "Performance
+#      budgets" if the change is policy-driven (not just noise).
+#
+# Measured p95 (local dev — MacBook, release profile, 2026-04-21):
+#   parse_10k     = 28.56 ms
+#   hir_lower_10k = 57.10 ms
+#   diagnose_10k  = 54.00 ms
+parse_ms = 35
+hir_lower_ms = 70
+diagnose_ms = 65
