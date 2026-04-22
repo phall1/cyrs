@@ -1,11 +1,19 @@
 # cypher — a Rust front-end for Cypher / GQL
 
+[![crates.io](https://img.shields.io/crates/v/cypher.svg)](https://crates.io/crates/cypher)
+[![docs.rs](https://img.shields.io/docsrs/cypher)](https://docs.rs/cypher)
+[![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](./rust-toolchain.toml)
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+
 Lexer, recovering parser, lossless CST, typed AST, HIR with name
 resolution, schema-aware semantic analysis, diagnostics engine,
 formatter, incremental analysis database, language server, agent-facing
 JSON API, CLI. GQL-aligned and openCypher v9 compatible.
 
 > Rust-compiler-grade. No execution. No domain coupling.
+
+![cypher-lsp + nvim demo](./demo/demo.gif)
 
 ---
 
@@ -41,6 +49,46 @@ through trait implementations — not baked into this workspace. Graph
 stores, analytic engines, IDE integrations, and agent tooling are
 equal-weight downstream consumers.
 
+The authoritative crate graph and allowed-edges list lives in
+[`docs/specs/0001-cypher-frontend.md`](./docs/specs/0001-cypher-frontend.md)
+§3.
+
+---
+
+## Quickstart
+
+```sh
+cargo install cypher-cli
+cypher parse demo/samples/good.cyp
+cypher fmt   demo/samples/needs_fmt.cyp
+cypher check demo/samples/unknown_var.cyp
+```
+
+`cypher-cli` ships the `cypher` binary with `parse`, `check`, `fmt`,
+`plan`, and `explain` subcommands. The Rust API is available as the
+[`cypher`](https://crates.io/crates/cypher) meta-crate.
+
+---
+
+## Features
+
+- **Lossless CST** — every byte preserved, round-trip guaranteed.
+- **Recovering parser** — editor-grade: one bad token does not cascade.
+- **Typed AST** — codegen'd from `cypher.ungrammar`; zero hand-written
+  accessors.
+- **Scope graph + name resolution** — HIR layer handles `WITH`, `UNWIND`,
+  aggregation scopes, and pattern bindings.
+- **Schema-aware semantic analysis** — schema is a trait
+  (`cypher-schema::SchemaProvider`); no hard-coded assumptions.
+- **Stable diagnostic codes** — `E0001…`, `W6000…`, `N8000…`. See spec
+  §10. Codes are SemVer — once assigned, meaning never changes.
+- **Idempotent formatter** — `fmt(fmt(x)) == fmt(x)`, round-trips through
+  the parser.
+- **Salsa-backed incremental DB** — `cypher-db` re-computes only the
+  affected queries on every edit.
+- **LSP server + JSON agent API** — share a single
+  `cypher-lang-services` engine layer; zero logic duplication.
+
 ---
 
 ## Status
@@ -67,7 +115,8 @@ nvim -u demo/nvim/init.lua demo/samples/unclosed_paren.cyp
 ```
 
 See [`demo/README.md`](./demo/README.md) for the full tour (samples,
-format-on-save, CLI comparison).
+format-on-save, CLI comparison) and [`demo/demo.gif`](./demo/demo.gif)
+for the recording.
 
 ---
 
@@ -84,12 +133,27 @@ format-on-save, CLI comparison).
 | `cypher-plan`    | Logical read / write plan IR                                 |
 | `cypher-fmt`     | CST-driven formatter                                         |
 | `cypher-db`      | Salsa-based incremental analysis database                    |
+| `cypher-lang-services` | Shared completion / hover / rewrite engines            |
 | `cypher-lsp`     | Language server binary                                       |
 | `cypher-agent`   | JSON-over-stdio agent API binary                             |
 | `cypher-cli`     | `cypher {parse,check,fmt,explain,plan}`                      |
 | `cypher-tck`     | openCypher TCK harness                                       |
 | `cypher-testkit` | Shared test fixtures, compiletest runner (dev only)          |
 | `cypher`         | Meta-crate re-exporting the library surface                  |
+
+---
+
+## Non-goals
+
+- No execution engine, runtime, or storage. Consumers own that
+  (spec §1.3 N1, §12.5).
+- No domain concepts. The workspace is deliberately free of application
+  vocabulary — CI greps for it (spec §2.C2).
+- No overlay crate host. Domain extensions live in consumer repositories
+  and plug in via the traits in spec §8 (spec §2.C3).
+- No `Neo4jCurrent` dialect in v1 — no APOC, no `EXISTS {}` subqueries,
+  no `CALL { ... }`, no `LOAD CSV`, no `SHOW`, no `CYPHER` prefixes
+  (spec §9.3).
 
 ---
 
@@ -113,7 +177,7 @@ cargo bench --workspace                             # criterion benchmarks
 [`AGENTS.md`](./AGENTS.md) is the canonical context an agent reads before
 working on the front-end. Commits cite the spec section and the
 corresponding bead ID (`cy-{3char}`). Beads live at `br` and track
-ongoing work. 
+ongoing work.
 
 ---
 
@@ -123,7 +187,7 @@ After cloning, install the pre-commit hook so `cargo xtask gate`
 runs automatically on every commit:
 
 ```sh
-bash cypher/scripts/install-hooks.sh
+bash scripts/install-hooks.sh
 ```
 
 The gate runs `cargo fmt --check`, `cargo clippy -D warnings`,
@@ -139,3 +203,8 @@ Dual-licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, as defined in the
+Apache-2.0 license, shall be dual-licensed as above, without any
+additional terms or conditions.
