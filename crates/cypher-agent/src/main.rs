@@ -35,7 +35,6 @@
 
 mod engine;
 
-use std::collections::VecDeque;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -74,108 +73,52 @@ impl From<Dialect> for DialectMode {
 }
 
 // ---------------------------------------------------------------------------
-// FileCache — source+dialect interning (spec §15.X)
+// DialectFiles — one FileId per dialect (spec §11.6)
 // ---------------------------------------------------------------------------
 
-/// Maximum number of interned files kept in the cache before eviction.
-const FILE_CACHE_CEILING: usize = 64;
-
-/// FNV-1a 64-bit inline hasher (same algorithm as cypher-db/inputs.rs).
-fn fnv1a(data: &[u8]) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-    let mut h = OFFSET;
-    for &b in data {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(PRIME);
-    }
-    h
-}
-
-/// Cache key: FNV-1a digest of `source` bytes followed by dialect discriminant byte.
-fn cache_key(source: &str, dialect: Dialect) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-    // hash source bytes first
-    let mut h = OFFSET;
-    for &b in source.as_bytes() {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(PRIME);
-    }
-    // mix in dialect discriminant
-    let d: u8 = match dialect {
-        Dialect::GqlAligned => 0,
-        Dialect::OpenCypherV9 => 1,
-    };
-    h ^= u64::from(d);
-    h = h.wrapping_mul(PRIME);
-    let _ = fnv1a; // suppress dead-code warning on the standalone fn
-    h
-}
-
-/// In-session `FileId` intern cache with LRU eviction.
+/// In-session `FileId` registry holding at most one `FileId` per dialect.
 ///
-/// Maps `(source_digest, dialect)` → `FileId`.  When the ceiling is reached,
-/// the least-recently-used entry is evicted and `Database::remove_file` is
-/// called so the Salsa cache releases that slot.
-struct FileCache {
-    /// key → `FileId` lookup
-    map: std::collections::HashMap<u64, FileId>,
-    /// LRU order: front = least-recently-used, back = most-recently-used.
-    order: VecDeque<u64>,
+/// Per spec §11.6, the agent is stateless-per-call: every request carries
+/// `{text}` rather than a stable handle.  To keep Salsa's memoisation budget
+/// bounded by the per-query LRU caps (cy-31b) rather than by request count,
+/// we intern all requests onto a single `FileId` per dialect.  The `FileId`
+/// is stable for the life of the process; only its source text is rewritten
+/// on each request.  Steady state is N dialects = 2 `FileId`s today.
+///
+/// `schema_set` / `schema_clear` update the workspace-scoped schema input
+/// on the database, which bumps `schema_digest` and invalidates the
+/// schema-aware derived queries without minting or evicting `FileId`s.
+#[derive(Default)]
+struct DialectFiles {
+    gql: Option<FileId>,
+    openc: Option<FileId>,
 }
 
-impl FileCache {
+impl DialectFiles {
     fn new() -> Self {
-        Self {
-            map: std::collections::HashMap::new(),
-            order: VecDeque::new(),
+        Self::default()
+    }
+
+    /// Return the `FileId` slot for `dialect`, if one has been interned.
+    fn get(&self, dialect: Dialect) -> Option<FileId> {
+        match dialect {
+            Dialect::GqlAligned => self.gql,
+            Dialect::OpenCypherV9 => self.openc,
         }
     }
 
-    /// Look up an existing `FileId` for `key`, promoting it in the LRU order.
-    fn get(&mut self, key: u64) -> Option<FileId> {
-        if let Some(&id) = self.map.get(&key) {
-            // Promote: move key to the back (most-recently-used).
-            if let Some(pos) = self.order.iter().position(|&k| k == key) {
-                self.order.remove(pos);
-            }
-            self.order.push_back(key);
-            Some(id)
-        } else {
-            None
+    /// Set the `FileId` slot for `dialect`.
+    fn set(&mut self, dialect: Dialect, id: FileId) {
+        match dialect {
+            Dialect::GqlAligned => self.gql = Some(id),
+            Dialect::OpenCypherV9 => self.openc = Some(id),
         }
     }
 
-    /// Insert a new `(key, id)` pair.  Returns the evicted key+id if the
-    /// ceiling was exceeded; caller must call `db.remove_file(evicted_id)`.
-    fn insert(&mut self, key: u64, id: FileId) -> Option<(u64, FileId)> {
-        let evicted = if self.map.len() >= FILE_CACHE_CEILING {
-            // Pop LRU entry (front of deque).
-            if let Some(old_key) = self.order.pop_front() {
-                let old_id = self.map.remove(&old_key);
-                old_id.map(|eid| (old_key, eid))
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        self.map.insert(key, id);
-        self.order.push_back(key);
-        evicted
-    }
-
-    /// Number of cached entries.
+    /// Number of interned `FileId`s (test-only introspection).
     #[cfg(test)]
     fn len(&self) -> usize {
-        self.map.len()
-    }
-
-    /// Return the LRU (oldest) key, if any.
-    #[cfg(test)]
-    fn lru_key(&self) -> Option<u64> {
-        self.order.front().copied()
+        usize::from(self.gql.is_some()) + usize::from(self.openc.is_some())
     }
 }
 
@@ -521,9 +464,9 @@ fn main() -> Result<()> {
     let mut stdout = io::stdout().lock();
     // In-session schema, set/cleared by schema_set/schema_clear ops.
     let mut session_schema: Option<Arc<dyn SchemaProvider>> = None;
-    // Shared database and FileId intern cache (spec §15.X).
+    // Shared database and per-dialect FileId registry (spec §11.6).
     let mut db = Database::new();
-    let mut file_cache = FileCache::new();
+    let mut dialect_files = DialectFiles::new();
 
     for line in stdin.lock().lines() {
         let line = line?;
@@ -531,7 +474,7 @@ fn main() -> Result<()> {
             continue;
         }
         let response = match serde_json::from_str::<AgentRequest>(&line) {
-            Ok(req) => handle(req, &mut session_schema, &mut db, &mut file_cache),
+            Ok(req) => handle(req, &mut session_schema, &mut db, &mut dialect_files),
             Err(e) => AgentResponse::Error {
                 message: e.to_string(),
             },
@@ -551,28 +494,31 @@ fn main() -> Result<()> {
 // Dispatch
 // ---------------------------------------------------------------------------
 
-/// Intern `source` + `dialect` into the `FileCache`, returning a stable `FileId`.
+/// Intern `source` into the single `FileId` reserved for `dialect` (spec §11.6).
 ///
-/// On cache hit the existing `FileId` is returned immediately (LRU promoted).
-/// On cache miss a new file is opened in `db`, inserted into the cache, and if
-/// the ceiling was exceeded the evicted file is removed from `db` to release
-/// its Salsa cache slot.
+/// On first call for this dialect, opens a new file in `db` and records its
+/// `FileId` in `files`.  On every subsequent call, overwrites the existing
+/// `FileId`'s source text via [`Database::update_file`], which bumps the
+/// Salsa revision and cascades invalidation through the derived queries.
+/// The memoisation budget is bounded by the per-query LRU caps (cy-31b) on
+/// that single `FileId` rather than by request count.
 fn intern_file(
     db: &mut Database,
-    cache: &mut FileCache,
+    files: &mut DialectFiles,
     source: String,
     dialect: Dialect,
 ) -> FileId {
-    let key = cache_key(&source, dialect);
-    if let Some(id) = cache.get(key) {
+    if let Some(id) = files.get(dialect) {
+        // Stable FileId: overwrite its source so derived queries rerun on the
+        // new text.  update_file only errors for unknown FileIds, which
+        // cannot happen here — `files` only holds IDs that were minted by
+        // open_file on this same `db` and are never removed.
+        db.update_file(id, source)
+            .expect("interned FileId must remain open");
         return id;
     }
-    // Cache miss: open a new file.
     let id = db.open_file(Path::new("_"), source, dialect.into());
-    // Insert and evict LRU if over ceiling.
-    if let Some((_evicted_key, evicted_id)) = cache.insert(key, id) {
-        let _ = db.remove_file(evicted_id); // ignore UnknownFileId (shouldn't happen)
-    }
+    files.set(dialect, id);
     id
 }
 
@@ -580,14 +526,14 @@ fn handle(
     req: AgentRequest,
     session_schema: &mut Option<Arc<dyn SchemaProvider>>,
     db: &mut Database,
-    file_cache: &mut FileCache,
+    dialect_files: &mut DialectFiles,
 ) -> AgentResponse {
     match req {
         // ------------------------------------------------------------------
         // parse: CST pretty-print + syntax errors
         // ------------------------------------------------------------------
         AgentRequest::Parse { text, dialect } => {
-            let id = intern_file(db, file_cache, text, dialect);
+            let id = intern_file(db, dialect_files, text, dialect);
             match db.parse_cst(id) {
                 Ok(out) => {
                     let parse = out.parse();
@@ -609,7 +555,7 @@ fn handle(
             if let Some(schema) = session_schema.clone() {
                 db.set_schema(Some(schema));
             }
-            let id = intern_file(db, file_cache, text, dialect);
+            let id = intern_file(db, dialect_files, text, dialect);
             match db.all_diagnostics(id) {
                 Ok(out) => AgentResponse::Check {
                     diagnostics: out.diagnostics().iter().map(diag_json::to_json).collect(),
@@ -631,7 +577,7 @@ fn handle(
             if let Some(schema) = session_schema.clone() {
                 db.set_schema(Some(schema));
             }
-            let id = intern_file(db, file_cache, text, dialect);
+            let id = intern_file(db, dialect_files, text, dialect);
             let items = engine::complete(db, id, offset);
             AgentResponse::Complete {
                 items,
@@ -648,7 +594,7 @@ fn handle(
             offset,
             dialect,
         } => {
-            let id = intern_file(db, file_cache, text, dialect);
+            let id = intern_file(db, dialect_files, text, dialect);
             let payload = engine::hover(db, id, offset);
             AgentResponse::Hover {
                 markdown: payload.markdown,
@@ -677,7 +623,7 @@ fn handle(
             if let Some(schema) = session_schema.clone() {
                 db.set_schema(Some(schema));
             }
-            let id = intern_file(db, file_cache, text.clone(), Dialect::default());
+            let id = intern_file(db, dialect_files, text.clone(), Dialect::default());
             let payload = engine::rewrite(db, id, &text, &fix_ids);
             AgentResponse::Rewrite {
                 applied_edits: payload.applied_edits,
@@ -719,12 +665,17 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // schema_set: parse JSON into an in-session schema
+        // schema_set: parse JSON into an in-session schema.  Updates the
+        // workspace-scoped schema input on the database so `schema_digest`
+        // bumps and schema-aware derived queries invalidate on every
+        // already-interned FileId (spec §11.6 — no FileId churn).
         // ------------------------------------------------------------------
         AgentRequest::SchemaSet { schema_json } => {
             match serde_json::from_value::<AgentSchema>(schema_json) {
                 Ok(schema) => {
-                    *session_schema = Some(Arc::new(schema));
+                    let schema: Arc<dyn SchemaProvider> = Arc::new(schema);
+                    *session_schema = Some(schema.clone());
+                    db.set_schema(Some(schema));
                     AgentResponse::SchemaSet { ok: true }
                 }
                 Err(e) => AgentResponse::Error {
@@ -734,10 +685,13 @@ fn handle(
         }
 
         // ------------------------------------------------------------------
-        // schema_clear: drop the in-session schema
+        // schema_clear: drop the in-session schema and bump the database's
+        // `schema_digest` back to the no-schema state.  Invalidates via the
+        // `WorkspaceInputs` input, not FileId eviction (spec §11.6).
         // ------------------------------------------------------------------
         AgentRequest::SchemaClear => {
             *session_schema = None;
+            db.set_schema(None);
             AgentResponse::SchemaClear { ok: true }
         }
 
@@ -892,17 +846,17 @@ mod tests {
     fn dispatch(json: &str) -> Value {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
         let mut db = Database::new();
-        let mut cache = FileCache::new();
+        let mut files = DialectFiles::new();
         let req: AgentRequest = serde_json::from_str(json).unwrap();
-        let resp = handle(req, &mut schema, &mut db, &mut cache);
+        let resp = handle(req, &mut schema, &mut db, &mut files);
         serde_json::to_value(resp).unwrap()
     }
 
     fn dispatch_with_schema(json: &str, schema: &mut Option<Arc<dyn SchemaProvider>>) -> Value {
         let mut db = Database::new();
-        let mut cache = FileCache::new();
+        let mut files = DialectFiles::new();
         let req: AgentRequest = serde_json::from_str(json).unwrap();
-        let resp = handle(req, schema, &mut db, &mut cache);
+        let resp = handle(req, schema, &mut db, &mut files);
         serde_json::to_value(resp).unwrap()
     }
 
@@ -1076,10 +1030,10 @@ mod tests {
     fn malformed_input_returns_error() {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
         let mut db = Database::new();
-        let mut cache = FileCache::new();
+        let mut files = DialectFiles::new();
         let bad = "not valid json {{{";
         let resp: Value = match serde_json::from_str::<AgentRequest>(bad) {
-            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut cache)).unwrap(),
+            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut files)).unwrap(),
             Err(e) => serde_json::to_value(AgentResponse::Error {
                 message: e.to_string(),
             })
@@ -1092,10 +1046,10 @@ mod tests {
     fn unknown_op_returns_error() {
         let mut schema: Option<Arc<dyn SchemaProvider>> = None;
         let mut db = Database::new();
-        let mut cache = FileCache::new();
+        let mut files = DialectFiles::new();
         let unknown = r#"{"op":"nonexistent","text":"x"}"#;
         let resp: Value = match serde_json::from_str::<AgentRequest>(unknown) {
-            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut cache)).unwrap(),
+            Ok(req) => serde_json::to_value(handle(req, &mut schema, &mut db, &mut files)).unwrap(),
             Err(e) => serde_json::to_value(AgentResponse::Error {
                 message: e.to_string(),
             })
@@ -1115,66 +1069,196 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // FileCache / intern_file tests (spec §15.X)
+    // DialectFiles / intern_file tests (spec §11.6)
     // -----------------------------------------------------------------------
 
-    /// Same source + same dialect → same `FileId` (cache hit).
+    /// Same dialect, regardless of source, returns the same stable `FileId`.
     #[test]
-    fn file_cache_same_source_same_dialect_same_id() {
+    fn intern_file_same_dialect_same_fileid() {
         let mut db = Database::new();
-        let mut cache = FileCache::new();
-        let source = "MATCH (n) RETURN n".to_string();
-        let id1 = intern_file(&mut db, &mut cache, source.clone(), Dialect::GqlAligned);
-        let id2 = intern_file(&mut db, &mut cache, source, Dialect::GqlAligned);
-        assert_eq!(id1, id2, "same source + dialect must reuse the same FileId");
-        assert_eq!(cache.len(), 1, "only one entry in cache");
+        let mut files = DialectFiles::new();
+        let id1 = intern_file(
+            &mut db,
+            &mut files,
+            "MATCH (n) RETURN n".to_string(),
+            Dialect::GqlAligned,
+        );
+        let id2 = intern_file(
+            &mut db,
+            &mut files,
+            "RETURN 42".to_string(),
+            Dialect::GqlAligned,
+        );
+        assert_eq!(
+            id1, id2,
+            "same dialect must reuse the single interned FileId"
+        );
+        assert_eq!(files.len(), 1, "exactly one FileId for the one dialect");
+        // Source has been overwritten to the most recent request text.
+        assert_eq!(db.source_of(id1).unwrap(), "RETURN 42");
     }
 
-    /// Same source + different dialect → different `FileId`.
+    /// Different dialects → different `FileId`s, bounded at N = 2 today.
     #[test]
-    fn file_cache_same_source_different_dialect_different_id() {
+    fn intern_file_per_dialect_distinct_fileids() {
         let mut db = Database::new();
-        let mut cache = FileCache::new();
-        let source = "MATCH (n) RETURN n".to_string();
-        let id_gql = intern_file(&mut db, &mut cache, source.clone(), Dialect::GqlAligned);
-        let id_oc = intern_file(&mut db, &mut cache, source, Dialect::OpenCypherV9);
+        let mut files = DialectFiles::new();
+        let src = "MATCH (n) RETURN n".to_string();
+        let id_gql = intern_file(&mut db, &mut files, src.clone(), Dialect::GqlAligned);
+        let id_oc = intern_file(&mut db, &mut files, src, Dialect::OpenCypherV9);
         assert_ne!(
             id_gql, id_oc,
-            "different dialects must produce different FileIds"
+            "each dialect must have its own stable FileId"
         );
-        assert_eq!(cache.len(), 2, "two entries in cache");
+        assert_eq!(files.len(), 2, "steady-state ceiling = N dialects = 2");
+
+        // Re-issue requests on both dialects; the set does not grow.
+        let again_gql = intern_file(
+            &mut db,
+            &mut files,
+            "RETURN 1".to_string(),
+            Dialect::GqlAligned,
+        );
+        let again_oc = intern_file(
+            &mut db,
+            &mut files,
+            "RETURN 2".to_string(),
+            Dialect::OpenCypherV9,
+        );
+        assert_eq!(again_gql, id_gql);
+        assert_eq!(again_oc, id_oc);
+        assert_eq!(files.len(), 2);
     }
 
-    /// After 65 unique sources the first entry is evicted (ceiling = 64).
+    /// 1000 distinct source requests on a single dialect produce exactly one
+    /// `FileId`.  Proves that request-count growth no longer mints new
+    /// `FileId`s (spec §11.6 "memoization budget bounded by LRU caps, not
+    /// request count").
     #[test]
-    fn file_cache_evicts_at_ceiling() {
+    fn intern_file_1000_requests_single_fileid() {
         let mut db = Database::new();
-        let mut cache = FileCache::new();
-
-        // Insert FILE_CACHE_CEILING unique sources.
-        let mut first_key = 0u64;
-        for i in 0..FILE_CACHE_CEILING {
-            let src = format!("RETURN {i}");
-            let key = cache_key(&src, Dialect::GqlAligned);
-            if i == 0 {
-                first_key = key;
-            }
-            intern_file(&mut db, &mut cache, src, Dialect::GqlAligned);
+        let mut files = DialectFiles::new();
+        let first = intern_file(
+            &mut db,
+            &mut files,
+            "RETURN 0".to_string(),
+            Dialect::GqlAligned,
+        );
+        for i in 1..1000 {
+            let id = intern_file(
+                &mut db,
+                &mut files,
+                format!("RETURN {i}"),
+                Dialect::GqlAligned,
+            );
+            assert_eq!(
+                id, first,
+                "request {i} allocated a new FileId; expected reuse"
+            );
         }
-        assert_eq!(cache.len(), FILE_CACHE_CEILING);
-        // The first key is still LRU (it was inserted first and never re-accessed).
-        assert_eq!(cache.lru_key(), Some(first_key));
-
-        // Inserting one more unique entry triggers eviction of the first key.
-        let extra = format!("RETURN {FILE_CACHE_CEILING}");
-        intern_file(&mut db, &mut cache, extra, Dialect::GqlAligned);
-
-        // Still at ceiling.
-        assert_eq!(cache.len(), FILE_CACHE_CEILING);
-        // First key was evicted.
+        assert_eq!(
+            files.len(),
+            1,
+            "exactly one FileId for the single dialect after 1000 requests"
+        );
+        // The next FileId the DB would hand out is FileId(1) — confirming
+        // only FileId(0) was ever minted.
+        assert!(db.is_open(first));
+        let gap = cypher_db::FileId(first.0.wrapping_add(1));
         assert!(
-            cache.lru_key() != Some(first_key),
-            "first entry must have been evicted"
+            !db.is_open(gap),
+            "no second FileId was minted by the 999 re-requests"
+        );
+    }
+
+    /// `schema_set` on a dialect that already has an interned `FileId` must
+    /// update diagnostics via `schema_digest` invalidation (bump
+    /// `WorkspaceInputs`, not mint a new `FileId`).  We observe:
+    ///
+    /// 1. `check` on the dialect with no schema set → schema-free mode,
+    ///    unknown-label checks don't fire.  Interns the dialect's `FileId`.
+    /// 2. `schema_set` installs a schema that declares only `Person`.
+    /// 3. `check` on the same text (`MATCH (n:Ghost) RETURN n`) now emits
+    ///    `E3001` (unknown label) — the diagnostics set changed, and it
+    ///    changed because `schema_digest` invalidated the sema memo on the
+    ///    **same** `FileId`.  No `FileId` churn.
+    #[test]
+    fn schema_set_reuses_interned_fileid_and_refreshes_diagnostics() {
+        let mut schema: Option<Arc<dyn SchemaProvider>> = None;
+        let mut db = Database::new();
+        let mut files = DialectFiles::new();
+
+        // 1. Check without any schema — schema-free mode, no E3001.
+        let before = serde_json::to_value(handle(
+            AgentRequest::Check {
+                text: "MATCH (n:Ghost) RETURN n".into(),
+                dialect: Dialect::GqlAligned,
+            },
+            &mut schema,
+            &mut db,
+            &mut files,
+        ))
+        .unwrap();
+        assert_eq!(before["op"], "check");
+        let id_before = files
+            .get(Dialect::GqlAligned)
+            .expect("interned after check");
+        assert_eq!(files.len(), 1);
+        let before_codes: Vec<String> = before["diagnostics"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|d| d["code"].as_str().map(ToString::to_string))
+            .collect();
+        assert!(
+            !before_codes.iter().any(|c| c == "E3001"),
+            "schema-free mode must not emit E3001; got {before_codes:?}"
+        );
+
+        // 2. Install a schema that declares only `Person` — `Ghost` is unknown.
+        let resp = handle(
+            AgentRequest::SchemaSet {
+                schema_json: serde_json::json!({
+                    "labels": ["Person"],
+                    "rel_types": [],
+                }),
+            },
+            &mut schema,
+            &mut db,
+            &mut files,
+        );
+        assert!(matches!(resp, AgentResponse::SchemaSet { ok: true }));
+
+        // 3. Check again — same text, same dialect.  The FileId must be
+        //    reused; E3001 must now appear.
+        let after = serde_json::to_value(handle(
+            AgentRequest::Check {
+                text: "MATCH (n:Ghost) RETURN n".into(),
+                dialect: Dialect::GqlAligned,
+            },
+            &mut schema,
+            &mut db,
+            &mut files,
+        ))
+        .unwrap();
+        let id_after = files
+            .get(Dialect::GqlAligned)
+            .expect("still interned after schema_set");
+        assert_eq!(
+            id_before, id_after,
+            "schema_set must not churn the dialect's FileId"
+        );
+        assert_eq!(files.len(), 1, "no FileIds were minted by schema_set");
+
+        let after_codes: Vec<String> = after["diagnostics"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|d| d["code"].as_str().map(ToString::to_string))
+            .collect();
+        assert!(
+            after_codes.iter().any(|c| c == "E3001"),
+            "schema_digest invalidation must let E3001 surface on the interned FileId; got {after_codes:?}"
         );
     }
 }
