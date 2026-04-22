@@ -1,7 +1,7 @@
 //! TCK harness — spec 0001 §17.5.
 //!
 //! Reads scenarios from `tck/v1.toml`, filters to those carrying at least one
-//! v1 tag (per [`cypher_tck::v1_gates`]), then runs each through
+//! v1 tag (per [`cypher_tck::v1_tags`]), then runs each through
 //! `cypher_db::Database` and asserts the expected parse outcome.
 //!
 //! Run with:
@@ -9,13 +9,16 @@
 //!
 //! Tags covered: @MATCH, @OPTIONAL-MATCH, @WHERE, @RETURN, @WITH, @UNWIND,
 //! @CREATE, @MERGE, @SET, @REMOVE, @DELETE, @EXPRESSIONS, @AGGREGATIONS,
-//! @STRINGS, @LISTS, @MAPS, @PATTERNS, @NULL  (v1 green)
-//! @CALL-SUBQUERY, @LOAD-CSV  (v1 red — must emit a parse error)
+//! @STRINGS, @LISTS, @MAPS, @PATTERNS, @NULL  (v1 supported)
+//! @CALL-SUBQUERY, @LOAD-CSV  (must emit a parse error)
+//!
+//! The full vendored upstream TCK is exercised by a separate test gated
+//! behind `--features full-tck`; see `tests/full.rs`.
 
 use std::path::Path;
 
 use cypher_db::{DialectMode, workspace::Database};
-use cypher_tck::v1_gates;
+use cypher_tck::{Expected, v1_tags};
 use serde::Deserialize;
 
 // ---------------------------------------------------------------------------
@@ -51,13 +54,30 @@ enum Outcome {
     Error,
 }
 
+impl Scenario {
+    /// Map the on-disk `outcome` / `ignore` fields to the library's
+    /// per-scenario [`Expected`] outcome (bead cy-p5q).  The v1 TOML
+    /// format is kept stable for backward-compatibility with
+    /// `xtask tree-sitter-parity`; this mapping happens at load time.
+    fn expected(&self) -> Expected {
+        if self.ignore {
+            Expected::Ignored
+        } else {
+            match self.outcome {
+                Outcome::Ok => Expected::Supported,
+                Outcome::Error => Expected::Error,
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /// Return the set of v1 tags (with leading `@`).
-fn v1_tag_set() -> std::collections::HashSet<String> {
-    v1_gates().into_iter().map(|g| g.tag.to_owned()).collect()
+fn v1_tag_set() -> std::collections::HashSet<&'static str> {
+    v1_tags().iter().copied().collect()
 }
 
 /// Parse a query with `Database` and return `true` if it had no parse errors.
@@ -109,46 +129,39 @@ fn tck_v1_scenarios() {
 
         total += 1;
 
-        // Scenarios marked `ignore = true` are acknowledged as known parser
-        // bugs.  They are counted but not run.
-        if scenario.ignore {
-            ignored += 1;
-            println!(
-                "  IGNORED [{}]: {}",
-                scenario.name,
-                scenario.note.as_deref().unwrap_or("no note"),
-            );
-            continue;
-        }
+        // Per-scenario Expected (bead cy-p5q): `ignore = true` maps to
+        // `Expected::Ignored`, `outcome = "ok"` to `Expected::Supported`,
+        // `outcome = "error"` to `Expected::Error`.
+        match scenario.expected() {
+            Expected::Ignored => {
+                ignored += 1;
+                println!(
+                    "  IGNORED [{}]: {}",
+                    scenario.name,
+                    scenario.note.as_deref().unwrap_or("no note"),
+                );
+            }
+            expected => {
+                let expected_ok = expected == Expected::Supported;
+                let is_ok = parse_ok(&scenario.query);
+                let pass = expected_ok == is_ok;
 
-        // Determine whether the scenario expects a parse-ok or parse-error
-        // from the fixture's `outcome` field.
-        //
-        // The v1 gate (`Expected::Green` / `Expected::Red`) signals which
-        // *overall tag* is expected to be conformant, but does not override the
-        // per-scenario outcome: a tag can be "green" (fully conformant) while
-        // individual scenarios under that tag test parser *rejection* of
-        // malformed input (negative tests).
-        let expected_ok = scenario.outcome == Outcome::Ok;
-
-        let is_ok = parse_ok(&scenario.query);
-
-        let pass = expected_ok == is_ok;
-
-        if pass {
-            passed += 1;
-        } else {
-            failed.push(format!(
-                "FAIL [{}]: expected {}, got {} — query: {:?}",
-                scenario.name,
-                if expected_ok {
-                    "parse-ok"
+                if pass {
+                    passed += 1;
                 } else {
-                    "parse-error"
-                },
-                if is_ok { "parse-ok" } else { "parse-error" },
-                scenario.query,
-            ));
+                    failed.push(format!(
+                        "FAIL [{}]: expected {}, got {} — query: {:?}",
+                        scenario.name,
+                        if expected_ok {
+                            "parse-ok"
+                        } else {
+                            "parse-error"
+                        },
+                        if is_ok { "parse-ok" } else { "parse-error" },
+                        scenario.query,
+                    ));
+                }
+            }
         }
     }
 
