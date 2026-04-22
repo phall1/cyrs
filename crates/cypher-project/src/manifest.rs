@@ -10,7 +10,7 @@ use smol_str::SmolStr;
 
 use crate::error::ProjectLoadError;
 use crate::lint::{LintLevel, is_registered_lint_rule};
-use crate::resolve::{build_globset, expand_members};
+use crate::resolve::{build_globset, expand_members, rel_path_for_match};
 
 // ============================================================
 // Public types
@@ -329,6 +329,39 @@ impl ProjectFile {
     }
 }
 
+impl ProjectManifest {
+    /// Resolve the effective dialect for `abs_path` — a member file path
+    /// produced by the loader.
+    ///
+    /// The first `per_file` glob whose pattern matches the path's
+    /// manifest-relative form wins. If no glob matches (or if `abs_path`
+    /// is not inside the manifest directory) the `default` dialect is
+    /// returned.
+    ///
+    /// Glob matching uses the same POSIX-separator normalisation as
+    /// `expand_members` so patterns written with `/` behave identically
+    /// on every platform.
+    #[must_use]
+    pub fn dialect_for(&self, abs_path: &Path) -> DialectDefault {
+        let Ok(rel) = abs_path.strip_prefix(&self.manifest_dir) else {
+            return self.dialect.default;
+        };
+        let rel_for_match = rel_path_for_match(rel);
+        for entry in &self.dialect.per_file {
+            // `per_file` patterns were compiled at manifest-load time; if they
+            // compiled then, they compile now. If for any reason compilation
+            // fails here we fall back to the default dialect.
+            let Ok(glob) = globset::Glob::new(&entry.pattern) else {
+                continue;
+            };
+            if glob.compile_matcher().is_match(&rel_for_match) {
+                return entry.dialect;
+            }
+        }
+        self.dialect.default
+    }
+}
+
 impl ProjectFile {
     /// Build a [`ProjectFile`] view of a [`ProjectManifest`], suitable
     /// for serialisation back to TOML. The round-trip is semantic, not
@@ -417,6 +450,44 @@ name = "demo"
         let tmp = tempfile::tempdir().unwrap();
         let err = load_from_toml_str(toml, Some(tmp.path())).unwrap_err();
         assert!(matches!(err, ProjectLoadError::UnknownLintRule(_)));
+    }
+
+    #[test]
+    fn dialect_for_uses_default_when_no_per_file() {
+        let toml = r#"
+[project]
+name = "demo"
+"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let m = load_from_toml_str(toml, Some(tmp.path())).unwrap();
+        let p = tmp.path().join("any.cyp");
+        assert_eq!(m.dialect_for(&p), DialectDefault::GqlAligned);
+    }
+
+    #[test]
+    fn dialect_for_matches_per_file_glob() {
+        let toml = r#"
+[project]
+name = "demo"
+
+[project.dialect]
+default = "GqlAligned"
+
+[project.dialect.per_file]
+"legacy/**/*.cyp" = "OpenCypherV9"
+"#;
+        let tmp = tempfile::tempdir().unwrap();
+        let m = load_from_toml_str(toml, Some(tmp.path())).unwrap();
+
+        let legacy = tmp.path().join("legacy/foo/bar.cyp");
+        let modern = tmp.path().join("modern/foo.cyp");
+
+        assert_eq!(m.dialect_for(&legacy), DialectDefault::OpenCypherV9);
+        assert_eq!(m.dialect_for(&modern), DialectDefault::GqlAligned);
+
+        // Path outside the manifest directory → default.
+        let outside = std::path::Path::new("/tmp/does/not/exist/legacy/foo.cyp");
+        assert_eq!(m.dialect_for(outside), DialectDefault::GqlAligned);
     }
 
     #[test]

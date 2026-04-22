@@ -106,12 +106,12 @@ pub(crate) fn expand_members(
 }
 
 #[cfg(unix)]
-fn rel_path_for_match(rel: &Path) -> PathBuf {
+pub(crate) fn rel_path_for_match(rel: &Path) -> PathBuf {
     rel.to_path_buf()
 }
 
 #[cfg(not(unix))]
-fn rel_path_for_match(rel: &Path) -> PathBuf {
+pub(crate) fn rel_path_for_match(rel: &Path) -> PathBuf {
     // On Windows the walker yields backslash separators; normalise to
     // `/` so globs written with POSIX separators match.
     PathBuf::from(rel.to_string_lossy().replace('\\', "/"))
