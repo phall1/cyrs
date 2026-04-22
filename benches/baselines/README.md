@@ -41,3 +41,21 @@ numbers will differ on the ubuntu-latest GitHub runner; the gate
 tolerance (10 %) is set to absorb that first-PR drift without
 catastrophising. The first nightly run on `main` will replace these
 with runner-representative values.
+
+## `incremental_24h.json` (cy-wcv, spec §11.6 / §17.10)
+
+Separate file because the 24h soak is not a criterion-timed bench; the
+values captured there are memory-vs-wall-clock, not time-per-iter.
+
+- `baseline_rss_mib` / `steady_rss_mib` — RSS at the first and last
+  sample of each mode.
+- `tail_slope_kib_per_hr` — OLS slope of the trailing
+  `min(8 h, post-warmup)` window.  The slope gate fires when the
+  absolute value reaches 100 KiB/hr; see `benches/README.md` for the
+  full methodology.
+
+The baseline shipped with cy-wcv is **provisional**: it was captured
+during bead landing via a ~10 min smoke (`CY_SOAK_HOURS=0.1667`) to
+confirm the bench wiring builds and produces a sensible trace.  Real
+runner-representative numbers will land after the first weekly
+`soak_4h` workflow run.
