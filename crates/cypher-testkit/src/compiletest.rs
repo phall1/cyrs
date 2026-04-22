@@ -351,8 +351,14 @@ pub fn run_plan_case(case: &TestCase, bless: bool) -> std::io::Result<Outcome> {
 
     let hir_stmt = lower_statement(&source);
     let hir_stmt = desugar_statement(hir_stmt);
-    let plan_stmt = plan_lower(&hir_stmt);
-    let actual = pretty(&plan_stmt);
+    // cy-wlr: plan lowering is fallible. Compiletest plan corpus inputs are
+    // expected to be well-formed (they run the full HIR pipeline first); if
+    // one ever drifts out of spec the error message is recorded in the
+    // sidecar so the failure is visible rather than a panic.
+    let actual = match plan_lower(&hir_stmt) {
+        Ok(plan_stmt) => pretty(&plan_stmt),
+        Err(e) => format!("cypher-plan: {e}\n"),
+    };
 
     compare_or_bless(&case.stderr_path(), &actual, bless, &case.input)
 }

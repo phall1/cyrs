@@ -315,7 +315,14 @@ pub fn plan_of(db: &dyn CypherDb, file: SourceFile) -> PlanOutput {
     let stmt = hir_lower(src.as_str());
     let stmt = desugar_statement(stmt);
 
-    let plan = plan_lower(&stmt);
+    // cy-wlr: `plan_lower` is fallible now. When the HIR still contains
+    // `Expr::Unresolved` or un-desugared nodes (e.g. because the source
+    // is malformed and name resolution did not wire every reference) we
+    // surface an empty plan rather than propagating the error — the
+    // diagnostics surface of the DB layer already reports the underlying
+    // issue through `sema_diagnostics` / `all_diagnostics`, and the plan
+    // view is best-effort for malformed inputs.
+    let plan = plan_lower(&stmt).unwrap_or_else(|_| PlanStatement::empty());
     PlanOutput::new(plan)
 }
 

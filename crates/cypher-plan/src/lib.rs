@@ -23,11 +23,14 @@
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-plan/0.0.1")]
 
+pub mod error;
 pub mod lower;
 pub mod pretty;
 
 #[cfg(feature = "serde")]
 pub mod ser;
+
+pub use error::PlanLowerError;
 
 use smol_str::SmolStr;
 

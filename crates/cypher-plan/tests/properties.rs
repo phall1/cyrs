@@ -30,11 +30,16 @@ fn has_no_errors(src: &str) -> bool {
 }
 
 /// Lower `src` → HIR (desugar) → Plan and return the plan's Debug string.
+///
+/// cy-wlr: `plan_lower` now returns `Result`. The determinism property
+/// renders the full result (error or plan) so either outcome is exercised
+/// deterministically; inputs that violate the plan-lowering precondition
+/// still produce byte-identical outputs on repeat calls.
 fn plan_debug(src: &str) -> String {
     let stmt = hir_lower(src);
     let stmt = desugar_statement(stmt);
-    let plan = plan_lower(&stmt);
-    format!("{plan:?}")
+    let result = plan_lower(&stmt);
+    format!("{result:?}")
 }
 
 // ---------------------------------------------------------------------------
