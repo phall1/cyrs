@@ -43,7 +43,12 @@
 mod complete;
 mod hover;
 mod rewrite;
+mod workspace_nav;
 
 pub use complete::{CompletionItem, CompletionItemKind, complete};
 pub use hover::{Hover, hover};
 pub use rewrite::{RewriteEdit, RewritePayload, rewrite};
+pub use workspace_nav::{
+    Location, SymbolInfo, SymbolKind, WorkspaceSymbolIndex, build_index, find_references,
+    goto_definition, line_index_for, workspace_symbols,
+};

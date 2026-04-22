@@ -484,6 +484,7 @@ dependencies = [
  "cypher-diag",
  "cypher-fmt",
  "cypher-hir",
+ "cypher-project",
  "cypher-schema",
  "cypher-sema",
  "cypher-syntax",

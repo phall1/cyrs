@@ -592,6 +592,17 @@ impl Database {
         self.files.contains_key(&id)
     }
 
+    /// Iterate every currently-open [`FileId`] in insertion order.
+    ///
+    /// Needed by cross-file analyses (workspace symbols / references /
+    /// goto-definition, spec §14.2, bead cy-kkw) so the navigation
+    /// engine can walk every member file of the workspace without the
+    /// caller having to track its own file list alongside the
+    /// [`Database`].
+    pub fn file_ids(&self) -> impl Iterator<Item = FileId> + '_ {
+        self.files.keys().copied()
+    }
+
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
