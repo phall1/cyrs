@@ -1,6 +1,6 @@
 //! Schema-aware semantic pass (spec 0001 §7.1 / §7.5).
 //!
-//! Runs **only** when a [`SchemaProvider`] is supplied to [`analyse`].
+//! Runs **only** when a [`SchemaProvider`] is supplied to `analyse`.
 //! Checks that every label, relationship type, property, and function
 //! call in the statement is consistent with the declared schema.
 //!

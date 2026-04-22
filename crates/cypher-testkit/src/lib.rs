@@ -4,7 +4,7 @@
 //! Spec 0001 §17.6 describes a `rustc`-style golden compiletest corpus.
 //! This crate provides:
 //!
-//! - [`fixture`] — helpers for building a populated [`Database`] and
+//! - [`fixture`] — helpers for building a populated [`cypher_db::Database`] and
 //!   loading `.cypher` input files from the `tests/ui/**` corpus.
 //! - [`snapshot`] — thin wrappers around `insta` so every crate uses the
 //!   same redaction set and settings file automatically.

@@ -1,8 +1,8 @@
 //! Name resolution pass (spec 0001 §6.2).
 //!
-//! Entry point: [`resolve`].  Walks the clauses of an [`hir::Statement`]
-//! in order, building a [`ScopeGraph`] and a [`ResolvedNames`] table,
-//! emitting diagnostics into a [`DiagnosticsSink`].
+//! Entry point: [`resolve()`].  Walks the clauses of a
+//! `cypher_hir::Statement` in order, building a `ScopeGraph` and a
+//! `ResolvedNames` table, emitting diagnostics into a [`DiagnosticsSink`].
 //!
 //! ## Scope construction rules (§6.2)
 //!

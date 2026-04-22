@@ -14,8 +14,8 @@
 //! `Any` is the universal super-type: queries without schema produce Any-
 //! typed property reads; only structural errors surface.
 //!
-//! Name resolution (§6.2) lives in [`resolve`]: it produces a
-//! [`ScopeGraph`] + [`ResolvedNames`] table and emits `E1001`/`E1002`
+//! Name resolution (§6.2) lives in [`mod@resolve`]: it produces a
+//! `ScopeGraph` + `ResolvedNames` table and emits `E1001`/`E1002`
 //! diagnostics.
 
 #![forbid(unsafe_code)]

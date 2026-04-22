@@ -3,14 +3,14 @@
 //! # Architecture
 //!
 //! The parser is a hand-written recursive-descent engine that emits an
-//! [`Event`] stream rather than directly mutating a tree. A separate
-//! [`SyntaxTreeBuilder`](crate::builder::SyntaxTreeBuilder) — living in
-//! [`crate::builder`] — consumes the events and produces the [`rowan`]
-//! green tree. This split lets the parser:
+//! `Event` stream rather than directly mutating a tree. A separate
+//! `SyntaxTreeBuilder` — living in the internal `builder` module —
+//! consumes the events and produces the [`rowan`] green tree. This split
+//! lets the parser:
 //!
 //! - rewrite events for associativity fixing in Pratt expression parsing
 //!   (the `Start` event can be retroactively relocated via the
-//!   [`Marker::precede`] mechanism);
+//!   `Marker::precede` mechanism);
 //! - group or suppress spurious errors before they reach diagnostics;
 //! - interleave trivia tokens (whitespace, comments) between significant
 //!   tokens so the constructed tree is byte-lossless per §4.4.
@@ -20,10 +20,10 @@
 //! Per spec §4.3 the recovering parser exposes two primitives the grammar
 //! builds on:
 //!
-//! - **Synchronisation-set skip** ([`Parser::recover_until`]): when a
+//! - **Synchronisation-set skip** (`Parser::recover_until`): when a
 //!   clause fails, tokens are bumped into an `ERROR` node until we see a
 //!   clause-level keyword, a `;`, or EOF.
-//! - **Virtual-token insertion** ([`Parser::expect`]): when a required
+//! - **Virtual-token insertion** (`Parser::expect`): when a required
 //!   closer/keyword is missing, an `ERROR` node of zero width is recorded
 //!   at the expected position; the parser continues.
 //!

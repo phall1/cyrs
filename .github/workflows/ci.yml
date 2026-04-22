@@ -266,7 +266,12 @@ jobs:
         run: cargo check -p cypher --no-default-features --features schema-only
 
   # ---------------------------------------------------------------
-  # Docs: rustdoc passes at -D warnings
+  # Docs: rustdoc passes at -D warnings (spec §17.15, bead cy-93c)
+  #
+  # `--lib` skips binary crates' docs (which rustdoc can't link from
+  # cleanly without `--document-private-items`).  `-D warnings` is
+  # inherited from the workflow-level RUSTDOCFLAGS env and also set
+  # explicitly here so the job is self-contained / copy-pasteable.
   # ---------------------------------------------------------------
   docs:
     name: rustdoc
@@ -277,7 +282,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-      - run: cargo doc --workspace --all-features --no-deps
+      - name: cargo doc --workspace --no-deps (deny warnings)
+        run: cargo doc --workspace --no-deps --lib
+        env:
+          RUSTDOCFLAGS: "-D warnings"
 
   # Coverage (spec §17.9) lives in .github/workflows/coverage.yml (bead cy-1p9).
   # Miri (spec §17.12) lives in .github/workflows/miri.yml (bead cy-tt1).

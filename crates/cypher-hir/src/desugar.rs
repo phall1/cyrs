@@ -38,9 +38,9 @@ use crate::{
 /// (or mutated) statement is returned.
 ///
 /// Passes, in order:
-/// 1. [`desugar_shorthand_props`] — lift inline property maps on pattern
+/// 1. `desugar_shorthand_props` — lift inline property maps on pattern
 ///    nodes into explicit `WHERE` predicates.
-/// 2. [`desugar_exprs`] — recursively desugar expressions (subscript-to-
+/// 2. `desugar_exprs` — recursively desugar expressions (subscript-to-
 ///    prop, list comprehension, map projection normalization).
 pub fn desugar_statement(mut stmt: Statement) -> Statement {
     // Pass 1: shorthand property maps → WHERE predicates.
