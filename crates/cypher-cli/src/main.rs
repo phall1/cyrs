@@ -6,11 +6,14 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use cypher_db::{Database, DialectMode};
 use cypher_diag::{Severity, render_text_stderr};
+use cypher_project::{DialectDefault, ProjectManifest};
+use cypher_schema::SchemaProvider;
 
 /// Spec §16 exit codes. `2` (usage) is produced by clap itself.
 const EXIT_OK: u8 = 0;
@@ -128,6 +131,14 @@ fn run(cli: &Cli) -> Result<u8> {
             Ok(EXIT_OK)
         }
         Cmd::Check { file } => {
+            // `cypher check .` / `cypher check <dir>` / `cypher check path/to/project`
+            // — if the argument is a directory we walk up to find a
+            // `cypher-project.toml` and run in workspace mode. Spec 0003 §2.
+            if let Some(p) = file.as_deref()
+                && p.is_dir()
+            {
+                return check_project(p, cli.dialect.into());
+            }
             let (src, label) = read_source(file.as_deref())?;
             // Clone the source so we still have it for diagnostic rendering —
             // `Database` owns its copy after `open_file` but `render_text_stderr`
@@ -271,6 +282,99 @@ fn project_load(path: &Path) -> u8 {
             EXIT_DIAGNOSTICS
         }
     }
+}
+
+/// Map a [`DialectDefault`] from the project manifest to the database
+/// [`DialectMode`] used at parse time. Spec 0003 §4.2.
+fn dialect_to_mode(d: DialectDefault) -> DialectMode {
+    match d {
+        DialectDefault::GqlAligned => DialectMode::GqlAligned,
+        DialectDefault::OpenCypherV9 => DialectMode::OpenCypherV9,
+    }
+}
+
+/// `cypher check <dir>` — workspace mode.
+///
+/// Discovers the `cypher-project.toml` at or above `dir`, loads every
+/// member into a single [`Database`], installs the manifest's schema (if
+/// any), and runs `all_diagnostics` on every file. Exit codes:
+///
+/// - `0` — no errors; warnings are permitted.
+/// - `1` — at least one file produced an error-severity diagnostic, or
+///   the manifest / schema / member globs failed to load.
+///
+/// Spec 0003 §2 (discovery) and spec 0001 §16 (exit codes). The per-file
+/// dialect is resolved via [`ProjectManifest::dialect_for`]; the
+/// `--dialect` CLI flag is ignored when the manifest declares a default.
+fn check_project(dir: &Path, _flag_dialect: DialectMode) -> Result<u8> {
+    let Some(manifest_path) = cypher_project::discover(dir) else {
+        anyhow::bail!("no cypher-project.toml found at or above {}", dir.display());
+    };
+    let manifest = cypher_project::load_from_toml_path(&manifest_path)
+        .with_context(|| format!("loading {}", manifest_path.display()))?;
+
+    let mut db = Database::new();
+
+    // Install the workspace-scoped schema before opening any file, so the
+    // first sema query sees it (parse queries ignore the schema, so order
+    // would not matter in principle, but this keeps the contract tight).
+    if let Some(schema) = clone_schema(&manifest) {
+        db.set_schema(Some(schema));
+    }
+
+    // Track (FileId, absolute path, raw source) so diagnostic rendering
+    // has access to the exact bytes offsets were computed against.
+    let mut loaded: Vec<(cypher_db::FileId, PathBuf, String)> =
+        Vec::with_capacity(manifest.members.len());
+    for member in &manifest.members {
+        let source = fs::read_to_string(member)
+            .with_context(|| format!("reading member {}", member.display()))?;
+        let dialect = dialect_to_mode(manifest.dialect_for(member));
+        let id = db.open_file(member, source.clone(), dialect);
+        loaded.push((id, member.clone(), source));
+    }
+
+    let mut had_errors = false;
+    let mut diag_count: usize = 0;
+    for (id, path, source) in &loaded {
+        let diags = db
+            .all_diagnostics(*id)
+            .map_err(|e| anyhow::anyhow!("analysis failed on {}: {}", path.display(), e))?;
+        let label = path.display().to_string();
+        for d in diags.diagnostics() {
+            diag_count += 1;
+            if d.severity == Severity::Error {
+                had_errors = true;
+            }
+            if let Err(e) = render_text_stderr(&label, source, d) {
+                eprintln!("error: rendering diagnostic {code}: {e}", code = d.code);
+            }
+        }
+    }
+
+    eprintln!(
+        "checked {n} file{plural} in project '{name}': {diag_count} diagnostic{dplural}",
+        n = loaded.len(),
+        plural = if loaded.len() == 1 { "" } else { "s" },
+        name = manifest.name,
+        dplural = if diag_count == 1 { "" } else { "s" },
+    );
+
+    Ok(if had_errors {
+        EXIT_DIAGNOSTICS
+    } else {
+        EXIT_OK
+    })
+}
+
+/// Clone the manifest's loaded schema into an `Arc<dyn SchemaProvider>`
+/// suitable for `Database::set_schema`. Returns `None` when the manifest
+/// did not declare a schema.
+fn clone_schema(manifest: &ProjectManifest) -> Option<Arc<dyn SchemaProvider>> {
+    manifest
+        .schema
+        .as_ref()
+        .map(|s| Arc::new(s.clone()) as Arc<dyn SchemaProvider>)
 }
 
 /// Read source text, returning `(source, display_label)`. The label is used
