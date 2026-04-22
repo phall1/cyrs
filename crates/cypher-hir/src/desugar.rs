@@ -288,6 +288,17 @@ fn desugar_expr(expr: &mut Expr) {
             desugar_expr(operand);
             desugar_expr(list);
         }
+        // `Expr::Slice` has no desugar rewrite yet — recurse into bounds
+        // so any nested `["prop"]` → `.prop` normalisation still fires.
+        Expr::Slice { target, start, end } => {
+            desugar_expr(target);
+            if let Some(s) = start {
+                desugar_expr(s);
+            }
+            if let Some(e) = end {
+                desugar_expr(e);
+            }
+        }
         // ----------------------------------------------------------------
         // Desugared list comprehension — recurse into sub-expressions.
         // ----------------------------------------------------------------
@@ -438,6 +449,11 @@ mod tests {
             Expr::Prop { target, prop } => format!("Prop({}.{})", render_expr(target), prop),
             Expr::Index { target, index } => {
                 format!("Index({}[{}])", render_expr(target), render_expr(index))
+            }
+            Expr::Slice { target, start, end } => {
+                let s = start.as_ref().map_or_else(String::new, |e| render_expr(e));
+                let e = end.as_ref().map_or_else(String::new, |e| render_expr(e));
+                format!("Slice({}[{s}..{e}])", render_expr(target))
             }
             Expr::List(items) => {
                 let inner: Vec<_> = items.iter().map(render_expr).collect();

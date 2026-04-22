@@ -767,6 +767,19 @@ impl<'s> LowerCtx<'s> {
                 target: Box::new(self.lower_expr(target)),
                 index: Box::new(self.lower_expr(index)),
             },
+            // Plan-side `Expr::Slice` is wired up in the cy-7s6.1 plan
+            // commit; visit the children here so the lower pass still
+            // errors out correctly on any `Unresolved` bound.
+            HirExpr::Slice { target, start, end } => {
+                let _ = self.lower_expr(target);
+                if let Some(s) = start {
+                    let _ = self.lower_expr(s);
+                }
+                if let Some(e) = end {
+                    let _ = self.lower_expr(e);
+                }
+                Expr::Null
+            }
             HirExpr::List(items) => Expr::List(items.iter().map(|e| self.lower_expr(e)).collect()),
             HirExpr::Map(pairs) => Expr::Map(
                 pairs

@@ -218,6 +218,23 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
+            // Slice — visit target + bounds so their type errors surface;
+            // the element-type lattice work lives in the cy-7s6.1 sema
+            // commit. Result is `Any` here; the kinds pass narrows to
+            // `LIST<T>` when the target is list-shaped.
+            // ---------------------------------------------------------------
+            Expr::Slice { target, start, end } => {
+                self.infer_expr(target);
+                if let Some(s) = start {
+                    self.infer_expr(s);
+                }
+                if let Some(e) = end {
+                    self.infer_expr(e);
+                }
+                Type::Any
+            }
+
+            // ---------------------------------------------------------------
             // List literal — element types unified to find element type.
             // ---------------------------------------------------------------
             Expr::List(items) => {

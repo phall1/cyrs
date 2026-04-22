@@ -57,6 +57,23 @@ fn sig_expr(e: &Expr, out: &mut String) {
             sig_expr(index, out);
             out.push(')');
         }
+        Expr::Slice { target, start, end } => {
+            out.push_str("Slice(");
+            sig_expr(target, out);
+            out.push(',');
+            if let Some(s) = start {
+                sig_expr(s, out);
+            } else {
+                out.push('_');
+            }
+            out.push(',');
+            if let Some(e) = end {
+                sig_expr(e, out);
+            } else {
+                out.push('_');
+            }
+            out.push(')');
+        }
         Expr::List(items) => {
             out.push('[');
             for (i, item) in items.iter().enumerate() {

@@ -373,6 +373,21 @@ pub enum Expr {
         target: Box<Expr>,
         index: Box<Expr>,
     },
+    /// List slicing — `xs[i..j]`, `xs[..j]`, `xs[i..]` (cy-7s6.1).
+    ///
+    /// `start` and `end` are optional: elision maps to `None` (openCypher
+    /// semantics — absent `start` defaults to 0, absent `end` defaults to
+    /// `len`). Negative indices are permitted and carry their from-end
+    /// meaning at evaluation time; the HIR does not normalise them.
+    ///
+    /// v1 scope is lists only. Passing a non-list to `Expr::Slice` is a
+    /// type error reported by the sema `kinds` pass (E5010) — see
+    /// `cypher-sema::kinds` for the emission site.
+    Slice {
+        target: Box<Expr>,
+        start: Option<Box<Expr>>,
+        end: Option<Box<Expr>>,
+    },
     List(Vec<Expr>),
     Map(Vec<(SmolStr, Expr)>),
     Call {

@@ -664,6 +664,8 @@ impl LowerCtx {
             SyntaxKind::VAR_EXPR => Some(self.lower_var_expr(node)),
             SyntaxKind::PROP_ACCESS_EXPR => Some(self.lower_prop_access(node)),
             SyntaxKind::SUBSCRIPT_EXPR => Some(self.lower_subscript(node)),
+            SyntaxKind::INDEX_EXPR => Some(self.lower_index_expr(node)),
+            SyntaxKind::SLICE_EXPR => Some(self.lower_slice_expr(node)),
             SyntaxKind::FUNCTION_CALL => Some(self.lower_function_call(node)),
             SyntaxKind::PAREN_EXPR => {
                 // Unwrap the inner expression.
@@ -718,6 +720,73 @@ impl LowerCtx {
         Expr::Index {
             target: Box::new(target),
             index: Box::new(index),
+        }
+    }
+
+    /// Lower `INDEX_EXPR` (`xs[i]`) — identical shape to `SUBSCRIPT_EXPR`
+    /// but produced by the typed cy-7s6.1 grammar path so the HIR sees a
+    /// distinct node and the sema `kinds` pass can apply list-only
+    /// semantics (openCypher negative indices, out-of-bounds → null).
+    ///
+    /// v1 scope: LIST only. STRING indexing is deferred (see scope note
+    /// on `Expr::Slice` / `cypher-sema::kinds` for the E5010 emit site).
+    fn lower_index_expr(&mut self, node: SyntaxNode) -> Expr {
+        let mut children = node.children().filter_map(|n| self.try_lower_expr(n));
+        let target = children.next().unwrap_or(Expr::Null);
+        let index = children.next().unwrap_or(Expr::Null);
+        Expr::Index {
+            target: Box::new(target),
+            index: Box::new(index),
+        }
+    }
+
+    /// Lower `SLICE_EXPR` (`xs[i..j]`, `xs[..j]`, `xs[i..]`).
+    ///
+    /// The `DOT_DOT` token separates start from end inside the bracket.
+    /// Either bound may be elided: child expressions appearing before the
+    /// `..` token are the start; those appearing after are the end. The
+    /// first child is always the slice target.
+    ///
+    /// Negative indices and out-of-bounds values are valid openCypher
+    /// shapes and carry their semantics at evaluation time — the HIR
+    /// does not normalise them.
+    fn lower_slice_expr(&mut self, node: SyntaxNode) -> Expr {
+        // Walk children-with-tokens to preserve source ordering of both
+        // nodes and the `..` separator. A SLICE_EXPR has, in source order:
+        //   <target Expr> '[' <start Expr?> '..' <end Expr?> ']'
+        // Target is always present (receiver of the postfix); start and
+        // end are optional.
+        let mut target: Option<Expr> = None;
+        let mut start: Option<Expr> = None;
+        let mut end: Option<Expr> = None;
+        let mut past_lbrack = false;
+        let mut past_dotdot = false;
+
+        for child in node.children_with_tokens() {
+            match child {
+                SyntaxElement::Token(tok) => match tok.kind() {
+                    SyntaxKind::L_BRACK => past_lbrack = true,
+                    SyntaxKind::DOT_DOT => past_dotdot = true,
+                    _ => {}
+                },
+                SyntaxElement::Node(n) => {
+                    if let Some(expr) = self.try_lower_expr(n) {
+                        if !past_lbrack {
+                            target = Some(expr);
+                        } else if !past_dotdot {
+                            start = Some(expr);
+                        } else {
+                            end = Some(expr);
+                        }
+                    }
+                }
+            }
+        }
+
+        Expr::Slice {
+            target: Box::new(target.unwrap_or(Expr::Null)),
+            start: start.map(Box::new),
+            end: end.map(Box::new),
         }
     }
 

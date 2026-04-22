@@ -317,6 +317,15 @@ impl SchemaCtx<'_> {
                 self.check_expr(target);
                 self.check_expr(index);
             }
+            Expr::Slice { target, start, end } => {
+                self.check_expr(target);
+                if let Some(s) = start {
+                    self.check_expr(s);
+                }
+                if let Some(e) = end {
+                    self.check_expr(e);
+                }
+            }
 
             Expr::List(items) => {
                 for item in items {

@@ -238,6 +238,15 @@ impl KindCtx<'_> {
                 self.check_expr(target, ExprCtx::General, sink);
                 self.check_expr(index, ExprCtx::General, sink);
             }
+            Expr::Slice { target, start, end } => {
+                self.check_expr(target, ExprCtx::General, sink);
+                if let Some(s) = start {
+                    self.check_expr(s, ExprCtx::General, sink);
+                }
+                if let Some(e) = end {
+                    self.check_expr(e, ExprCtx::General, sink);
+                }
+            }
             Expr::List(items) => {
                 for e in items {
                     self.check_expr(e, ExprCtx::General, sink);
