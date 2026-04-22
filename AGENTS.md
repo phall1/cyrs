@@ -73,23 +73,33 @@ Dependency edges below are **allowed**. Anything else is forbidden —
 there is no "it's convenient" exception.
 
 ```
-cypher-syntax  → (external only: rowan, logos, smol_str, text-size, drop_bomb)
-cypher-ast     → cypher-syntax
-cypher-hir     → cypher-ast, cypher-syntax
-cypher-schema  → cypher-syntax (types only)
-cypher-sema    → cypher-hir, cypher-schema
-cypher-diag    → cypher-syntax
-cypher-plan    → cypher-hir
-cypher-fmt     → cypher-syntax
-cypher-db      → cypher-syntax, cypher-hir, cypher-sema, cypher-plan,
-                 cypher-schema, cypher-diag, salsa
-cypher-lsp     → cypher-db, cypher-diag, cypher-fmt, lsp-server, lsp-types
-cypher-agent   → cypher-db, cypher-diag, cypher-fmt, serde_json
-cypher-cli     → cypher-db, cypher-diag, cypher-fmt
-cypher-tck     → cypher-db
-cypher-testkit → any (dev only, not published)
-cypher         → all non-binary crates above
+cypher-syntax        → (external only: rowan, logos, smol_str, text-size, drop_bomb)
+cypher-ast           → cypher-syntax
+cypher-hir           → cypher-ast, cypher-syntax
+cypher-schema        → cypher-syntax (types only)
+cypher-sema          → cypher-hir, cypher-schema
+cypher-diag          → cypher-syntax
+cypher-plan          → cypher-hir
+cypher-fmt           → cypher-syntax
+cypher-db            → cypher-syntax, cypher-hir, cypher-sema, cypher-plan,
+                       cypher-schema, cypher-diag, salsa
+cypher-lang-services → cypher-db, cypher-hir, cypher-schema, cypher-sema,
+                       cypher-syntax, cypher-ast, cypher-fmt
+cypher-lsp           → cypher-lang-services, cypher-db, cypher-diag,
+                       cypher-fmt, lsp-server, lsp-types
+cypher-agent         → cypher-lang-services, cypher-db, cypher-diag,
+                       cypher-fmt, serde_json
+cypher-cli           → cypher-db, cypher-diag, cypher-fmt
+cypher-tck           → cypher-db
+cypher-testkit       → any (dev only, not published)
+cypher               → all non-binary crates above
 ```
+
+- **`cypher-lang-services` is the shared home for LSP/agent engines.**
+  The completion, hover, and rewrite engines both binaries expose live
+  here as pure functions keyed on `(db, file_id, byte-offset)`.  The
+  LSP and agent crates are thin adapters: position ↔ byte-offset and
+  wire-format conversion on the edges; zero logic duplication.
 
 - **No crate above `cypher-db` may depend on `salsa`.** Incrementality
   is an integration concern.
