@@ -1,8 +1,11 @@
 # cyrs benchmarks (spec §17.10)
 
-Criterion micro-benchmarks for the four core pipeline stages.
+Criterion micro-benchmarks for the four core pipeline stages + the
+at-scale perf suite (cy-y6a).
 
 ## Benchmark targets
+
+### PR gate (fast)
 
 | Bench file | Measures |
 |---|---|
@@ -10,6 +13,19 @@ Criterion micro-benchmarks for the four core pipeline stages.
 | `benches/bench_format.rs` | `cypher_fmt::format` — CST-driven formatter |
 | `benches/bench_sema.rs` | `cypher_sema::analyse` — semantic analysis (schema-free) |
 | `benches/bench_plan.rs` | `cypher_plan::lower::lower_statement` — HIR → logical plan |
+| `benches/bench_incremental.rs` | Long-horizon RSS-stability workload (agent + LSP churn) |
+| `benches/bench_lsp_completion.rs` | End-to-end LSP completion round-trip (p95 ≤ 25 ms) |
+
+### Nightly (at-scale, heavy)
+
+See `.github/workflows/nightly-benches.yml`.
+
+| Bench file | Measures |
+|---|---|
+| `benches/large_file.rs` | 10 k-line parse + HIR-lower + diagnose, p95 budgets in `large_file.budget.toml` |
+| `benches/bench_incremental_edit.rs` | 1 k single-char edits in a 1 k-line fixture; super-linear-regression gate |
+| `benches/bench_workspace_fan.rs` | 100-file workspace `cypher check <dir>` sweep — warm-up budget + steady-state RSS ceiling |
+| `benches/bench_agent_throughput.rs` | 10 k JSON round trips against `cypher-agent`; ops/sec floor + p99 ceiling |
 
 ## Running locally
 
