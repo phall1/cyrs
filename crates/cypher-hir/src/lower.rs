@@ -30,7 +30,7 @@ use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
     BinOp, Binding, Clause, Direction, Expr, HirId, MapProjectionItem, Pattern, PatternElement,
-    PatternPart, Projection, RelLength, Statement, UnaryOp, VarId, VarKind,
+    PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement, UnaryOp, VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -205,6 +205,87 @@ impl LowerCtx {
                     span,
                 })
             }
+            SyntaxKind::UNWIND_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let list = node
+                    .children()
+                    .find_map(|n| self.try_lower_expr(n))
+                    .unwrap_or(Expr::Null);
+                // Binder is the trailing NAME child.
+                let bind = node
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::NAME)
+                    .map_or(VarId(u32::MAX), |name_node| {
+                        let name = ident_text(&name_node).unwrap_or_default();
+                        self.bind_var(&name, VarKind::Value, name_node.text_range())
+                    });
+                Some(Clause::Unwind {
+                    id,
+                    list,
+                    bind,
+                    span,
+                })
+            }
+            SyntaxKind::CREATE_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let pattern = self.lower_pattern_from_clause(&node);
+                Some(Clause::Create { id, pattern, span })
+            }
+            SyntaxKind::MERGE_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let pattern = self.lower_pattern_from_clause(&node);
+                // Walk MERGE_ACTION children: each contains `ON CREATE SET …`
+                // or `ON MATCH SET …`. Discriminate by the presence of a
+                // CREATE_KW / MATCH_KW token child.
+                let mut on_create = Vec::new();
+                let mut on_match = Vec::new();
+                for action in node
+                    .children()
+                    .filter(|n| n.kind() == SyntaxKind::MERGE_ACTION)
+                {
+                    let items = action
+                        .children()
+                        .find(|n| n.kind() == SyntaxKind::SET_CLAUSE)
+                        .map(|s| self.lower_set_items(&s))
+                        .unwrap_or_default();
+                    if has_token(&action, SyntaxKind::CREATE_KW) {
+                        on_create.extend(items);
+                    } else {
+                        on_match.extend(items);
+                    }
+                }
+                Some(Clause::Merge {
+                    id,
+                    pattern,
+                    on_create,
+                    on_match,
+                    span,
+                })
+            }
+            SyntaxKind::SET_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let items = self.lower_set_items(&node);
+                Some(Clause::Set { id, items, span })
+            }
+            SyntaxKind::REMOVE_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let items = self.lower_remove_items(&node);
+                Some(Clause::Remove { id, items, span })
+            }
+            SyntaxKind::DELETE_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                let detach = has_token(&node, SyntaxKind::DETACH_KW);
+                let targets = node
+                    .children()
+                    .filter_map(|n| self.try_lower_expr(n))
+                    .collect();
+                Some(Clause::Delete {
+                    id,
+                    targets,
+                    detach,
+                    span,
+                })
+            }
             SyntaxKind::WITH_CLAUSE => {
                 // WITH shares the same RETURN_BODY shape so reuse the helper;
                 // its optional inline WHERE becomes the projection's `filter`
@@ -365,6 +446,124 @@ impl LowerCtx {
             props,
             span,
         }
+    }
+
+    // --- write-clause items -------------------------------------------------
+
+    /// Lower a `SET_CLAUSE` node's `SET_ITEM` children into HIR `SetItem`s.
+    /// Each item is one of the four shapes in the ungrammar:
+    /// `prop_access '=' expr`, `target LabelExpr`, `target '=' expr`,
+    /// `target '+=' expr`. We keep the first two (property assign + label
+    /// add) as the v1 surface; the `target = / +=` whole-replace forms are
+    /// lowered to `SetItem::AssignMap` with `replace = true/false`.
+    fn lower_set_items(&mut self, clause: &SyntaxNode) -> Vec<SetItem> {
+        let mut out = Vec::new();
+        for item in clause
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::SET_ITEM)
+        {
+            if let Some(it) = self.try_lower_set_item(&item) {
+                out.push(it);
+            }
+        }
+        out
+    }
+
+    fn try_lower_set_item(&mut self, item: &SyntaxNode) -> Option<SetItem> {
+        // Label-add: `target:Lab` — recognise by the LABEL_EXPR child.
+        if let Some(labels_node) = item.children().find(|n| n.kind() == SyntaxKind::LABEL_EXPR) {
+            let labels = collect_label_idents(&labels_node);
+            let target_name = item
+                .children()
+                .find(|n| n.kind() == SyntaxKind::VAR_EXPR)
+                .and_then(|v| ident_text(&v))
+                .unwrap_or_default();
+            let target_var = self
+                .resolve_var(&target_name)
+                .unwrap_or_else(|| self.bind_var(&target_name, VarKind::Node, item.text_range()));
+            return Some(SetItem::Labels {
+                target: target_var,
+                labels,
+            });
+        }
+        // Property assign: `a.prop = expr` — PROP_ACCESS_EXPR + one trailing Expr.
+        if let Some(prop_node) = item
+            .children()
+            .find(|n| n.kind() == SyntaxKind::PROP_ACCESS_EXPR)
+        {
+            let target = self.try_lower_expr(prop_node.clone()).unwrap_or(Expr::Null);
+            let prop = prop_node
+                .children_with_tokens()
+                .filter_map(SyntaxElement::into_token)
+                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .map(|t| SmolStr::new(t.text()))
+                .unwrap_or_default();
+            let value = item
+                .children()
+                .filter_map(|n| self.try_lower_expr(n))
+                .nth(1)
+                .unwrap_or(Expr::Null);
+            return Some(SetItem::Property {
+                target,
+                prop,
+                value,
+            });
+        }
+        // Whole-node replace / merge: `target = expr` / `target += expr`.
+        if let Some(var_node) = item.children().find(|n| n.kind() == SyntaxKind::VAR_EXPR) {
+            let name = ident_text(&var_node).unwrap_or_default();
+            let target_var = self
+                .resolve_var(&name)
+                .unwrap_or_else(|| self.bind_var(&name, VarKind::Node, var_node.text_range()));
+            let map = item
+                .children()
+                .filter_map(|n| self.try_lower_expr(n))
+                .nth(1)
+                .unwrap_or(Expr::Null);
+            return Some(SetItem::AssignMap {
+                target: target_var,
+                map,
+                replace: true,
+            });
+        }
+        None
+    }
+
+    fn lower_remove_items(&mut self, clause: &SyntaxNode) -> Vec<RemoveItem> {
+        let mut out = Vec::new();
+        for item in clause
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::REMOVE_ITEM)
+        {
+            if let Some(labels_node) = item.children().find(|n| n.kind() == SyntaxKind::LABEL_EXPR)
+            {
+                let labels = collect_label_idents(&labels_node);
+                let name = item
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::VAR_EXPR)
+                    .and_then(|v| ident_text(&v))
+                    .unwrap_or_default();
+                let target = self
+                    .resolve_var(&name)
+                    .unwrap_or_else(|| self.bind_var(&name, VarKind::Node, item.text_range()));
+                out.push(RemoveItem::Labels { target, labels });
+                continue;
+            }
+            if let Some(prop_node) = item
+                .children()
+                .find(|n| n.kind() == SyntaxKind::PROP_ACCESS_EXPR)
+            {
+                let target = self.try_lower_expr(prop_node.clone()).unwrap_or(Expr::Null);
+                let prop = prop_node
+                    .children_with_tokens()
+                    .filter_map(SyntaxElement::into_token)
+                    .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                    .map(|t| SmolStr::new(t.text()))
+                    .unwrap_or_default();
+                out.push(RemoveItem::Property { target, prop });
+            }
+        }
+        out
     }
 
     // --- return body --------------------------------------------------------

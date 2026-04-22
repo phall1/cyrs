@@ -526,6 +526,30 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_MAP_VALUE: u16 = 51;
     /// E0052 — expected `}` to close map literal.
     pub(crate) const EXPECTED_RBRACE_MAP: u16 = 52;
+    /// E0053 — expected expression after `UNWIND`.
+    pub(crate) const EXPECTED_UNWIND_EXPR: u16 = 53;
+    /// E0054 — expected `AS` after `UNWIND` expression.
+    pub(crate) const EXPECTED_AS_UNWIND: u16 = 54;
+    /// E0055 — expected pattern after `CREATE`.
+    pub(crate) const EXPECTED_CREATE_PATTERN: u16 = 55;
+    /// E0056 — expected pattern after `MERGE`.
+    pub(crate) const EXPECTED_MERGE_PATTERN: u16 = 56;
+    /// E0057 — expected SET item (property assignment or label add).
+    pub(crate) const EXPECTED_SET_ITEM: u16 = 57;
+    /// E0058 — expected REMOVE item (property or label).
+    pub(crate) const EXPECTED_REMOVE_ITEM: u16 = 58;
+    /// E0059 — expected expression after `DELETE`.
+    pub(crate) const EXPECTED_DELETE_EXPR: u16 = 59;
+    /// E0060 — expected `DELETE` after `DETACH`.
+    pub(crate) const EXPECTED_DELETE_AFTER_DETACH: u16 = 60;
+    /// E0061 — expected `CREATE` or `MATCH` after `ON` in MERGE action.
+    pub(crate) const EXPECTED_ON_ACTION: u16 = 61;
+    /// E0062 — expected `]` to close variable-length hop.
+    #[allow(dead_code)]
+    pub(crate) const EXPECTED_RBRACK_HOP: u16 = 62;
+    /// E0063 — expected `=` after path binder identifier.
+    #[allow(dead_code)]
+    pub(crate) const EXPECTED_EQ_PATH_BIND: u16 = 63;
 }
 
 /// Advance `idx` past any leading trivia tokens.

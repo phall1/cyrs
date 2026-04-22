@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **32** (80 %) |
-| Ignored (known parser gaps) | **8** (20 %) |
+| Passing | **38** (95 %) |
+| Ignored (known parser gaps) | **2** (5 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.
@@ -43,19 +43,12 @@ at the missing grammar.  Consolidated list (one row per feature):
 
 | Feature (tag) | Ignored scenarios | Parser status |
 |---|---:|---|
-| `@CREATE` clause | 1 | not parsed |
-| `@MERGE` clause | 1 | not parsed |
-| `@SET` clause | 1 | not parsed |
-| `@REMOVE` clause | 1 | not parsed |
-| `@DELETE` clause | 1 | not parsed |
-| `@UNWIND` clause | 1 | not parsed |
-| `@LISTS` — list literal expression | 1 | not parsed |
-| `@MAPS` — map literal expression | 1 | not parsed |
-| `@AGGREGATIONS` / function calls | 2 | not parsed (count/sum/etc) |
 | `@PATTERNS` — variable-length paths (`*1..3`) | 1 | not parsed |
 | `@PATTERNS` — named paths (`p = (…)`) | 1 | not parsed |
 
-Removed (now passing): `@WITH`, `@LISTS`, `@MAPS`.
+Landed under cy-3xz (now passing): `@WITH`, `@LISTS`, `@MAPS`,
+`@AGGREGATIONS`, `@UNWIND`, `@CREATE`, `@MERGE`, `@SET`, `@REMOVE`,
+`@DELETE`.
 
 Each row is roughly "one grammar production + its AST wrappers +
 lowering + sema dialect gate + snapshot tests."  Closing all of them

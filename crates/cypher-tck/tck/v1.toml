@@ -234,40 +234,30 @@ name    = "CREATE node"
 tags    = ["@CREATE"]
 query   = "CREATE (n:Person {name: 'Alice'})"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse CREATE clause; file bead: 'CREATE clause grammar not implemented'"
 
 [[scenario]]
 name    = "MERGE node"
 tags    = ["@MERGE"]
 query   = "MERGE (n:Person {name: 'Alice'}) RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse MERGE clause; file bead: 'MERGE clause grammar not implemented'"
 
 [[scenario]]
 name    = "SET property"
 tags    = ["@SET"]
 query   = "MATCH (n:Person) SET n.active = true"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse SET clause; file bead: 'SET clause grammar not implemented'"
 
 [[scenario]]
 name    = "REMOVE property"
 tags    = ["@REMOVE"]
 query   = "MATCH (n:Person) REMOVE n.age"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse REMOVE clause; file bead: 'REMOVE clause grammar not implemented'"
 
 [[scenario]]
 name    = "DELETE node"
 tags    = ["@DELETE"]
 query   = "MATCH (n:Person) DELETE n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse DELETE clause; file bead: 'DELETE clause grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @UNWIND
@@ -278,8 +268,6 @@ name    = "UNWIND list"
 tags    = ["@UNWIND"]
 query   = "UNWIND [1, 2, 3] AS x RETURN x"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse UNWIND clause; file bead: 'UNWIND clause grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @STRINGS

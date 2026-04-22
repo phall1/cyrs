@@ -161,7 +161,53 @@ fn clause_with_order_by_limit() {
     ));
 }
 
-// TODO(cy-nom): UNWIND clause (deferred_clause_stub).
+#[test]
+fn clause_unwind_list() {
+    insta::assert_snapshot!(format_with_errors("UNWIND [1, 2, 3] AS x RETURN x"));
+}
+
+#[test]
+fn clause_create_node() {
+    insta::assert_snapshot!(format_with_errors("CREATE (n:Person {name: 'Alice'})"));
+}
+
+#[test]
+fn clause_merge_node_on_create() {
+    insta::assert_snapshot!(format_with_errors(
+        "MERGE (n:Person {name: 'A'}) ON CREATE SET n.created = 1 ON MATCH SET n.seen = 1 RETURN n"
+    ));
+}
+
+#[test]
+fn clause_set_property() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) SET n.active = true"));
+}
+
+#[test]
+fn clause_set_label() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) SET n:Admin"));
+}
+
+#[test]
+fn clause_remove_property() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) REMOVE n.age"));
+}
+
+#[test]
+fn clause_remove_label() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) REMOVE n:Admin"));
+}
+
+#[test]
+fn clause_delete() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) DELETE n"));
+}
+
+#[test]
+fn clause_detach_delete() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n:Person) DETACH DELETE n"));
+}
+
 // TODO(cy-nom): CREATE clause (deferred_clause_stub).
 // TODO(cy-nom): MERGE with ON CREATE / ON MATCH (deferred_clause_stub).
 // TODO(cy-nom): SET (property / labels / map) (deferred_clause_stub).
