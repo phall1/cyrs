@@ -10,6 +10,27 @@
 
 ---
 
+## Amendment log
+
+Post-lock edits to this spec. Each entry cites the bead that carried the
+change and the operator approval that unlocked it. The spec body is
+otherwise verbatim as of the last-locked date above.
+
+- **2026-04-22 — cy-wmc** (operator-approved in session, 2026-04-22). §3.1
+  crate table: add `cypher-project` to the allowed dependencies of
+  `cypher-lang-services` and `cypher-lsp`. Rationale: cy-o8c tranche 2
+  (cross-file LSP navigation, bead cy-kkw) needs the workspace project
+  model inside the lang-services engine; making `cypher-lsp`'s edge to
+  `cypher-project` explicit keeps §3.1 the single source of truth even
+  though the dep is already reachable transitively via `cypher-lang-services`.
+  This amendment also reconciles §3.1 with AGENTS.md §3 by landing the
+  previously-implicit rows for `cypher-project` (spec 0003) and
+  `cypher-lang-services` (the shared LSP/agent engine described in §3.2);
+  those crates already exist under `crates/`, were documented in AGENTS.md §3,
+  and are now mirrored here so the spec is authoritative.
+
+---
+
 ## 0. TL;DR
 
 A Rust-native Cypher **front-end platform** — lexer, recovering parser, lossless
@@ -130,9 +151,11 @@ C2.5. MSRV and toolchain pinning live in the cypher workspace's own
 | `cypher-plan`    | Read-plan and write-plan logical IR, lowering from HIR                                | `cypher-hir`                                        |
 | `cypher-fmt`     | CST-driven formatter                                                                 | `cypher-syntax`                                     |
 | `cypher-db`      | Salsa-based incremental analysis database tying the above                            | `cypher-syntax`, `cypher-hir`, `cypher-sema`, `cypher-plan`, `cypher-schema`, `cypher-diag`, `salsa` |
-| `cypher-lsp`     | Language server binary (stdio + TCP)                                                 | `cypher-db`, `cypher-diag`, `cypher-fmt`, `lsp-server`, `lsp-types` |
-| `cypher-agent`   | JSON-over-stdio agent API binary                                                     | `cypher-db`, `cypher-diag`, `cypher-fmt`, `serde_json` |
-| `cypher-cli`     | CLI binary: `cypher {parse,check,fmt,explain,plan}`                                   | `cypher-db`, `cypher-diag`, `cypher-fmt`            |
+| `cypher-project` | Workspace project manifest loader (`cypher-project.toml`): members, dialect defaults, lint levels, schema wiring (spec 0003) | `cypher-schema`, `smol_str`, `thiserror`, `serde`, `toml`, `globset`, `walkdir` |
+| `cypher-lang-services` | Shared completion / hover / rewrite engines keyed on `(db, file_id, byte-offset)`; thin adapter target for LSP and agent | `cypher-db`, `cypher-hir`, `cypher-schema`, `cypher-sema`, `cypher-syntax`, `cypher-ast`, `cypher-fmt`, `cypher-project` |
+| `cypher-lsp`     | Language server binary (stdio + TCP)                                                 | `cypher-lang-services`, `cypher-db`, `cypher-diag`, `cypher-fmt`, `cypher-project`, `lsp-server`, `lsp-types` |
+| `cypher-agent`   | JSON-over-stdio agent API binary                                                     | `cypher-lang-services`, `cypher-db`, `cypher-diag`, `cypher-fmt`, `serde_json` |
+| `cypher-cli`     | CLI binary: `cypher {parse,check,fmt,explain,plan}`                                   | `cypher-db`, `cypher-diag`, `cypher-fmt`, `cypher-schema`, `cypher-project` |
 | `cypher-tck`     | openCypher TCK harness                                                               | `cypher-db`                                         |
 | `cypher`         | Meta-crate re-exporting the library surface for convenience                          | all non-binary crates above                         |
 
