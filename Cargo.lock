@@ -462,6 +462,7 @@ dependencies = [
  "cypher-diag",
  "cypher-fmt",
  "cypher-hir",
+ "cypher-lang-services",
  "cypher-plan",
  "cypher-schema",
  "cypher-sema",
