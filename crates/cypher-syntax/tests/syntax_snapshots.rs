@@ -266,6 +266,21 @@ fn expr_parameter() {
 }
 
 #[test]
+fn expr_list_literal_ints() {
+    insta::assert_snapshot!(format_with_errors("RETURN [1, 2, 3]"));
+}
+
+#[test]
+fn expr_list_literal_empty() {
+    insta::assert_snapshot!(format_with_errors("RETURN []"));
+}
+
+#[test]
+fn expr_map_literal_basic() {
+    insta::assert_snapshot!(format_with_errors("RETURN {a: 1, b: 'two'}"));
+}
+
+#[test]
 fn expr_variable() {
     insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n"));
 }

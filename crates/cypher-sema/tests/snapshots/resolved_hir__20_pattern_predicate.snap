@@ -9,7 +9,7 @@ Statement {
   ]
   clauses: [
     Where @9..21 {
-      predicate: (Var(0)[a←Node@7..8] - null)[null]
+      predicate: (Var(0)[a←Node@7..8] - [])
     }
     Match @0..21 {
       Pattern {

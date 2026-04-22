@@ -67,7 +67,7 @@ fn all_count_pinned() {
     // bump this number. This ensures the registry stays exhaustive.
     //
     // Breakdown (spec §10.2):
-    //   46  syntax         (E0001–E0046, cy-a4d)
+    //   52  syntax         (E0001–E0052, cy-a4d + cy-3xz)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    7  schema-aware   (E3001–E3004, E3006–E3008, cy-36u)
@@ -77,11 +77,12 @@ fn all_count_pinned() {
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //   88  total
+    //   94  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
     //         match emission sites).
-    const EXPECTED: usize = 88;
+    // cy-3xz: added E0047–E0052 for list/map literal grammar.
+    const EXPECTED: usize = 94;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

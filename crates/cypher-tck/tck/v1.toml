@@ -182,16 +182,12 @@ name    = "List literal expression"
 tags    = ["@EXPRESSIONS", "@LISTS"]
 query   = "RETURN [1, 2, 3]"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse list literals in RETURN; file bead: 'List literal expression grammar not implemented'"
 
 [[scenario]]
 name    = "Map literal expression"
 tags    = ["@EXPRESSIONS", "@MAPS"]
 query   = "RETURN {a: 1, b: 'two'}"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse map literals in RETURN; file bead: 'Map literal expression grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @AGGREGATIONS

@@ -514,6 +514,18 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_CLAUSE: u16 = 45;
     /// E0046 — invalid escape sequence in string literal.
     pub(crate) const INVALID_ESCAPE: u16 = 46;
+    /// E0047 — expected expression in list literal.
+    pub(crate) const EXPECTED_LIST_ELEM: u16 = 47;
+    /// E0048 — expected `]` to close list literal.
+    pub(crate) const EXPECTED_RBRACK_LIST: u16 = 48;
+    /// E0049 — expected key in map literal.
+    pub(crate) const EXPECTED_MAP_KEY: u16 = 49;
+    /// E0050 — expected `:` in map entry.
+    pub(crate) const EXPECTED_COLON_MAP: u16 = 50;
+    /// E0051 — expected expression for map value.
+    pub(crate) const EXPECTED_MAP_VALUE: u16 = 51;
+    /// E0052 — expected `}` to close map literal.
+    pub(crate) const EXPECTED_RBRACE_MAP: u16 = 52;
 }
 
 /// Advance `idx` past any leading trivia tokens.

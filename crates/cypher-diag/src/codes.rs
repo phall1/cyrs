@@ -210,6 +210,30 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0046.md`
     E0046 = 46,
+    /// Expected an expression in a list literal.
+    ///
+    /// Docs: `docs/errors/E0047.md`
+    E0047 = 47,
+    /// Expected `]` to close a list literal.
+    ///
+    /// Docs: `docs/errors/E0048.md`
+    E0048 = 48,
+    /// Expected a key in a map literal.
+    ///
+    /// Docs: `docs/errors/E0049.md`
+    E0049 = 49,
+    /// Expected `:` in a map literal entry.
+    ///
+    /// Docs: `docs/errors/E0050.md`
+    E0050 = 50,
+    /// Expected an expression for a map literal value.
+    ///
+    /// Docs: `docs/errors/E0051.md`
+    E0051 = 51,
+    /// Expected `}` to close a map literal.
+    ///
+    /// Docs: `docs/errors/E0052.md`
+    E0052 = 52,
 
     // --- name resolution (E1000–E1999) --------------------------------
     /// Unresolved variable reference (spec §6.2).
@@ -482,6 +506,12 @@ impl DiagCode {
             Self::E0044 => "E0044",
             Self::E0045 => "E0045",
             Self::E0046 => "E0046",
+            Self::E0047 => "E0047",
+            Self::E0048 => "E0048",
+            Self::E0049 => "E0049",
+            Self::E0050 => "E0050",
+            Self::E0051 => "E0051",
+            Self::E0052 => "E0052",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -594,6 +624,12 @@ impl DiagCode {
         Self::E0044,
         Self::E0045,
         Self::E0046,
+        Self::E0047,
+        Self::E0048,
+        Self::E0049,
+        Self::E0050,
+        Self::E0051,
+        Self::E0052,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -700,6 +736,12 @@ mod tests {
             DiagCode::E0044,
             DiagCode::E0045,
             DiagCode::E0046,
+            DiagCode::E0047,
+            DiagCode::E0048,
+            DiagCode::E0049,
+            DiagCode::E0050,
+            DiagCode::E0051,
+            DiagCode::E0052,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,

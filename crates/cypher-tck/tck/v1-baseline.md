@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **28** (70 %) |
-| Ignored (known parser gaps) | **12** (30 %) |
+| Passing | **30** (75 %) |
+| Ignored (known parser gaps) | **10** (25 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.
@@ -54,6 +54,8 @@ at the missing grammar.  Consolidated list (one row per feature):
 | `@AGGREGATIONS` / function calls | 2 | not parsed (count/sum/etc) |
 | `@PATTERNS` — variable-length paths (`*1..3`) | 1 | not parsed |
 | `@PATTERNS` — named paths (`p = (…)`) | 1 | not parsed |
+
+Removed (now passing): `@WITH`, `@LISTS`, `@MAPS`.
 
 Each row is roughly "one grammar production + its AST wrappers +
 lowering + sema dialect gate + snapshot tests."  Closing all of them
