@@ -222,9 +222,15 @@ pub enum Outcome {
     /// All sidecars matched (or were blessed).
     Pass,
     /// Byte-level mismatch; diff is in `details`.
-    Fail { details: String },
+    Fail {
+        /// Unified diff of the mismatch for display.
+        details: String,
+    },
     /// A sidecar file was expected but is missing.
-    MissingSidecar { path: PathBuf },
+    MissingSidecar {
+        /// Absolute path of the sidecar the harness looked for.
+        path: PathBuf,
+    },
 }
 
 // ---------------------------------------------------------------------------

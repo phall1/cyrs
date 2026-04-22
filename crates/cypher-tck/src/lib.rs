@@ -16,13 +16,21 @@
 /// be introduced without a crate version bump.
 #[derive(Debug, Clone)]
 pub struct FeatureGate {
+    /// openCypher feature tag (e.g. `@MATCH`, `@OPTIONAL-MATCH`).
     pub tag: &'static str,
+    /// Conformance bucket this tag falls into for the active release.
     pub expected: Expected,
 }
 
+/// Conformance bucket for a feature tag.  Green scenarios must pass;
+/// red scenarios must be rejected (typically with a parse or sema
+/// error).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Expected {
+    /// Tag must pass every non-ignored scenario it covers.
     Green,
+    /// Tag is explicitly unsupported in v1; scenarios covered by the
+    /// tag must be rejected.
     Red,
 }
 

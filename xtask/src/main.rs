@@ -117,11 +117,9 @@ fn has_binary(prog: &str) -> bool {
 /// stop at the first failure.
 fn gate() -> Result<()> {
     run("cargo", &["fmt", "--all", "--", "--check"])?;
-    // `-A missing-docs` mirrors the CI clippy step (see
-    // .github/workflows/ci.yml lint job): the workspace-wide
-    // `missing_docs = "warn"` lint surfaces the backlog on every
-    // `cargo build`, but the pre-commit gate stays green while the
-    // backlog (bead cy-p47) is being written down.
+    // `missing_docs` was promoted to `deny` workspace-wide in
+    // cy-p47.  No suppression here — new `pub` items without rustdoc
+    // fail the gate.
     run(
         "cargo",
         &[
@@ -131,8 +129,6 @@ fn gate() -> Result<()> {
             "--",
             "-D",
             "warnings",
-            "-A",
-            "missing-docs",
         ],
     )?;
     run(

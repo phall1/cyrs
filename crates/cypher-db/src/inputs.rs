@@ -1,3 +1,12 @@
+// Salsa's `#[input]` macro expands into generated getter / setter
+// methods on each input struct.  Those are collectively described by
+// the module-level docs below, not per-method.  The outer
+// `#[allow(missing_docs)]` attributes on each struct don't carry
+// through to the macro-expanded impl blocks, so we lift the
+// exemption to file-scope.  Hand-written items in this file still
+// carry their own docstrings — see `options_digest` below.
+#![allow(missing_docs)]
+
 //! Input queries for the incremental analysis database (spec §11.2).
 //!
 //! ## Design

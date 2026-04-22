@@ -164,32 +164,38 @@ assert_sync!(ParseOutput);
 // Salsa: input structs
 // ---------------------------------------------------------------------------
 
-/// A single source file tracked by the incremental database.
-///
-/// Fields:
-/// - `source` — raw UTF-8 source text.
-/// - `dialect` — parsing dialect (spec §9).
-/// - `options_digest` — hash of analysis options.  Full shape deferred to
-///   bead cy-nk7; zero is a valid "no options" value.
-//
-// `#[salsa::input]` emits accessor + setter methods for every field;
-// those are collectively described by the module-level docs on
-// `SourceFile` above, not per-method.  Suppress `missing_docs` on the
-// macro expansion.
-#[allow(missing_docs)]
-#[salsa::input]
-pub struct SourceFile {
-    /// Raw UTF-8 source text for this file.
-    #[returns(ref)]
-    pub source: String,
+mod source_file_input {
+    // Wrapping the `#[salsa::input]` in a private module lets us put
+    // `#![allow(missing_docs)]` at inner-module scope so the macro's
+    // generated impl block inherits the exemption.  The struct
+    // itself is re-exported below.  Outer-item `#[allow]` attributes
+    // do not propagate into Salsa's expansion.
+    #![allow(missing_docs)]
 
-    /// Dialect used when parsing this file.
-    pub dialect: DialectMode,
+    use super::DialectMode;
 
-    /// Hash of options that affect derived queries.
-    /// Shape is stabilised in cy-nk7; zero is a valid "no options" value.
-    pub options_digest: u64,
+    /// A single source file tracked by the incremental database.
+    ///
+    /// Fields:
+    /// - `source` — raw UTF-8 source text.
+    /// - `dialect` — parsing dialect (spec §9).
+    /// - `options_digest` — hash of analysis options.  Full shape deferred to
+    ///   bead cy-nk7; zero is a valid "no options" value.
+    #[salsa::input]
+    pub struct SourceFile {
+        /// Raw UTF-8 source text for this file.
+        #[returns(ref)]
+        pub source: String,
+
+        /// Dialect used when parsing this file.
+        pub dialect: DialectMode,
+
+        /// Hash of options that affect derived queries.
+        /// Shape is stabilised in cy-nk7; zero is a valid "no options" value.
+        pub options_digest: u64,
+    }
 }
+pub use source_file_input::SourceFile;
 
 // ---------------------------------------------------------------------------
 // Salsa: derived queries

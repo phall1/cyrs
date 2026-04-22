@@ -109,16 +109,16 @@ cypher          = { path = "crates/cypher" }
 unsafe_code            = "forbid"
 unused_must_use        = "deny"
 missing_debug_implementations = "warn"
-# Spec §C2.4 / §17.15: every public item in the workspace surface should
-# carry a rustdoc comment.  Currently warn-level while the legacy
-# undocumented backlog is being written down (see bead cy-6so + its
-# follow-on); promotion to `-D warnings` on rustdoc ships once the
-# backlog is zero.  Catalog files that enumerate grammar productions
-# (cypher-ast/src/generated.rs — codegen output, cypher-syntax/src/kind.rs)
-# carry a file-level `#![allow(missing_docs)]`: each variant's semantics
-# live in the grammar spec, and adding per-variant doc strings would
-# be pure boilerplate.
-missing_docs           = "warn"
+# Spec §C2.4 / §17.15: every public item in the workspace surface
+# carries a rustdoc comment.  Promoted from `warn` to `deny` in
+# cy-p47 once the legacy backlog hit zero.  Catalog files that
+# enumerate grammar productions (cypher-ast/src/generated.rs —
+# codegen output, cypher-syntax/src/kind.rs, cypher-hir/src/lib.rs,
+# cypher-db/src/inputs.rs) carry a file-level
+# `#![allow(missing_docs)]`: each variant's semantics live in the
+# grammar / Salsa-input spec and per-item docstrings would be
+# pure boilerplate.
+missing_docs           = "deny"
 rust_2018_idioms       = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
