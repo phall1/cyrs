@@ -19,6 +19,8 @@ fn bench_plan(c: &mut Criterion) {
 
     c.bench_function("plan", |b| {
         b.iter(|| {
+            // cy-wlr: lowering is fallible; swallow the Result shape inside
+            // the hot loop so we're measuring the same work as before.
             let _plan = cypher_plan::lower::lower_statement(std::hint::black_box(&stmt));
         });
     });

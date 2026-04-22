@@ -11,12 +11,19 @@
 //!   `Expr::Unresolved`.
 //! - HIR desugaring (cy-mla / `cypher_hir::desugar`) must have run so
 //!   that `ListComprehension`, `MapProjection`, and `PatternPredicate`
-//!   nodes are absent. If the lowerer encounters any of these it emits
-//!   a `debug_assert!` failure in debug builds and falls back to
-//!   `Expr::Null` in release builds, with a comment citing cy-mla.
+//!   nodes are absent.
+//!
+//! These pre-conditions are enforced at the entry point by a pre-lowering
+//! sanity scan (bead cy-wlr): a stray `Expr::Unresolved` or un-desugared
+//! construct now yields `Err(PlanLowerError::UnresolvedName)` or
+//! `Err(PlanLowerError::UndesugaredExpr)` respectively (see
+//! [`crate::PlanLowerError`]), rather than a deep panic. The
+//! `debug_assert!`s that guard the same conditions inside the private
+//! `LowerCtx::lower_expr` remain as belt-and-braces checks for defense.
 //!
 //! If you hand this function a freshly-constructed HIR without running
-//! those passes first, the output plan will be incorrect or incomplete.
+//! those passes first, you will get one of those errors rather than an
+//! incorrect or incomplete plan.
 //!
 //! # Output shape
 //!
@@ -32,13 +39,13 @@ use indexmap::IndexMap;
 use smol_str::SmolStr;
 
 use cypher_hir::{
-    Clause, Direction as HirDir, Expr as HirExpr, Pattern, PatternElement, PatternPart, Projection,
-    RelLength as HirRelLen, RemoveItem, SetItem, Statement, VarId as HirVarId,
+    Clause, Direction as HirDir, Expr as HirExpr, HirSpan, Pattern, PatternElement, PatternPart,
+    Projection, RelLength as HirRelLen, RemoveItem, SetItem, Statement, VarId as HirVarId,
 };
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, NodeSpec, OpId, OrderKey, Projection as PlanProj,
-    ReadOp, RelLength, RelSpec, UnaryOp, UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, NodeSpec, OpId, OrderKey, PlanLowerError,
+    Projection as PlanProj, ReadOp, RelLength, RelSpec, UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -68,6 +75,14 @@ pub struct PlanStatement {
 
 impl PlanStatement {
     fn new() -> Self {
+        Self::empty()
+    }
+
+    /// Construct an empty [`PlanStatement`] — no read or write operators
+    /// and an empty `var_map`. Useful as a fallback when downstream
+    /// callers need a plan shape for a malformed query (cy-wlr).
+    #[must_use]
+    pub fn empty() -> Self {
         Self {
             ops: Vec::new(),
             write_ops: Vec::new(),
@@ -89,16 +104,239 @@ impl PlanStatement {
 /// Lower a post-resolve, post-desugar HIR [`Statement`] into a logical
 /// [`PlanStatement`].
 ///
+/// # Errors
+///
+/// Before walking the HIR the entry point performs a pre-lowering sanity
+/// scan (bead cy-wlr). It returns without building any plan operators when
+/// it encounters:
+///
+/// - [`PlanLowerError::UnresolvedName`] — a
+///   [`cypher_hir::Expr::Unresolved`] node. Run name resolution
+///   (`cypher-sema::resolve` / cy-b4b) first.
+/// - [`PlanLowerError::UndesugaredExpr`] — a
+///   [`cypher_hir::Expr::PatternPredicate`],
+///   [`cypher_hir::Expr::ListComprehension`], or
+///   [`cypher_hir::Expr::MapProjection`]. Run
+///   [`cypher_hir::desugar::desugar_statement`] (cy-mla) first.
+///
+/// The scan returns at the first offending node; other violations in the
+/// same statement are not reported in a single call.
+///
 /// # Panics (debug)
 ///
-/// In debug builds this function will `debug_assert!`-fail if it
-/// encounters `Expr::Unresolved` (name resolution must run first) or
-/// `Expr::ListComprehension` / `Expr::MapProjection` /
-/// `Expr::PatternPredicate` (desugar must run first; see cy-mla).
-pub fn lower_statement(stmt: &Statement) -> PlanStatement {
+/// The pre-scan makes the main lowering body sound for the accepted
+/// subset of HIR. The `debug_assert!`s inside the private `lower_expr`
+/// helper remain for defense; they must not fire in practice because the
+/// scan catches the same conditions first.
+pub fn lower_statement(stmt: &Statement) -> Result<PlanStatement, PlanLowerError> {
+    precheck_statement(stmt)?;
     let mut ctx = LowerCtx::new(stmt);
     ctx.lower(stmt);
-    ctx.into_plan()
+    Ok(ctx.into_plan())
+}
+
+// ── Pre-lowering sanity scan (cy-wlr) ─────────────────────────────────────────
+
+/// Walk every expression reachable from `stmt.clauses` and return the first
+/// precondition violation, if any. See [`lower_statement`] for the contract.
+fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
+    for clause in &stmt.clauses {
+        let span = clause.span();
+        match clause {
+            Clause::Match { pattern, .. } | Clause::Create { pattern, .. } => {
+                check_pattern(pattern, span)?;
+            }
+            Clause::Where { predicate, .. } => check_expr(predicate, span)?,
+            Clause::With {
+                projections,
+                filter,
+                ..
+            } => {
+                for p in projections {
+                    check_expr(&p.expr, span)?;
+                }
+                if let Some(f) = filter {
+                    check_expr(f, span)?;
+                }
+            }
+            Clause::Return { projections, .. } => {
+                for p in projections {
+                    check_expr(&p.expr, span)?;
+                }
+            }
+            Clause::Unwind { list, .. } => check_expr(list, span)?,
+            Clause::Merge {
+                pattern,
+                on_create,
+                on_match,
+                ..
+            } => {
+                check_pattern(pattern, span)?;
+                for item in on_create.iter().chain(on_match.iter()) {
+                    check_set_item(item, span)?;
+                }
+            }
+            Clause::Set { items, .. } => {
+                for item in items {
+                    check_set_item(item, span)?;
+                }
+            }
+            Clause::Remove { items, .. } => {
+                for item in items {
+                    check_remove_item(item, span)?;
+                }
+            }
+            Clause::Delete { targets, .. } => {
+                for t in targets {
+                    check_expr(t, span)?;
+                }
+            }
+            Clause::Call { args, .. } => {
+                for a in args {
+                    check_expr(a, span)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_pattern(pattern: &Pattern, _clause_span: HirSpan) -> Result<(), PlanLowerError> {
+    for part in &pattern.parts {
+        for elem in &part.elements {
+            let props = match elem {
+                PatternElement::Node { props, .. } | PatternElement::Rel { props, .. } => {
+                    props.as_ref()
+                }
+            };
+            if let Some(p) = props {
+                // Element spans are preferred over the clause span because the
+                // HIR records them per element.
+                check_expr(p, elem.span())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_set_item(item: &SetItem, span: HirSpan) -> Result<(), PlanLowerError> {
+    match item {
+        SetItem::Property { target, value, .. } => {
+            check_expr(target, span)?;
+            check_expr(value, span)?;
+        }
+        SetItem::Labels { .. } => {}
+        SetItem::AssignMap { map, .. } => check_expr(map, span)?,
+    }
+    Ok(())
+}
+
+fn check_remove_item(item: &RemoveItem, span: HirSpan) -> Result<(), PlanLowerError> {
+    match item {
+        RemoveItem::Property { target, .. } => check_expr(target, span)?,
+        RemoveItem::Labels { .. } => {}
+    }
+    Ok(())
+}
+
+/// Recursively walk a HIR expression, returning the first precondition
+/// violation encountered (see [`PlanLowerError`]).
+///
+/// `span` is the enclosing clause's span — the HIR does not carry
+/// per-expression spans in v1, so sub-expressions inherit their clause
+/// span for diagnostic purposes.
+fn check_expr(expr: &HirExpr, span: HirSpan) -> Result<(), PlanLowerError> {
+    match expr {
+        // Leaf nodes with no sub-expressions.
+        HirExpr::Null
+        | HirExpr::Bool(_)
+        | HirExpr::Int(_)
+        | HirExpr::Float(_)
+        | HirExpr::String(_)
+        | HirExpr::Var(_)
+        | HirExpr::Param(_) => Ok(()),
+
+        // Precondition violations.
+        HirExpr::Unresolved(name) => Err(PlanLowerError::UnresolvedName {
+            name: name.clone(),
+            span,
+        }),
+        HirExpr::PatternPredicate(_) => Err(PlanLowerError::UndesugaredExpr {
+            kind: "PatternPredicate",
+            span,
+        }),
+        HirExpr::ListComprehension { .. } => Err(PlanLowerError::UndesugaredExpr {
+            kind: "ListComprehension",
+            span,
+        }),
+        HirExpr::MapProjection { .. } => Err(PlanLowerError::UndesugaredExpr {
+            kind: "MapProjection",
+            span,
+        }),
+
+        // Recursive cases.
+        HirExpr::Prop { target, .. } => check_expr(target, span),
+        HirExpr::Index { target, index } => {
+            check_expr(target, span)?;
+            check_expr(index, span)
+        }
+        HirExpr::Slice { target, start, end } => {
+            check_expr(target, span)?;
+            if let Some(s) = start {
+                check_expr(s, span)?;
+            }
+            if let Some(e) = end {
+                check_expr(e, span)?;
+            }
+            Ok(())
+        }
+        HirExpr::List(items) => {
+            for item in items {
+                check_expr(item, span)?;
+            }
+            Ok(())
+        }
+        HirExpr::Map(pairs) => {
+            for (_, v) in pairs {
+                check_expr(v, span)?;
+            }
+            Ok(())
+        }
+        HirExpr::Call { args, .. } => {
+            for a in args {
+                check_expr(a, span)?;
+            }
+            Ok(())
+        }
+        HirExpr::BinOp { lhs, rhs, .. } => {
+            check_expr(lhs, span)?;
+            check_expr(rhs, span)
+        }
+        HirExpr::UnaryOp { operand, .. } | HirExpr::IsNull { operand, .. } => {
+            check_expr(operand, span)
+        }
+        HirExpr::Case {
+            scrutinee,
+            arms,
+            otherwise,
+        } => {
+            if let Some(s) = scrutinee {
+                check_expr(s, span)?;
+            }
+            for (w, t) in arms {
+                check_expr(w, span)?;
+                check_expr(t, span)?;
+            }
+            if let Some(o) = otherwise {
+                check_expr(o, span)?;
+            }
+            Ok(())
+        }
+        HirExpr::InList { operand, list } => {
+            check_expr(operand, span)?;
+            check_expr(list, span)
+        }
+    }
 }
 
 // ── Lowering context ──────────────────────────────────────────────────────────
@@ -1040,9 +1278,18 @@ fn create_pattern_pairs(part: &PatternPart) -> Vec<CreatePair<'_>> {
 /// This helper is provided for callers that have already split a
 /// `UNION`-joined Cypher query into its left and right arms (e.g. a parser
 /// pass). Single-statement callers use [`lower_statement`] directly.
-pub fn lower_union_pair(left: &Statement, right: &Statement, kind: UnionKind) -> PlanStatement {
-    let mut left_plan = lower_statement(left);
-    let right_plan = lower_statement(right);
+///
+/// # Errors
+///
+/// Returns the first [`PlanLowerError`] produced by either arm; see
+/// [`lower_statement`] for the precondition contract.
+pub fn lower_union_pair(
+    left: &Statement,
+    right: &Statement,
+    kind: UnionKind,
+) -> Result<PlanStatement, PlanLowerError> {
+    let mut left_plan = lower_statement(left)?;
+    let right_plan = lower_statement(right)?;
 
     // The left plan's op arena is the base; we offset the right plan's OpIds.
     // Plan arenas are limited to u32::MAX ops in practice; use truncating cast
@@ -1069,7 +1316,7 @@ pub fn lower_union_pair(left: &Statement, right: &Statement, kind: UnionKind) ->
         kind,
     });
 
-    left_plan
+    Ok(left_plan)
 }
 
 // ── Public helper: apply ORDER BY / SKIP / LIMIT ─────────────────────────────
@@ -1123,7 +1370,7 @@ mod tests {
     fn plan_from(src: &str) -> PlanStatement {
         let hir = hir_lower(src);
         let hir = desugar_statement(hir);
-        lower_statement(&hir)
+        lower_statement(&hir).expect("plan_from: input HIR must be resolved and desugared")
     }
 
     // Helper: render a plan to a stable, readable string for snapshots.
@@ -1326,7 +1573,7 @@ mod tests {
             distinct: false,
             span,
         });
-        let plan = lower_statement(&stmt);
+        let plan = lower_statement(&stmt).expect("manually-built HIR must be resolved");
         insta::assert_snapshot!("plan_unwind", render(&plan));
     }
 
@@ -1398,7 +1645,8 @@ mod tests {
     fn snap_union_all() {
         let left_hir = desugar_statement(hir_lower("MATCH (n:Person) RETURN n"));
         let right_hir = desugar_statement(hir_lower("MATCH (n:Animal) RETURN n"));
-        let plan = lower_union_pair(&left_hir, &right_hir, UnionKind::All);
+        let plan = lower_union_pair(&left_hir, &right_hir, UnionKind::All)
+            .expect("UNION arms must be resolved/desugared");
         insta::assert_snapshot!("plan_union_all", render(&plan));
     }
 
@@ -1407,7 +1655,8 @@ mod tests {
     fn snap_union_distinct() {
         let left_hir = desugar_statement(hir_lower("MATCH (n:Person) RETURN n"));
         let right_hir = desugar_statement(hir_lower("MATCH (n:Animal) RETURN n"));
-        let plan = lower_union_pair(&left_hir, &right_hir, UnionKind::Distinct);
+        let plan = lower_union_pair(&left_hir, &right_hir, UnionKind::Distinct)
+            .expect("UNION arms must be resolved/desugared");
         insta::assert_snapshot!("plan_union_distinct", render(&plan));
     }
 
@@ -1506,7 +1755,7 @@ mod tests {
             },
             span,
         });
-        let plan = lower_statement(&stmt);
+        let plan = lower_statement(&stmt).expect("manually-built HIR must be resolved");
         assert!(
             plan.write_ops
                 .iter()
@@ -1558,7 +1807,7 @@ mod tests {
             detach: false,
             span,
         });
-        let plan = lower_statement(&stmt);
+        let plan = lower_statement(&stmt).expect("manually-built HIR must be resolved");
         assert!(
             plan.write_ops
                 .iter()
@@ -1610,7 +1859,7 @@ mod tests {
             detach: true,
             span,
         });
-        let plan = lower_statement(&stmt);
+        let plan = lower_statement(&stmt).expect("manually-built HIR must be resolved");
         assert!(
             plan.write_ops
                 .iter()
