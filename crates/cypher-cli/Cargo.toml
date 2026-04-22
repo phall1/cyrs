@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "`cypher` — parse, check, format, plan, explain. Spec 0001 §16."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Command-line tool for the cyrs Cypher / GQL frontend (parse, format, check, plan, explain)."
 
 [[bin]]
 name = "cypher"
@@ -24,6 +28,10 @@ tracing-subscriber = { workspace = true }
 [dev-dependencies]
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

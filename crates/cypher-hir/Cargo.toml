@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Lowered HIR for Cypher: name resolution, scope graph, desugaring. Spec 0001 §6."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "High-level IR for Cypher / GQL with scope graph and name resolution (spec 0001 §6)."
 
 [dependencies]
 cypher-syntax = { workspace = true }
@@ -19,6 +23,10 @@ insta      = { workspace = true }
 proptest   = { workspace = true }
 rowan      = { workspace = true }
 cypher-fmt = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

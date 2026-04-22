@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Neutral language-services engines (complete, hover, rewrite) shared by the LSP and agent binaries. Spec 0001 §14 / §15."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Shared language-service engines (completion, hover, rewrite) used by cypher-lsp and cypher-agent (spec 0001 §14 / §15)."
 
 [dependencies]
 cypher-ast    = { workspace = true }
@@ -19,6 +23,10 @@ cypher-syntax = { workspace = true }
 cypher-fmt    = { workspace = true }
 rowan         = { workspace = true }
 smol_str      = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

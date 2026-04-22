@@ -89,20 +89,20 @@ toml           = "0.8"
 # incremental query engine (spec §11.1 — only cypher-db and above may use this)
 salsa = "0.26"
 
-# internal
-cypher-syntax   = { path = "crates/cypher-syntax" }
-cypher-ast      = { path = "crates/cypher-ast" }
-cypher-hir      = { path = "crates/cypher-hir" }
-cypher-sema     = { path = "crates/cypher-sema" }
-cypher-schema   = { path = "crates/cypher-schema" }
-cypher-diag     = { path = "crates/cypher-diag" }
-cypher-plan     = { path = "crates/cypher-plan" }
-cypher-fmt      = { path = "crates/cypher-fmt" }
-cypher-db       = { path = "crates/cypher-db" }
-cypher-lang-services = { path = "crates/cypher-lang-services" }
-cypher-tck      = { path = "crates/cypher-tck" }
-cypher-testkit  = { path = "crates/cypher-testkit" }
-cypher          = { path = "crates/cypher" }
+# internal — version is set for cargo publish; local development still uses path.
+cypher-syntax        = { version = "0.0.1", path = "crates/cypher-syntax" }
+cypher-ast           = { version = "0.0.1", path = "crates/cypher-ast" }
+cypher-hir           = { version = "0.0.1", path = "crates/cypher-hir" }
+cypher-sema          = { version = "0.0.1", path = "crates/cypher-sema" }
+cypher-schema        = { version = "0.0.1", path = "crates/cypher-schema" }
+cypher-diag          = { version = "0.0.1", path = "crates/cypher-diag" }
+cypher-plan          = { version = "0.0.1", path = "crates/cypher-plan" }
+cypher-fmt           = { version = "0.0.1", path = "crates/cypher-fmt" }
+cypher-db            = { version = "0.0.1", path = "crates/cypher-db" }
+cypher-lang-services = { version = "0.0.1", path = "crates/cypher-lang-services" }
+cypher-tck           = { version = "0.0.1", path = "crates/cypher-tck" }
+cypher-testkit       = { version = "0.0.1", path = "crates/cypher-testkit" }
+cypher               = { version = "0.0.1", path = "crates/cypher" }
 
 # ---------------------------------------------------------------------------
 # Lints. Spec §17.13 forbids unsafe workspace-wide.

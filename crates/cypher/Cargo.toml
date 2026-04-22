@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Meta-crate re-exporting the Cypher front-end library surface. Spec 0001 §3.1."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Cypher / GQL frontend — lossless CST, typed AST, HIR, semantic analysis, schema-aware checks, diagnostics, formatter, plan IR."
 
 # ---------------------------------------------------------------------------
 # Feature flags — spec 0001 §17.15.
@@ -56,6 +60,10 @@ cypher-diag   = { workspace = true, optional = true }
 cypher-plan   = { workspace = true, optional = true }
 cypher-fmt    = { workspace = true, optional = true }
 cypher-db     = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

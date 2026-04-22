@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "Cypher lexer, recovering parser, and lossless concrete syntax tree. Spec 0001 §4."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Lossless CST and recovering parser for Cypher / GQL (spec 0001 §4)."
 
 [dependencies]
 rowan      = { workspace = true }
@@ -27,6 +31,10 @@ insta             = { workspace = true }
 cypher-testkit    = { workspace = true }
 proptest          = { workspace = true }
 pretty_assertions = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "openCypher TCK harness. Spec 0001 §17.5."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "openCypher TCK v1 conformance harness for the cyrs frontend (spec 0001 §17.5)."
 
 [dependencies]
 cypher-db = { workspace = true }
@@ -15,6 +19,10 @@ cypher-db = { workspace = true }
 insta = { workspace = true }
 toml  = { workspace = true }
 serde = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true

@@ -6,7 +6,11 @@ rust-version = { workspace = true }
 license      = { workspace = true }
 authors      = { workspace = true }
 repository   = { workspace = true }
-description  = "CST-driven idempotent formatter for Cypher. Spec 0001 §13."
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Formatter for Cypher / GQL source that round-trips through the parser (spec 0001 §13)."
 
 [dependencies]
 cypher-syntax = { workspace = true }
@@ -18,6 +22,10 @@ proptest          = { workspace = true }
 insta             = { workspace = true }
 cypher-testkit    = { workspace = true }
 pretty_assertions = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [lints]
 workspace = true
