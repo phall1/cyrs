@@ -203,8 +203,21 @@ fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
     Ok(())
 }
 
-fn check_pattern(pattern: &Pattern, _clause_span: HirSpan) -> Result<(), PlanLowerError> {
+fn check_pattern(pattern: &Pattern, clause_span: HirSpan) -> Result<(), PlanLowerError> {
     for part in &pattern.parts {
+        // cy-f2t: the parser's error-recovery pass can yield a `PatternPart`
+        // with zero elements (e.g. bare `MATCH`) or a part whose first element
+        // is a `Rel` (e.g. `MATCH -[:R]->(n)`). The Source + Expand walker in
+        // `lower_pattern_part` assumes the first element is a `Node` and that
+        // the part has at least one element; surface any violation here as a
+        // clean error rather than a deep `.expect(...)` panic.
+        match part.elements.first() {
+            None => return Err(PlanLowerError::EmptyPatternPart { span: clause_span }),
+            Some(PatternElement::Rel { .. }) => {
+                return Err(PlanLowerError::EmptyPatternPart { span: clause_span });
+            }
+            Some(PatternElement::Node { .. }) => {}
+        }
         for elem in &part.elements {
             let props = match elem {
                 PatternElement::Node { props, .. } | PatternElement::Rel { props, .. } => {
@@ -596,6 +609,12 @@ impl<'s> LowerCtx<'s> {
     fn lower_pattern_part(&mut self, part: &PatternPart, vars: &mut Vec<VarId>) -> OpId {
         // Walk elements; first node becomes Source, alternating
         // Rel+Node pairs become Expand.
+        //
+        // The entry-point pre-scan (`precheck_statement`, cy-f2t) guarantees
+        // `part.elements` is non-empty and starts with a `Node` — the
+        // previously-panicking `.expect(…)` sites in this function are
+        // replaced with graceful fallbacks so that a consumer who skips the
+        // pre-scan still gets a plan, not a panic.
         let mut last_op: Option<OpId> = None;
         let mut last_node_var: Option<VarId> = None;
         let mut last_rel: Option<&PatternElement> = None;
@@ -614,9 +633,11 @@ impl<'s> LowerCtx<'s> {
                         pv
                     });
 
-                    if let Some(rel_elem) = last_rel.take() {
-                        // We have a pending relationship — emit an Expand.
-                        let from = last_node_var.expect("Rel must follow a Node in a pattern part");
+                    if let (Some(rel_elem), Some(from), Some(input)) =
+                        (last_rel.take(), last_node_var, last_op)
+                    {
+                        // We have a pending relationship + a preceding node
+                        // bound → emit an Expand.
                         let bind_var = bind_var.unwrap_or_else(|| {
                             let v = VarId(self.next_var);
                             self.next_var += 1;
@@ -631,7 +652,6 @@ impl<'s> LowerCtx<'s> {
                             properties: props.as_ref().map(|e| self.lower_expr(e)),
                         };
 
-                        let input = last_op.expect("Expand requires an input op");
                         let op = self.plan.push(ReadOp::Expand {
                             input,
                             from,
@@ -643,7 +663,8 @@ impl<'s> LowerCtx<'s> {
                         last_node_var = Some(bind_to);
                         last_op = Some(op);
                     } else {
-                        // First node: Source.
+                        // First node (or malformed-but-recovered part whose
+                        // leading Rel we silently drop): Source.
                         let label_set = if labels.is_empty() {
                             None
                         } else {
@@ -679,7 +700,11 @@ impl<'s> LowerCtx<'s> {
             }
         }
 
-        last_op.expect("pattern part must have at least one element")
+        // Empty / leading-Rel pattern parts are rejected at the entry point
+        // (see `precheck_statement`, cy-f2t). If a consumer bypasses the
+        // pre-scan and hands us a part with no Node, degrade to a degenerate
+        // all-node Source so lowering still produces a valid plan.
+        last_op.unwrap_or_else(|| self.push_source_all())
     }
 
     fn lower_rel_element(

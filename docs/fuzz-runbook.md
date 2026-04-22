@@ -162,20 +162,17 @@ into the PR-gate smoke window. Both existed at the bead's base
 (`c3c246b`); both are blocking bugs per §17.4 and need dedicated
 follow-up beads before the fuzz smoke gate can turn blocking.
 
-1. **`fuzz_plan` — pattern-part empty-element panic.**
+1. **`fuzz_plan` — pattern-part empty-element panic.** — **FIXED (cy-f2t).**
    - Reproducer: 5 bytes `MATCH` (bare keyword; parser recovers, HIR
      lowerer produces a pattern with zero elements).
-   - Panics at `crates/cypher-plan/src/lower.rs:682` with
+   - Previously panicked at `crates/cypher-plan/src/lower.rs:682` with
      `pattern part must have at least one element`.
-   - Root cause: the plan lowerer's pattern-part assertions assume
-     well-formed HIR but the fuzz target feeds recovery-laden HIR.
-   - Expected fix: return `Err(PlanLowerError::EmptyPatternPart)`
-     rather than `.expect(…)` (cy-wlr's `Result`-returning signature
-     already landed; the remaining `.expect` sites need porting).
-   - Repro kept OUT of `fuzz/corpus/fuzz_plan/` deliberately — libFuzzer
-     auto-replays corpus seeds on startup, so committing this repro
-     would break every smoke run. Add it to the corpus **after** the
-     fix lands.
+   - Fix: `precheck_statement` now rejects empty / leading-`Rel`
+     pattern parts as `PlanLowerError::EmptyPatternPart`; the in-body
+     `.expect(…)` sites were replaced with graceful fallbacks.
+   - Minimised seed lives at
+     `fuzz/corpus/fuzz_plan/seed_empty_match_bare` so libFuzzer
+     regresses on it at every startup.
 
 2. **`fuzz_formatter` — non-idempotent on newline inside string literal.**
    - Reproducer: 6 bytes `'\n'\nN` (a `'\n'` token followed by a
@@ -189,9 +186,10 @@ follow-up beads before the fuzz smoke gate can turn blocking.
    - Repro kept OUT of `fuzz/corpus/fuzz_formatter/` for the same
      reason as above.
 
-Both should be filed as P0 beads against the respective crates; until
-they land, the PR-gate fuzz-smoke CI step has `continue-on-error: true`
-(see `.github/workflows/ci.yml`) so unrelated PRs don't get blocked.
+The `fuzz_plan` finding was filed + fixed as cy-f2t (see the seed noted
+above). The `fuzz_formatter` finding remains open. Until it lands, the
+PR-gate fuzz-smoke CI step has `continue-on-error: true` (see
+`.github/workflows/ci.yml`) so unrelated PRs don't get blocked.
 
 ## Crash triage playbook
 

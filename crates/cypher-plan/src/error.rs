@@ -44,6 +44,21 @@ pub enum PlanLowerError {
         /// [`Self::UnresolvedName::span`] for why this is clause-scoped).
         span: HirSpan,
     },
+    /// A [`cypher_hir::PatternPart`] reached the lowerer with no
+    /// [`cypher_hir::PatternElement`]s, or with a malformed element
+    /// sequence the Source + Expand translation cannot walk (cy-f2t).
+    ///
+    /// The parser's error-recovery pass can emit such pattern parts for
+    /// inputs where the pattern is syntactically incomplete (e.g. a bare
+    /// `MATCH` keyword, or an open `MATCH (` with no close). The
+    /// previous lowerer assumed every part starts with a [`cypher_hir::PatternElement::Node`]
+    /// and panicked on the empty / leading-`Rel` case; this variant
+    /// surfaces the recovery-produced shape as a clean error.
+    EmptyPatternPart {
+        /// Approximate span of the offending clause (see
+        /// [`Self::UnresolvedName::span`] for why this is clause-scoped).
+        span: HirSpan,
+    },
 }
 
 impl std::fmt::Display for PlanLowerError {
@@ -58,6 +73,12 @@ impl std::fmt::Display for PlanLowerError {
                 f,
                 "cypher-plan: un-desugared `{kind}` expression in HIR → Plan lowering; \
                  run cypher_hir::desugar::desugar_statement (cy-mla) first"
+            ),
+            Self::EmptyPatternPart { .. } => write!(
+                f,
+                "cypher-plan: empty or malformed pattern part in HIR → Plan lowering; \
+                 parser error-recovery produced a pattern the lowerer cannot walk \
+                 (e.g. bare `MATCH`)"
             ),
         }
     }
