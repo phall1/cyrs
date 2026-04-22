@@ -37,7 +37,6 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use lsp_server::Connection;
 use lsp_types::{
     DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, FileChangeType, FileEvent,
     PublishDiagnosticsParams, Uri, WorkspaceFolder,
@@ -46,6 +45,7 @@ use lsp_types::{
 use cypher_db::DialectMode;
 use cypher_db::workspace::FileId;
 
+use crate::transport::Transport;
 use crate::{Server, ensure_project_loaded, send_notification, uri_to_file_path};
 
 /// Default debounce window (spec §14, cy-k2r).  Configurable via
@@ -122,7 +122,7 @@ pub(crate) fn handle_did_change_watched_files(
 ///
 /// Returns the list of URIs that were created / changed so the caller
 /// can re-run diagnostics on them.
-pub(crate) fn flush_watched_files(connection: &Connection, server: &mut Server) {
+pub(crate) fn flush_watched_files(transport: &dyn Transport, server: &mut Server) {
     let events = server.watched_files.drain();
     if events.is_empty() {
         return;
@@ -158,7 +158,7 @@ pub(crate) fn flush_watched_files(connection: &Connection, server: &mut Server) 
                 // For deletes we push a *clear* diagnostics notification
                 // instead of a republish so the client drops the stale
                 // squiggles.
-                send_clear_diagnostics(connection, &ev.uri);
+                send_clear_diagnostics(transport, &ev.uri);
             }
             _ => {
                 tracing::debug!("watched-files: unknown change type {:?}", ev.typ);
@@ -168,7 +168,7 @@ pub(crate) fn flush_watched_files(connection: &Connection, server: &mut Server) 
 
     // Re-run diagnostics on every touched file that is still present.
     for uri in to_republish {
-        if let Err(e) = crate::publish_diagnostics_for_watched(connection, server, &uri) {
+        if let Err(e) = crate::publish_diagnostics_for_watched(transport, server, &uri) {
             tracing::warn!("watched-files: publishDiagnostics failed: {e:#}");
         }
     }
@@ -268,13 +268,13 @@ fn dialect_for_path(server: &Server, path: &Path) -> DialectMode {
         })
 }
 
-fn send_clear_diagnostics(connection: &Connection, uri: &Uri) {
+fn send_clear_diagnostics(transport: &dyn Transport, uri: &Uri) {
     let params = PublishDiagnosticsParams {
         uri: uri.clone(),
         diagnostics: vec![],
         version: None,
     };
-    let _ = send_notification::<lsp_types::notification::PublishDiagnostics>(connection, &params);
+    let _ = send_notification::<lsp_types::notification::PublishDiagnostics>(transport, &params);
 }
 
 // ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ fn send_clear_diagnostics(connection: &Connection, uri: &Uri) {
 /// already does; removed folders evict every `FileId` whose disk path
 /// is inside that folder.
 pub(crate) fn handle_did_change_workspace_folders(
-    _connection: &Connection,
+    _transport: &dyn Transport,
     server: &mut Server,
     params: DidChangeWorkspaceFoldersParams,
 ) {

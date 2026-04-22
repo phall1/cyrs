@@ -522,6 +522,7 @@ dependencies = [
  "cypher-schema",
  "cypher-sema",
  "cypher-syntax",
+ "js-sys",
  "lsp-server",
  "lsp-types",
  "rowan",
@@ -531,6 +532,8 @@ dependencies = [
  "tempfile",
  "tracing",
  "tracing-subscriber",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -2259,6 +2262,16 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
  "semver",
+]
+
+[[package]]
+name = "web-sys"
+version = "0.3.95"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f2dfbb17949fa2088e5d39408c48368947b86f7834484e87b73de55bc14d97d"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]

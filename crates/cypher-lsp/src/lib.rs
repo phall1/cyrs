@@ -45,13 +45,19 @@ mod references;
 mod rename;
 mod semantic_tokens;
 mod signature_help;
+pub mod transport;
 mod watchers;
+
+#[cfg(feature = "web-lsp")]
+pub mod web;
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Result, anyhow};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
+
+use crate::transport::{StdioTransport, Transport};
 use lsp_types::notification::Notification as _;
 use lsp_types::request::Request as _;
 use lsp_types::{
@@ -175,7 +181,12 @@ pub fn serve(connection: &Connection) -> Result<()> {
     };
     let debounce = init.resolved_debounce();
 
-    main_loop(connection, dialect, schema, debounce)
+    // Adapter: wrap the `lsp_server::Connection` as a `Transport` so the
+    // dispatch loop runs over the same trait both native and web builds
+    // use (spec 0004 §7.2).  Zero behavioural change on stdio — the
+    // adapter forwards every call to the crossbeam channels.
+    let transport = StdioTransport::new(connection);
+    main_loop(&transport, dialect, schema, debounce)
 }
 
 // ---------------------------------------------------------------------------
@@ -353,13 +364,13 @@ pub(crate) fn ensure_project_loaded(server: &mut Server, hint: &std::path::Path)
 // ---------------------------------------------------------------------------
 
 fn main_loop(
-    connection: &Connection,
+    transport: &dyn Transport,
     dialect: DialectMode,
     schema: Option<std::sync::Arc<dyn cypher_schema::SchemaProvider>>,
     watched_debounce: std::time::Duration,
 ) -> Result<()> {
     let mut server = Server::with_config_and_debounce(dialect, schema, watched_debounce);
-    dispatch(connection, &mut server)
+    dispatch(transport, &mut server)
 }
 
 /// Poll the client transport, dispatch requests / notifications, and
@@ -367,7 +378,7 @@ fn main_loop(
 ///
 /// Factored out of [`main_loop`] so `Server` constructors that want a
 /// non-default debounce window (tests) can re-use the same loop body.
-pub(crate) fn dispatch(connection: &Connection, server: &mut Server) -> Result<()> {
+pub(crate) fn dispatch(transport: &dyn Transport, server: &mut Server) -> Result<()> {
     loop {
         // Compute the recv deadline.  When the debounce buffer is
         // empty we block on recv; otherwise we wait at most the
@@ -376,15 +387,8 @@ pub(crate) fn dispatch(connection: &Connection, server: &mut Server) -> Result<(
         let timeout = server.watched_files.remaining(server.watched_debounce);
 
         let msg = match timeout {
-            None => match connection.receiver.recv() {
-                Ok(m) => Some(m),
-                Err(_) => return Ok(()),
-            },
-            Some(remaining) => match connection.receiver.recv_timeout(remaining) {
-                Ok(m) => Some(m),
-                Err(e) if e.is_timeout() => None,
-                Err(_) => return Ok(()),
-            },
+            None => transport.recv()?,
+            Some(remaining) => transport.recv_timeout(remaining)?,
         };
 
         // Check the debounce first so flushes happen before we process
@@ -393,27 +397,33 @@ pub(crate) fn dispatch(connection: &Connection, server: &mut Server) -> Result<(
         if let Some(remaining) = server.watched_files.remaining(server.watched_debounce)
             && remaining.is_zero()
         {
-            watchers::flush_watched_files(connection, server);
+            watchers::flush_watched_files(transport, server);
         }
 
         let Some(msg) = msg else {
+            // recv returned None without timeout → peer disconnected
+            // (clean EOF on stdio, port closed on web).  Exit cleanly
+            // so IoThreads::join on the binary sees a graceful close.
+            if timeout.is_none() {
+                return Ok(());
+            }
             continue;
         };
 
         match msg {
             Message::Request(req) => {
-                if connection.handle_shutdown(&req)? {
+                if transport.handle_shutdown(&req)? {
                     // Final debounce flush so any trailing events make
                     // it to the client's last diagnostics snapshot
                     // before we evict.
-                    watchers::flush_watched_files(connection, server);
+                    watchers::flush_watched_files(transport, server);
                     evict_all(server);
                     return Ok(());
                 }
-                handle_request(connection, server, req)?;
+                handle_request(transport, server, req)?;
             }
             Message::Notification(notif) => {
-                handle_notification(connection, server, notif)?;
+                handle_notification(transport, server, notif)?;
             }
             Message::Response(_) => {}
         }
@@ -439,31 +449,26 @@ pub(crate) fn evict_all(server: &mut Server) {
 // Request dispatch
 // ---------------------------------------------------------------------------
 
-fn handle_request(connection: &Connection, server: &mut Server, req: Request) -> Result<()> {
+pub(crate) fn handle_request(
+    transport: &dyn Transport,
+    server: &mut Server,
+    req: Request,
+) -> Result<()> {
     match req.method.as_str() {
         lsp_types::request::Formatting::METHOD => {
             let params: DocumentFormattingParams = serde_json::from_value(req.params)?;
             let resp = handle_formatting(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::HoverRequest::METHOD => {
             let params: HoverParams = serde_json::from_value(req.params)?;
             let resp = handle_hover(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::Completion::METHOD => {
             let params: lsp_types::CompletionParams = serde_json::from_value(req.params)?;
             let resp = handle_completion(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::ResolveCompletionItem::METHOD => {
             let item: lsp_types::CompletionItem = serde_json::from_value(req.params)?;
@@ -476,115 +481,73 @@ fn handle_request(connection: &Connection, server: &mut Server, req: Request) ->
                     e.to_string(),
                 ),
             };
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::GotoDefinition::METHOD => {
             let params: lsp_types::GotoDefinitionParams = serde_json::from_value(req.params)?;
             let resp = handle_definition(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::SignatureHelpRequest::METHOD => {
             let params: lsp_types::SignatureHelpParams = serde_json::from_value(req.params)?;
             let resp = handle_signature_help(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::References::METHOD => {
             let params: lsp_types::ReferenceParams = serde_json::from_value(req.params)?;
             let resp = handle_references(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::WorkspaceSymbolRequest::METHOD => {
             let params: lsp_types::WorkspaceSymbolParams = serde_json::from_value(req.params)?;
             let resp = handle_workspace_symbol(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::PrepareRenameRequest::METHOD => {
             let params: lsp_types::TextDocumentPositionParams = serde_json::from_value(req.params)?;
             let resp = handle_prepare_rename(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::Rename::METHOD => {
             let params: lsp_types::RenameParams = serde_json::from_value(req.params)?;
             let resp = handle_rename(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::CodeActionRequest::METHOD => {
             let params: lsp_types::CodeActionParams = serde_json::from_value(req.params)?;
             let resp = handle_code_action(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::FoldingRangeRequest::METHOD => {
             let params: lsp_types::FoldingRangeParams = serde_json::from_value(req.params)?;
             let resp = handle_folding_range(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::SemanticTokensFullRequest::METHOD => {
             let params: lsp_types::SemanticTokensParams = serde_json::from_value(req.params)?;
             let resp = handle_semantic_tokens_full(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::SemanticTokensRangeRequest::METHOD => {
             let params: lsp_types::SemanticTokensRangeParams = serde_json::from_value(req.params)?;
             let resp = handle_semantic_tokens_range(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::InlayHintRequest::METHOD => {
             let params: lsp_types::InlayHintParams = serde_json::from_value(req.params)?;
             let resp = handle_inlay_hint(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::ExecuteCommand::METHOD => {
             let params: lsp_types::ExecuteCommandParams = serde_json::from_value(req.params)?;
             let resp = handle_execute_command(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         lsp_types::request::RangeFormatting::METHOD => {
             let params: lsp_types::DocumentRangeFormattingParams =
                 serde_json::from_value(req.params)?;
             let resp = handle_range_formatting(server, req.id, &params);
-            connection
-                .sender
-                .send(resp.into())
-                .map_err(|e| anyhow!("{e}"))?;
+            transport.send(resp.into())?;
         }
         _ => {
             tracing::debug!("unhandled request: {}", req.method);
@@ -1214,8 +1177,8 @@ fn handle_formatting(
 // Notification dispatch
 // ---------------------------------------------------------------------------
 
-fn handle_notification(
-    connection: &Connection,
+pub(crate) fn handle_notification(
+    transport: &dyn Transport,
     server: &mut Server,
     notif: Notification,
 ) -> Result<()> {
@@ -1247,7 +1210,7 @@ fn handle_notification(
                 ensure_project_loaded(server, p);
             }
 
-            publish_diagnostics(connection, server, &uri)?;
+            publish_diagnostics(transport, server, &uri)?;
         }
         lsp_types::notification::DidChangeTextDocument::METHOD => {
             let params: DidChangeTextDocumentParams = serde_json::from_value(notif.params)?;
@@ -1261,7 +1224,7 @@ fn handle_notification(
                 let _ = server.db.update_file(file_id, change.text);
             }
 
-            publish_diagnostics(connection, server, &uri)?;
+            publish_diagnostics(transport, server, &uri)?;
         }
         lsp_types::notification::DidSaveTextDocument::METHOD => {
             // cy-1yb: under `TextDocumentSyncKind::FULL` the server
@@ -1279,7 +1242,7 @@ fn handle_notification(
                 && let Some(&file_id) = server.open_files.get(&uri_str)
             {
                 let _ = server.db.update_file(file_id, text);
-                publish_diagnostics(connection, server, &uri)?;
+                publish_diagnostics(transport, server, &uri)?;
             } else {
                 tracing::debug!("didSave: no-op for {uri_str}");
             }
@@ -1307,7 +1270,7 @@ fn handle_notification(
                 diagnostics: vec![],
                 version: None,
             };
-            send_notification::<lsp_types::notification::PublishDiagnostics>(connection, &clear)?;
+            send_notification::<lsp_types::notification::PublishDiagnostics>(transport, &clear)?;
         }
         lsp_types::notification::DidChangeWatchedFiles::METHOD => {
             // Spec §14 (cy-k2r): buffer the events; flushing happens
@@ -1320,7 +1283,7 @@ fn handle_notification(
             // Spec §14 (cy-k2r): user-initiated; apply synchronously.
             let params: lsp_types::DidChangeWorkspaceFoldersParams =
                 serde_json::from_value(notif.params)?;
-            watchers::handle_did_change_workspace_folders(connection, server, params);
+            watchers::handle_did_change_workspace_folders(transport, server, params);
         }
         _ => {
             tracing::debug!("unhandled notification: {}", notif.method);
@@ -1461,14 +1424,14 @@ pub(crate) fn read_line_index(server: &Server, path: &std::path::Path) -> Option
 /// so the client sees fresh diagnostics within one debounce window of
 /// the last external file event.
 pub(crate) fn publish_diagnostics_for_watched(
-    connection: &Connection,
+    transport: &dyn Transport,
     server: &mut Server,
     uri: &Uri,
 ) -> Result<()> {
-    publish_diagnostics(connection, server, uri)
+    publish_diagnostics(transport, server, uri)
 }
 
-fn publish_diagnostics(connection: &Connection, server: &mut Server, uri: &Uri) -> Result<()> {
+fn publish_diagnostics(transport: &dyn Transport, server: &mut Server, uri: &Uri) -> Result<()> {
     let uri_str = uri.to_string();
     let Some(&file_id) = server.open_files.get(&uri_str) else {
         return Ok(());
@@ -1491,21 +1454,18 @@ fn publish_diagnostics(connection: &Connection, server: &mut Server, uri: &Uri) 
         version: None,
     };
 
-    send_notification::<lsp_types::notification::PublishDiagnostics>(connection, &params)
+    send_notification::<lsp_types::notification::PublishDiagnostics>(transport, &params)
 }
 
 pub(crate) fn send_notification<N: lsp_types::notification::Notification>(
-    connection: &Connection,
+    transport: &dyn Transport,
     params: &N::Params,
 ) -> Result<()>
 where
     N::Params: serde::Serialize,
 {
     let notif = Notification::new(N::METHOD.to_owned(), params);
-    connection
-        .sender
-        .send(notif.into())
-        .map_err(|e| anyhow!("{e}"))
+    transport.send(notif.into())
 }
 
 // ---------------------------------------------------------------------------
