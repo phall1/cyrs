@@ -142,24 +142,18 @@ name    = "WITH simple projection"
 tags    = ["@WITH"]
 query   = "MATCH (n:Person) WITH n.name AS name RETURN name"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 [[scenario]]
 name    = "WITH WHERE filter"
 tags    = ["@WITH", "@WHERE"]
 query   = "MATCH (n:Person) WITH n WHERE n.age > 21 RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 [[scenario]]
 name    = "WITH ORDER BY LIMIT"
 tags    = ["@WITH"]
 query   = "MATCH (n:Person) WITH n ORDER BY n.name LIMIT 5 RETURN n"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse WITH clause; file bead: 'WITH clause grammar rule missing in source_file parser'"
 
 # ---------------------------------------------------------------------------
 # @EXPRESSIONS

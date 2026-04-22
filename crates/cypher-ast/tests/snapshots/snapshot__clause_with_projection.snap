@@ -1,6 +1,5 @@
 ---
 source: crates/cypher-ast/tests/snapshot.rs
-assertion_line: 245
 expression: "dump(\"MATCH (n) WITH n RETURN n\")"
 ---
 SourceFile(SOURCE_FILE@0..25)
@@ -15,12 +14,15 @@ SourceFile(SOURCE_FILE@0..25)
             NAME@7..8
               IDENT@7..8 "n"
             R_PAREN@8..9 ")"
-    ERROR@9..16
+    WithClause(WITH_CLAUSE@9..16)
       WHITESPACE@9..10 " "
       WITH_KW@10..14 "WITH"
-      ERROR@14..16
-        WHITESPACE@14..15 " "
-        IDENT@15..16 "n"
+      RETURN_BODY@14..16
+        RETURN_ITEMS@14..16
+          ReturnItem(RETURN_ITEM@14..16)
+            VAR_EXPR@14..16
+              WHITESPACE@14..15 " "
+              IDENT@15..16 "n"
     ReturnClause(RETURN_CLAUSE@16..25)
       WHITESPACE@16..17 " "
       RETURN_KW@17..23 "RETURN"
@@ -30,5 +32,3 @@ SourceFile(SOURCE_FILE@0..25)
             VAR_EXPR@23..25
               WHITESPACE@23..24 " "
               IDENT@24..25 "n"
----errors---
-@10: WITH_KW clause is not implemented in cy-nom

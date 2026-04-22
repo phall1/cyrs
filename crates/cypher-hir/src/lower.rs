@@ -205,6 +205,24 @@ impl LowerCtx {
                     span,
                 })
             }
+            SyntaxKind::WITH_CLAUSE => {
+                // WITH shares the same RETURN_BODY shape so reuse the helper;
+                // its optional inline WHERE becomes the projection's `filter`
+                // predicate (HIR `Clause::With { filter }`), not a separate
+                // `Where` clause — §6.4 models it as part of the same frame.
+                let id = self.alloc_hir(node.clone());
+                let projections = self.lower_return_body(&node);
+                let filter = node
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
+                    .and_then(|w| w.children().find_map(|n| self.try_lower_expr(n)));
+                Some(Clause::With {
+                    id,
+                    projections,
+                    filter,
+                    span,
+                })
+            }
             // All other clause types are stubs in the cy-nom parser and
             // produce ERROR nodes — skip them silently.
             _ => None,

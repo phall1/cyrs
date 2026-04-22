@@ -1,0 +1,44 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n:Person) WITH n.name AS name RETURN name\")"
+---
+SOURCE_FILE@0..48
+  STATEMENT@0..48
+    MATCH_CLAUSE@0..16
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..16
+        PATTERN_PART@5..16
+          NODE_PATTERN@5..16
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..15
+              COLON@8..9 ":"
+              IDENT@9..15 "Person"
+            R_PAREN@15..16 ")"
+    WITH_CLAUSE@16..36
+      WHITESPACE@16..17 " "
+      WITH_KW@17..21 "WITH"
+      RETURN_BODY@21..36
+        RETURN_ITEMS@21..36
+          RETURN_ITEM@21..36
+            PROP_ACCESS_EXPR@21..28
+              VAR_EXPR@21..23
+                WHITESPACE@21..22 " "
+                IDENT@22..23 "n"
+              DOT@23..24 "."
+              IDENT@24..28 "name"
+            WHITESPACE@28..29 " "
+            AS_KW@29..31 "AS"
+            WHITESPACE@31..32 " "
+            IDENT@32..36 "name"
+    RETURN_CLAUSE@36..48
+      WHITESPACE@36..37 " "
+      RETURN_KW@37..43 "RETURN"
+      RETURN_BODY@43..48
+        RETURN_ITEMS@43..48
+          RETURN_ITEM@43..48
+            VAR_EXPR@43..48
+              WHITESPACE@43..44 " "
+              IDENT@44..48 "name"

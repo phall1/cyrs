@@ -19,10 +19,9 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
         SyntaxKind::OPTIONAL_KW => optional_match_clause(p),
         SyntaxKind::WHERE_KW => where_clause(p),
         SyntaxKind::RETURN_KW => return_clause(p),
-        // cy-nom: v1 scope — WITH lands in a follow-up bead.
-        SyntaxKind::WITH_KW
+        SyntaxKind::WITH_KW => with_clause(p),
         // cy-nom: v1 scope — UNWIND lands in a follow-up bead.
-        | SyntaxKind::UNWIND_KW
+        SyntaxKind::UNWIND_KW
         // cy-nom: v1 scope — CREATE lands in a follow-up bead.
         | SyntaxKind::CREATE_KW
         // cy-nom: v1 scope — MERGE lands in a follow-up bead.
@@ -99,6 +98,53 @@ fn where_clause(p: &mut Parser<'_>) {
         p.error_code(sc::EXPECTED_WHERE_EXPR, "expected expression after WHERE");
     }
     m.complete(p, SyntaxKind::WHERE_CLAUSE);
+}
+
+/// `WithClause = 'WITH' 'DISTINCT'? ReturnItems WhereClause? OrderBy? Skip? Limit?`
+///
+/// Cypher §6.4: WITH introduces a projection frame — upstream bindings are
+/// replaced by the projected items for downstream clauses. Shape mirrors
+/// `RETURN` with an optional inline `WHERE` filter (spec `cypher.ungrammar`
+/// `WithClause`).
+fn with_clause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::WITH_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::WITH_KW);
+    p.eat(SyntaxKind::DISTINCT_KW);
+
+    let body = p.start();
+    let items = p.start();
+
+    if p.at(SyntaxKind::STAR) {
+        let item = p.start();
+        p.bump(SyntaxKind::STAR);
+        item.complete(p, SyntaxKind::RETURN_ITEM);
+    } else {
+        return_item(p);
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            return_item(p);
+        }
+    }
+    items.complete(p, SyntaxKind::RETURN_ITEMS);
+
+    // Per ungrammar: WITH admits an inline WHERE before the order/skip/limit
+    // trailer. Order of trailers follows the spec exactly.
+    if p.at(SyntaxKind::WHERE_KW) {
+        where_clause(p);
+    }
+    if p.at(SyntaxKind::ORDER_KW) {
+        order_by(p);
+    }
+    if p.at(SyntaxKind::SKIP_KW) {
+        skip_subclause(p);
+    }
+    if p.at(SyntaxKind::LIMIT_KW) {
+        limit_subclause(p);
+    }
+
+    body.complete(p, SyntaxKind::RETURN_BODY);
+    m.complete(p, SyntaxKind::WITH_CLAUSE);
 }
 
 /// `ReturnClause = 'RETURN' 'DISTINCT'? ReturnItem (',' ReturnItem)*

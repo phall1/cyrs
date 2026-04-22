@@ -1,6 +1,6 @@
 # TCK v1 Green-Tag Conformance Baseline
 
-*Captured: 2026-04-21 against commit `9843c82` (cy-zjv).*
+*Captured: 2026-04-21 against cy-3xz (WITH clause landed).*
 
 This file records the **current** conformance of the cyrs parser
 against the vendored v1 openCypher TCK fixtures
@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **25** (63 %) |
-| Ignored (known parser gaps) | **15** (38 %) |
+| Passing | **28** (70 %) |
+| Ignored (known parser gaps) | **12** (30 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.
@@ -43,7 +43,6 @@ at the missing grammar.  Consolidated list (one row per feature):
 
 | Feature (tag) | Ignored scenarios | Parser status |
 |---|---:|---|
-| `@WITH` clause | 3 | not parsed |
 | `@CREATE` clause | 1 | not parsed |
 | `@MERGE` clause | 1 | not parsed |
 | `@SET` clause | 1 | not parsed |

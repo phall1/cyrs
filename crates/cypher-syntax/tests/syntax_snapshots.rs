@@ -140,9 +140,27 @@ fn clause_return_alias() {
     insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n.name AS name"));
 }
 
-// TODO(cy-nom): WITH clause (currently parsed as a deferred_clause_stub;
-// re-enable with a dedicated snapshot once WITH / DISTINCT / WHERE-filter
-// land).
+#[test]
+fn clause_with_simple_projection() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n:Person) WITH n.name AS name RETURN name"
+    ));
+}
+
+#[test]
+fn clause_with_where_filter() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) WITH n WHERE n.age > 21 RETURN n"
+    ));
+}
+
+#[test]
+fn clause_with_order_by_limit() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) WITH n ORDER BY n.name LIMIT 5 RETURN n"
+    ));
+}
+
 // TODO(cy-nom): UNWIND clause (deferred_clause_stub).
 // TODO(cy-nom): CREATE clause (deferred_clause_stub).
 // TODO(cy-nom): MERGE with ON CREATE / ON MATCH (deferred_clause_stub).
