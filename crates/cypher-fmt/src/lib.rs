@@ -373,6 +373,20 @@ mod tests {
         assert_eq!(a, b);
     }
 
+    /// cy-nu1 (spec §17.3.3 P17.3.3): 6-byte libFuzzer-minimised repro
+    /// where `fmt(fmt(s)) != fmt(s)` — idempotence broke on a newline
+    /// adjacent to an unterminated-string ERROR region. Snapshot locks
+    /// the stable formatted output.
+    #[test]
+    fn snap_cy_nu1_newline_in_string_recovery() {
+        let s: &[u8] = &[34, 92, 10, 34, 10, 92];
+        let s = std::str::from_utf8(s).unwrap();
+        let a = fmt(s);
+        let b = fmt(&a);
+        assert_eq!(a, b, "idempotence must hold on the 6-byte repro");
+        assert_snapshot!(a);
+    }
+
     // ------------------------------------------------------------------
     // Options: keyword_casing = Lower
     // ------------------------------------------------------------------

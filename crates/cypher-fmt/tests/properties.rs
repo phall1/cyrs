@@ -275,3 +275,78 @@ fn regression_digits_newline_alpha() {
     let b = format(&a);
     assert_eq!(a, b, "idempotence regression: {s:?}");
 }
+
+#[test]
+fn regression_cy_nu1_newline_in_string() {
+    // cy-nu1 (spec §17.3.3 P17.3.3): the 6-byte libFuzzer-minimised repro
+    // for `fmt(fmt(s)) != fmt(s)` — an unterminated `"` followed by a
+    // backslash, a literal newline, a stray `"` that lexed as a string
+    // with an embedded newline on the first pass, another newline, and
+    // a trailing backslash.
+    //
+    // Root cause: `pending = Pending::Newline` between two non-clause-
+    // starter significant tokens was collapsed to a single space, so
+    // the first pass emitted a real newline (via the ERROR token text)
+    // that the second pass rewrote as a space.
+    let s: &[u8] = &[34, 92, 10, 34, 10, 92];
+    let s = std::str::from_utf8(s).expect("valid ascii");
+    let a = format(s);
+    let b = format(&a);
+    assert_eq!(a, b, "cy-nu1 idempotence regression: {s:?}");
+}
+
+#[test]
+fn regression_cy_nu1_literal_newline_in_single_quote() {
+    // Bead's textual repro `'\n'\nN` — a single-quoted newline, then a
+    // literal newline, then `N`.  Exercises the same pending-newline
+    // collapsing path in single-quoted-string recovery territory.
+    let s = "'\n'\nN";
+    let a = format(s);
+    let b = format(&a);
+    assert_eq!(a, b, "cy-nu1 literal-newline idempotence regression: {s:?}");
+}
+
+#[test]
+fn regression_cy_nu1_escape_and_newline() {
+    // Bead's other candidate reading `'\\n'\nN`: a valid `'\n'` escape
+    // token followed by a newline and an identifier.
+    let s = "'\\n'\nN";
+    let a = format(s);
+    let b = format(&a);
+    assert_eq!(a, b, "cy-nu1 escape+newline idempotence regression: {s:?}");
+}
+
+// ---------------------------------------------------------------------------
+// cy-nu1 — P17.3.3 idempotence at 1024 cases (spec §17.3 / §13).
+//
+// A dedicated proptest configured with 1024 cases.  Seeded with the repro
+// plus other string-literal edge cases (empty, pure whitespace, escape
+// sequences) so the strategy regenerator covers the failure mode.
+// ---------------------------------------------------------------------------
+
+proptest! {
+    #![proptest_config(ProptestConfig {
+        cases: 1024,
+        ..ProptestConfig::default()
+    })]
+
+    /// P17.3.3 — `fmt(fmt(s)) == fmt(s)` for arbitrary inputs at 1024 cases.
+    #[test]
+    fn fmt_is_idempotent(s in ".*") {
+        let a = format(&s);
+        let b = format(&a);
+        prop_assert_eq!(&a, &b, "idempotence failed for: {:?}", s);
+    }
+
+    /// P17.3.3 — idempotence on a string-literal-heavy ASCII alphabet:
+    /// includes quotes, backslashes, newlines, and escape-sequence
+    /// starters that previously exposed the bug.
+    #[test]
+    fn fmt_is_idempotent_string_alphabet(
+        s in "[\"'\\\\nrtbfuUxNA0-9 \n\t]{0,48}"
+    ) {
+        let a = format(&s);
+        let b = format(&a);
+        prop_assert_eq!(&a, &b, "idempotence failed for: {:?}", s);
+    }
+}
