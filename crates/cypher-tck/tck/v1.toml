@@ -214,16 +214,12 @@ name    = "Variable-length path pattern"
 tags    = ["@PATTERNS"]
 query   = "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse variable-length relationship patterns (e.g. *1..3); file bead: 'Variable-length path quantifier grammar not implemented'"
 
 [[scenario]]
 name    = "Named path pattern"
 tags    = ["@PATTERNS"]
 query   = "MATCH p = (a)-[:KNOWS]->(b) RETURN p"
 outcome = "ok"
-ignore  = true
-note    = "Parser does not yet parse named path assignment (p = ...); file bead: 'Named path pattern (p = ...) grammar not implemented'"
 
 # ---------------------------------------------------------------------------
 # @CREATE / @MERGE / @SET / @REMOVE / @DELETE

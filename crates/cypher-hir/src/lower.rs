@@ -313,23 +313,54 @@ impl LowerCtx {
     // --- pattern ------------------------------------------------------------
 
     fn lower_pattern_from_clause(&mut self, clause_node: &SyntaxNode) -> Pattern {
-        // Collect all PATTERN children of the clause.
+        // Collect all PATTERN children of the clause. A PATTERN now has
+        // either a PATTERN_PART child (plain) or a NAMED_PATTERN_PART
+        // (path binder `p = ...`). For named parts, the binder identifier
+        // lives inside a NAME child before the inner PATTERN_PART.
         let parts: Vec<PatternPart> = clause_node
             .children()
             .filter(|n| n.kind() == SyntaxKind::PATTERN)
-            .flat_map(|pat| {
-                pat.children()
-                    .filter(|n| n.kind() == SyntaxKind::PATTERN_PART)
-                    .map(|pp| self.lower_pattern_part(pp))
-                    .collect::<Vec<_>>()
-            })
+            .flat_map(|pat| self.lower_pattern_wrapper(&pat))
             .collect();
         Pattern { parts }
     }
 
+    /// Unwrap a `PATTERN` node into its `PatternPart`s, handling both the
+    /// plain `PATTERN_PART` and the `NAMED_PATTERN_PART` (`p = PATTERN_PART`)
+    /// shapes.
+    fn lower_pattern_wrapper(&mut self, pat: &SyntaxNode) -> Vec<PatternPart> {
+        let mut out = Vec::new();
+        for child in pat.children() {
+            match child.kind() {
+                SyntaxKind::PATTERN_PART => {
+                    out.push(self.lower_pattern_part(child));
+                }
+                SyntaxKind::NAMED_PATTERN_PART => {
+                    // The binder name is the NAME child's IDENT.
+                    let bind =
+                        child
+                            .children()
+                            .find(|n| n.kind() == SyntaxKind::NAME)
+                            .map(|name_node| {
+                                let name = ident_text(&name_node).unwrap_or_default();
+                                self.bind_var(&name, VarKind::Path, name_node.text_range())
+                            });
+                    let inner_part = child
+                        .children()
+                        .find(|n| n.kind() == SyntaxKind::PATTERN_PART);
+                    if let Some(inner) = inner_part {
+                        let mut part = self.lower_pattern_part(inner);
+                        part.named_as = bind;
+                        out.push(part);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     fn lower_pattern_part(&mut self, node: SyntaxNode) -> PatternPart {
-        // cy-nom does not yet parse path binders (p = ...) so named_as
-        // is always None.
         let elements = self.lower_pattern_elements(&node);
         PatternPart {
             named_as: None,
@@ -431,11 +462,17 @@ impl LowerCtx {
             .unwrap_or_default();
 
         let props = detail
+            .as_ref()
             .and_then(|d| d.children().find(|n| n.kind() == SyntaxKind::PROPERTY_MAP))
             .map(|pm| self.lower_property_map(pm));
 
-        // cy-nom does not yet parse variable-length rels.
-        let length = RelLength::Single;
+        // Variable-length hop quantifier `*m..n` / `*m` / `*..n` / `*`.
+        // Detected by presence of a REL_LENGTH child inside REL_DETAIL;
+        // extract bounds from its IntLiteral tokens and DOT_DOT presence.
+        let length = detail
+            .as_ref()
+            .and_then(|d| d.children().find(|n| n.kind() == SyntaxKind::REL_LENGTH))
+            .map_or(RelLength::Single, |rl| lower_rel_length(&rl));
 
         PatternElement::Rel {
             id,
@@ -1083,6 +1120,49 @@ fn ident_text(node: &SyntaxNode) -> Option<String> {
                 .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
                 .map(|t| t.text().to_string())
         })
+}
+
+/// Lower a `REL_LENGTH` node into [`RelLength::Variable`]. The node
+/// contains a `STAR` token followed by up to two `INT_LITERAL` tokens
+/// separated by a `DOT_DOT` token. `*` alone maps to `Variable { min:
+/// None, max: None }` — the "any length ≥ 1" case.
+fn lower_rel_length(node: &SyntaxNode) -> RelLength {
+    let has_dot_dot = has_token(node, SyntaxKind::DOT_DOT);
+    let mut ints = node
+        .children_with_tokens()
+        .filter_map(SyntaxElement::into_token)
+        .filter(|t| t.kind() == SyntaxKind::INT_LITERAL)
+        .filter_map(|t| t.text().parse::<u64>().ok());
+    let first = ints.next();
+    let second = ints.next();
+    let (min, max) = if has_dot_dot {
+        // `*m..n`, `*m..`, `*..n`.
+        (first, second)
+    } else {
+        // `*m` (fixed length m) or `*` (no bounds).
+        (first, first)
+    };
+    // Special-case `*..n`: the `INT_LITERAL` after DOT_DOT is `first`
+    // when there was no leading number. Detect by checking token order:
+    // if DOT_DOT precedes the first INT_LITERAL in text order, the single
+    // literal is the upper bound.
+    if has_dot_dot && second.is_none() && first.is_some() {
+        // Decide by first token kind after STAR.
+        let mut toks = node
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .skip_while(|t| t.kind() != SyntaxKind::STAR);
+        toks.next(); // STAR
+        // Skip trivia
+        let next_sig = toks.find(|t| !t.kind().is_trivia());
+        if next_sig.map(|t| t.kind()) == Some(SyntaxKind::DOT_DOT) {
+            return RelLength::Variable {
+                min: None,
+                max: first,
+            };
+        }
+    }
+    RelLength::Variable { min, max }
 }
 
 /// Collect all label / rel-type IDENT tokens from a `LABEL_EXPR` or

@@ -274,8 +274,22 @@ fn pattern_chain_three_nodes() {
     ));
 }
 
-// TODO(cy-nom): variable-length relationships (`*`, `*1..3`, `*1..`) —
-// not yet parsed; flagged in grammar/pattern.rs.
+#[test]
+fn pattern_var_length_range() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b"
+    ));
+}
+
+#[test]
+fn pattern_var_length_unbounded() {
+    insta::assert_snapshot!(format_with_errors("MATCH (a)-[r:KNOWS*]->(b) RETURN a"));
+}
+
+#[test]
+fn pattern_named_path() {
+    insta::assert_snapshot!(format_with_errors("MATCH p = (a)-[:KNOWS]->(b) RETURN p"));
+}
 
 // ---------------------------------------------------------------------------
 // Expressions — atoms

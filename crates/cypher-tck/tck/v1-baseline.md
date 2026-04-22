@@ -14,8 +14,8 @@ the Rust test harness already enforces the invariant.
 | Metric | Value |
 |---|---|
 | Scenarios matching ≥1 v1 tag | **40** |
-| Passing | **38** (95 %) |
-| Ignored (known parser gaps) | **2** (5 %) |
+| Passing | **40** (100 %) |
+| Ignored (known parser gaps) | **0** (0 %) |
 | Failing | **0** |
 
 Harness: `crates/cypher-tck/tests/harness.rs::tck_v1_scenarios`.
@@ -36,19 +36,14 @@ and expressions (quick sample of scenarios that pass):
 - `@CALL-SUBQUERY` and `@LOAD-CSV` — v1 red; rejected with a parse
   error as required.
 
-## Parser gaps (15 ignored scenarios)
+## Parser gaps
 
-Each ignored scenario in `v1.toml` carries an inline `note` pointing
-at the missing grammar.  Consolidated list (one row per feature):
+All 15 originally-ignored v1 scenarios now pass; no parser gaps remain
+against the vendored v1 TCK surface.
 
-| Feature (tag) | Ignored scenarios | Parser status |
-|---|---:|---|
-| `@PATTERNS` — variable-length paths (`*1..3`) | 1 | not parsed |
-| `@PATTERNS` — named paths (`p = (…)`) | 1 | not parsed |
-
-Landed under cy-3xz (now passing): `@WITH`, `@LISTS`, `@MAPS`,
-`@AGGREGATIONS`, `@UNWIND`, `@CREATE`, `@MERGE`, `@SET`, `@REMOVE`,
-`@DELETE`.
+Landed under cy-3xz: `@WITH`, `@LISTS`, `@MAPS`, `@AGGREGATIONS`,
+`@UNWIND`, `@CREATE`, `@MERGE`, `@SET`, `@REMOVE`, `@DELETE`, variable-
+length paths (`*m..n`), and named paths (`p = (…)`).
 
 Each row is roughly "one grammar production + its AST wrappers +
 lowering + sema dialect gate + snapshot tests."  Closing all of them

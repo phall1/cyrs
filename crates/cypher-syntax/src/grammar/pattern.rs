@@ -28,12 +28,36 @@ pub(crate) fn pattern_list(p: &mut Parser<'_>) {
     }
 }
 
-/// cy-nom scope: `Pattern = PathPattern`. Path binders (`p = ...`),
-/// shortestPath / allShortestPaths land in a follow-up bead.
+/// `Pattern = (bind:NameDef '=')? PathPattern` — spec ungrammar `Pattern`.
+///
+/// A leading `IDENT =` binds the path expression to the named variable
+/// (`p = (a)-[]->(b)`). The `NAMED_PATTERN_PART` wrapper surrounds the
+/// inner `PATTERN_PART`; without the binder we emit only the
+/// `PATTERN_PART`, matching the previous cy-nom shape so existing AST
+/// consumers don't see gratuitous wrappers.
 pub(crate) fn pattern(p: &mut Parser<'_>) {
     let m = p.start();
-    path_pattern(p);
+    if is_path_binder(p) {
+        let bind = p.start();
+        name_binder(p);
+        p.bump(SyntaxKind::EQ);
+        path_pattern(p);
+        bind.complete(p, SyntaxKind::NAMED_PATTERN_PART);
+    } else {
+        path_pattern(p);
+    }
     m.complete(p, SyntaxKind::PATTERN);
+}
+
+/// A path binder is `IDENT '='` before an `L_PAREN` — the `=` disambiguates
+/// from a bare node pattern or a following clause. We require the `=`
+/// token to sit between two valid positions, so one-token lookahead
+/// suffices.
+fn is_path_binder(p: &mut Parser<'_>) -> bool {
+    if !(p.current() == SyntaxKind::IDENT || p.current() == SyntaxKind::QUOTED_IDENT) {
+        return false;
+    }
+    p.nth(1) == SyntaxKind::EQ
 }
 
 /// `PathPattern = NodePattern (RelPattern NodePattern)*`
@@ -156,7 +180,10 @@ fn rel_detail(p: &mut Parser<'_>) {
     if p.at(SyntaxKind::COLON) {
         rel_type_expr(p);
     }
-    // cy-nom: v1 scope — variable-length hops (`*m..n`) land in a follow-up bead.
+    // Optional variable-length quantifier: `*`, `*n`, `*n..`, `*n..m`, `*..m`.
+    if p.at(SyntaxKind::STAR) {
+        rel_length(p);
+    }
     // Optional property map.
     if p.at(SyntaxKind::L_BRACE) {
         property_map(p);
@@ -198,6 +225,28 @@ fn label_expr(p: &mut Parser<'_>) {
         }
     }
     m.complete(p, SyntaxKind::LABEL_EXPR);
+}
+
+/// `RangeHops = '*' (IntLiteral ('..' IntLiteral?)?)? | '*' '..' IntLiteral`
+/// — the variable-length hop quantifier inside `REL_DETAIL`. Spec
+/// `cypher.ungrammar` `RangeHops`; emitted as `REL_LENGTH`.
+fn rel_length(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::STAR));
+    let m = p.start();
+    p.bump(SyntaxKind::STAR);
+    // Three shapes: `*`, `*n ...`, `*.. m`.
+    if p.at(SyntaxKind::INT_LITERAL) {
+        p.bump(SyntaxKind::INT_LITERAL);
+        if p.at(SyntaxKind::DOT_DOT) {
+            p.bump(SyntaxKind::DOT_DOT);
+            // Upper bound is optional.
+            p.eat(SyntaxKind::INT_LITERAL);
+        }
+    } else if p.at(SyntaxKind::DOT_DOT) {
+        p.bump(SyntaxKind::DOT_DOT);
+        p.eat(SyntaxKind::INT_LITERAL);
+    }
+    m.complete(p, SyntaxKind::REL_LENGTH);
 }
 
 /// `':' IDENT` — rel-type expression. Pipe disjunction (`A|B`) is
