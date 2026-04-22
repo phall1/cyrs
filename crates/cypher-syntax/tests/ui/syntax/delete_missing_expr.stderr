@@ -1,0 +1,3 @@
+error[E0059]: expected expression after DELETE
+ --> delete_missing_expr.cypher:17
+

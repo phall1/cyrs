@@ -1,0 +1,1 @@
+MERGE (n) ON RETURN 1
