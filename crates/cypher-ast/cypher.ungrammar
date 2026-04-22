@@ -238,6 +238,8 @@ Expr =
 | VariableRef
 | PropertyAccess
 | IndexAccess
+| IndexExpr
+| SliceExpr
 | FunctionCall
 | CountStar
 | ParenExpr
@@ -282,6 +284,16 @@ PropertyAccess =
 
 IndexAccess =
   receiver:Expr '[' index:Expr ']'
+
+// cy-7s6.1: typed list indexing and slicing. `IndexExpr` matches
+// `xs[0]` / `xs[-1]`; `SliceExpr` matches `xs[i..j]`, `xs[..j]`,
+// `xs[i..]`. Both can chain (`xs[0..3][0]`). v1 scope is LIST only;
+// STRING indexing lands in a follow-up bead (see HIR lowering note).
+IndexExpr =
+  receiver:Expr '[' index:Expr ']'
+
+SliceExpr =
+  receiver:Expr '[' start:Expr? '..' end:Expr? ']'
 
 // `DISTINCT` inside a call is the inline aggregation form (`count(DISTINCT x)`).
 FunctionCall =

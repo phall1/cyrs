@@ -993,6 +993,8 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "VAR_EXPR",
         "PROP_ACCESS_EXPR",
         "SUBSCRIPT_EXPR",
+        "INDEX_EXPR",
+        "SLICE_EXPR",
         "LIST_LITERAL",
         "MAP_LITERAL",
         "MAP_PROJECTION",
