@@ -57,11 +57,20 @@ pub fn run() -> Result<()> {
     // 2. Load scenarios and diff each one through tree-sitter parse.
     let toml_src = std::fs::read_to_string(&tck_file)
         .with_context(|| format!("reading {}", tck_file.display()))?;
-    let scenarios =
+    let mut scenarios =
         parse_scenarios(&toml_src).with_context(|| format!("parsing {}", tck_file.display()))?;
+
+    // cy-h0p: supplementary scenarios for v1-grammar surfaces that aren't
+    // yet in `v1.toml`. These exercise constructs the tree-sitter grammar
+    // v1 accepts (UNION, list comp with `|`, list slice) and constructs
+    // the spec §9.3 bans (block-form CALL / EXISTS subqueries, SHOW,
+    // CYPHER prefix, LOAD CSV) to lock the rejection contract.
+    scenarios.extend(supplementary_scenarios());
+
     println!(
-        "==> loaded {} scenarios from {}",
+        "==> loaded {} scenarios ({} from {} + supplementary v1-grammar cases)",
         scenarios.len(),
+        scenarios.len() - SUPPLEMENTARY_COUNT,
         tck_file.display()
     );
 
@@ -86,7 +95,7 @@ pub fn run() -> Result<()> {
     }
 
     println!(
-        "==> parity: {}/{} scenarios agree with cyrs TCK v1",
+        "==> parity: {}/{} scenarios agree with cyrs TCK v1 + supplement",
         agreed,
         scenarios.len()
     );
@@ -113,6 +122,73 @@ struct Scenario {
     name: String,
     query: String,
     outcome: String,
+}
+
+/// Number of supplementary scenarios appended by [`supplementary_scenarios`].
+/// Kept as a compile-time constant so the harness's load-line can report the
+/// TCK-sourced scenario count independently from the supplement.
+const SUPPLEMENTARY_COUNT: usize = 12;
+
+/// Grammar-v1 scenarios that aren't yet in `crates/cypher-tck/tck/v1.toml`
+/// (this bead lives entirely inside `tree-sitter-cypher/` and cannot edit
+/// the TCK fixture). Each entry locks an expected parse outcome for a
+/// construct the tree-sitter grammar added in cy-h0p.
+///
+/// The `ok` entries cover surfaces the grammar accepts cleanly; the
+/// `error` entries pin §9.3 bans so a future regression that lets them
+/// parse without `(ERROR)` nodes would fail the harness.
+fn supplementary_scenarios() -> Vec<Scenario> {
+    fn sc(name: &str, query: &str, outcome: &str) -> Scenario {
+        Scenario {
+            name: name.to_string(),
+            query: query.to_string(),
+            outcome: outcome.to_string(),
+        }
+    }
+    vec![
+        // --- accepted v1 surfaces ---------------------------------------
+        sc("UNION simple", "RETURN 1 UNION RETURN 2", "ok"),
+        sc("UNION ALL", "RETURN 1 UNION ALL RETURN 2", "ok"),
+        sc(
+            "UNION across MATCH clauses",
+            "MATCH (n) RETURN n UNION MATCH (m) RETURN m",
+            "ok",
+        ),
+        sc(
+            "List comprehension with predicate and map",
+            "RETURN [x IN [1, 2, 3] WHERE x > 1 | x + 1]",
+            "ok",
+        ),
+        sc(
+            "List slice with both bounds",
+            "RETURN [1, 2, 3][0..2]",
+            "ok",
+        ),
+        sc("List slice elided upper", "RETURN [1, 2, 3][1..]", "ok"),
+        sc("List slice elided lower", "RETURN [1, 2, 3][..2]", "ok"),
+        // --- §9.3 bans --------------------------------------------------
+        sc(
+            "§9.3: CALL block subquery rejected",
+            "CALL { MATCH (n) RETURN n } RETURN n",
+            "error",
+        ),
+        sc(
+            "§9.3: EXISTS block subquery rejected",
+            "MATCH (n) WHERE EXISTS { MATCH (n)-->(m) } RETURN n",
+            "error",
+        ),
+        sc("§9.3: SHOW is not a clause", "SHOW DATABASES", "error"),
+        sc(
+            "§9.3: CYPHER prefix rejected",
+            "CYPHER runtime=slotted MATCH (n) RETURN n",
+            "error",
+        ),
+        sc(
+            "§9.3: LOAD CSV rejected",
+            "LOAD CSV FROM 'file:///data.csv' AS row RETURN row",
+            "error",
+        ),
+    ]
 }
 
 /// Parse the TCK v1 scenario TOML. Scalar-only, one-line values.
