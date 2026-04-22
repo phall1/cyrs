@@ -52,6 +52,12 @@ harness = false
 name    = "bench_agent_throughput"
 harness = false
 
+# cy-wcv §11.6 / §17.10: 24-hour RSS soak (operator-triggered full run;
+# weekly CI soak runs with CY_SOAK_HOURS=4).
+[[bench]]
+name    = "bench_incremental_24h"
+harness = false
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 
