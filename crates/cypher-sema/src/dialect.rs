@@ -33,7 +33,11 @@ use cypher_syntax::{TextRange, TextSize};
 /// Mirrors `cypher_db::DialectMode`; defined here so that `cypher-sema`
 /// (which sits below `cypher-db` in the crate graph) can be dialect-aware
 /// without a circular dependency.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new dialects can land without
+/// forcing a SemVer-major release.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DialectMode {
     /// Canonical: GQL-aligned Cypher per ISO/IEC 39075.
     #[default]

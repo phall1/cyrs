@@ -59,6 +59,10 @@ use std::collections::BTreeMap;
 ///
 /// See the [module-level documentation](self) for the distinction between
 /// `Type` (inferred, expression-level) and `VarKind` (structural, binding-level).
+//
+// NOTE (cy-2i9.1): heavily matched across the workspace.  Marking
+// `#[non_exhaustive]` would force wildcard arms at every cross-crate
+// match site; deferred to a follow-up bead.  See `docs/stability.md`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Type {
     /// Universal super-type. Property reads without schema are `Any`.

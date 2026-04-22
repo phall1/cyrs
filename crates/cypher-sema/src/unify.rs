@@ -61,26 +61,22 @@ impl TypeMismatch {
     /// The caller supplies the source range because `unify` is a pure function
     /// without span information. Code is always `E5003`.
     pub fn into_diagnostic(self, range: cypher_syntax::TextRange) -> cypher_diag::Diagnostic {
-        use cypher_diag::{DiagCode, Diagnostic, Label, Severity};
+        use cypher_diag::{DiagCode, Diagnostic, Label};
         use smol_str::SmolStr;
 
         let message = SmolStr::new(format!(
             "type mismatch: expected `{:?}`, found `{:?}`",
             self.expected, self.actual
         ));
-        Diagnostic {
-            code: DiagCode::E5003,
-            severity: Severity::Error,
-            message: message.clone(),
-            primary: Label {
-                range,
-                caption: message,
-            },
-            labels: Vec::new(),
-            notes: Vec::new(),
-            related: Vec::new(),
-            fixes: Vec::new(),
-        }
+        // `Diagnostic` is `#[non_exhaustive]` (cy-2i9.1).  Build via the
+        // constructor; then rewrite the primary label's caption to carry
+        // the message text (the default `error` caption is empty).
+        let mut d = Diagnostic::error(DiagCode::E5003, range, message.clone());
+        d.primary = Label {
+            range,
+            caption: message,
+        };
+        d
     }
 }
 

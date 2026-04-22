@@ -100,12 +100,17 @@ fn applicability_variant_count() {
         Applicability::Unspecified,
     ];
     for a in variants {
-        match a {
-            Applicability::MachineApplicable
-            | Applicability::MaybeIncorrect
-            | Applicability::HasPlaceholders
-            | Applicability::Unspecified => {}
-        }
+        // `Applicability` is `#[non_exhaustive]` (cy-2i9.1).  We accept
+        // anything here; the known-set length assertion below pins
+        // today's variant count.  Match exists to force a compiler error
+        // if a variant name changes.
+        let _ = match a {
+            Applicability::MachineApplicable => 0,
+            Applicability::MaybeIncorrect => 1,
+            Applicability::HasPlaceholders => 2,
+            Applicability::Unspecified => 3,
+            _ => 255,
+        };
     }
     assert_eq!(variants.len(), 4);
 }

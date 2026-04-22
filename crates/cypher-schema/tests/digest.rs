@@ -189,6 +189,10 @@ fn card_tag(c: Cardinality) -> u8 {
         Cardinality::OneToMany => 2,
         Cardinality::ManyToOne => 3,
         Cardinality::ManyToMany => 4,
+        // `Cardinality` is `#[non_exhaustive]` (cy-2i9.1); new variants
+        // must be added to this digest before landing.  Route them here
+        // by reserving a new tag byte.
+        _ => 255,
     }
 }
 
@@ -255,11 +259,8 @@ fn adding_a_node_property_changes_digest() {
     let d1 = a.schema_digest();
     a.node_props.push((
         "Person".into(),
-        vec![PropertyDecl {
-            name: "name".into(),
-            ty: PropertyType::String,
-            required: true,
-        }],
+        // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1).
+        vec![PropertyDecl::new("name", PropertyType::String, true)],
     ));
     let d2 = a.schema_digest();
     assert_ne!(d1, d2);
@@ -271,11 +272,8 @@ fn changing_property_type_changes_digest() {
         labels: vec!["Person".into()],
         node_props: vec![(
             "Person".into(),
-            vec![PropertyDecl {
-                name: "age".into(),
-                ty: PropertyType::Int,
-                required: false,
-            }],
+            // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1).
+            vec![PropertyDecl::new("age", PropertyType::Int, false)],
         )],
         ..Default::default()
     };
@@ -291,11 +289,8 @@ fn toggling_required_changes_digest() {
         labels: vec!["Person".into()],
         node_props: vec![(
             "Person".into(),
-            vec![PropertyDecl {
-                name: "name".into(),
-                ty: PropertyType::String,
-                required: false,
-            }],
+            // `PropertyDecl` is `#[non_exhaustive]` (cy-2i9.1).
+            vec![PropertyDecl::new("name", PropertyType::String, false)],
         )],
         ..Default::default()
     };

@@ -80,7 +80,11 @@ use salsa::Setter as _;
 // ---------------------------------------------------------------------------
 
 /// Dialect mode selected at parse time.  Spec §9.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new dialects can land
+/// without forcing a SemVer-major release.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DialectMode {
     /// GQL-aligned parsing (default).
     #[default]

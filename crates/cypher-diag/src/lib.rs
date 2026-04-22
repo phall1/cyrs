@@ -23,8 +23,14 @@ use cypher_syntax::TextRange;
 use smol_str::SmolStr;
 
 /// A single diagnostic. Spec §10.1.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so fields can be added (e.g. a
+/// `documentation_url`) without forcing a SemVer-major release.
+/// Construct via [`Diagnostic::error`] / [`Diagnostic::warning`] and the
+/// builder methods; external crates must not use struct literals.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Diagnostic {
     /// Stable numeric identifier (spec §10.2, e.g. `E0001`).
     pub code: DiagCode,
@@ -46,9 +52,13 @@ pub struct Diagnostic {
 
 /// Diagnostic severity (spec §10.3).  `Error` failures set exit code 1
 /// in `cypher check`; the others are informational.
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new severities can land
+/// without forcing a SemVer-major release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
+#[non_exhaustive]
 pub enum Severity {
     Error,
     Warning,
@@ -110,8 +120,12 @@ pub struct TextEdit {
 
 /// How safe it is to apply a `FixIt` automatically (mirrors rustc's
 /// `Applicability` taxonomy).
+///
+/// Marked `#[non_exhaustive]` (cy-2i9.1) so new classifications can land
+/// without forcing a SemVer-major release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum Applicability {
     /// Safe to apply without review.
     MachineApplicable,
