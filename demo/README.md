@@ -5,6 +5,19 @@ so you can watch the frontend produce live diagnostics, formatting,
 hover, goto-definition, rename, completion, and more. No plugins
 required.
 
+![cypher-lsp demo: diagnostics + format-on-save](demo.gif)
+
+The recording above is regenerated from [`demo.tape`](demo.tape) with
+[charmbracelet/vhs](https://github.com/charmbracelet/vhs):
+
+```sh
+vhs demo/demo.tape     # produces demo/demo.gif
+```
+
+Run from the workspace root; the tape builds `cypher-lsp` first and
+then drives Neovim through the parser-recovery diagnostic on
+`unclosed_paren.cyp` and the format-on-save hook on `needs_fmt.cyp`.
+
 ## What you'll see
 
 - **Diagnostics** — syntax errors (`E0xxx`) from the recovering
