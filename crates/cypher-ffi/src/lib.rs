@@ -1397,7 +1397,7 @@ pub extern "C" fn cypher_proto_version() -> u32 {
 // ---------------------------------------------------------------------------
 
 /// Deliberately panic from inside an `extern "C"` body so
-/// `tests/panic_safety.rs` can verify the catch_unwind boundary converts
+/// `tests/panic_safety.rs` can verify the `catch_unwind` boundary converts
 /// the panic into a `cypher_last_error()` payload.  Only compiled under
 /// the `inject-panic` feature — absent from release artifacts.
 #[cfg(feature = "inject-panic")]

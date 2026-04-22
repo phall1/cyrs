@@ -41,3 +41,9 @@ beads_report_*.md
 # cypher-wasm generated build output (wasm-bindgen JS wrapper + .wasm
 # artifacts).  Populated by `cargo xtask wasm-build`; never committed.
 crates/cypher-wasm/pkg/
+
+# demo/ffi/node — koffi is installed via `npm install` before running
+# the smoke test (spec 0004 §10.2).  Lockfile + node_modules are
+# developer-local.
+demo/ffi/node/node_modules/
+demo/ffi/node/package-lock.json

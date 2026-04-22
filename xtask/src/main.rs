@@ -87,6 +87,17 @@ enum Cmd {
     /// (spec 0004 §10.1).  Skips if wasm-pack is not on PATH.
     #[command(name = "wasm-smoke")]
     WasmSmoke,
+    /// Generate or verify the cypher-ffi C header (spec 0004 §5.6).
+    ///
+    /// Default mode regenerates `crates/cypher-ffi/include/cypher.h`.
+    /// `--check` mode runs cbindgen into a tempfile and diffs it
+    /// against the committed header; exits 1 on drift.  Wired into
+    /// `cargo xtask gate` so ABI drift blocks the pre-commit gate.
+    Cbindgen {
+        /// Verify the committed header matches a fresh run of cbindgen.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -114,6 +125,7 @@ fn main() -> Result<()> {
         Cmd::WasmBuild => xtask::wasm::build(),
         Cmd::WasmSize => xtask::wasm::size(),
         Cmd::WasmSmoke => xtask::wasm::smoke(),
+        Cmd::Cbindgen { check } => xtask::cbindgen::run(check),
     }
 }
 
@@ -243,6 +255,13 @@ fn gate() -> Result<()> {
     // code must be exercised by the property test or a UI fixture.
     println!("==> xtask check-recovery-budget");
     xtask::check_recovery_budget::run()?;
+
+    // C-ABI drift gate (spec 0004 §5.6, bead cy-dh6).  Runs on every
+    // commit — not just nightly — because a drifted header is a silent
+    // SemVer-major break the moment cypher-ffi ships.  Skips gracefully
+    // if cbindgen is not on PATH (see xtask::cbindgen::run).
+    println!("==> xtask cbindgen --check");
+    xtask::cbindgen::run(true)?;
 
     println!("==> gate OK");
     Ok(())
