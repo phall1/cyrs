@@ -10,6 +10,7 @@ members = [
     "crates/cypher-plan",
     "crates/cypher-fmt",
     "crates/cypher-db",
+    "crates/cypher-lang-services",
     "crates/cypher-lsp",
     "crates/cypher-agent",
     "crates/cypher-cli",
@@ -97,6 +98,7 @@ cypher-diag     = { path = "crates/cypher-diag" }
 cypher-plan     = { path = "crates/cypher-plan" }
 cypher-fmt      = { path = "crates/cypher-fmt" }
 cypher-db       = { path = "crates/cypher-db" }
+cypher-lang-services = { path = "crates/cypher-lang-services" }
 cypher-tck      = { path = "crates/cypher-tck" }
 cypher-testkit  = { path = "crates/cypher-testkit" }
 cypher          = { path = "crates/cypher" }

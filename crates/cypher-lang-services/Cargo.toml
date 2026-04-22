@@ -1,0 +1,24 @@
+[package]
+name         = "cypher-lang-services"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Neutral language-services engines (complete, hover, rewrite) shared by the LSP and agent binaries. Spec 0001 §14 / §15."
+
+[dependencies]
+cypher-db     = { workspace = true }
+cypher-diag   = { workspace = true }
+cypher-hir    = { workspace = true }
+cypher-schema = { workspace = true }
+cypher-sema   = { workspace = true }
+cypher-syntax = { workspace = true }
+cypher-ast    = { workspace = true }
+cypher-fmt    = { workspace = true }
+rowan         = { workspace = true }
+smol_str      = { workspace = true }
+
+[lints]
+workspace = true

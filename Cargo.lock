@@ -437,6 +437,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cypher-lang-services"
+version = "0.0.1"
+dependencies = [
+ "cypher-ast",
+ "cypher-db",
+ "cypher-diag",
+ "cypher-fmt",
+ "cypher-hir",
+ "cypher-schema",
+ "cypher-sema",
+ "cypher-syntax",
+ "rowan",
+ "smol_str",
+]
+
+[[package]]
 name = "cypher-lsp"
 version = "0.0.1"
 dependencies = [
