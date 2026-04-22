@@ -46,6 +46,48 @@ pub enum ArgShape {
     String,
     /// Overload of `List | String` — e.g. `size(x)`.
     ListOrString,
+    /// Must be a graph entity — `Node`, `Relationship`, or `Path`.
+    ///
+    /// Used by `id(x)` (cy-zo9.1) to reject scalars. `Any` / `Unknown`
+    /// are accepted to avoid cascading diagnostics when inference has
+    /// already failed upstream.
+    GraphEntity,
+}
+
+impl ArgShape {
+    /// Check whether `ty` conforms to this parameter shape.
+    ///
+    /// Returns `true` when the argument is permitted. `Any` and `Unknown`
+    /// always satisfy every shape — schema-free inference cannot rule
+    /// them out, and emitting a diagnostic here would cascade.
+    #[must_use]
+    pub fn accepts(self, ty: &Type) -> bool {
+        match self {
+            ArgShape::Any => true,
+            ArgShape::List => matches!(ty, Type::List(_) | Type::Any | Type::Unknown),
+            ArgShape::String => matches!(ty, Type::String | Type::Any | Type::Unknown),
+            ArgShape::ListOrString => {
+                matches!(ty, Type::List(_) | Type::String | Type::Any | Type::Unknown)
+            }
+            ArgShape::GraphEntity => matches!(
+                ty,
+                Type::Node(_) | Type::Relationship(_) | Type::Path | Type::Any | Type::Unknown
+            ),
+        }
+    }
+
+    /// Human-readable label for a parameter shape — used in diagnostic
+    /// messages (e.g. `expected Node | Relationship | Path`).
+    #[must_use]
+    pub fn describe(self) -> &'static str {
+        match self {
+            ArgShape::Any => "Any",
+            ArgShape::List => "List",
+            ArgShape::String => "String",
+            ArgShape::ListOrString => "List | String",
+            ArgShape::GraphEntity => "Node | Relationship | Path",
+        }
+    }
 }
 
 /// Return shape — what the call site's result type is.
@@ -138,14 +180,14 @@ impl Builtin {
 /// The full built-in table. Ordering is append-only: new entries land at
 /// the end. Lookups use case-insensitive name comparison via [`lookup`].
 pub const BUILTINS: &[Builtin] = &[
-    // --- cy-zo9: graph-element identity -----------------------------------
+    // --- cy-zo9 / cy-zo9.1: graph-element identity ------------------------
     //
     // `id(n)` — opaque identifier of a node, relationship, or path.
-    // Placeholder ahead of cy-zo9 landing; if cy-zo9 brings a richer
-    // signature, the orchestrator resolves the merge at this entry.
+    // The argument must be a graph entity; scalars are rejected with
+    // E5012 at the `infer` call-site (cy-zo9.1).
     Builtin {
         name: "id",
-        params: &[ArgShape::Any],
+        params: &[ArgShape::GraphEntity],
         ret: ReturnShape::Fixed(FixedTy::Int),
         doc: "opaque identifier of a node, relationship, or path element",
     },
@@ -211,6 +253,56 @@ mod tests {
         assert_eq!(b.name, "id");
         assert_eq!(b.arity(), 1);
         assert_eq!(b.resolve_return(&[Type::Node(None)]), Type::Int);
+    }
+
+    /// cy-zo9.1: the `id` builtin's parameter shape must be
+    /// `GraphEntity`, which accepts `Node`/`Relationship`/`Path` and
+    /// rejects scalar types.
+    #[test]
+    fn id_param_shape_is_graph_entity() {
+        let b = lookup("id").expect("id is registered");
+        assert_eq!(b.params, &[ArgShape::GraphEntity]);
+
+        let shape = b.params[0];
+        assert!(shape.accepts(&Type::Node(None)));
+        assert!(shape.accepts(&Type::Relationship(None)));
+        assert!(shape.accepts(&Type::Path));
+        assert!(shape.accepts(&Type::Any));
+        assert!(shape.accepts(&Type::Unknown));
+
+        assert!(!shape.accepts(&Type::Int));
+        assert!(!shape.accepts(&Type::String));
+        assert!(!shape.accepts(&Type::Bool));
+        assert!(!shape.accepts(&Type::Float));
+        assert!(!shape.accepts(&Type::List(Box::new(Type::Int))));
+    }
+
+    #[test]
+    fn list_shape_accepts_list_only() {
+        let shape = ArgShape::List;
+        assert!(shape.accepts(&Type::List(Box::new(Type::Int))));
+        assert!(shape.accepts(&Type::Any));
+        assert!(shape.accepts(&Type::Unknown));
+        assert!(!shape.accepts(&Type::Int));
+        assert!(!shape.accepts(&Type::String));
+    }
+
+    #[test]
+    fn list_or_string_accepts_either() {
+        let shape = ArgShape::ListOrString;
+        assert!(shape.accepts(&Type::List(Box::new(Type::Int))));
+        assert!(shape.accepts(&Type::String));
+        assert!(!shape.accepts(&Type::Int));
+        assert!(!shape.accepts(&Type::Node(None)));
+    }
+
+    #[test]
+    fn any_shape_accepts_everything() {
+        let shape = ArgShape::Any;
+        assert!(shape.accepts(&Type::Int));
+        assert!(shape.accepts(&Type::String));
+        assert!(shape.accepts(&Type::Node(None)));
+        assert!(shape.accepts(&Type::List(Box::new(Type::Bool))));
     }
 
     #[test]
