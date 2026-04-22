@@ -1,20 +1,24 @@
 # fuzz_formatter-specific extras — whitespace / comment / trivia shapes
 # the formatter must preserve-or-canonicalise. Splicing these into an
 # otherwise valid statement is the fastest path to idempotence bugs.
+#
+# Note: libFuzzer's dictionary parser only accepts \xNN, \\, and \"
+# escapes — not \n / \t / \r — so whitespace is spelled as \x09 / \x0a /
+# \x0d throughout.
 
 # Trailing trivia: whitespace only / comment only.
 " "
 "  "
-"\t"
-"\n"
-"\r\n"
-"\n\n\n"
-"   \t  \n"
-"// leading\n"
-"// trailing\n"
+"\x09"
+"\x0a"
+"\x0d\x0a"
+"\x0a\x0a\x0a"
+"   \x09  \x0a"
+"// leading\x0a"
+"// trailing\x0a"
 "/*block*/"
 "/* spaced */"
-"/* multi\nline */"
+"/* multi\x0aline */"
 "/* nested-like */"
 "/*/*/"
 "/*"
@@ -22,15 +26,15 @@
 
 # Comment placements that break many formatters.
 "MATCH /* inline */ (n)"
-"MATCH // eol\n(n)"
+"MATCH // eol\x0a(n)"
 "RETURN /* a */ n /* b */"
-"WITH // x\nn AS n"
+"WITH // x\x0an AS n"
 "-- sql-style"
 "#shebang-ish"
 
 # Alignment bait: already-multi-line vs inline.
-"MATCH (n)\nRETURN n"
-"MATCH\n(n)\nRETURN\nn"
+"MATCH (n)\x0aRETURN n"
+"MATCH\x0a(n)\x0aRETURN\x0an"
 "MATCH   (n)"
 "RETURN    n   ,   m"
 "MATCH(n)RETURN n"

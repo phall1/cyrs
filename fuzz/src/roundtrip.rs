@@ -12,13 +12,21 @@ use rowan::{NodeOrToken, WalkEvent};
 ///
 /// Two CSTs produce the same shape iff, ignoring whitespace / line-comment
 /// / block-comment tokens, they have:
-/// - the same node-kind tree topology, and
-/// - the same non-trivia token sequence including token text.
+/// - the same node-kind tree topology,
+/// - the same non-trivia token-kind sequence, and
+/// - matching token *text* for non-keyword tokens (identifiers, numeric
+///   literals, string literals, punctuation).
 ///
-/// This is the structural-equality check backing spec §17.3 P17.3.4
-/// (formatter semantic preservation). Token text is included so that
-/// `IDENT("n")` and `IDENT("m")` remain distinguishable — the formatter
-/// is *not* allowed to rename variables.
+/// Keyword token text is deliberately omitted: the formatter is allowed
+/// to canonicalise keyword case (`null` → `NULL`, `match` → `MATCH`).
+/// Keyword *kind* is preserved and compared — only the spelling inside
+/// a given kind is treated as equivalent. This mirrors the openCypher
+/// TCK's case-insensitive keyword rule (spec §17.5 + §13 formatter
+/// canonicalisation).
+///
+/// Variable and property identifiers use `IDENT` (non-keyword), so the
+/// formatter still cannot silently rename them — the property that
+/// matters for P17.3.4 semantic preservation.
 ///
 /// The output format is deliberately human-readable for debug output in
 /// fuzz-target panic messages; it is not a stable serialisation format
@@ -40,8 +48,14 @@ pub fn shape(root: &SyntaxNode) -> String {
                     continue;
                 }
                 out.push(' ');
-                out.push_str(&format!("{:?}=", t.kind()));
-                out.push_str(&format!("{:?}", t.text()));
+                out.push_str(&format!("{:?}", t.kind()));
+                if !t.kind().is_keyword() {
+                    // Include the text so `IDENT("n")` and `IDENT("m")`
+                    // remain distinguishable — the formatter may NOT
+                    // rename variables or rewrite literal values.
+                    out.push('=');
+                    out.push_str(&format!("{:?}", t.text()));
+                }
             }
             WalkEvent::Leave(NodeOrToken::Token(_)) => {}
         }
@@ -99,6 +113,31 @@ mod tests {
         let a = cypher_syntax::parse("MATCH (n) RETURN n");
         let b = cypher_syntax::parse("MATCH /* x */ (n) RETURN n");
         assert_eq!(shape(&a.syntax()), shape(&b.syntax()));
+    }
+
+    /// Keyword case is ignored: `null` and `NULL` produce the same
+    /// shape because the formatter is allowed to canonicalise keyword
+    /// spelling. This is the root cause of the crash bead cy-h07's
+    /// smoke test surfaced on `RETURN coalesce(null, 1)` — the
+    /// formatter rewrites `null` → `NULL`, which must not trip P17.3.4.
+    #[test]
+    fn shape_ignores_keyword_case() {
+        let lo = cypher_syntax::parse("MATCH (n) RETURN null");
+        let hi = cypher_syntax::parse("MATCH (n) RETURN NULL");
+        assert_eq!(shape(&lo.syntax()), shape(&hi.syntax()));
+
+        let lo = cypher_syntax::parse("match (n) return n");
+        let hi = cypher_syntax::parse("MATCH (n) RETURN n");
+        assert_eq!(shape(&lo.syntax()), shape(&hi.syntax()));
+    }
+
+    /// Non-keyword identifier text IS sensitive — the formatter must
+    /// not rename `n` to `m`.
+    #[test]
+    fn shape_keeps_identifier_case() {
+        let upper = cypher_syntax::parse("MATCH (N) RETURN N");
+        let lower = cypher_syntax::parse("MATCH (n) RETURN n");
+        assert_ne!(shape(&upper.syntax()), shape(&lower.syntax()));
     }
 
     /// `contains_error` flags a statement the parser cannot recover from
