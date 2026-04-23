@@ -1,4 +1,4 @@
-# cypher — a Rust front-end for Cypher / GQL
+# cyrs — a Rust front-end for Cypher / GQL
 
 [![crates.io](https://img.shields.io/crates/v/cypher.svg)](https://crates.io/crates/cypher)
 [![docs.rs](https://img.shields.io/docsrs/cypher)](https://docs.rs/cypher)
