@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-wasm"
+name         = "cyrs-wasm"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -13,6 +13,7 @@ keywords     = { workspace = true }
 description  = "WebAssembly binding (wasm-bindgen) that exposes the Cypher / GQL frontend agent op surface as JavaScript callables (spec 0004 §4)."
 
 [lib]
+name = "cypher_wasm"
 crate-type = ["cdylib", "rlib"]
 
 [features]

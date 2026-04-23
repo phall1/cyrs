@@ -1,5 +1,5 @@
 [package]
-name         = "cypher"
+name         = "cyrs-lang"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -22,6 +22,9 @@ description  = "Cypher / GQL frontend — lossless CST, typed AST, HIR, semantic
 # hosting layer — cypher-db + cypher-fmt + cypher-diag — without the
 # LSP binary wrapper.
 # ---------------------------------------------------------------------------
+[lib]
+name = "cypher"
+
 [features]
 default = [
     "core",

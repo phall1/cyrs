@@ -95,7 +95,7 @@ jobs:
   # ---------------------------------------------------------------
   # Diagnostic-code registry gate: every DiagCode::E1001-style
   # reference in crates/**/*.rs must be registered in
-  # cypher-diag/src/codes.rs (spec §10.2, bead cy-wnm).
+  # cyrs-diag/src/codes.rs (spec §10.2, bead cy-wnm).
   # ---------------------------------------------------------------
   check-diag-codes:
     name: check-diag-codes (spec §10.2)
@@ -244,26 +244,26 @@ jobs:
       # ── no-default-features: check only (no std entry-points) ──
       - name: cargo check (no-default-features)
         if: matrix.features == 'no-default-features'
-        run: cargo check -p cypher --no-default-features
+        run: cargo check -p cyrs-lang --no-default-features
 
       # ── lsp-only: check the meta crate lsp-only slice + the LSP binary
-      # cypher-lsp has no lib target so we verify both the slice feature
+      # cyrs-lsp has no lib target so we verify both the slice feature
       # on the meta crate and the binary crate itself.
       - name: cargo check (lsp-only)
         if: matrix.features == 'lsp-only'
         run: |
-          cargo check -p cypher --no-default-features --features lsp-only
-          cargo check -p cypher-lsp
+          cargo check -p cyrs-lang --no-default-features --features lsp-only
+          cargo check -p cyrs-lsp
 
       # ── fmt-only: check the formatter slice compiles in isolation
       - name: cargo check (fmt-only)
         if: matrix.features == 'fmt-only'
-        run: cargo check -p cypher --no-default-features --features fmt-only
+        run: cargo check -p cyrs-lang --no-default-features --features fmt-only
 
       # ── schema-only: check the schema slice compiles in isolation
       - name: cargo check (schema-only)
         if: matrix.features == 'schema-only'
-        run: cargo check -p cypher --no-default-features --features schema-only
+        run: cargo check -p cyrs-lang --no-default-features --features schema-only
 
   # ---------------------------------------------------------------
   # Docs: rustdoc passes at -D warnings (spec §17.15, bead cy-93c)

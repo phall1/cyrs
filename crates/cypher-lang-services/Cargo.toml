@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-lang-services"
+name         = "cyrs-lang-services"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Shared language-service engines (completion, hover, rewrite) used by cypher-lsp and cypher-agent (spec 0001 §14 / §15)."
+
+[lib]
+name = "cypher_lang_services"
 
 [dependencies]
 cypher-ast     = { workspace = true }

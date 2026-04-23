@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-syntax"
+name         = "cyrs-syntax"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -20,6 +20,9 @@ text-size  = { workspace = true }
 drop_bomb  = { workspace = true }
 thiserror  = { workspace = true }
 serde      = { workspace = true, optional = true }
+
+[lib]
+name = "cypher_syntax"
 
 [features]
 default     = ["incremental"]

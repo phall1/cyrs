@@ -12,14 +12,15 @@
 # which opens a PR bumping versions and pivoting `[Unreleased]` blocks
 # into dated sections in every per-crate `CHANGELOG.md`.  The operator
 # reviews that PR and merges it separately.  Nothing reaches crates.io
-# from this workflow directly; crates.io publication is a separate,
-# manually-triggered step documented in `docs/release-playbook.md`.
+# from this workflow directly; crates.io publication is handled by the
+# separate manual `publish-crates.yml` workflow documented in
+# `docs/release-playbook.md`.
 #
 # ---
 # SECRETS REQUIRED (set in Settings → Secrets → Actions)
 # ---
-# - CARGO_REGISTRY_TOKEN — only needed by the playbook's publish step,
-#                          not this workflow.  Kept here for reference.
+# - CARGO_REGISTRY_TOKEN — used by `publish-crates.yml`, not this
+#                          release-PR workflow. Kept here for reference.
 # - GITHUB_TOKEN         — auto-injected; used by release-plz to open
 #                          the release PR against `main`.
 #
@@ -86,7 +87,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No CARGO_REGISTRY_TOKEN here — this workflow never publishes.
-          # The sibling playbook documents the publish step.
+          # The sibling publish-crates workflow handles crates.io.
         if: ${{ inputs.dry_run == false }}
 
       - name: Dry-run release-plz
@@ -104,4 +105,4 @@ jobs:
         run: |
           echo "::notice::release-plz completed (dry_run=${{ inputs.dry_run }})."
           echo "::notice::Review the opened release PR and merge it to bump versions."
-          echo "::notice::Publication to crates.io is a separate step — see docs/release-playbook.md."
+          echo "::notice::Publication to crates.io is a separate manual workflow — see publish-crates.yml and docs/release-playbook.md."

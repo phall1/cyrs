@@ -1,21 +1,21 @@
-# cypher-ffi
+# cyrs-ffi
 
-[![crates.io](https://img.shields.io/crates/v/cypher-ffi.svg)](https://crates.io/crates/cypher-ffi)
-[![docs.rs](https://img.shields.io/docsrs/cypher-ffi)](https://docs.rs/cypher-ffi)
+[![crates.io](https://img.shields.io/crates/v/cyrs-ffi.svg)](https://crates.io/crates/cyrs-ffi)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-ffi)](https://docs.rs/cyrs-ffi)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
 
 Stable C ABI over the Cyrs Cypher / GQL frontend.  Ships a `cdylib` +
 `staticlib` that embedders from Go, Java (JNI), Node (N-API / `koffi`),
-Swift, and C link directly.  Thin adapter over `cypher-lang-services` +
-`cypher-db` + `cypher-diag` + `cypher-fmt`; no analysis logic lives here
+Swift, and C link directly.  Thin adapter over `cyrs-lang-services` +
+`cyrs-db` + `cyrs-diag` + `cyrs-fmt`; no analysis logic lives here
 (spec 0004 §5).
 
 ## Build
 
 ```bash
-cargo build -p cypher-ffi --release
+cargo build -p cyrs-ffi --release
 ```
 
 Produces (relative to the workspace target directory):
@@ -54,7 +54,7 @@ header contract holds in aggregate.
 
 ## ABI commitment
 
-Once a symbol ships in a tagged release of `cypher-ffi`, its signature
+Once a symbol ships in a tagged release of `cyrs-ffi`, its signature
 and semantics are frozen for the life of the major version (spec 0004
 §9.2).  New symbols may be added in minor releases.  Symbol removal or
 signature change requires a major bump and a CHANGELOG entry.

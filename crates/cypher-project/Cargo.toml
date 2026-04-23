@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-project"
+name         = "cyrs-project"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Cypher / GQL project manifest (cypher-project.toml) format and loader (spec 0003)."
+
+[lib]
+name = "cypher_project"
 
 [dependencies]
 cypher-schema = { workspace = true, features = ["file"] }

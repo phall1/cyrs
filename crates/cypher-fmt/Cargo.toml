@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-fmt"
+name         = "cyrs-fmt"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Formatter for Cypher / GQL source that round-trips through the parser (spec 0001 §13)."
+
+[lib]
+name = "cypher_fmt"
 
 [dependencies]
 cypher-syntax = { workspace = true }

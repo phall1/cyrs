@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-py"
+name         = "cyrs-py"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -16,6 +16,7 @@ publish      = true
 # `cdylib` is required by PyO3's `extension-module` feature — the wheel
 # is a shared library Python's import machinery dlopens.  Spec 0004 §6.1.
 [lib]
+name = "cypher_py"
 crate-type = ["cdylib"]
 
 [dependencies]

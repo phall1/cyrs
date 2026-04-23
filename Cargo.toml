@@ -94,22 +94,22 @@ toml           = "0.8"
 salsa = "0.26"
 
 # internal — version is set for cargo publish; local development still uses path.
-cypher-syntax        = { version = "0.0.1", path = "crates/cypher-syntax" }
-cypher-ast           = { version = "0.0.1", path = "crates/cypher-ast" }
-cypher-hir           = { version = "0.0.1", path = "crates/cypher-hir" }
-cypher-sema          = { version = "0.0.1", path = "crates/cypher-sema" }
-cypher-schema        = { version = "0.0.1", path = "crates/cypher-schema" }
-cypher-project       = { version = "0.0.1", path = "crates/cypher-project" }
-cypher-diag          = { version = "0.0.1", path = "crates/cypher-diag" }
-cypher-plan          = { version = "0.0.1", path = "crates/cypher-plan" }
-cypher-fmt           = { version = "0.0.1", path = "crates/cypher-fmt" }
-cypher-db            = { version = "0.0.1", path = "crates/cypher-db" }
-cypher-lang-services = { version = "0.0.1", path = "crates/cypher-lang-services" }
-cypher-tck           = { version = "0.0.1", path = "crates/cypher-tck" }
+cypher-syntax        = { package = "cyrs-syntax", version = "0.0.1", path = "crates/cypher-syntax" }
+cypher-ast           = { package = "cyrs-ast", version = "0.0.1", path = "crates/cypher-ast" }
+cypher-hir           = { package = "cyrs-hir", version = "0.0.1", path = "crates/cypher-hir" }
+cypher-sema          = { package = "cyrs-sema", version = "0.0.1", path = "crates/cypher-sema" }
+cypher-schema        = { package = "cyrs-schema", version = "0.0.1", path = "crates/cypher-schema" }
+cypher-project       = { package = "cyrs-project", version = "0.0.1", path = "crates/cypher-project" }
+cypher-diag          = { package = "cyrs-diag", version = "0.0.1", path = "crates/cypher-diag" }
+cypher-plan          = { package = "cyrs-plan", version = "0.0.1", path = "crates/cypher-plan" }
+cypher-fmt           = { package = "cyrs-fmt", version = "0.0.1", path = "crates/cypher-fmt" }
+cypher-db            = { package = "cyrs-db", version = "0.0.1", path = "crates/cypher-db" }
+cypher-lang-services = { package = "cyrs-lang-services", version = "0.0.1", path = "crates/cypher-lang-services" }
+cypher-tck           = { package = "cyrs-tck", version = "0.0.1", path = "crates/cypher-tck" }
 # cypher-testkit is dev-only (publish = false) — no version so `cargo
 # publish` strips it cleanly from published dev-dependencies.
-cypher-testkit       = { path = "crates/cypher-testkit" }
-cypher               = { version = "0.0.1", path = "crates/cypher" }
+cypher-testkit       = { package = "cyrs-testkit", path = "crates/cypher-testkit" }
+cypher               = { package = "cyrs-lang", version = "0.0.1", path = "crates/cypher" }
 
 # ---------------------------------------------------------------------------
 # Lints. Spec §17.13 forbids unsafe workspace-wide.

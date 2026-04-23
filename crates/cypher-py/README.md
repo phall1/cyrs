@@ -1,7 +1,7 @@
-# cypher-py
+# cyrs-py
 
-[![crates.io](https://img.shields.io/crates/v/cypher-py.svg)](https://crates.io/crates/cypher-py)
-[![docs.rs](https://img.shields.io/docsrs/cypher-py)](https://docs.rs/cypher-py)
+[![crates.io](https://img.shields.io/crates/v/cyrs-py.svg)](https://crates.io/crates/cyrs-py)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-py)](https://docs.rs/cyrs-py)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
@@ -9,8 +9,8 @@
 Python (PyO3) bindings for the Cyrs Cypher / GQL frontend. Exposes the
 agent v1 op surface (parse, check, complete, hover, format, rewrite,
 schema_set, schema_clear) as methods on a single `CypherDatabase`
-Python class. Thin adapter over `cypher-lang-services` + `cypher-db` +
-`cypher-diag` + `cypher-fmt`; no analysis logic lives here (spec 0004
+Python class. Thin adapter over `cyrs-lang-services` + `cyrs-db` +
+`cyrs-diag` + `cyrs-fmt`; no analysis logic lives here (spec 0004
 §6).
 
 ## Install (release)

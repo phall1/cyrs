@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-ffi"
+name         = "cyrs-ffi"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -16,6 +16,7 @@ publish      = true
 # Produce both a dynamic library (for dlopen / JNI / cgo-link consumers)
 # and a static archive (for fat-binary embedders).  Spec 0004 §5.1.
 [lib]
+name = "cypher_ffi"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [features]

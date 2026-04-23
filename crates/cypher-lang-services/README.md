@@ -1,7 +1,7 @@
-# cypher-lang-services
+# cyrs-lang-services
 
-[![crates.io](https://img.shields.io/crates/v/cypher-lang-services.svg)](https://crates.io/crates/cypher-lang-services)
-[![docs.rs](https://img.shields.io/docsrs/cypher-lang-services)](https://docs.rs/cypher-lang-services)
+[![crates.io](https://img.shields.io/crates/v/cyrs-lang-services.svg)](https://crates.io/crates/cyrs-lang-services)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-lang-services)](https://docs.rs/cyrs-lang-services)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)

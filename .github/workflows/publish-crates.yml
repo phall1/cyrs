@@ -1,0 +1,56 @@
+# Manual crates.io publication for the cyrs workspace.
+#
+# This workflow is intentionally never triggered by push or tag creation.
+# crates.io publishing is irreversible for a version, so the operator must
+# run it explicitly from the Actions UI. The default is a dry-run.
+
+name: publish-crates
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run cargo-release in dry-run mode"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+jobs:
+  publish:
+    name: Publish workspace crates
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94"
+
+      - name: Cache cargo registry / build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: publish-crates
+
+      - name: Install cargo-release
+        run: cargo install cargo-release --locked
+
+      - name: Verify workspace metadata parses
+        run: cargo metadata --format-version 1 >/dev/null
+
+      - name: Publish dry-run
+        if: ${{ inputs.dry_run == true }}
+        run: cargo release publish --workspace --no-confirm --dry-run
+
+      - name: Publish to crates.io
+        if: ${{ inputs.dry_run == false }}
+        run: cargo release publish --workspace --no-confirm --execute

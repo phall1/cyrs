@@ -2,14 +2,14 @@
 //! wrappers around the WASM build pipelines.  Spec 0004 §4.2 (agent
 //! size budget), §7 (LSP-Web), §10.1 (smoke test).
 //!
-//! The `cypher-wasm` pipeline:
+//! The `cyrs-wasm` pipeline:
 //!
-//! 1. `cargo build -p cypher-wasm --target wasm32-unknown-unknown --release`
+//! 1. `cargo build -p cyrs-wasm --target wasm32-unknown-unknown --release`
 //! 2. `wasm-bindgen --target web --out-dir <pkg> <artifact>.wasm`
 //! 3. `wasm-opt -Os <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm`
 //! 4. `brotli -q 11 <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm.br`
 //!
-//! The `cypher-lsp` (LSP-Web) pipeline is a sibling with a different
+//! The `cyrs-lsp` (LSP-Web) pipeline is a sibling with a different
 //! target directory, `--target no-modules` for use inside a classic
 //! Dedicated Worker, the `web-lsp` feature enabled, and a looser 3 MB
 //! brotli cap (spec 0004 §7).
@@ -43,7 +43,7 @@ use anyhow::{Result, anyhow, bail};
 const SIZE_LIMIT_BYTES: u64 = 2 * 1024 * 1024;
 
 /// Spec 0004 §7 — brotli-compressed size cap for the LSP-Web artifact.
-/// Looser than the agent cap because `cypher-lsp` carries `lsp-types`
+/// Looser than the agent cap because `cyrs-lsp` carries `lsp-types`
 /// (a large generated-from-JSON-schema crate) on top of the same
 /// analysis pipeline.
 const LSP_SIZE_LIMIT_BYTES: u64 = 3 * 1024 * 1024;
@@ -201,11 +201,11 @@ pub fn smoke() -> Result<()> {
     Ok(())
 }
 
-/// `lsp-web-build` — compile + bundle `cypher-lsp` with the `web-lsp`
+/// `lsp-web-build` — compile + bundle `cyrs-lsp` with the `web-lsp`
 /// feature and enforce the §7 size gate.  Sibling to `wasm-build` /
 /// `wasm-size`; see the module-level docstring for the pipeline shape.
 ///
-/// The wasm-bindgen target is `no-modules` because the `cypher-lsp`
+/// The wasm-bindgen target is `no-modules` because the `cyrs-lsp`
 /// Worker is a classic `DedicatedWorkerGlobalScope` — `type: "module"`
 /// workers do not honour wasm-bindgen's module-output shape on every
 /// browser we care about (spec 0004 §11).  The artifact lands under
@@ -325,7 +325,7 @@ pub fn lsp_web_build() -> Result<()> {
     Ok(())
 }
 
-/// Invoke `cargo build -p cypher-wasm --target wasm32-unknown-unknown --release`.
+/// Invoke `cargo build -p cyrs-wasm --target wasm32-unknown-unknown --release`.
 /// A missing `wasm32-unknown-unknown` target is reported with a clear
 /// install hint and returns Ok — local developers should not be forced
 /// to install the wasm32 target to run the gate.
@@ -339,7 +339,7 @@ fn run_cargo_wasm(workspace: &Path) -> Result<()> {
         "wasm32-unknown-unknown",
         "--release",
     ]);
-    println!("==> cargo build -p cypher-wasm --target wasm32-unknown-unknown --release");
+    println!("==> cargo build -p cyrs-wasm --target wasm32-unknown-unknown --release");
     let output = cmd
         .output()
         .map_err(|e| anyhow!("failed to spawn cargo: {e}"))?;
@@ -367,7 +367,7 @@ fn run_cargo_wasm(workspace: &Path) -> Result<()> {
     );
 }
 
-/// LSP-Web sibling: `cargo build -p cypher-lsp --features web-lsp
+/// LSP-Web sibling: `cargo build -p cyrs-lsp --features web-lsp
 /// --target wasm32-unknown-unknown --release`.  Mirrors
 /// [`run_cargo_wasm`]'s missing-target handling so local developers
 /// without the wasm toolchain get a skip rather than a gate failure.
@@ -384,7 +384,7 @@ fn run_cargo_wasm_lsp(workspace: &Path) -> Result<()> {
         "--release",
     ]);
     println!(
-        "==> cargo build -p cypher-lsp --features web-lsp --target wasm32-unknown-unknown --release"
+        "==> cargo build -p cyrs-lsp --features web-lsp --target wasm32-unknown-unknown --release"
     );
     let output = cmd
         .output()

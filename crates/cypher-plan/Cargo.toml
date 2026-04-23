@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-plan"
+name         = "cyrs-plan"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Logical plan IR lowered from Cypher / GQL HIR (spec 0001 §12)."
+
+[lib]
+name = "cypher_plan"
 
 [features]
 # The `serde` feature enables JSON serialisation/deserialisation of all plan
@@ -30,7 +33,7 @@ insta          = { workspace = true, features = ["json"] }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 indexmap       = { workspace = true }
-cypher-plan    = { path = ".", features = ["serde"] }
+cypher-plan    = { package = "cyrs-plan", path = ".", features = ["serde"] }
 cypher-testkit = { workspace = true }
 proptest       = { workspace = true }
 cypher-syntax  = { workspace = true }

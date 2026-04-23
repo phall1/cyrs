@@ -64,12 +64,12 @@ jobs:
           workspaces: "benches -> target"
           key: nightly-benches
 
-      # bench_agent_throughput needs the `cypher-agent` release binary.
+      # bench_agent_throughput needs the `cyrs-agent` release binary.
       # The bench crate is its own [workspace] so the main workspace
       # target dir is separate; build the binary up front so the bench's
       # own `cargo build` step is a no-op.
       - name: pre-build cypher-agent (release)
-        run: cargo build --release -p cypher-agent
+        run: cargo build --release -p cyrs-agent
 
       # Run all four heavy benches.  Each bench has `harness = false` +
       # its own `main`, so a non-zero exit from any internal gate
@@ -165,7 +165,7 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------------------------
-  # cypher-wasm size gate — spec 0004 §4.2.  Keeps the brotli-compressed
+  # cyrs-wasm size gate — spec 0004 §4.2.  Keeps the brotli-compressed
   # artifact ≤ 2 MB so a hosted playground can fetch it on a warm CDN
   # without a loading spinner.  Runs nightly (not on pre-commit) because
   # the wasm toolchain is not universally installed; the `cargo xtask

@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-diag"
+name         = "cyrs-diag"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -21,6 +21,9 @@ codespan-reporting = { workspace = true }
 serde         = { workspace = true, optional = true }
 serde_json    = { workspace = true }
 lsp-types     = { workspace = true, optional = true }
+
+[lib]
+name = "cypher_diag"
 
 [features]
 default = []

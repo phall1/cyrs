@@ -31,15 +31,15 @@ Done once, before v0.1.0.  Skip for subsequent releases.
 1. **crates.io token.**  Create a scoped publish token at
    <https://crates.io/settings/tokens> (scope:
    `publish-new` + `publish-update`).  Store as a repository secret
-   named `CARGO_REGISTRY_TOKEN`.  The token is NOT referenced by
-   `release.yml` today — it will be used by the publish step
-   (§3 below) that currently runs from the operator's machine.
+   named `CARGO_REGISTRY_TOKEN`.  The token is consumed only by the
+   manual `publish-crates.yml` workflow; release-PR generation never
+   publishes to crates.io.
 2. **Protected branch `main`.**  Require PR reviews; enable the
    `ci / lint`, `ci / test (stable)`, and `semver-checks` status
    checks as required.
 3. **Release-plz config.**  Default config is fine for pre-1.0; create
    `release-plz.toml` at repo root only when we need per-crate
-   overrides (e.g. excluding `cypher-testkit` from the publish pass,
+   overrides (e.g. excluding `cyrs-testkit` from the publish pass,
    which Cargo already enforces via `publish = false`).
 4. **`cargo-cyclonedx` installed on the CI runner.**  `sign-release.yml`
    runs `cargo install cargo-cyclonedx --locked` each invocation; no
@@ -119,10 +119,10 @@ call.  From the repo's **Releases → Draft a new release**:
 - **Target:** the merge commit.
 - **Release notes:** auto-generate from the commit log, then prepend
   the combined crates' changelog entries for readability.
-- **Attach binaries:** upload `cypher`, `cypher-lsp`, and
-  `cypher-agent` binaries for at least `x86_64-linux`, `x86_64-macos`,
+- **Attach binaries:** upload `cypher`, `cyrs-lsp`, and
+  `cyrs-agent` binaries for at least `x86_64-linux`, `x86_64-macos`,
   `aarch64-macos`, `x86_64-windows`.  Build them with
-  `cargo build --release -p cypher-cli` (etc.) on a matching runner
+  `cargo build --release -p cyrs-cli` (etc.) on a matching runner
   or use `cross` for the cross-platform legs.
 - Click **Publish release**.
 
@@ -131,16 +131,19 @@ automatically — see §2.
 
 ### 1.5 Publish to crates.io
 
-crates.io publication is NOT driven by any workflow today.  It is a
-one-shot script from the operator's machine once the release PR is
-merged and tagged:
+crates.io publication is a manual GitHub Actions step once the release
+PR is merged and tagged. Go to **GitHub → Actions → publish-crates →
+Run workflow** and run with `dry_run: true` first. If the dry-run is
+clean, re-run with `dry_run: false`.
+
+The same command can be run from the operator's machine if needed:
 
 ```sh
 # Set once per shell session:
 export CARGO_REGISTRY_TOKEN=<redacted>
 
 # Dry-run first. `cargo release` walks the workspace in dependency
-# order and respects `publish = false` in cypher-testkit / xtask.
+# order and respects `publish = false` in cyrs-testkit / xtask.
 cargo install cargo-release --locked
 cargo release publish --workspace --no-confirm --dry-run
 
@@ -154,25 +157,28 @@ order:
 ```sh
 # Reads in spec §3.1 dependency order; each `cargo publish` blocks
 # until crates.io indexes the new version.
-cargo publish -p cypher-syntax
-cargo publish -p cypher-diag
-cargo publish -p cypher-ast
-cargo publish -p cypher-schema
-cargo publish -p cypher-project
-cargo publish -p cypher-hir
-cargo publish -p cypher-sema
-cargo publish -p cypher-plan
-cargo publish -p cypher-fmt
-cargo publish -p cypher-db
-cargo publish -p cypher-lang-services
-cargo publish -p cypher-tck
-cargo publish -p cypher-lsp
-cargo publish -p cypher-agent
-cargo publish -p cypher-cli
-cargo publish -p cypher   # meta-crate goes last
+cargo publish -p cyrs-syntax
+cargo publish -p cyrs-diag
+cargo publish -p cyrs-ast
+cargo publish -p cyrs-schema
+cargo publish -p cyrs-project
+cargo publish -p cyrs-hir
+cargo publish -p cyrs-sema
+cargo publish -p cyrs-plan
+cargo publish -p cyrs-fmt
+cargo publish -p cyrs-db
+cargo publish -p cyrs-lang-services
+cargo publish -p cyrs-wasm
+cargo publish -p cyrs-ffi
+cargo publish -p cyrs-py
+cargo publish -p cyrs-tck
+cargo publish -p cyrs-lsp
+cargo publish -p cyrs-agent
+cargo publish -p cyrs-cli
+cargo publish -p cyrs-lang   # meta-crate goes last
 ```
 
-Never publish `cypher-testkit` (it is `publish = false`).
+Never publish `cyrs-testkit` (it is `publish = false`).
 
 ---
 

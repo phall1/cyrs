@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-schema"
+name         = "cyrs-schema"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -18,6 +18,9 @@ indexmap  = { workspace = true }
 serde     = { workspace = true, optional = true }
 toml      = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
+
+[lib]
+name = "cypher_schema"
 
 [features]
 default = ["file"]

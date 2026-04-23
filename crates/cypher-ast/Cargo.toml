@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-ast"
+name         = "cyrs-ast"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Typed AST for Cypher / GQL, codegen'd from cypher-syntax (spec 0001 §5)."
+
+[lib]
+name = "cypher_ast"
 
 [dependencies]
 cypher-syntax = { workspace = true }

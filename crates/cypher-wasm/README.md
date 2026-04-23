@@ -1,7 +1,7 @@
-# cypher-wasm
+# cyrs-wasm
 
-[![crates.io](https://img.shields.io/crates/v/cypher-wasm.svg)](https://crates.io/crates/cypher-wasm)
-[![docs.rs](https://img.shields.io/docsrs/cypher-wasm)](https://docs.rs/cypher-wasm)
+[![crates.io](https://img.shields.io/crates/v/cyrs-wasm.svg)](https://crates.io/crates/cyrs-wasm)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-wasm)](https://docs.rs/cyrs-wasm)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
@@ -9,8 +9,8 @@
 WebAssembly binding for the Cyrs Cypher / GQL frontend. Exposes the
 agent v1 op surface (parse, check, complete, hover, format, rewrite,
 plan, explain, schema_set, schema_clear) as JavaScript callables on a
-single `CypherDatabase` class. Thin adapter over `cypher-lang-services`
-+ `cypher-db` + `cypher-diag` + `cypher-fmt`; no analysis logic lives
+single `CypherDatabase` class. Thin adapter over `cyrs-lang-services`
++ `cyrs-db` + `cyrs-diag` + `cyrs-fmt`; no analysis logic lives
 here (spec 0004 §4).
 
 ## Build for the browser
@@ -20,7 +20,7 @@ here (spec 0004 §4).
 rustup target add wasm32-unknown-unknown
 
 # build the cdylib
-cargo build -p cypher-wasm --target wasm32-unknown-unknown --release
+cargo build -p cyrs-wasm --target wasm32-unknown-unknown --release
 
 # generate the JS wrapper (cargo install wasm-bindgen-cli --locked)
 wasm-bindgen --target web \

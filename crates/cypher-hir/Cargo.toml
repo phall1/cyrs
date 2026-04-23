@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-hir"
+name         = "cyrs-hir"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "High-level IR for Cypher / GQL with scope graph and name resolution (spec 0001 §6)."
+
+[lib]
+name = "cypher_hir"
 
 [dependencies]
 cypher-syntax = { workspace = true }

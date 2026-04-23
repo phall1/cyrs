@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-sema"
+name         = "cyrs-sema"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Schema-aware and schema-free semantic analysis for Cypher / GQL (spec 0001 §7)."
+
+[lib]
+name = "cypher_sema"
 
 [dependencies]
 cypher-hir    = { workspace = true }

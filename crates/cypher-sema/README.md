@@ -1,7 +1,7 @@
-# cypher-sema
+# cyrs-sema
 
-[![crates.io](https://img.shields.io/crates/v/cypher-sema.svg)](https://crates.io/crates/cypher-sema)
-[![docs.rs](https://img.shields.io/docsrs/cypher-sema)](https://docs.rs/cypher-sema)
+[![crates.io](https://img.shields.io/crates/v/cyrs-sema.svg)](https://crates.io/crates/cyrs-sema)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-sema)](https://docs.rs/cyrs-sema)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)

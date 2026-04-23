@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-tck"
+name         = "cyrs-tck"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -11,6 +11,9 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "openCypher TCK v1 conformance harness for the cyrs frontend (spec 0001 §17.5)."
+
+[lib]
+name = "cypher_tck"
 
 [features]
 # Enable the full vendored openCypher TCK corpus under

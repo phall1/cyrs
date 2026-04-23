@@ -1,5 +1,5 @@
 [package]
-name         = "cypher-lsp"
+name         = "cyrs-lsp"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }

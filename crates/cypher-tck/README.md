@@ -1,7 +1,7 @@
-# cypher-tck
+# cyrs-tck
 
-[![crates.io](https://img.shields.io/crates/v/cypher-tck.svg)](https://crates.io/crates/cypher-tck)
-[![docs.rs](https://img.shields.io/docsrs/cypher-tck)](https://docs.rs/cypher-tck)
+[![crates.io](https://img.shields.io/crates/v/cyrs-tck.svg)](https://crates.io/crates/cyrs-tck)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-tck)](https://docs.rs/cyrs-tck)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](https://github.com/phall1/cyrs/blob/main/rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
@@ -27,7 +27,7 @@ see the [repo-root README](https://github.com/phall1/cyrs#readme).
 ### v1 slice (pre-commit gate)
 
 ```
-cargo test -p cypher-tck
+cargo test -p cyrs-tck
 ```
 
 Must stay green on every PR.  Runs in milliseconds.
@@ -35,14 +35,14 @@ Must stay green on every PR.  Runs in milliseconds.
 ### Full vendored corpus (measurement-only baseline)
 
 ```
-cargo test -p cypher-tck --features full-tck
+cargo test -p cyrs-tck --features full-tck
 # — or, equivalently —
 cargo xtask tck-baseline
 ```
 
 This scans every `.feature` file under `tck/full/features/`, expands
 Scenario Outlines against their `Examples:` tables, runs each query
-through `cypher-db`, and writes per-area parser-acceptance counts to
+through `cyrs-db`, and writes per-area parser-acceptance counts to
 [`tck/full-baseline.md`](tck/full-baseline.md).  The test **never
 fails** — it is a rolling measurement used for regression tracking,
 not a CI gate.  See bead `cy-p5q` (spec §17.5) for the rationale.
@@ -51,8 +51,8 @@ not a CI gate.  See bead `cy-p5q` (spec §17.5) for the rationale.
 
 | Invocation                                    | Role                       | Gated by pre-commit? |
 | --------------------------------------------- | -------------------------- | -------------------- |
-| `cargo test -p cypher-tck`                    | v1 slice, must pass        | Yes (§17)            |
-| `cargo test -p cypher-tck --features full-tck`| full-corpus baseline write | No                   |
+| `cargo test -p cyrs-tck`                    | v1 slice, must pass        | Yes (§17)            |
+| `cargo test -p cyrs-tck --features full-tck`| full-corpus baseline write | No                   |
 | `cargo xtask tck-baseline`                    | convenience wrapper        | No                   |
 
 The full corpus is intentionally kept out of the default pre-commit

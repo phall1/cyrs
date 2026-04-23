@@ -29,7 +29,7 @@ enum Cmd {
     /// Runs `BLESS=1 cargo test --test ui` for the specified package (or all
     /// UI-test packages when `--package` is omitted).
     Bless {
-        /// Package to bless (e.g. `cypher-sema`). Omit to bless all.
+        /// Package to bless (e.g. `cyrs-sema`). Omit to bless all.
         #[arg(short, long)]
         package: Option<String>,
         /// Corpus kind to bless (syntax/sema/schema/dialect/plan/fmt).
@@ -37,7 +37,7 @@ enum Cmd {
         #[arg(short, long)]
         kind: Option<String>,
     },
-    /// Regenerate `cypher-ast` from the grammar description (spec §5.2).
+    /// Regenerate `cyrs-ast` from the grammar description (spec §5.2).
     Codegen,
     /// Verify release gates are green (spec §17.17).
     Release,
@@ -51,7 +51,7 @@ enum Cmd {
     /// Regenerate `crates/cypher-tck/tck/full-baseline.md` by running
     /// the full-tck harness (spec §17.5, bead cy-p5q).
     ///
-    /// Thin wrapper around `cargo test -p cypher-tck --features
+    /// Thin wrapper around `cargo test -p cyrs-tck --features
     /// full-tck tck_full_baseline -- --nocapture`.
     #[command(name = "tck-baseline")]
     TckBaseline,
@@ -141,7 +141,7 @@ fn main() -> Result<()> {
 /// `full-tck` Cargo feature enabled; the test writes
 /// `crates/cypher-tck/tck/full-baseline.md` as a side-effect.
 fn tck_baseline() -> Result<()> {
-    println!("==> cargo test -p cypher-tck --features full-tck tck_full_baseline");
+    println!("==> cargo test -p cyrs-tck --features full-tck tck_full_baseline");
     run(
         "cargo",
         &[

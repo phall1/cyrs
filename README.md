@@ -1,7 +1,7 @@
 # cyrs — a Rust front-end for Cypher / GQL
 
-[![crates.io](https://img.shields.io/crates/v/cypher.svg)](https://crates.io/crates/cypher)
-[![docs.rs](https://img.shields.io/docsrs/cypher)](https://docs.rs/cypher)
+[![crates.io](https://img.shields.io/crates/v/cyrs-lang.svg)](https://crates.io/crates/cyrs-lang)
+[![docs.rs](https://img.shields.io/docsrs/cyrs-lang)](https://docs.rs/cyrs-lang)
 [![CI](https://github.com/phall1/cyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/phall1/cyrs/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue)](./rust-toolchain.toml)
 [![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
@@ -69,17 +69,17 @@ The authoritative crate graph and allowed-edges list lives in
 ## Quickstart
 
 ```sh
-cargo install cypher-cli
+cargo install cyrs-cli
 cypher parse demo/samples/good.cyp
 cypher fmt   demo/samples/needs_fmt.cyp
 cypher check demo/samples/unknown_var.cyp
 ```
 
-`cypher-cli` ships the `cypher` binary with `parse`, `check`, `fmt`,
+`cyrs-cli` ships the `cypher` binary with `parse`, `check`, `fmt`,
 `plan`, `explain`, and schema-file operations (`schema load`,
 `schema check`, `schema diff`; see
 [spec 0002](docs/specs/0002-schema-file-format.md)). The Rust API is
-available as the [`cypher`](https://crates.io/crates/cypher) meta-crate.
+available as the [`cyrs-lang`](https://crates.io/crates/cyrs-lang) meta-crate.
 
 ---
 
@@ -97,10 +97,10 @@ available as the [`cypher`](https://crates.io/crates/cypher) meta-crate.
   §10. Codes are SemVer — once assigned, meaning never changes.
 - **Idempotent formatter** — `fmt(fmt(x)) == fmt(x)`, round-trips through
   the parser.
-- **Salsa-backed incremental DB** — `cypher-db` re-computes only the
+- **Salsa-backed incremental DB** — `cyrs-db` re-computes only the
   affected queries on every edit.
 - **LSP server + JSON agent API** — share a single
-  `cypher-lang-services` engine layer; zero logic duplication.
+  `cyrs-lang-services` engine layer; zero logic duplication.
 
 ---
 
@@ -123,7 +123,7 @@ A no-plugin Neovim walkthrough that spins up the language server,
 publishes diagnostics, and runs format-on-save against real queries:
 
 ```sh
-cargo build --release -p cypher-lsp
+cargo build --release -p cyrs-lsp
 nvim -u demo/nvim/init.lua demo/samples/unclosed_paren.cyp
 ```
 
@@ -137,21 +137,21 @@ for the recording.
 
 | Crate            | Purpose                                                      |
 | ---------------- | ------------------------------------------------------------ |
-| `cypher-syntax`  | Lexer, recovering parser, lossless CST, `SyntaxKind`         |
-| `cypher-ast`     | Typed AST wrappers over the CST                              |
-| `cypher-hir`     | Lowered HIR, name resolution, scope graph, desugaring        |
-| `cypher-sema`    | Semantic analysis + type system                              |
-| `cypher-schema`  | `SchemaProvider` trait + supporting types                    |
-| `cypher-diag`    | Diagnostic type, stable code registry, rendering backends    |
-| `cypher-plan`    | Logical read / write plan IR                                 |
-| `cypher-fmt`     | CST-driven formatter                                         |
-| `cypher-db`      | Salsa-based incremental analysis database                    |
-| `cypher-lang-services` | Shared completion / hover / rewrite engines            |
-| `cypher-lsp`     | Language server binary                                       |
-| `cypher-agent`   | JSON-over-stdio agent API binary                             |
-| `cypher-cli`     | `cypher {parse,check,fmt,explain,plan}`                      |
-| `cypher-tck`     | openCypher TCK harness                                       |
-| `cypher-testkit` | Shared test fixtures, compiletest runner (dev only)          |
+| `cyrs-syntax`  | Lexer, recovering parser, lossless CST, `SyntaxKind`         |
+| `cyrs-ast`     | Typed AST wrappers over the CST                              |
+| `cyrs-hir`     | Lowered HIR, name resolution, scope graph, desugaring        |
+| `cyrs-sema`    | Semantic analysis + type system                              |
+| `cyrs-schema`  | `SchemaProvider` trait + supporting types                    |
+| `cyrs-diag`    | Diagnostic type, stable code registry, rendering backends    |
+| `cyrs-plan`    | Logical read / write plan IR                                 |
+| `cyrs-fmt`     | CST-driven formatter                                         |
+| `cyrs-db`      | Salsa-based incremental analysis database                    |
+| `cyrs-lang-services` | Shared completion / hover / rewrite engines            |
+| `cyrs-lsp`     | Language server binary                                       |
+| `cyrs-agent`   | JSON-over-stdio agent API binary                             |
+| `cyrs-cli`     | `cypher {parse,check,fmt,explain,plan}`                      |
+| `cyrs-tck`     | openCypher TCK harness                                       |
+| `cyrs-testkit` | Shared test fixtures, compiletest runner (dev only)          |
 | `cypher`         | Meta-crate re-exporting the library surface                  |
 
 ---
@@ -175,7 +175,7 @@ for the recording.
 A parallel [tree-sitter][ts] grammar for Cypher / GQL lives at
 [`tree-sitter-cypher/`](./tree-sitter-cypher) for editor integrations
 (Neovim, Helix, GitHub highlighter). The Rust parser in
-`cypher-syntax` is authoritative; the tree-sitter grammar is a
+`cyrs-syntax` is authoritative; the tree-sitter grammar is a
 hand-maintained artefact kept in lock-step by the
 `cargo xtask tree-sitter-parity` gate.
 
@@ -236,7 +236,7 @@ cargo test --workspace                              # unit + integration + snaps
 cargo insta review                                  # snapshot review
 cargo llvm-cov --workspace --html                   # coverage
 cargo fuzz run fuzz_parser -- -max_total_time=300   # fuzz (nightly only)
-cargo mutants -- -p cypher-sema                     # mutation testing
+cargo mutants -- -p cyrs-sema                     # mutation testing
 cargo bench --workspace                             # criterion benchmarks
 ```
 

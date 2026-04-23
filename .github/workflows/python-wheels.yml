@@ -1,4 +1,4 @@
-# Python wheel matrix for `cypher-py` (spec 0004 §6.2, §10.3).
+# Python wheel matrix for `cyrs-py` (spec 0004 §6.2, §10.3).
 #
 # ---
 # TRIGGER POLICY
@@ -18,7 +18,7 @@
 # This workflow uploads wheels as GitHub release assets ONLY.  Actual
 # PyPI publication is deferred to `cy-zgz` (release playbook) and is
 # operator-controlled — no `twine upload` runs from CI.  Mirrors the
-# cypher-wasm / cypher-ffi "no publish step" policy (spec 0004 §12).
+# cyrs-wasm / cypher-ffi "no publish step" policy (spec 0004 §12).
 #
 # ---
 # ABI3 RATIONALE

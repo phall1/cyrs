@@ -350,35 +350,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher"
-version = "0.0.1"
-dependencies = [
- "cypher-ast",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-plan",
- "cypher-project",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
-]
-
-[[package]]
-name = "cypher-agent"
+name = "cyrs-agent"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-lang-services",
- "cypher-plan",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-lang-services",
+ "cyrs-plan",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
  "serde",
  "serde_json",
  "smol_str",
@@ -387,28 +371,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-ast"
+name = "cyrs-ast"
 version = "0.0.1"
 dependencies = [
- "cypher-syntax",
+ "cyrs-syntax",
  "insta",
  "rowan",
  "smol_str",
 ]
 
 [[package]]
-name = "cypher-cli"
+name = "cyrs-cli"
 version = "0.0.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-lang-services",
- "cypher-project",
- "cypher-schema",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-lang-services",
+ "cyrs-project",
+ "cyrs-schema",
  "insta",
  "predicates",
  "protobuf",
@@ -420,17 +404,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-db"
+name = "cyrs-db"
 version = "0.0.1"
 dependencies = [
- "cypher-ast",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-plan",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
+ "cyrs-ast",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-plan",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
  "indexmap",
  "salsa",
  "smol_str",
@@ -438,11 +422,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-diag"
+name = "cyrs-diag"
 version = "0.0.1"
 dependencies = [
  "codespan-reporting",
- "cypher-syntax",
+ "cyrs-syntax",
  "indexmap",
  "lsp-types",
  "serde",
@@ -452,22 +436,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-ffi"
+name = "cyrs-ffi"
 version = "0.0.1"
 dependencies = [
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-lang-services",
- "cypher-syntax",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-lang-services",
+ "cyrs-syntax",
 ]
 
 [[package]]
-name = "cypher-fmt"
+name = "cyrs-fmt"
 version = "0.0.1"
 dependencies = [
- "cypher-syntax",
- "cypher-testkit",
+ "cyrs-syntax",
+ "cyrs-testkit",
  "insta",
  "pretty_assertions",
  "proptest",
@@ -476,12 +460,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-hir"
+name = "cyrs-hir"
 version = "0.0.1"
 dependencies = [
- "cypher-ast",
- "cypher-fmt",
- "cypher-syntax",
+ "cyrs-ast",
+ "cyrs-fmt",
+ "cyrs-syntax",
  "indexmap",
  "insta",
  "proptest",
@@ -490,38 +474,54 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-lang-services"
+name = "cyrs-lang"
 version = "0.0.1"
 dependencies = [
- "cypher-ast",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-project",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
+ "cyrs-ast",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-plan",
+ "cyrs-project",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
+]
+
+[[package]]
+name = "cyrs-lang-services"
+version = "0.0.1"
+dependencies = [
+ "cyrs-ast",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-project",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
  "rowan",
  "smol_str",
 ]
 
 [[package]]
-name = "cypher-lsp"
+name = "cyrs-lsp"
 version = "0.0.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-lang-services",
- "cypher-plan",
- "cypher-project",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-lang-services",
+ "cyrs-plan",
+ "cyrs-project",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
  "js-sys",
  "lsp-server",
  "lsp-types",
@@ -537,13 +537,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-plan"
+name = "cyrs-plan"
 version = "0.0.1"
 dependencies = [
- "cypher-hir",
- "cypher-plan",
- "cypher-syntax",
- "cypher-testkit",
+ "cyrs-hir",
+ "cyrs-plan",
+ "cyrs-syntax",
+ "cyrs-testkit",
  "indexmap",
  "insta",
  "proptest",
@@ -553,10 +553,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-project"
+name = "cyrs-project"
 version = "0.0.1"
 dependencies = [
- "cypher-schema",
+ "cyrs-schema",
  "globset",
  "serde",
  "smol_str",
@@ -567,20 +567,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-py"
+name = "cyrs-py"
 version = "0.0.1"
 dependencies = [
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-lang-services",
- "cypher-schema",
- "cypher-syntax",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-lang-services",
+ "cyrs-schema",
+ "cyrs-syntax",
  "pyo3",
 ]
 
 [[package]]
-name = "cypher-schema"
+name = "cyrs-schema"
 version = "0.0.1"
 dependencies = [
  "indexmap",
@@ -592,14 +592,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-sema"
+name = "cyrs-sema"
 version = "0.0.1"
 dependencies = [
- "cypher-diag",
- "cypher-hir",
- "cypher-schema",
- "cypher-syntax",
- "cypher-testkit",
+ "cyrs-diag",
+ "cyrs-hir",
+ "cyrs-schema",
+ "cyrs-syntax",
+ "cyrs-testkit",
  "indexmap",
  "insta",
  "proptest",
@@ -609,10 +609,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-syntax"
+name = "cyrs-syntax"
 version = "0.0.1"
 dependencies = [
- "cypher-testkit",
+ "cyrs-testkit",
  "drop_bomb",
  "expect-test",
  "insta",
@@ -627,28 +627,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-tck"
+name = "cyrs-tck"
 version = "0.0.1"
 dependencies = [
- "cypher-db",
+ "cyrs-db",
  "insta",
  "serde",
  "toml",
 ]
 
 [[package]]
-name = "cypher-testkit"
+name = "cyrs-testkit"
 version = "0.0.1"
 dependencies = [
- "cypher-ast",
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-hir",
- "cypher-plan",
- "cypher-schema",
- "cypher-sema",
- "cypher-syntax",
+ "cyrs-ast",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-hir",
+ "cyrs-plan",
+ "cyrs-schema",
+ "cyrs-sema",
+ "cyrs-syntax",
  "insta",
  "pretty_assertions",
  "serde",
@@ -658,15 +658,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "cypher-wasm"
+name = "cyrs-wasm"
 version = "0.0.1"
 dependencies = [
- "cypher-db",
- "cypher-diag",
- "cypher-fmt",
- "cypher-lang-services",
- "cypher-schema",
- "cypher-syntax",
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-fmt",
+ "cyrs-lang-services",
+ "cyrs-schema",
+ "cyrs-syntax",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
