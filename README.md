@@ -190,7 +190,7 @@ parser — every `outcome = "ok"` scenario in
 local parser_config = require("nvim-treesitter.parsers").get_parser_configs()
 parser_config.cypher = {
   install_info = {
-    url = "https://github.com/phallsignup/cyrs",
+    url = "https://github.com/phall1/cyrs",
     location = "tree-sitter-cypher",
     files = { "src/parser.c" },
     branch = "main",
@@ -215,7 +215,7 @@ comment-token = "//"
 
 [[grammar]]
 name = "cypher"
-source = { git = "https://github.com/phallsignup/cyrs", subpath = "tree-sitter-cypher" }
+source = { git = "https://github.com/phall1/cyrs", subpath = "tree-sitter-cypher" }
 ```
 
 Then `hx --grammar fetch && hx --grammar build`.
