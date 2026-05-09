@@ -51,7 +51,7 @@ pub fn run(check: bool) -> Result<()> {
     };
 
     println!(
-        "==> cbindgen --config {} --crate cypher-ffi --output {}",
+        "==> cbindgen --config {} --crate cyrs-ffi --output {}",
         config.display(),
         output.display()
     );
@@ -61,7 +61,7 @@ pub fn run(check: bool) -> Result<()> {
             "--config",
             &config.display().to_string(),
             "--crate",
-            "cypher-ffi",
+            "cyrs-ffi",
             "--output",
             &output.display().to_string(),
         ])

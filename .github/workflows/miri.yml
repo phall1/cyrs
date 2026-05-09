@@ -35,15 +35,15 @@ jobs:
       fail-fast: false
       matrix:
         crate:
-          - cypher-syntax
-          - cypher-ast
-          - cypher-hir
-          - cypher-sema
-          - cypher-schema
-          - cypher-diag
-          - cypher-plan
-          - cypher-fmt
-          - cypher-db
+          - cyrs-syntax
+          - cyrs-ast
+          - cyrs-hir
+          - cyrs-sema
+          - cyrs-schema
+          - cyrs-diag
+          - cyrs-plan
+          - cyrs-fmt
+          - cyrs-db
 
     steps:
       - uses: actions/checkout@v4

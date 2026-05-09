@@ -60,18 +60,18 @@ jobs:
       # ── 2. Enforce per-crate line-coverage floors (spec §17.9) ───
       #
       # Floor table (mirrors §17.9 exactly):
-      #   cypher-syntax  90
-      #   cypher-ast     90
-      #   cypher-hir     90
-      #   cypher-sema    95
-      #   cypher-schema  95
-      #   cypher-diag    90
-      #   cypher-plan    90
-      #   cypher-fmt     95
-      #   cypher-db      85
-      #   cypher-lsp     75
-      #   cypher-agent   85
-      #   cypher-cli     80
+      #   cyrs-syntax  90
+      #   cyrs-ast     90
+      #   cyrs-hir     90
+      #   cyrs-sema    95
+      #   cyrs-schema  95
+      #   cyrs-diag    90
+      #   cyrs-plan    90
+      #   cyrs-fmt     95
+      #   cyrs-db      85
+      #   cyrs-lsp     75
+      #   cyrs-agent   85
+      #   cyrs-cli     80
       #
       # The JSON schema emitted by cargo-llvm-cov has the shape:
       #   { "data": [{ "files": [...], "totals": {...} }] }
@@ -90,18 +90,18 @@ jobs:
 
           # §17.9 floor table: "crate-name floor_percent"
           declare -A FLOORS=(
-            [cypher-syntax]=90
-            [cypher-ast]=90
-            [cypher-hir]=90
-            [cypher-sema]=95
-            [cypher-schema]=95
-            [cypher-diag]=90
-            [cypher-plan]=90
-            [cypher-fmt]=95
-            [cypher-db]=85
-            [cypher-lsp]=75
-            [cypher-agent]=85
-            [cypher-cli]=80
+            [cyrs-syntax]=90
+            [cyrs-ast]=90
+            [cyrs-hir]=90
+            [cyrs-sema]=95
+            [cyrs-schema]=95
+            [cyrs-diag]=90
+            [cyrs-plan]=90
+            [cyrs-fmt]=95
+            [cyrs-db]=85
+            [cyrs-lsp]=75
+            [cyrs-agent]=85
+            [cyrs-cli]=80
           )
 
           FAILED=0
