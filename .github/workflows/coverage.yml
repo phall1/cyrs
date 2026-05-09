@@ -49,11 +49,23 @@ jobs:
           workspaces: ". -> target"
 
       # ── 1. Collect JSON report (per-crate line data) ──────────────
+      #
+      # The COV_IGNORE regex excludes four files that are catalogs of
+      # grammar productions or Salsa input macros, not hand-written code
+      # under test (AGENTS.md §3 — same set of files that carry the
+      # `#![allow(missing_docs)]` allowlist for the same reason). The
+      # §17.9 floors target the testable correctness surface; excluding
+      # generated / macro-expanded code lines is standard llvm-cov practice.
+      #
+      # When this list grows, mirror the change in step 2 below.
       - name: cargo llvm-cov (JSON)
+        env:
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
             --all-features \
+            --ignore-filename-regex "$COV_IGNORE" \
             --json \
             --output-path coverage.json
 
@@ -85,6 +97,8 @@ jobs:
       # enough; each reuses the already-instrumented build artifacts.
       - name: check per-crate coverage floors
         shell: bash
+        env:
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
         run: |
           set -euo pipefail
 
@@ -116,6 +130,7 @@ jobs:
             SUMMARY=$(cargo llvm-cov \
               --package "$CRATE" \
               --all-features \
+              --ignore-filename-regex "$COV_IGNORE" \
               --summary-only \
               2>/dev/null || true)
 
@@ -155,10 +170,13 @@ jobs:
       # ── 3. Produce lcov report for artifact upload ────────────────
       - name: cargo llvm-cov (lcov)
         if: always()
+        env:
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
             --all-features \
+            --ignore-filename-regex "$COV_IGNORE" \
             --lcov \
             --output-path lcov.info
 
