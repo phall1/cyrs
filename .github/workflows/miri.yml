@@ -60,5 +60,9 @@ jobs:
           workspaces: ". -> target"
           key: miri-nightly-${{ matrix.crate }}
 
-      - name: cargo miri test -p ${{ matrix.crate }}
-        run: cargo miri test -p ${{ matrix.crate }}
+      # The repo pins channel = "1.94" in rust-toolchain.toml; miri is a
+      # nightly-only component, so we explicitly invoke the nightly toolchain
+      # installed by dtolnay/rust-toolchain@nightly above. Without `+nightly`,
+      # cargo respects rust-toolchain.toml and tries to load miri on stable.
+      - name: cargo +nightly miri test -p ${{ matrix.crate }}
+        run: cargo +nightly miri test -p ${{ matrix.crate }}
