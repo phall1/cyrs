@@ -1,0 +1,69 @@
+# Normalize all text files to LF in the repo and on checkout, regardless of
+# the contributor's `core.autocrlf` setting. Without this, Windows checkouts
+# silently rewrite `.cypher` fixtures and `.ungrammar` sources to CRLF, which
+# breaks UI corpus comparison and the ungrammar parser (see CI Windows legs).
+#
+# `text=auto eol=lf` is the global default; explicit per-extension entries
+# follow for clarity and so future contributors don't need to consult docs to
+# know "is this file treated as text".
+
+* text=auto eol=lf
+
+# Rust sources & tooling
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.lock      text eol=lf
+Cargo.lock  text eol=lf
+
+# Grammar / codegen inputs
+*.ungrammar text eol=lf
+
+# UI corpus & fixtures
+*.cypher           text eol=lf
+*.formatted.cypher text eol=lf
+*.cyp              text eol=lf
+*.stderr           text eol=lf
+*.snap             text eol=lf
+*.feature          text eol=lf
+*.scm              text eol=lf
+*.dict             text eol=lf
+
+# Docs & config
+*.md     text eol=lf
+*.adoc   text eol=lf
+*.txt    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.json   text eol=lf
+*.jsonl  text eol=lf
+
+# Scripts
+*.sh   text eol=lf
+*.py   text eol=lf
+*.pyi  text eol=lf
+*.js   text eol=lf
+*.lua  text eol=lf
+*.go   text eol=lf
+*.h    text eol=lf
+*.html text eol=lf
+*.tape text eol=lf
+*.mod  text eol=lf
+
+# Marker / empty files
+*.typed    text eol=lf
+.gitkeep   text eol=lf
+.gitignore text eol=lf
+
+# Binary assets — keep git's hands off byte content
+*.gif    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.ico    binary
+*.wasm   binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.pdf    binary
+demo/demo.gif binary

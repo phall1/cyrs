@@ -507,13 +507,27 @@ fn compare_or_bless(
     }
 
     let expected = std::fs::read_to_string(sidecar)?;
-    if actual == expected {
+    // Normalise line endings before comparison so a Windows checkout that
+    // (mis-)applied `core.autocrlf` doesn't trigger spurious UI failures.
+    // The repo policy is LF (see `.gitattributes`); both sides are coerced
+    // to LF here so contributors with a misconfigured git can still run
+    // the corpus locally without bless drift.
+    let expected_lf = normalize_lf(&expected);
+    let actual_lf = normalize_lf(actual);
+    if actual_lf == expected_lf {
         Ok(Outcome::Pass)
     } else {
-        let diff = unified_diff(&expected, actual);
+        let diff = unified_diff(&expected_lf, &actual_lf);
         let details = format!("{}\n{}", case_path.display(), diff);
         Ok(Outcome::Fail { details })
     }
+}
+
+/// Coerce CRLF (and bare CR) to LF.  Used by `compare_or_bless` so the UI
+/// corpus produces identical results regardless of how the contributor's
+/// git checkout rewrote line endings.
+fn normalize_lf(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 fn unified_diff(expected: &str, actual: &str) -> String {
