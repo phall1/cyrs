@@ -22,6 +22,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded PR runs so pushing twice in quick succession only runs
+# the latest commit to completion. Main-branch runs are NOT cancelled —
+# they're rare (only on merge) and may produce artifacts (bench baseline,
+# coverage upload) that subsequent PRs depend on.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
