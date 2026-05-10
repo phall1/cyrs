@@ -1,0 +1,213 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Cypher",
+    "scopeName": "source.cypher",
+    "fileTypes": ["cyp", "cypher", "gql"],
+    "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#parameters" },
+        { "include": "#keywords" },
+        { "include": "#keywords-operator" },
+        { "include": "#keywords-conditional" },
+        { "include": "#constants" },
+        { "include": "#builtins" },
+        { "include": "#labels" },
+        { "include": "#properties" },
+        { "include": "#function-call" },
+        { "include": "#operators" },
+        { "include": "#punctuation" }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.cypher",
+                    "begin": "//",
+                    "end": "$"
+                },
+                {
+                    "name": "comment.block.cypher",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.cypher",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        { "name": "constant.character.escape.cypher", "match": "\\\\." }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.cypher",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        { "name": "constant.character.escape.cypher", "match": "\\\\." }
+                    ]
+                },
+                {
+                    "name": "string.quoted.other.backtick.cypher",
+                    "begin": "`",
+                    "end": "`"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.hex.cypher",
+                    "match": "\\b0[xX][0-9A-Fa-f]+\\b"
+                },
+                {
+                    "name": "constant.numeric.octal.cypher",
+                    "match": "\\b0o[0-7]+\\b"
+                },
+                {
+                    "name": "constant.numeric.float.cypher",
+                    "match": "\\b\\d+\\.\\d+(?:[eE][+-]?\\d+)?\\b"
+                },
+                {
+                    "name": "constant.numeric.float.cypher",
+                    "match": "\\b\\d+[eE][+-]?\\d+\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.cypher",
+                    "match": "\\b\\d+\\b"
+                }
+            ]
+        },
+        "parameters": {
+            "patterns": [
+                {
+                    "name": "variable.parameter.cypher",
+                    "match": "\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\d+"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.cypher",
+                    "match": "(?i)\\b(MATCH|OPTIONAL|WHERE|WITH|RETURN|UNWIND|CREATE|MERGE|SET|REMOVE|DELETE|DETACH|CALL|YIELD|UNION|ON|ORDER|BY|SKIP|LIMIT|AS|DISTINCT|ASC|ASCENDING|DESC|DESCENDING|FOREACH|USING|INDEX|CONSTRAINT|LOAD|CSV|FROM|HEADERS|FIELDTERMINATOR)\\b"
+                }
+            ]
+        },
+        "keywords-conditional": {
+            "patterns": [
+                {
+                    "name": "keyword.control.conditional.cypher",
+                    "match": "(?i)\\b(CASE|WHEN|THEN|ELSE|END)\\b"
+                }
+            ]
+        },
+        "keywords-operator": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.word.cypher",
+                    "match": "(?i)\\b(AND|OR|XOR|NOT|IN|CONTAINS|STARTS|ENDS|IS)\\b"
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.language.boolean.cypher",
+                    "match": "(?i)\\b(TRUE|FALSE)\\b"
+                },
+                {
+                    "name": "constant.language.null.cypher",
+                    "match": "(?i)\\b(NULL)\\b"
+                }
+            ]
+        },
+        "builtins": {
+            "patterns": [
+                {
+                    "name": "support.function.builtin.cypher",
+                    "match": "(?i)\\b(ALL|ANY|NONE|SINGLE|COUNT|EXISTS|shortestPath|allShortestPaths)\\b"
+                }
+            ]
+        },
+        "labels": {
+            "patterns": [
+                {
+                    "match": ":\\s*([A-Z][A-Za-z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "entity.name.type.label.cypher" }
+                    }
+                }
+            ]
+        },
+        "properties": {
+            "patterns": [
+                {
+                    "match": "\\.\\s*([A-Za-z_][A-Za-z0-9_]*)",
+                    "captures": {
+                        "1": { "name": "variable.other.property.cypher" }
+                    }
+                }
+            ]
+        },
+        "function-call": {
+            "patterns": [
+                {
+                    "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+                    "captures": {
+                        "1": { "name": "entity.name.function.cypher" }
+                    }
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.comparison.cypher",
+                    "match": "<>|!=|<=|>=|<|>|="
+                },
+                {
+                    "name": "keyword.operator.arrow.cypher",
+                    "match": "<-|->|--"
+                },
+                {
+                    "name": "keyword.operator.arithmetic.cypher",
+                    "match": "\\+|-|\\*|/|%|\\^"
+                },
+                {
+                    "name": "keyword.operator.range.cypher",
+                    "match": "\\.\\."
+                }
+            ]
+        },
+        "punctuation": {
+            "patterns": [
+                {
+                    "name": "punctuation.section.brackets.cypher",
+                    "match": "[\\[\\]]"
+                },
+                {
+                    "name": "punctuation.section.braces.cypher",
+                    "match": "[\\{\\}]"
+                },
+                {
+                    "name": "punctuation.section.parens.cypher",
+                    "match": "[\\(\\)]"
+                },
+                {
+                    "name": "punctuation.separator.cypher",
+                    "match": "[,;]"
+                },
+                {
+                    "name": "punctuation.accessor.cypher",
+                    "match": "\\."
+                }
+            ]
+        }
+    }
+}
