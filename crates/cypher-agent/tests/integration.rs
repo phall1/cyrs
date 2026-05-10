@@ -124,6 +124,28 @@ fn malformed_line_returns_error_not_crash() {
 }
 
 #[test]
+fn responses_carry_proto_version_one() {
+    let reqs = [r#"{"op":"parse","text":"RETURN 1"}"#];
+    let responses = run_requests(&reqs);
+    assert_eq!(responses.len(), 1);
+    assert_eq!(
+        responses[0]["proto_version"], 1,
+        "every response envelope must include proto_version=1 (cy-2i9)"
+    );
+    assert_eq!(responses[0]["op"], "parse");
+}
+
+#[test]
+fn explicit_proto_version_request_is_accepted() {
+    // Older clients omit the field; newer clients send it. Both must work.
+    let reqs = [r#"{"proto_version":1,"op":"check","text":"MATCH (n) RETURN n"}"#];
+    let responses = run_requests(&reqs);
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["op"], "check");
+    assert_eq!(responses[0]["proto_version"], 1);
+}
+
+#[test]
 fn schema_set_then_check() {
     let reqs = [
         r#"{"op":"schema_set","schema_json":{"labels":["Person"],"rel_types":[]}}"#,
