@@ -248,6 +248,13 @@ pub enum SyntaxKind {
     // covers all four surface forms.
     LIST_PREDICATE_EXPR,
 
+    // shortestPath / allShortestPaths pattern (cy-b5b, spec §6.4 / §19
+    // "shortest-path"). Wraps the inner path pattern; the discriminant
+    // between `shortestPath(...)` and `allShortestPaths(...)` is the
+    // first keyword child token (SHORTESTPATH_KW vs ALLSHORTESTPATHS_KW),
+    // matching the LIST_PREDICATE_EXPR pattern above.
+    SHORTEST_PATH_PATTERN,
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -434,6 +441,7 @@ impl SyntaxKind {
             385 => Self::INDEX_EXPR,
             386 => Self::SLICE_EXPR,
             387 => Self::LIST_PREDICATE_EXPR,
+            388 => Self::SHORTEST_PATH_PATTERN,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -527,6 +535,7 @@ mod tests {
             SyntaxKind::SINGLE_KW,
             SyntaxKind::SOURCE_FILE,
             SyntaxKind::LIST_PREDICATE_EXPR,
+            SyntaxKind::SHORTEST_PATH_PATTERN,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];
