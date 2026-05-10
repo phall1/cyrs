@@ -22,6 +22,11 @@ on:
     - cron: "17 2 * * *"
   workflow_dispatch:
 
+# Cancel superseded PR runs (see ci.yml for rationale).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 

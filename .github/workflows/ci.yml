@@ -22,6 +22,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded PR runs so pushing twice in quick succession only runs
+# the latest commit to completion. Main-branch runs are NOT cancelled —
+# they're rare (only on merge) and may produce artifacts (bench baseline,
+# coverage upload) that subsequent PRs depend on.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
@@ -137,12 +145,10 @@ jobs:
           - { toolchain: stable,  os: ubuntu-latest,     features: lsp-only            }
           - { toolchain: stable,  os: ubuntu-latest,     features: fmt-only            }
           - { toolchain: stable,  os: ubuntu-latest,     features: schema-only         }
-          # ── stable × ubuntu-latest-arm (aarch64) ───────────────
-          - { toolchain: stable,  os: ubuntu-latest-arm, features: default             }
-          - { toolchain: stable,  os: ubuntu-latest-arm, features: no-default-features }
-          - { toolchain: stable,  os: ubuntu-latest-arm, features: lsp-only            }
-          - { toolchain: stable,  os: ubuntu-latest-arm, features: fmt-only            }
-          - { toolchain: stable,  os: ubuntu-latest-arm, features: schema-only         }
+          # ── (ubuntu-latest-arm rows dropped — paid-tier runner not
+          #    available on this repo's plan; aarch64 Linux coverage is
+          #    deferred until a self-hosted runner is provisioned.
+          #    aarch64 coverage is still exercised on macos-14.)
           # ── stable × macos-latest (x86_64) ─────────────────────
           - { toolchain: stable,  os: macos-latest,      features: default             }
           - { toolchain: stable,  os: macos-latest,      features: no-default-features }
@@ -167,12 +173,7 @@ jobs:
           - { toolchain: beta,    os: ubuntu-latest,     features: lsp-only            }
           - { toolchain: beta,    os: ubuntu-latest,     features: fmt-only            }
           - { toolchain: beta,    os: ubuntu-latest,     features: schema-only         }
-          # ── beta × ubuntu-latest-arm (aarch64) ─────────────────
-          - { toolchain: beta,    os: ubuntu-latest-arm, features: default             }
-          - { toolchain: beta,    os: ubuntu-latest-arm, features: no-default-features }
-          - { toolchain: beta,    os: ubuntu-latest-arm, features: lsp-only            }
-          - { toolchain: beta,    os: ubuntu-latest-arm, features: fmt-only            }
-          - { toolchain: beta,    os: ubuntu-latest-arm, features: schema-only         }
+          # ── (beta × ubuntu-latest-arm rows dropped: see stable note above)
           # ── beta × macos-latest (x86_64) ───────────────────────
           - { toolchain: beta,    os: macos-latest,      features: default             }
           - { toolchain: beta,    os: macos-latest,      features: no-default-features }
@@ -197,12 +198,7 @@ jobs:
           - { toolchain: nightly, os: ubuntu-latest,     features: lsp-only            }
           - { toolchain: nightly, os: ubuntu-latest,     features: fmt-only            }
           - { toolchain: nightly, os: ubuntu-latest,     features: schema-only         }
-          # ── nightly × ubuntu-latest-arm — non-blocking ─────────
-          - { toolchain: nightly, os: ubuntu-latest-arm, features: default             }
-          - { toolchain: nightly, os: ubuntu-latest-arm, features: no-default-features }
-          - { toolchain: nightly, os: ubuntu-latest-arm, features: lsp-only            }
-          - { toolchain: nightly, os: ubuntu-latest-arm, features: fmt-only            }
-          - { toolchain: nightly, os: ubuntu-latest-arm, features: schema-only         }
+          # ── (nightly × ubuntu-latest-arm rows dropped: see stable note above)
           # ── nightly × macos-latest — non-blocking ──────────────
           - { toolchain: nightly, os: macos-latest,      features: default             }
           - { toolchain: nightly, os: macos-latest,      features: no-default-features }
@@ -292,19 +288,31 @@ jobs:
 
   # ---------------------------------------------------------------
   # Supply chain: cargo-audit + cargo-deny (spec §17.16)
+  #
+  # `cargo-audit` is installed via taiki-e/install-action (binary
+  # release fetch).  `cargo-deny` is run via the canonical
+  # EmbarkStudios action: previous attempts to install the deny
+  # binary through taiki-e/install-action failed in CI with
+  # "no such command: 'deny'".  The action takes care of install +
+  # invocation in one step.
   # ---------------------------------------------------------------
-  supply-chain:
-    name: audit + deny
+  audit:
+    name: cargo audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@v2
-        with: { tool: cargo-audit,cargo-deny }
+        with: { tool: cargo-audit }
       - name: cargo audit
         run: cargo audit
-      - name: cargo deny check
-        run: cargo deny check
+
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
 
   # ---------------------------------------------------------------
   # PR gate: fuzz smoke (spec §17.4) — ~60 s per target, 5 targets total.
@@ -408,7 +416,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
-          package: cypher-syntax,cypher-ast,cypher-hir,cypher-schema,cypher-sema,cypher-diag,cypher-plan,cypher-fmt,cypher-db,cypher-lang-services,cypher-lsp,cypher-agent,cypher-cli,cypher-tck,cypher
+          package: cyrs-syntax,cyrs-ast,cyrs-hir,cyrs-schema,cyrs-sema,cyrs-diag,cyrs-plan,cyrs-fmt,cyrs-db,cyrs-project,cyrs-lang-services,cyrs-lsp,cyrs-agent,cyrs-cli,cyrs-tck,cyrs-lang
 
   # ---------------------------------------------------------------
   # MSRV check: spec §18 pins 1.94.

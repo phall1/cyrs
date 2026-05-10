@@ -115,6 +115,15 @@ pub struct SkippedProduction {
 /// out from [`run`] so unit tests can exercise the generator without
 /// touching the filesystem.
 pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
+    // The upstream `ungrammar` parser rejects `\r` outright with
+    // "unexpected '\r', only Unix-style line endings allowed". A Windows
+    // checkout without our `.gitattributes` (e.g. a fork that hasn't pulled
+    // it yet, or a contributor with a stale clone) would crash codegen on
+    // any CRLF in `cypher.ungrammar`. Normalise line endings to LF up-front
+    // so the parser sees the same bytes regardless of how the file landed
+    // on disk.
+    let lf_src = ungrammar_src.replace("\r\n", "\n").replace('\r', "\n");
+
     // The `ungrammar` crate only recognises `?` and `*` suffixes. Cypher's
     // ungrammar uses `+` (one-or-more) in several places. For AST codegen
     // the only thing that matters is the child type and whether it can
@@ -125,7 +134,7 @@ pub fn build_generated_rs_from(ungrammar_src: &str) -> Result<CodegenReport> {
     // are only quoted strings. Our grammar uses bare SCREAMING_SNAKE names
     // (`INT_NUMBER`, `IDENT`, …) as token references. Quote them so the
     // crate treats them as `Rule::Token` with that name.
-    let normalised = quote_screaming_snake_idents(&desugar_one_or_more(ungrammar_src));
+    let normalised = quote_screaming_snake_idents(&desugar_one_or_more(&lf_src));
 
     let grammar: Grammar = normalised
         .parse()
