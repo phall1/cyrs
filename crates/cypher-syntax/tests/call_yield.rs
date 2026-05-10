@@ -12,7 +12,10 @@ fn call_yield_parses_clean() {
     let tree = format!("{:#?}", p.syntax());
     assert!(tree.contains("CALL_CLAUSE"), "no CALL_CLAUSE: {tree}");
     assert!(tree.contains("PROCEDURE_NAME"), "no PROCEDURE_NAME: {tree}");
-    assert!(tree.contains("YIELD_SUBCLAUSE"), "no YIELD_SUBCLAUSE: {tree}");
+    assert!(
+        tree.contains("YIELD_SUBCLAUSE"),
+        "no YIELD_SUBCLAUSE: {tree}"
+    );
     assert!(tree.contains("YIELD_ITEM"), "no YIELD_ITEM: {tree}");
 }
 
