@@ -600,6 +600,17 @@ pub(crate) mod syntax_codes {
     /// predicate (cy-lve, spec §6.1 / §19 row "Pattern predicates in
     /// expressions").
     pub(crate) const EXPECTED_RPAREN_EXISTS: u16 = 72;
+    /// E0073 — expected procedure name after `CALL` (cy-4mg, spec §14 /
+    /// §19 row "CALL <proc> YIELD ..."). The procedure-name production
+    /// is `IDENT ('.' IDENT)*`; emitted when the token after `CALL` is
+    /// not an identifier.
+    pub(crate) const EXPECTED_PROCEDURE_NAME: u16 = 73;
+    /// E0074 — expected `)` to close the argument list of a CALL
+    /// invocation (cy-4mg, spec §14).
+    pub(crate) const EXPECTED_RPAREN_CALL_ARGS: u16 = 74;
+    /// E0075 — expected identifier in a YIELD item (cy-4mg, spec §14 /
+    /// ungrammar `YieldItem = NameRef ('AS' NameDef)?`).
+    pub(crate) const EXPECTED_YIELD_ITEM: u16 = 75;
 
     // ---- dialect gates (E4xxx, shared with cypher-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`
