@@ -4,6 +4,16 @@
 //! operations synchronous. No network, no subprocess, no filesystem
 //! writes (sandbox-safe per §15.3).
 //!
+//! ## Protocol versioning (cy-2i9)
+//!
+//! Every request and response carries `proto_version: u32` at the top
+//! level alongside `op`. The current value is [`PROTO_VERSION`] (= 1).
+//! Requests omitting the field are accepted as `proto_version: 1` for
+//! backward compatibility. The constant is bumped on any breaking wire
+//! change (renamed/removed `op`s, removed required fields, changed
+//! semantics of existing fields). Adding new optional fields or new
+//! `op` variants is non-breaking and does not bump the version.
+//!
 //! ## Operations (spec §15.2)
 //!
 //! | op             | request fields                          | response fields                        |
@@ -124,6 +134,53 @@ impl DialectFiles {
     #[cfg(test)]
     fn len(&self) -> usize {
         usize::from(self.gql.is_some()) + usize::from(self.openc.is_some())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Wire-protocol versioning (cy-2i9)
+// ---------------------------------------------------------------------------
+
+/// Current agent JSON wire-protocol version. Bumped on any breaking
+/// change to the wire shape (renamed/removed `op`s, removed required
+/// fields, changed semantics of existing fields). Adding new optional
+/// fields or new `op` variants is non-breaking and does not bump.
+const PROTO_VERSION: u32 = 1;
+
+fn default_proto_version() -> u32 {
+    PROTO_VERSION
+}
+
+/// Top-level wire envelope for incoming requests. The `proto_version`
+/// field is optional on input and defaults to [`PROTO_VERSION`] when
+/// absent so older clients continue to work; `op` and its sibling
+/// fields are flattened from [`AgentRequest`].
+#[derive(Debug, Deserialize)]
+struct AgentRequestEnvelope {
+    #[serde(default = "default_proto_version")]
+    #[allow(dead_code)] // accepted for forward-compat handshake; not yet branched on.
+    proto_version: u32,
+    #[serde(flatten)]
+    op: AgentRequest,
+}
+
+/// Top-level wire envelope for outgoing responses. Always emits
+/// `proto_version` so consumers can detect the running agent's wire
+/// version; `op` and its sibling fields are flattened from
+/// [`AgentResponse`].
+#[derive(Debug, Serialize)]
+struct AgentResponseEnvelope {
+    proto_version: u32,
+    #[serde(flatten)]
+    body: AgentResponse,
+}
+
+impl From<AgentResponse> for AgentResponseEnvelope {
+    fn from(body: AgentResponse) -> Self {
+        Self {
+            proto_version: PROTO_VERSION,
+            body,
+        }
     }
 }
 
@@ -482,14 +539,15 @@ fn main() -> Result<()> {
         if line.trim().is_empty() {
             continue;
         }
-        let response = match serde_json::from_str::<AgentRequest>(&line) {
-            Ok(req) => handle(req, &mut session_schema, &mut db, &mut dialect_files),
+        let response = match serde_json::from_str::<AgentRequestEnvelope>(&line) {
+            Ok(env) => handle(env.op, &mut session_schema, &mut db, &mut dialect_files),
             Err(e) => AgentResponse::Error {
                 message: e.to_string(),
             },
         };
         let is_shutdown = matches!(response, AgentResponse::Shutdown);
-        serde_json::to_writer(&mut stdout, &response)?;
+        let envelope = AgentResponseEnvelope::from(response);
+        serde_json::to_writer(&mut stdout, &envelope)?;
         writeln!(stdout)?;
         stdout.flush()?;
         if is_shutdown {

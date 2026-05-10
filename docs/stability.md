@@ -30,6 +30,10 @@ and track changes in `CHANGELOG.md`:
   `rewrite`, `plan`, `explain`, `schema_set`, `schema_clear`,
   `shutdown`.  New optional fields on requests or responses are
   non-breaking; removing or renaming is a major version bump.
+  Every request and response carries a `proto_version: u32` field
+  (currently `1`); requests omitting the field are accepted as
+  `proto_version: 1` for backward compatibility, and the constant
+  bumps on any breaking wire change (cy-2i9).
 - **Dialect-mode enum names.**  `DialectMode::GqlAligned` and
   `DialectMode::OpenCypherV9` are wire-observable values (JSON tags,
   LSP `initializationOptions`, schema defaults).  The enum is marked
