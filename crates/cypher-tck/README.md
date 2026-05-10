@@ -9,12 +9,17 @@
 openCypher TCK conformance harness for the
 [cyrs](https://github.com/phall1/cyrs) frontend.  See spec 0001 §17.5.
 
-Two corpora feed into the harness:
+Three corpora feed into the harness:
 
 1. **`tck/v1.toml`** — a hand-written, representative slice covering
    the v1 clause + expression surface.  Every scenario is classified
    per-bead and expected to stay green on every PR.
-2. **`tck/full/`** — the upstream openCypher TCK vendored at tag
+2. **`tck/embedder-m23.toml`** — a curated subset of M23 fundamentals
+   (bead cy-emb6, embedder-issue 0006).  Pre-commit gated alongside
+   `v1.toml`; embedders pinning the openCypher M23 corpus extend this
+   file with the scenarios their legacy parser passes.  Add-only:
+   regressions are parser bugs, never silenced.
+3. **`tck/full/`** — the upstream openCypher TCK vendored at tag
    `2024.3` (see [`tck/full/VENDORED.md`](tck/full/VENDORED.md) for the
    pinned commit).  220 `.feature` files, 1339 scenarios.  Runs only
    when the `full-tck` Cargo feature is enabled.

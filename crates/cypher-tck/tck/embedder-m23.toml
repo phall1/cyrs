@@ -1,0 +1,1098 @@
+# Curated embedder M23 subset — bead cy-emb6, embedder-issue 0006.
+#
+# Why this file exists
+# --------------------
+# The embedder migrating off its legacy parser onto cyrs gates an M23
+# (~220-feature openCypher) corpus on every PR.  cyrs's own pre-commit
+# slice (`tck/v1.toml`) covers the v1 green-tag surface but does not
+# pin the broader M23 fundamentals the embedder relies on.
+#
+# This file is a **starter subset** of M23-relevant scenarios, hand-
+# selected to mirror the openCypher TCK 2024.3 corpus vendored under
+# `tck/full/`.  Scenarios here all parse cleanly under the current
+# cyrs front-end; the embedder is expected to extend this list with
+# the actual scenarios its legacy parser passes (it can drop in its
+# own `[[scenario]]` blocks following the same shape).
+#
+# Policy
+# ------
+# - Scenarios may be ADDED whenever they pass.
+# - Scenarios MUST NOT be REMOVED when they regress: a regression here
+#   is a parser bug, file a bead and fix the parser.  This file is a
+#   ratchet, not a moving target.
+# - Same on-disk shape as `v1.toml`: `name`, `tags`, `query`, `outcome`.
+#
+# Format
+# ------
+#   [[scenario]]
+#   name    = "Human-readable name (matches a TCK Scenario: title)"
+#   tags    = ["@M23", "@MATCH"]
+#   query   = "CYPHER SOURCE"
+#   outcome = "ok" | "error"
+#
+# Every scenario here carries the `@M23` tag so the harness can filter
+# this corpus separately from the v1 slice.
+
+# ---------------------------------------------------------------------------
+# clauses/match — Match1..Match9 fundamentals
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Match non-existent nodes returns empty"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (n) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match nodes by label"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (n:Label) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match nodes by property"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (n {name: 'val'}) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match nodes by label and property"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (n:Person {name: 'Alice'}) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match relationship outgoing"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a)-[r]->(b) RETURN a, r, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match relationship incoming"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a)<-[r]-(b) RETURN a, r, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match relationship undirected"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a)-[r]-(b) RETURN a, r, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match relationship by type"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a)-[:KNOWS]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match variable-length path"
+tags    = ["@M23", "@MATCH", "@PATTERNS"]
+query   = "MATCH (a)-[*1..3]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match variable-length typed path"
+tags    = ["@M23", "@MATCH", "@PATTERNS"]
+query   = "MATCH (a)-[:KNOWS*1..5]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match variable-length unbounded"
+tags    = ["@M23", "@MATCH", "@PATTERNS"]
+query   = "MATCH (a)-[:KNOWS*]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match named path"
+tags    = ["@M23", "@MATCH", "@PATTERNS"]
+query   = "MATCH p = (a)-[:KNOWS]->(b) RETURN p"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match multiple patterns"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a:Person), (b:Person) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match optional"
+tags    = ["@M23", "@MATCH", "@OPTIONAL-MATCH"]
+query   = "OPTIONAL MATCH (n:Person) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match then optional match"
+tags    = ["@M23", "@MATCH", "@OPTIONAL-MATCH"]
+query   = "MATCH (a:Person) OPTIONAL MATCH (a)-[:KNOWS]->(b) RETURN a, b"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match with multiple labels"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (n:Person:Employee) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match three-hop pattern"
+tags    = ["@M23", "@MATCH"]
+query   = "MATCH (a)-[:R1]->(b)-[:R2]->(c)-[:R3]->(d) RETURN a, b, c, d"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/match-where — predicate filtering
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Match where equality"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE n.name = 'Alice' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where inequality"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE n.age <> 30 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where less than"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE n.age < 30 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where greater than"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE n.age > 18 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where range"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE n.age >= 18 AND n.age <= 65 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where AND OR NOT"
+tags    = ["@M23", "@MATCH", "@WHERE"]
+query   = "MATCH (n) WHERE NOT (n.x = 1 AND n.y = 2) OR n.z = 3 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where IS NULL"
+tags    = ["@M23", "@MATCH", "@WHERE", "@NULL"]
+query   = "MATCH (n) WHERE n.name IS NULL RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where IS NOT NULL"
+tags    = ["@M23", "@MATCH", "@WHERE", "@NULL"]
+query   = "MATCH (n) WHERE n.name IS NOT NULL RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Match where IN list"
+tags    = ["@M23", "@MATCH", "@WHERE", "@LISTS"]
+query   = "MATCH (n) WHERE n.name IN ['Alice', 'Bob'] RETURN n"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/return — projection
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Return literal"
+tags    = ["@M23", "@RETURN"]
+query   = "RETURN 1"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return alias"
+tags    = ["@M23", "@RETURN"]
+query   = "RETURN 1 AS one"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return multiple aliases"
+tags    = ["@M23", "@RETURN"]
+query   = "RETURN 1 AS a, 2 AS b, 3 AS c"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return star"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN *"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return distinct"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n:Person) RETURN DISTINCT n.name"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return property access"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN n.name, n.age"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return arithmetic"
+tags    = ["@M23", "@RETURN", "@EXPRESSIONS"]
+query   = "RETURN 1 + 2 * 3 - 4 / 2"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return modulo"
+tags    = ["@M23", "@RETURN", "@EXPRESSIONS"]
+query   = "RETURN 10 % 3"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return power"
+tags    = ["@M23", "@RETURN", "@EXPRESSIONS"]
+query   = "RETURN 2 ^ 8"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return unary minus"
+tags    = ["@M23", "@RETURN", "@EXPRESSIONS"]
+query   = "RETURN -42"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/return-orderby / skip / limit
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Return order by single key"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n:Person) RETURN n ORDER BY n.name"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return order by multiple keys"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n:Person) RETURN n ORDER BY n.age DESC, n.name ASC"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return order by ASC explicit"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN n ORDER BY n.x ASC"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return skip"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN n SKIP 5"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return limit"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN n LIMIT 10"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return skip limit"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n) RETURN n SKIP 5 LIMIT 10"
+outcome = "ok"
+
+[[scenario]]
+name    = "Return order by skip limit"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (n:Person) RETURN n ORDER BY n.name SKIP 0 LIMIT 25"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/with — pipeline staging
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "With simple"
+tags    = ["@M23", "@WITH"]
+query   = "MATCH (n) WITH n RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "With alias"
+tags    = ["@M23", "@WITH"]
+query   = "MATCH (n) WITH n.name AS name RETURN name"
+outcome = "ok"
+
+[[scenario]]
+name    = "With where"
+tags    = ["@M23", "@WITH", "@WHERE"]
+query   = "MATCH (n) WITH n WHERE n.age > 21 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "With order by"
+tags    = ["@M23", "@WITH"]
+query   = "MATCH (n) WITH n ORDER BY n.name RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "With skip limit"
+tags    = ["@M23", "@WITH"]
+query   = "MATCH (n) WITH n SKIP 1 LIMIT 5 RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "With distinct"
+tags    = ["@M23", "@WITH"]
+query   = "MATCH (n) WITH DISTINCT n.label AS label RETURN label"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/unwind
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Unwind list literal"
+tags    = ["@M23", "@UNWIND"]
+query   = "UNWIND [1, 2, 3] AS x RETURN x"
+outcome = "ok"
+
+[[scenario]]
+name    = "Unwind empty list"
+tags    = ["@M23", "@UNWIND"]
+query   = "UNWIND [] AS x RETURN x"
+outcome = "ok"
+
+[[scenario]]
+name    = "Unwind range"
+tags    = ["@M23", "@UNWIND"]
+query   = "UNWIND range(1, 10) AS x RETURN x"
+outcome = "ok"
+
+[[scenario]]
+name    = "Unwind from with"
+tags    = ["@M23", "@UNWIND", "@WITH"]
+query   = "WITH [1, 2, 3] AS xs UNWIND xs AS x RETURN x"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/create
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Create node anonymous"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE ()"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create node with label"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE (n:Person)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create node with multiple labels"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE (n:Person:Employee)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create node with properties"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE (n:Person {name: 'Alice', age: 30})"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create relationship"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE (a)-[:KNOWS]->(b)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create relationship with properties"
+tags    = ["@M23", "@CREATE"]
+query   = "CREATE (a)-[:KNOWS {since: 2020}]->(b)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Create from match"
+tags    = ["@M23", "@CREATE", "@MATCH"]
+query   = "MATCH (a:Person), (b:Person) CREATE (a)-[:KNOWS]->(b)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/merge
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Merge node"
+tags    = ["@M23", "@MERGE"]
+query   = "MERGE (n:Person {name: 'Alice'})"
+outcome = "ok"
+
+[[scenario]]
+name    = "Merge node return"
+tags    = ["@M23", "@MERGE"]
+query   = "MERGE (n:Person {name: 'Alice'}) RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Merge relationship"
+tags    = ["@M23", "@MERGE"]
+query   = "MATCH (a:Person), (b:Person) MERGE (a)-[r:KNOWS]->(b) RETURN r"
+outcome = "ok"
+
+[[scenario]]
+name    = "Merge with on create"
+tags    = ["@M23", "@MERGE", "@SET"]
+query   = "MERGE (n:Person {name: 'Alice'}) ON CREATE SET n.created = true"
+outcome = "ok"
+
+[[scenario]]
+name    = "Merge with on match"
+tags    = ["@M23", "@MERGE", "@SET"]
+query   = "MERGE (n:Person {name: 'Alice'}) ON MATCH SET n.seen = true"
+outcome = "ok"
+
+[[scenario]]
+name    = "Merge with on create and on match"
+tags    = ["@M23", "@MERGE", "@SET"]
+query   = "MERGE (n:Person {name: 'Alice'}) ON CREATE SET n.created = true ON MATCH SET n.seen = true"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/set / clauses/remove
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Set property"
+tags    = ["@M23", "@SET"]
+query   = "MATCH (n) SET n.name = 'Alice'"
+outcome = "ok"
+
+[[scenario]]
+name    = "Set multiple properties"
+tags    = ["@M23", "@SET"]
+query   = "MATCH (n) SET n.name = 'Alice', n.age = 30"
+outcome = "ok"
+
+[[scenario]]
+name    = "Set property with map equals"
+tags    = ["@M23", "@SET"]
+query   = "MATCH (n) SET n = {name: 'Alice', age: 30}"
+outcome = "ok"
+
+[[scenario]]
+name    = "Set label"
+tags    = ["@M23", "@SET"]
+query   = "MATCH (n) SET n:Person"
+outcome = "ok"
+
+[[scenario]]
+name    = "Set multiple labels"
+tags    = ["@M23", "@SET"]
+query   = "MATCH (n) SET n:Person:Employee"
+outcome = "ok"
+
+[[scenario]]
+name    = "Remove property"
+tags    = ["@M23", "@REMOVE"]
+query   = "MATCH (n) REMOVE n.age"
+outcome = "ok"
+
+[[scenario]]
+name    = "Remove label"
+tags    = ["@M23", "@REMOVE"]
+query   = "MATCH (n:Person) REMOVE n:Person"
+outcome = "ok"
+
+[[scenario]]
+name    = "Remove multiple labels"
+tags    = ["@M23", "@REMOVE"]
+query   = "MATCH (n) REMOVE n:Foo:Bar"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/delete
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Delete node"
+tags    = ["@M23", "@DELETE"]
+query   = "MATCH (n) DELETE n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Detach delete node"
+tags    = ["@M23", "@DELETE"]
+query   = "MATCH (n) DETACH DELETE n"
+outcome = "ok"
+
+[[scenario]]
+name    = "Delete relationship"
+tags    = ["@M23", "@DELETE"]
+query   = "MATCH ()-[r]->() DELETE r"
+outcome = "ok"
+
+[[scenario]]
+name    = "Delete with where"
+tags    = ["@M23", "@DELETE", "@WHERE"]
+query   = "MATCH (n:Tmp) WHERE n.expired = true DELETE n"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# clauses/union
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Union all"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (a:A) RETURN a.name AS name UNION ALL MATCH (b:B) RETURN b.name AS name"
+outcome = "ok"
+
+[[scenario]]
+name    = "Union distinct"
+tags    = ["@M23", "@RETURN"]
+query   = "MATCH (a:A) RETURN a.name AS name UNION MATCH (b:B) RETURN b.name AS name"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/literals
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Literal integer"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 42"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal negative integer"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN -42"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal float"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 3.14"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal float exponent"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 1.5e10"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal hex integer"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 0xff"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal octal integer"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 0o17"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal string single-quoted"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN 'hello'"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal string double-quoted"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = 'RETURN "hello"'
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal boolean true"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN true"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal boolean false"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN false"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal null"
+tags    = ["@M23", "@EXPRESSIONS", "@NULL"]
+query   = "RETURN null"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal list"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3]"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal nested list"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [[1, 2], [3, 4]]"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal empty list"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN []"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal map"
+tags    = ["@M23", "@EXPRESSIONS", "@MAPS"]
+query   = "RETURN {a: 1, b: 'two', c: true}"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal nested map"
+tags    = ["@M23", "@EXPRESSIONS", "@MAPS"]
+query   = "RETURN {outer: {inner: 1}}"
+outcome = "ok"
+
+[[scenario]]
+name    = "Literal empty map"
+tags    = ["@M23", "@EXPRESSIONS", "@MAPS"]
+query   = "RETURN {}"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/comparison
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Comparison eq"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 1 = 1"
+outcome = "ok"
+
+[[scenario]]
+name    = "Comparison neq"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN 1 <> 2"
+outcome = "ok"
+
+[[scenario]]
+name    = "Comparison chained"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH (n) WHERE 0 < n.x AND n.x < 10 RETURN n"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/boolean
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Boolean and"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN true AND false"
+outcome = "ok"
+
+[[scenario]]
+name    = "Boolean or"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN true OR false"
+outcome = "ok"
+
+[[scenario]]
+name    = "Boolean not"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN NOT true"
+outcome = "ok"
+
+[[scenario]]
+name    = "Boolean xor"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN true XOR false"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/conditional — CASE
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Case generic"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN CASE WHEN 1 = 1 THEN 'yes' ELSE 'no' END"
+outcome = "ok"
+
+[[scenario]]
+name    = "Case simple"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN CASE 1 WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'other' END"
+outcome = "ok"
+
+[[scenario]]
+name    = "Case no else"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN CASE WHEN 1 = 1 THEN 'yes' END"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/list
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "List indexing"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3][0]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List indexing negative"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3][-1]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List slice"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3, 4, 5][1..3]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List slice from"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3, 4, 5][2..]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List slice to"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2, 3, 4, 5][..3]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List comprehension filter"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [x IN [1, 2, 3] WHERE x > 1]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List comprehension map"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [x IN [1, 2, 3] | x * 2]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List comprehension filter and map"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [x IN [1, 2, 3] WHERE x > 1 | x * 2]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List concatenation"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN [1, 2] + [3, 4]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List in"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN 2 IN [1, 2, 3]"
+outcome = "ok"
+
+[[scenario]]
+name    = "List ALL predicate"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN ALL(x IN [1, 2, 3] WHERE x > 0)"
+outcome = "ok"
+
+[[scenario]]
+name    = "List ANY predicate"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN ANY(x IN [1, 2, 3] WHERE x > 2)"
+outcome = "ok"
+
+[[scenario]]
+name    = "List NONE predicate"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN NONE(x IN [1, 2, 3] WHERE x < 0)"
+outcome = "ok"
+
+[[scenario]]
+name    = "List SINGLE predicate"
+tags    = ["@M23", "@EXPRESSIONS", "@LISTS"]
+query   = "RETURN SINGLE(x IN [1, 2, 3] WHERE x = 2)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/string — STARTS WITH / ENDS WITH / CONTAINS / functions
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "String starts with"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "MATCH (n) WHERE n.name STARTS WITH 'A' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "String ends with"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "MATCH (n) WHERE n.name ENDS WITH 'z' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "String contains"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "MATCH (n) WHERE n.name CONTAINS 'lic' RETURN n"
+outcome = "ok"
+
+[[scenario]]
+name    = "String concat"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN 'foo' + 'bar'"
+outcome = "ok"
+
+[[scenario]]
+name    = "String toUpper"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN toUpper('abc')"
+outcome = "ok"
+
+[[scenario]]
+name    = "String toLower"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN toLower('ABC')"
+outcome = "ok"
+
+[[scenario]]
+name    = "String size"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN size('hello')"
+outcome = "ok"
+
+[[scenario]]
+name    = "String trim"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN trim('  hi  ')"
+outcome = "ok"
+
+[[scenario]]
+name    = "String substring two-arg"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN substring('hello', 1)"
+outcome = "ok"
+
+[[scenario]]
+name    = "String substring three-arg"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN substring('hello', 1, 3)"
+outcome = "ok"
+
+[[scenario]]
+name    = "String split"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN split('a,b,c', ',')"
+outcome = "ok"
+
+[[scenario]]
+name    = "String replace"
+tags    = ["@M23", "@EXPRESSIONS", "@STRINGS"]
+query   = "RETURN replace('foo', 'o', '0')"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/aggregation
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Aggregation count"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN count(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation count distinct"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN count(DISTINCT n.name)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation sum"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN sum(n.amount)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation avg"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN avg(n.score)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation min"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN min(n.age)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation max"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN max(n.age)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation collect"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN collect(n.name)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Aggregation grouped"
+tags    = ["@M23", "@AGGREGATIONS"]
+query   = "MATCH (n) RETURN n.label, count(n)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/null
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Null coalesce"
+tags    = ["@M23", "@EXPRESSIONS", "@NULL"]
+query   = "RETURN coalesce(null, 1, 2)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/typeConversion
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Type toString"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN toString(42)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Type toInteger"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN toInteger('42')"
+outcome = "ok"
+
+[[scenario]]
+name    = "Type toFloat"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN toFloat('3.14')"
+outcome = "ok"
+
+[[scenario]]
+name    = "Type toBoolean"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN toBoolean('true')"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/graph — node/relationship inspection
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Graph id"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH (n) RETURN id(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph labels"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH (n) RETURN labels(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph type"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH ()-[r]->() RETURN type(r)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph keys"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH (n) RETURN keys(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph properties"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH (n) RETURN properties(n)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph startNode"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH ()-[r]->() RETURN startNode(r)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Graph endNode"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "MATCH ()-[r]->() RETURN endNode(r)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/path
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Path nodes"
+tags    = ["@M23", "@EXPRESSIONS", "@PATTERNS"]
+query   = "MATCH p = (a)-[*]->(b) RETURN nodes(p)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Path relationships"
+tags    = ["@M23", "@EXPRESSIONS", "@PATTERNS"]
+query   = "MATCH p = (a)-[*]->(b) RETURN relationships(p)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Path length"
+tags    = ["@M23", "@EXPRESSIONS", "@PATTERNS"]
+query   = "MATCH p = (a)-[*]->(b) RETURN length(p)"
+outcome = "ok"
+
+# ---------------------------------------------------------------------------
+# expressions/mathematical
+# ---------------------------------------------------------------------------
+
+[[scenario]]
+name    = "Math abs"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN abs(-5)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Math ceil"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN ceil(1.2)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Math floor"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN floor(1.8)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Math round"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN round(1.5)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Math sqrt"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN sqrt(9)"
+outcome = "ok"
+
+[[scenario]]
+name    = "Math sign"
+tags    = ["@M23", "@EXPRESSIONS"]
+query   = "RETURN sign(-3)"
+outcome = "ok"

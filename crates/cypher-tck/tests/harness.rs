@@ -1,16 +1,19 @@
 //! TCK harness — spec 0001 §17.5.
 //!
-//! Reads scenarios from `tck/v1.toml`, filters to those carrying at least one
-//! v1 tag (per [`cypher_tck::v1_tags`]), then runs each through
-//! `cypher_db::Database` and asserts the expected parse outcome.
+//! Reads scenarios from `tck/v1.toml` and `tck/embedder-m23.toml`,
+//! filters to those carrying at least one of the corresponding tag set
+//! (per [`cypher_tck::v1_tags`] / [`cypher_tck::embedder_m23_tag`]),
+//! then runs each through `cypher_db::Database` and asserts the
+//! expected parse outcome.
 //!
 //! Run with:
-//!   cargo test -p cypher-tck
+//!   cargo test -p cyrs-tck
 //!
 //! Tags covered: @MATCH, @OPTIONAL-MATCH, @WHERE, @RETURN, @WITH, @UNWIND,
 //! @CREATE, @MERGE, @SET, @REMOVE, @DELETE, @EXPRESSIONS, @AGGREGATIONS,
 //! @STRINGS, @LISTS, @MAPS, @PATTERNS, @NULL  (v1 supported)
 //! @CALL-SUBQUERY, @LOAD-CSV  (must emit a parse error)
+//! @M23                       (embedder M23 curated subset, bead cy-emb6)
 //!
 //! The full vendored upstream TCK is exercised by a separate test gated
 //! behind `--features full-tck`; see `tests/full.rs`.
@@ -18,7 +21,7 @@
 use std::path::Path;
 
 use cypher_db::{DialectMode, workspace::Database};
-use cypher_tck::{Expected, v1_tags};
+use cypher_tck::{Expected, embedder_m23_tag, v1_tags};
 use serde::Deserialize;
 
 // ---------------------------------------------------------------------------
@@ -96,19 +99,22 @@ fn parse_ok(query: &str) -> bool {
 // Harness entry point
 // ---------------------------------------------------------------------------
 
-#[test]
-fn tck_v1_scenarios() {
-    let manifest_dir =
-        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo");
-    let fixture_path = Path::new(&manifest_dir).join("tck").join("v1.toml");
-
-    let raw = std::fs::read_to_string(&fixture_path)
+/// Run a single fixture file under the given tag-filter and return
+/// any FAIL lines.  Empty result → all matched scenarios passed.
+///
+/// `tag_filter` is the closure used to decide whether a scenario's
+/// tag set qualifies it for inclusion.  This factoring lets us share
+/// the runner between `tck/v1.toml` (multi-tag whitelist) and
+/// `tck/embedder-m23.toml` (single `@M23` tag).
+fn run_fixture<F>(label: &str, fixture_path: &Path, tag_filter: F) -> Vec<String>
+where
+    F: Fn(&[String]) -> bool,
+{
+    let raw = std::fs::read_to_string(fixture_path)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", fixture_path.display()));
 
     let fixtures: Fixtures = toml::from_str(&raw)
         .unwrap_or_else(|e| panic!("parse error in {}: {e}", fixture_path.display()));
-
-    let v1_tags = v1_tag_set();
 
     let mut total = 0usize;
     let mut passed = 0usize;
@@ -116,14 +122,7 @@ fn tck_v1_scenarios() {
     let mut failed = Vec::<String>::new();
 
     for scenario in &fixtures.scenario {
-        // Filter: skip scenarios that share no tags with the v1 tag set.
-        let matched_tags: Vec<&String> = scenario
-            .tags
-            .iter()
-            .filter(|t| v1_tags.contains(t.as_str()))
-            .collect();
-
-        if matched_tags.is_empty() {
+        if !tag_filter(&scenario.tags) {
             continue;
         }
 
@@ -150,7 +149,8 @@ fn tck_v1_scenarios() {
                     passed += 1;
                 } else {
                     failed.push(format!(
-                        "FAIL [{}]: expected {}, got {} — query: {:?}",
+                        "FAIL [{}/{}]: expected {}, got {} — query: {:?}",
+                        label,
                         scenario.name,
                         if expected_ok {
                             "parse-ok"
@@ -165,9 +165,54 @@ fn tck_v1_scenarios() {
         }
     }
 
-    // Print a summary regardless of pass/fail.
     let run = total - ignored;
-    println!("TCK v1: {passed}/{run} scenarios passed ({ignored} ignored)");
+    println!("TCK {label}: {passed}/{run} scenarios passed ({ignored} ignored)");
+    failed
+}
+
+#[test]
+fn tck_v1_scenarios() {
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo");
+    let fixture_path = Path::new(&manifest_dir).join("tck").join("v1.toml");
+
+    let v1 = v1_tag_set();
+    let failed = run_fixture("v1", &fixture_path, |tags| {
+        tags.iter().any(|t| v1.contains(t.as_str()))
+    });
+
+    for line in &failed {
+        eprintln!("{line}");
+    }
+
+    assert!(
+        failed.is_empty(),
+        "{} scenario(s) failed:\n{}",
+        failed.len(),
+        failed.join("\n"),
+    );
+}
+
+/// Embedder M23 curated subset gate (bead cy-emb6, embedder-issue 0006).
+///
+/// Runs `tck/embedder-m23.toml`, filtering to scenarios carrying the
+/// `@M23` tag.  The fixture starts as a hand-curated subset of M23
+/// fundamentals that all parse cleanly today; embedders are expected
+/// to extend it with the scenarios their legacy parser passes.  See
+/// the file header for the add-only ratchet policy.
+#[test]
+fn tck_embedder_m23_scenarios() {
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR set by cargo");
+    let fixture_path = Path::new(&manifest_dir)
+        .join("tck")
+        .join("embedder-m23.toml");
+
+    let m23 = embedder_m23_tag();
+    let failed = run_fixture("embedder-m23", &fixture_path, |tags| {
+        tags.iter().any(|t| t == m23)
+    });
+
     for line in &failed {
         eprintln!("{line}");
     }
