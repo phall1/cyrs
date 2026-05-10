@@ -22,6 +22,13 @@ name = "cypher_tck"
 # parser surface, so it is too slow / too many unsupported features to
 # gate on pre-commit.  See crate README + `tck/full/VENDORED.md`.
 full-tck = []
+# Enable the GQL ISO/IEC 39075:2024 bootstrap corpus under
+# `tck/gql-iso-39075/` as an extra integration test
+# (`tests/gql_iso.rs`).  Off by default — the bootstrap currently has
+# many constructs that the parser cannot yet accept (cy-0hj), so the
+# baseline is a rolling snapshot rather than a CI gate.  See
+# `tck/gql-iso-39075/README.md`.
+gql-iso = []
 
 [dependencies]
 cypher-db = { workspace = true }

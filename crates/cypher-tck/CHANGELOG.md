@@ -18,6 +18,16 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   corpus via `tests/full.rs` and emits a per-area parser-acceptance
   baseline to `tck/full-baseline.md`.
 - cy-p5q (§17.5): `cargo xtask tck-baseline` convenience wrapper.
+- cy-0hj (§17.5): GQL ISO/IEC 39075:2024 conformance bootstrap corpus
+  under `tck/gql-iso-39075/` — 7 feature files, 18 hand-authored
+  scenarios with inline ISO §-citations covering `INSERT NODE/EDGE`,
+  `FILTER`, `RETURN ALL/EXCLUDE`, `OPTIONAL CALL`, `REPEATABLE
+  ELEMENTS` / `DIFFERENT EDGES`, `IS TYPED` / `::` casts, and path
+  selectors (`ANY SHORTEST`, `ALL SHORTEST`, `SHORTEST k`).
+- cy-0hj (§17.5): new Cargo feature `gql-iso` that runs the bootstrap
+  corpus via `tests/gql_iso.rs` and emits a per-area parser-acceptance
+  baseline to `tck/gql-iso-39075/baseline.md`.  Compliance badge is
+  separate from the openCypher TCK.
 
 ### Changed
 
