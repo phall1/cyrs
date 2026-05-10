@@ -38,3 +38,12 @@ redirect
 
 # bv (beads viewer) lock file
 .bv.lock
+
+# Embedded Dolt backend (bd v1.0.3+) — local cache, not shareable
+embeddeddolt/
+backup/
+
+# Per-machine bd runtime state
+.local_version
+export-state.json
+interactions.jsonl
