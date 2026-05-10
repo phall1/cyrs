@@ -27,7 +27,6 @@
 //   - PropertyRemove: no `SyntaxKind::PROPERTY_REMOVE` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - LabelRemove: no `SyntaxKind::LABEL_REMOVE` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - PathPattern: alternation contains a sequence arm (not a single-node shape)
-//   - ShortestPathPattern: no `SyntaxKind::SHORTEST_PATH_PATTERN` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - PathElement: no `SyntaxKind::PATH_ELEMENT` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - RelPattern: alternation contains a sequence arm (not a single-node shape)
 //   - TypeExpr: no `SyntaxKind::TYPE_EXPR` variant in cypher-syntax::kind (see cy-nom follow-ups)
@@ -597,6 +596,35 @@ impl LabelExpr {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ShortestPathPattern {
+    syntax: SyntaxNode,
+}
+
+impl ShortestPathPattern {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SHORTEST_PATH_PATTERN).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn shortestpath_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::SHORTESTPATH_KW)
+    }
+
+    pub fn allshortestpaths_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ALLSHORTESTPATHS_KW)
     }
 }
 
