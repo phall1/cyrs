@@ -717,9 +717,7 @@ fn regression_with_comment() {
 /// branch that descends through SHORTEST_PATH_PATTERN.
 #[test]
 fn regression_shortest_path_lowers_to_named_pattern_part() {
-    let stmt = lower(
-        "MATCH p = shortestPath((a)-[:KNOWS*]->(b)) RETURN p",
-    );
+    let stmt = lower("MATCH p = shortestPath((a)-[:KNOWS*]->(b)) RETURN p");
     let parts = stmt.clauses.iter().find_map(|c| match c {
         Clause::Match { pattern, .. } => Some(&pattern.parts),
         _ => None,
@@ -727,7 +725,10 @@ fn regression_shortest_path_lowers_to_named_pattern_part() {
     let parts = parts.expect("MATCH clause present");
     assert_eq!(parts.len(), 1, "shortestPath wraps a single path part");
     let part = &parts[0];
-    assert!(part.named_as.is_some(), "path binder `p` must produce named_as");
+    assert!(
+        part.named_as.is_some(),
+        "path binder `p` must produce named_as"
+    );
     // Inner shape: NODE, REL, NODE.
     assert_eq!(part.elements.len(), 3, "(a)-[*]->(b) is three elements");
 }
@@ -737,9 +738,7 @@ fn regression_shortest_path_lowers_to_named_pattern_part() {
 /// surfaced by the plan / pretty layers).
 #[test]
 fn regression_all_shortest_paths_lowers_to_pattern_part() {
-    let stmt = lower(
-        "MATCH p = allShortestPaths((a)-[:KNOWS*1..3]->(b)) RETURN p",
-    );
+    let stmt = lower("MATCH p = allShortestPaths((a)-[:KNOWS*1..3]->(b)) RETURN p");
     let part_count = stmt
         .clauses
         .iter()

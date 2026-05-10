@@ -400,9 +400,9 @@ impl LowerCtx {
                     // PatternPart in HIR for v1.
                     let inner_part = child.children().find_map(|n| match n.kind() {
                         SyntaxKind::PATTERN_PART => Some(n),
-                        SyntaxKind::SHORTEST_PATH_PATTERN => n
-                            .children()
-                            .find(|c| c.kind() == SyntaxKind::PATTERN_PART),
+                        SyntaxKind::SHORTEST_PATH_PATTERN => {
+                            n.children().find(|c| c.kind() == SyntaxKind::PATTERN_PART)
+                        }
                         _ => None,
                     });
                     if let Some(inner) = inner_part {
