@@ -1,0 +1,19 @@
+[package]
+name = "cyrs-canary"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Downstream-consumer canary verifying #[non_exhaustive] coverage on cy-2i9.1 enums."
+
+[lib]
+name = "cyrs_canary"
+path = "src/lib.rs"
+
+[dependencies]
+cyrs-plan = { path = "../../crates/cypher-plan" }
+cyrs-hir = { path = "../../crates/cypher-hir" }
+cyrs-diag = { path = "../../crates/cypher-diag" }
+cyrs-db = { path = "../../crates/cypher-db" }
+cyrs-lang-services = { path = "../../crates/cypher-lang-services" }
+cyrs-schema = { path = "../../crates/cypher-schema" }
