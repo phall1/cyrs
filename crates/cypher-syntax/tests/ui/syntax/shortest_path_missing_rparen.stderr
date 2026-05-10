@@ -1,3 +1,3 @@
 error[E0077]: expected ')' to close `shortestPath` / `allShortestPaths`
- --> shortest_path_missing_rparen.cypher:120
+ --> shortest_path_missing_rparen.cypher:122
 
