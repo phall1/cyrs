@@ -263,21 +263,24 @@ fn check_remove_item(item: &RemoveItem, span: HirSpan) -> Result<(), PlanLowerEr
 fn check_expr(expr: &HirExpr, span: HirSpan) -> Result<(), PlanLowerError> {
     match expr {
         // Leaf nodes with no sub-expressions.
-        //
-        // `PatternPredicate` is listed here (accepting without recursing
-        // into the embedded pattern) because cy-lve turns it into
-        // `Expr::Exists { pattern: Box<ReadOp> }` during lowering — the
-        // embedded pattern is lowered by the existing pattern-match
-        // machinery at that point, which has its own precondition
-        // contract (name resolution + desugar still apply there).
         HirExpr::Null
         | HirExpr::Bool(_)
         | HirExpr::Int(_)
         | HirExpr::Float(_)
         | HirExpr::String(_)
         | HirExpr::Var(_)
-        | HirExpr::Param(_)
-        | HirExpr::PatternPredicate(_) => Ok(()),
+        | HirExpr::Param(_) => Ok(()),
+
+        // cy-863: `PatternPredicate` carries an embedded `Pattern` that
+        // is lowered in-place by `lower_match_pattern` during plan
+        // construction (cy-lve, see [`Expr::Exists`]). That machinery
+        // calls `lower_expr` on element properties without first running
+        // the pre-lowering scan, so any precondition violation hidden
+        // inside the embedded pattern would surface as a deep
+        // `debug_assert!` panic. Recurse into the embedded pattern here
+        // so violations are reported as a clean `Err` from the outer
+        // `lower_statement` call instead.
+        HirExpr::PatternPredicate(pattern) => check_pattern(pattern, span),
 
         // Precondition violations.
         HirExpr::Unresolved(name) => Err(PlanLowerError::UnresolvedName {
@@ -2047,6 +2050,61 @@ mod tests {
             PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "MapProjection"),
             other => panic!("expected UndesugaredExpr(MapProjection), got {other:?}"),
         }
+    }
+
+    /// cy-863: an `Expr::Unresolved` hidden inside a `PatternPredicate`'s
+    /// embedded pattern (e.g. an unresolved name in a node-property
+    /// expression) must be reported via the same `UnresolvedName` error
+    /// path as a top-level unresolved name — not surface as a deep
+    /// `debug_assert!` panic from `lower_expr`.
+    #[test]
+    fn lower_statement_returns_err_on_unresolved_inside_patternpredicate() {
+        let element = PatternElement::Node {
+            id: cypher_hir::HirId::DUMMY,
+            bind: None,
+            labels: vec![],
+            props: Some(HirExpr::Map(vec![(
+                "k".into(),
+                HirExpr::Unresolved("vaext".into()),
+            )])),
+            span: HirSpan::default(),
+        };
+        let pattern = cypher_hir::Pattern {
+            parts: vec![PatternPart {
+                named_as: None,
+                elements: vec![element],
+            }],
+        };
+        let stmt = stmt_with_return_expr(HirExpr::PatternPredicate(pattern));
+        let err = lower_statement(&stmt)
+            .expect_err("unresolved name inside PatternPredicate must be rejected");
+        match err {
+            PlanLowerError::UnresolvedName { name, .. } => assert_eq!(name, "vaext"),
+            other => panic!("expected UnresolvedName, got {other:?}"),
+        }
+    }
+
+    /// cy-863 (text path): exercise the same code path the `fuzz_plan`
+    /// harness uses (parse → HIR lower → desugar → plan lower) on a
+    /// snippet that puts an unresolved name inside a pattern predicate's
+    /// node properties. Without the precheck recursion this triggered a
+    /// `debug_assert!` panic; now it must surface as a clean `Err` (or
+    /// `Ok` if upstream lowering happens to bind the name some other
+    /// way — the oracle is "no panic", same as the fuzz target).
+    //
+    // Skipped under miri: parsing pulls in rowan-0.15's NodeCache, which
+    // has a known SB violation in ThinArc::deref that is exposed when
+    // the test binary's allocation pattern shifts (cy-eu2 hit the same
+    // pattern). The synthetic-HIR sibling test above gives us miri
+    // coverage of the precheck logic itself.
+    #[cfg(not(miri))]
+    #[test]
+    fn lower_statement_no_panic_on_unresolved_inside_patternpredicate_text() {
+        let s = "MATCH (n) WHERE (n {k: vaext})-->() RETURN n\n";
+        let stmt = hir_lower(s);
+        let stmt = desugar_statement(stmt);
+        // Must not panic; either Ok (resolved by HIR lowering) or Err.
+        let _ = lower_statement(&stmt);
     }
 
     /// Pattern predicates are now accepted by plan lowering (cy-lve) and
