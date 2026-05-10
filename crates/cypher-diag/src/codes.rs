@@ -1213,11 +1213,12 @@ mod tests {
     /// renderable code rather than a magic number (cy-emb3).
     ///
     /// Ignored under Miri because this is the only test in cyrs-diag that
-    /// drives `cypher_syntax::parse`, which constructs a rowan SyntaxNode
-    /// tree — rowan 0.16's ThinArc::drop trips Stacked Borrows. The other
-    /// rowan-touching crates handle this via `rowan_thinarc_ub: true` in
-    /// the miri matrix, but cyrs-diag is otherwise rowan-free and remains
-    /// strict (§17.12). See `.github/workflows/miri.yml` for context.
+    /// drives `cypher_syntax::parse`, which constructs a rowan
+    /// `SyntaxNode` tree — rowan 0.16's `ThinArc::drop` trips Stacked
+    /// Borrows. The other rowan-touching crates handle this via
+    /// `rowan_thinarc_ub: true` in the miri matrix, but cyrs-diag is
+    /// otherwise rowan-free and remains strict (§17.12). See
+    /// `.github/workflows/miri.yml` for context.
     #[test]
     #[cfg_attr(miri, ignore)]
     fn from_syntax_error_lifts_to_typed_code() {
