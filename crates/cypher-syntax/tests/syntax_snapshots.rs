@@ -291,6 +291,31 @@ fn pattern_named_path() {
     insta::assert_snapshot!(format_with_errors("MATCH p = (a)-[:KNOWS]->(b) RETURN p"));
 }
 
+// cy-b5b: shortestPath / allShortestPaths pattern functions (spec §6.4 /
+// §19 row "shortest-path"). The keyword wraps an inner path pattern in a
+// SHORTEST_PATH_PATTERN CST node; the path-binder form (`p = ...`) is
+// the canonical use site (acceptance criterion in the bead).
+#[test]
+fn pattern_shortest_path_named() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH p = shortestPath((a)-[:KNOWS*]->(b)) RETURN p"
+    ));
+}
+
+#[test]
+fn pattern_all_shortest_paths_named() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH p = allShortestPaths((a)-[:KNOWS*1..5]->(b)) RETURN p"
+    ));
+}
+
+#[test]
+fn pattern_shortest_path_anonymous() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH shortestPath((a)-[*]->(b)) RETURN a, b"
+    ));
+}
+
 // ---------------------------------------------------------------------------
 // Expressions — atoms
 // ---------------------------------------------------------------------------
