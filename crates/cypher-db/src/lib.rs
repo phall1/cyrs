@@ -188,7 +188,7 @@ mod source_file_input {
     // do not propagate into Salsa's expansion.
     #![allow(missing_docs)]
 
-    use super::DialectMode;
+    use super::{DialectMode, ParseOutput};
 
     /// A single source file tracked by the incremental database.
     ///
@@ -197,6 +197,12 @@ mod source_file_input {
     /// - `dialect` — parsing dialect (spec §9).
     /// - `options_digest` — hash of analysis options.  Full shape deferred to
     ///   bead cy-nk7; zero is a valid "no options" value.
+    /// - `precomputed_parse` — optional pre-computed [`ParseOutput`] (cy-li6).
+    ///   When `Some`, [`super::parse_cst`] returns this value directly instead
+    ///   of re-parsing `source` from scratch.  Set by
+    ///   [`super::workspace::Database::edit_file`] after the smart-path
+    ///   sub-tree splice produces a fresh [`super::Parse`]; cleared on every
+    ///   non-incremental source mutation (`set_source`, `update_file`).
     #[salsa::input]
     pub struct SourceFile {
         /// Raw UTF-8 source text for this file.
@@ -209,6 +215,11 @@ mod source_file_input {
         /// Hash of options that affect derived queries.
         /// Shape is stabilised in cy-nk7; zero is a valid "no options" value.
         pub options_digest: u64,
+
+        /// Optional pre-computed parse, supplied by the incremental edit
+        /// path (cy-li6).  `None` means "no hint, re-parse `source`".
+        #[returns(ref)]
+        pub precomputed_parse: Option<ParseOutput>,
     }
 }
 pub use source_file_input::SourceFile;
@@ -219,10 +230,27 @@ pub use source_file_input::SourceFile;
 
 /// Parse a [`SourceFile`] into a lossless CST.
 ///
-/// The result is memoised; it is re-evaluated only when `source` or `dialect`
-/// changes.  See [`ParseOutput`] for equality semantics.
+/// The result is memoised; it is re-evaluated only when `source`, `dialect`,
+/// or the cy-li6 `precomputed_parse` hint changes.  See [`ParseOutput`]
+/// for equality semantics.
+///
+/// ## cy-li6 fast path
+///
+/// If [`SourceFile::precomputed_parse`] is `Some`, this query returns the
+/// hint verbatim instead of calling [`parse`] on `source`.  This wires the
+/// smart-path sub-tree splice produced by
+/// [`workspace::Database::edit_file`] through Salsa as the published
+/// [`ParseOutput`] for the next revision, so downstream tracked queries
+/// (`parse_ast`, `sema_diagnostics`, `plan_of`, `analyse_file`) consume the
+/// spliced tree without paying a whole-file reparse.
+///
+/// The hint is cleared on every non-incremental source mutation so a
+/// follow-up `set_source` always produces a fresh full parse.
 #[salsa::tracked(lru = 256)]
 pub fn parse_cst(db: &dyn CypherDb, file: SourceFile) -> ParseOutput {
+    if let Some(hint) = file.precomputed_parse(db) {
+        return hint.clone();
+    }
     let src = file.source(db);
     ParseOutput::new(parse(src))
 }
@@ -279,7 +307,7 @@ impl CypherDatabase {
     /// Create a new [`SourceFile`] input with the given source text,
     /// using the default dialect and a zero options digest.
     pub fn new_source_file(&mut self, source: impl Into<String>) -> SourceFile {
-        SourceFile::new(self, source.into(), DialectMode::default(), 0)
+        SourceFile::new(self, source.into(), DialectMode::default(), 0, None)
     }
 
     /// Create a new [`SourceFile`] input with explicit dialect and digest.
@@ -289,13 +317,38 @@ impl CypherDatabase {
         dialect: DialectMode,
         options_digest: u64,
     ) -> SourceFile {
-        SourceFile::new(self, source.into(), dialect, options_digest)
+        SourceFile::new(self, source.into(), dialect, options_digest, None)
     }
 
     /// Update the source text of an existing [`SourceFile`], bumping the
     /// Salsa revision so that derived queries are invalidated.
+    ///
+    /// Always clears any cy-li6 [`precomputed_parse`](SourceFile::precomputed_parse)
+    /// hint, because a fresh source string must produce a fresh parse —
+    /// reusing a stale hint would silently desync the published CST from
+    /// `source`.
     pub fn set_source(&mut self, file: SourceFile, source: impl Into<String>) {
         file.set_source(self).to(source.into());
+        // Clear any stale incremental hint — see doc comment above.
+        file.set_precomputed_parse(self).to(None);
+    }
+
+    /// Atomically replace `source` and publish a precomputed [`Parse`]
+    /// (cy-li6).
+    ///
+    /// Used by [`workspace::Database::edit_file`] after
+    /// [`cypher_syntax::incremental_reparse`] has produced a spliced tree
+    /// for `new_source`.  Bumps the Salsa revision once for both fields,
+    /// so the next [`parse_cst`] query returns `parse` directly without
+    /// re-parsing.
+    pub fn set_source_with_parse(
+        &mut self,
+        file: SourceFile,
+        source: impl Into<String>,
+        parse: ParseOutput,
+    ) {
+        file.set_source(self).to(source.into());
+        file.set_precomputed_parse(self).to(Some(parse));
     }
 
     /// Update the dialect of an existing [`SourceFile`].
