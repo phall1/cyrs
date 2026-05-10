@@ -31,7 +31,6 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
     }
 }
 
-
 /// `MatchClause = 'MATCH' Pattern (',' Pattern)* WhereClause?`
 fn match_clause(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::MATCH_KW));
