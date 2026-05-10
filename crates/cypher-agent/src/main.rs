@@ -31,6 +31,8 @@
 //! `deferred_reason` may carry an `unknown fix_ids: …` note when a
 //! requested id does not match any `FixIt`.
 
+// Embedders: see ../../docs/integration-depth.md before depending on this surface.
+
 #![forbid(unsafe_code)]
 
 use std::io::{self, BufRead, Write};

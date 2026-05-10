@@ -20,6 +20,8 @@
 //! which lowers a post-resolve, post-desugar HIR [`cypher_hir::Statement`]
 //! into a [`lower::PlanStatement`] (spec §12, bead cy-foy).
 
+// Embedders: see ../../docs/integration-depth.md before depending on this surface.
+
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-plan/0.0.1")]
 

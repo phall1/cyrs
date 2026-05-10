@@ -11,6 +11,8 @@
 //! The [`lower`] module provides the entry-point [`lower::lower_statement`]
 //! that performs the AST → HIR lowering pass (spec §6.1).
 
+// Embedders: see ../../docs/integration-depth.md before depending on this surface.
+
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-hir/0.0.1")]
 // The HIR surface is a grammar catalog — `Clause`, `Expr`,
