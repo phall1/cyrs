@@ -408,7 +408,11 @@ mod tests {
             full.errors().len(),
             "smart-path error count must equal whole-file ({}); errors = {:?}",
             full.errors().len(),
-            smart.errors().iter().map(|e| &e.message).collect::<Vec<_>>()
+            smart
+                .errors()
+                .iter()
+                .map(|e| &e.message)
+                .collect::<Vec<_>>()
         );
         smart
     }
@@ -422,10 +426,7 @@ mod tests {
         let p = parse(src);
         assert!(p.errors().is_empty(), "fixture parses clean");
         // Replace `n` in the FIRST statement's RETURN clause (offset 17).
-        let edit = TextEdit::replace(
-            TextRange::new(TextSize::new(17), TextSize::new(18)),
-            "x",
-        );
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(17), TextSize::new(18)), "x");
         let np = assert_equivalent_to_full(&p.syntax(), &edit);
         assert_eq!(
             np.syntax().to_string(),
@@ -444,7 +445,10 @@ mod tests {
         // Insert a WHERE clause between the MATCH and the RETURN.
         let edit = TextEdit::insert(TextSize::new(10), "WHERE n.x = 1 ");
         let np = assert_equivalent_to_full(&p.syntax(), &edit);
-        assert_eq!(np.syntax().to_string(), "MATCH (n) WHERE n.x = 1 RETURN n;\n");
+        assert_eq!(
+            np.syntax().to_string(),
+            "MATCH (n) WHERE n.x = 1 RETURN n;\n"
+        );
     }
 
     /// Edit that introduces a new top-level `;` — must bail to whole-file
@@ -459,7 +463,10 @@ mod tests {
         // statement covering element forces the bail.
         let edit = TextEdit::insert(TextSize::new(18), "; MATCH (m) RETURN m");
         let np = assert_equivalent_to_full(&p.syntax(), &edit);
-        assert_eq!(np.syntax().to_string(), "MATCH (n) RETURN n; MATCH (m) RETURN m");
+        assert_eq!(
+            np.syntax().to_string(),
+            "MATCH (n) RETURN n; MATCH (m) RETURN m"
+        );
     }
 
     /// Edit that introduces a syntax error — smart path or fallback must
@@ -471,10 +478,7 @@ mod tests {
         let src = "MATCH (n) RETURN n;\n";
         let p = parse(src);
         // Replace `(n)` with `(n` — unclosed paren, syntax error.
-        let edit = TextEdit::replace(
-            TextRange::new(TextSize::new(6), TextSize::new(9)),
-            "(n",
-        );
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(6), TextSize::new(9)), "(n");
         let np = assert_equivalent_to_full(&p.syntax(), &edit);
         assert!(!np.errors().is_empty(), "edit must produce errors");
         assert_eq!(np.syntax().to_string(), "MATCH (n RETURN n;\n");
@@ -487,7 +491,10 @@ mod tests {
     fn smart_path_heals_syntax_error() {
         let src = "MATCH (n RETURN n;\n";
         let p = parse(src);
-        assert!(!p.errors().is_empty(), "fixture has the unclosed paren error");
+        assert!(
+            !p.errors().is_empty(),
+            "fixture has the unclosed paren error"
+        );
         // Insert the missing `)` — heal the parse.
         let edit = TextEdit::insert(TextSize::new(8), ")");
         let np = assert_equivalent_to_full(&p.syntax(), &edit);

@@ -26,10 +26,7 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
         SyntaxKind::SET_KW => set_clause(p),
         SyntaxKind::REMOVE_KW => remove_clause(p),
         SyntaxKind::DELETE_KW | SyntaxKind::DETACH_KW => delete_clause(p),
-        // cy-nom: v1 scope — CALL / YIELD land in a follow-up bead.
-        SyntaxKind::CALL_KW => {
-            deferred_clause_stub(p);
-        }
+        SyntaxKind::CALL_KW => call_clause(p),
         other => unreachable!("clause dispatch on non-clause-start token: {other:?}"),
     }
 }
