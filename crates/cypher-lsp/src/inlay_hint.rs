@@ -73,4 +73,3 @@ fn offset_to_position(line_index: &LineIndex, offset: TextSize) -> Position {
         character: utf16.col,
     }
 }
-
