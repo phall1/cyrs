@@ -17,6 +17,22 @@
 //! Name resolution (§6.2) lives in [`mod@resolve`]: it produces a
 //! `ScopeGraph` + `ResolvedNames` table and emits `E1001`/`E1002`
 //! diagnostics.
+//!
+//! # Stability
+//!
+//! The [`cypher_schema::SchemaProvider`] trait — re-exported and
+//! consumed throughout this crate — is **SemVer-locked**. Adding,
+//! removing, or changing the signature of any required method is a
+//! major-version bump for both `cypher-schema` and `cypher-sema`.
+//! New methods land as either default-implemented additions (so
+//! existing downstream `impl SchemaProvider` blocks keep compiling)
+//! or behind a new `#[non_exhaustive]` extension point. Embedders
+//! can therefore upgrade `cypher-sema` minor versions without
+//! touching their adapter code. The migration template at
+//! `crates/cypher-sema/examples/embedder_adapter.rs` is part of the
+//! public API surface and is held to the same compatibility bar.
+//! See [`docs/sema-checks.md`](../../../docs/sema-checks.md) for the
+//! semantic-check contract that pairs with this trait.
 
 #![forbid(unsafe_code)]
 #![doc(html_root_url = "https://docs.rs/cypher-sema/0.0.1")]
