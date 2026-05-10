@@ -616,6 +616,11 @@ pub(crate) mod syntax_codes {
     /// E0075 — expected identifier in a YIELD item (cy-4mg, spec §14 /
     /// ungrammar `YieldItem = NameRef ('AS' NameDef)?`).
     pub(crate) const EXPECTED_YIELD_ITEM: u16 = 75;
+    /// E0077 — expected `)` to close a `shortestPath` /
+    /// `allShortestPaths` pattern function argument (cy-b5b, spec §6.4 /
+    /// §19 row "shortest-path"). E0076 reserved for `CALL { ... }`
+    /// block subquery (cy-4mg follow-up — block form deferred per §20 D1).
+    pub(crate) const EXPECTED_RPAREN_SHORTEST_PATH: u16 = 77;
 
     // ---- dialect gates (E4xxx, shared with cypher-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`

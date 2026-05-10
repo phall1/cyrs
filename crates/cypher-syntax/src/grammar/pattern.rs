@@ -60,8 +60,21 @@ fn is_path_binder(p: &mut Parser<'_>) -> bool {
     p.nth(1) == SyntaxKind::EQ
 }
 
-/// `PathPattern = NodePattern (RelPattern NodePattern)*`
+/// `PathPattern = ShortestPathPattern | NodePattern (RelPattern NodePattern)*`
+///
+/// Spec ungrammar `PathPattern` / `ShortestPathPattern`. The leading
+/// `shortestPath` / `allShortestPaths` keyword (lexed as
+/// `SHORTESTPATH_KW` / `ALLSHORTESTPATHS_KW` per spec §6.4 / §19 row
+/// "shortest-path") switches the parser into the shortest-path arm,
+/// which wraps an inner path pattern in a single dedicated
+/// `SHORTEST_PATH_PATTERN` node. The discriminant between the two
+/// surface forms is the first keyword child token, mirroring the
+/// `LIST_PREDICATE_EXPR` discriminant convention.
 fn path_pattern(p: &mut Parser<'_>) {
+    if p.at(SyntaxKind::SHORTESTPATH_KW) || p.at(SyntaxKind::ALLSHORTESTPATHS_KW) {
+        shortest_path_pattern(p);
+        return;
+    }
     let m = p.start();
     if !p.at(SyntaxKind::L_PAREN) {
         p.error_code(
@@ -85,6 +98,47 @@ fn path_pattern(p: &mut Parser<'_>) {
         }
     }
     m.complete(p, SyntaxKind::PATTERN_PART);
+}
+
+/// `ShortestPathPattern = ('shortestPath' | 'allShortestPaths') '(' PathElement+ ')'`
+/// — spec ungrammar `ShortestPathPattern`, spec §6.4 / §19 row
+/// "shortest-path".
+///
+/// Enters on the keyword token. Consumes the keyword, the opening `(`,
+/// the inner path pattern (a single relationship pattern, normally
+/// with a variable-length quantifier `*`), and the closing `)`. The
+/// inner pattern is wrapped in a `PATTERN_PART` so HIR / sema lower
+/// it through the same code path as a bare path. Recovery: E0077 on
+/// a missing `)`.
+fn shortest_path_pattern(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::SHORTESTPATH_KW) || p.at(SyntaxKind::ALLSHORTESTPATHS_KW));
+    let m = p.start();
+    p.bump_any();
+    if !p.eat(SyntaxKind::L_PAREN) {
+        p.error_code(
+            sc::EXPECTED_LPAREN_NODE,
+            "expected '(' after `shortestPath` / `allShortestPaths`",
+        );
+    }
+    // Reuse `path_pattern` for the canonical inner shape. This keeps
+    // the grammar accepted here exactly aligned with what MATCH accepts
+    // in a bare position — labels, types, variable-length hops (`*`,
+    // `*1..n`).
+    if p.at(SyntaxKind::L_PAREN) {
+        path_pattern(p);
+    } else {
+        p.error_code(
+            sc::EXPECTED_LPAREN_NODE,
+            "expected '(' to start a node pattern",
+        );
+    }
+    if !p.eat(SyntaxKind::R_PAREN) {
+        p.error_code(
+            sc::EXPECTED_RPAREN_SHORTEST_PATH,
+            "expected ')' to close `shortestPath` / `allShortestPaths`",
+        );
+    }
+    m.complete(p, SyntaxKind::SHORTEST_PATH_PATTERN);
 }
 
 fn at_rel_start(p: &mut Parser<'_>) -> bool {

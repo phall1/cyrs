@@ -1016,6 +1016,7 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "PAREN_EXPR",
         "LIST_COMPREHENSION",
         "LIST_PREDICATE_EXPR",
+        "SHORTEST_PATH_PATTERN",
         "PATTERN_COMPREHENSION",
         "PATTERN_PREDICATE",
         "PARAM_EXPR",
