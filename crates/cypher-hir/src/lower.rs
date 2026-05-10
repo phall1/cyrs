@@ -367,6 +367,23 @@ impl LowerCtx {
                 SyntaxKind::PATTERN_PART => {
                     out.push(self.lower_pattern_part(child));
                 }
+                // cy-b5b: `shortestPath((a)-[*]->(b))` and
+                // `allShortestPaths(...)` wrap an inner PATTERN_PART. For
+                // v1 we lower the inner pattern directly and treat the
+                // shortest-path discriminant as a CST-level annotation;
+                // downstream layers (plan) will surface the variant via
+                // its own wrapper op. The path-binder case (`p = ...`)
+                // is handled below via NAMED_PATTERN_PART, which can
+                // wrap either a plain PATTERN_PART or a
+                // SHORTEST_PATH_PATTERN.
+                SyntaxKind::SHORTEST_PATH_PATTERN => {
+                    if let Some(inner) = child
+                        .children()
+                        .find(|n| n.kind() == SyntaxKind::PATTERN_PART)
+                    {
+                        out.push(self.lower_pattern_part(inner));
+                    }
+                }
                 SyntaxKind::NAMED_PATTERN_PART => {
                     // The binder name is the NAME child's IDENT.
                     let bind =
@@ -377,9 +394,17 @@ impl LowerCtx {
                                 let name = ident_text(&name_node).unwrap_or_default();
                                 self.bind_var(&name, VarKind::Path, name_node.text_range())
                             });
-                    let inner_part = child
-                        .children()
-                        .find(|n| n.kind() == SyntaxKind::PATTERN_PART);
+                    // The inner shape is either PATTERN_PART (plain) or
+                    // SHORTEST_PATH_PATTERN (wrapping its own
+                    // PATTERN_PART). Both reduce to a single
+                    // PatternPart in HIR for v1.
+                    let inner_part = child.children().find_map(|n| match n.kind() {
+                        SyntaxKind::PATTERN_PART => Some(n),
+                        SyntaxKind::SHORTEST_PATH_PATTERN => n
+                            .children()
+                            .find(|c| c.kind() == SyntaxKind::PATTERN_PART),
+                        _ => None,
+                    });
                     if let Some(inner) = inner_part {
                         let mut part = self.lower_pattern_part(inner);
                         part.named_as = bind;
