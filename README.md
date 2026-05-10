@@ -177,6 +177,11 @@ See [`demo/README.md`](./demo/README.md) for the full tour (samples,
 format-on-save, CLI comparison) and [`demo/demo.gif`](./demo/demo.gif)
 for the recording.
 
+For VS Code / VSCodium, the language client lives at
+[`editors/vscode/`](./editors/vscode) — see its
+[README](./editors/vscode/README.md) for dev-install instructions
+(marketplace publishing is a manual maintainer step).
+
 ---
 
 ## Crates
