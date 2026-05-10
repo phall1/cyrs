@@ -245,6 +245,7 @@ Expr =
 | ParenExpr
 | ListLiteral
 | MapLiteral
+| MapProjection
 | ListComprehension
 | ListPredicateExpr
 | PatternComprehension
@@ -314,6 +315,27 @@ ListLiteral =
 
 MapLiteral =
   '{' (PropertyKV (',' PropertyKV)*)? '}'
+
+// `n { .name, age: 30, .*, * }` — map projection over a subject expression
+// (cy-01q). Desugared in HIR (spec §6.1) into an explicit map construction.
+// Distinguished from a bare `MapLiteral` syntactically by requiring the
+// `{ ... }` to follow another expression as a postfix trailer (handled by
+// the Pratt parser's postfix dispatch). The first `Expr` child is the
+// subject; the `MapProjectionItem` list spells out the projection.
+MapProjection =
+  subject:Expr '{' (MapProjectionItem (',' MapProjectionItem)*)? '}'
+
+// One projection item. Four shapes per openCypher / GQL:
+//   `.name`        — property selector  (DOT followed by property key)
+//   `.*`           — all-properties spread of the subject (DOT '*' STAR)
+//   `*`            — all-bound-vars spread (rare; STAR alone)
+//   `key: Expr`    — literal item (IDENT ':' Expr)
+// The four kinds are not modeled as a sum type in the ungrammar — HIR
+// lowering inspects the first significant token of each item to classify.
+MapProjectionItem =
+  '.' (PropertyKey | '*')
+| '*'
+| key:PropertyKey ':' value:Expr
 
 // `[ v IN xs WHERE p(v) | e(v) ]`. Desugared in HIR (spec §6.1).
 ListComprehension =

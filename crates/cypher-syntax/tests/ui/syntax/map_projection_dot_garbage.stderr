@@ -1,0 +1,3 @@
+error[E0079]: expected property name or '*' after '.' in map projection item
+ --> map_projection_dot_garbage.cypher:23
+

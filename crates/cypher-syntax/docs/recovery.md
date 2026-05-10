@@ -532,6 +532,28 @@ invariant; the strategy will be fleshed out when the production lands.
 - Virtual insertion: missing `}` will emit "expected '}'" at the
   expected offset once the production lands.
 
+### MapProjection
+
+- Status: **IMPLEMENTED** (cy-01q, spec §6.1 / §19 row "Map projection").
+- Synchronisation set: clause-level keywords + `;` + EOF (default).
+- Skip-and-recover: items consume on `,` boundaries; an unrecognized
+  leading token triggers `E0082` and a single token-bump so the comma
+  loop can continue. Missing `}` emits `E0078` and closes the node.
+- Virtual insertion:
+  - `E0078` — missing `}` to close the projection.
+  - `E0079` — token after `.` is neither an identifier nor `*`.
+  - `E0080` — missing `:` in a literal `key: expr` item.
+  - `E0081` — missing value expression after `:` in a literal item.
+  - `E0082` — leading token starts no recognized item kind.
+
+### MapProjectionItem
+
+- Status: **IMPLEMENTED** (cy-01q). Parsed inline by the
+  `MapProjection` production; recovery codes listed there.
+- Synchronisation set: inherits from the enclosing `MapProjection`.
+- Skip-and-recover: per-item; the outer comma loop owns recovery.
+- Virtual insertion: see the `MapProjection` entry above.
+
 ### ListComprehension
 
 - Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).

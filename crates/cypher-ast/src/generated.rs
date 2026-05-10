@@ -48,6 +48,7 @@
 //   - StringLiteral: no `SyntaxKind::STRING_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
 //   - BoolLiteral: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NullLiteral: no `SyntaxKind::NULL_LITERAL` variant in cypher-syntax::kind (see cy-nom follow-ups)
+//   - MapProjectionItem: alternation contains a sequence arm (not a single-node shape)
 //   - BinaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - UnaryOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - StringPatternOp: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
@@ -815,6 +816,25 @@ impl MapLiteral {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MapProjection {
+    syntax: SyntaxNode,
+}
+
+impl MapProjection {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::MAP_PROJECTION).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn subject(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ListComprehension {
     syntax: SyntaxNode,
 }
@@ -1167,6 +1187,7 @@ pub enum Expr {
     ParenExpr(ParenExpr),
     ListLiteral(ListLiteral),
     MapLiteral(MapLiteral),
+    MapProjection(MapProjection),
     ListComprehension(ListComprehension),
     ListPredicateExpr(ListPredicateExpr),
     PatternComprehension(PatternComprehension),
@@ -1195,6 +1216,9 @@ impl Expr {
         }
         if let Some(inner) = MapLiteral::cast(syntax.clone()) {
             return Some(Self::MapLiteral(inner));
+        }
+        if let Some(inner) = MapProjection::cast(syntax.clone()) {
+            return Some(Self::MapProjection(inner));
         }
         if let Some(inner) = ListComprehension::cast(syntax.clone()) {
             return Some(Self::ListComprehension(inner));
@@ -1228,6 +1252,7 @@ impl Expr {
             Self::ParenExpr(inner) => inner.syntax(),
             Self::ListLiteral(inner) => inner.syntax(),
             Self::MapLiteral(inner) => inner.syntax(),
+            Self::MapProjection(inner) => inner.syntax(),
             Self::ListComprehension(inner) => inner.syntax(),
             Self::ListPredicateExpr(inner) => inner.syntax(),
             Self::PatternComprehension(inner) => inner.syntax(),

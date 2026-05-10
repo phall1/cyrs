@@ -947,6 +947,11 @@ enum PostfixKind {
     /// `(arg, arg, ...)` — function call. Only allowed when the lhs is
     /// an IDENT — the Pratt loop checks this via `postfix_op`.
     Call,
+    /// `{ .p, key: v, .*, * }` — map projection over a subject expression.
+    /// Spec §6.1 (desugar in HIR) / §19 row "Map projection". The trailer
+    /// position is what distinguishes this from a standalone map literal
+    /// `{ k: v }` (cy-01q).
+    MapProjection,
     /// `IS NULL` / `IS NOT NULL`. `IS` is also handled as a binary op
     /// above because openCypher uses `IS NULL` with the lhs as operand —
     /// the infix path handles all well-formed cases.
@@ -969,6 +974,17 @@ fn postfix_op(p: &mut Parser<'_>) -> Option<PostfixOp> {
         SyntaxKind::L_PAREN => PostfixOp {
             bp,
             kind: PostfixKind::Call,
+        },
+        // `{` immediately following an atom expression is a map projection
+        // trailer (cy-01q, spec §6.1 / §19). A standalone `{ k: v }` map
+        // literal is parsed by the `atom` dispatch on `L_BRACE`; that path
+        // never reaches the postfix loop because the literal *is* the lhs.
+        // Conversely, once a lhs has been completed, an immediately-trailing
+        // `{` always reads as projection — there is no other valid
+        // expression continuation that begins with `{`.
+        SyntaxKind::L_BRACE => PostfixOp {
+            bp,
+            kind: PostfixKind::MapProjection,
         },
         _ => return None,
     })
@@ -994,6 +1010,7 @@ fn apply_postfix(
         }
         PostfixKind::Index => index_or_slice_postfix(p, lhs, depth),
         PostfixKind::Call => call_postfix(p, lhs, depth),
+        PostfixKind::MapProjection => map_projection_postfix(p, lhs, depth),
         PostfixKind::IsNull => {
             let m = lhs.precede(p);
             // Unused currently; reserved for non-infix IS paths.
@@ -1030,6 +1047,101 @@ fn call_arg(p: &mut Parser<'_>, depth: u32) {
     if expr_bp_depth(p, 0, depth + 1).is_none() {
         p.error_code(sc::EXPECTED_CALL_ARG, "expected function argument");
     }
+}
+
+/// Parse a map-projection trailer: `<lhs> { item (',' item)* }` where each
+/// item is one of:
+///
+/// - `.NAME`          — property selector (key=name, value=lhs.name)
+/// - `IDENT ':' Expr` — literal item (key=ident, value=Expr)
+/// - `.*`             — all-properties spread of the subject
+/// - `*`              — all-bound-vars spread (rare; openCypher allows it)
+///
+/// Spec §6.1 (sugar; desugared in HIR) / §19 row "Map projection" (cy-01q).
+///
+/// Each item is wrapped in a `MAP_PROJECTION_ITEM` node so HIR lowering can
+/// classify the four kinds by inspecting the leading token (`.` + IDENT,
+/// `.` + `*`, IDENT + `:`, or bare `*`). The completed wrapper carries the
+/// lhs as its first `Expr` child via the `lhs.precede(p)` rebase, mirroring
+/// how every other postfix shape (property access, index, call) wraps its
+/// receiver.
+fn map_projection_postfix(p: &mut Parser<'_>, lhs: CompletedMarker, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_BRACE));
+    let m = lhs.precede(p);
+    p.bump(SyntaxKind::L_BRACE);
+
+    if !p.at(SyntaxKind::R_BRACE) {
+        map_projection_item(p, depth);
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            if p.at(SyntaxKind::R_BRACE) {
+                break;
+            }
+            map_projection_item(p, depth);
+        }
+    }
+
+    if !p.eat(SyntaxKind::R_BRACE) {
+        p.error_code(
+            sc::EXPECTED_RBRACE_MAP_PROJECTION,
+            "expected '}' to close map projection",
+        );
+    }
+    m.complete(p, SyntaxKind::MAP_PROJECTION)
+}
+
+/// Parse one item inside a map projection. Each kind emits its own marker
+/// so the resulting CST has uniform `MAP_PROJECTION_ITEM` children — HIR
+/// lowering inspects the first significant token of each item to classify.
+fn map_projection_item(p: &mut Parser<'_>, depth: u32) {
+    let m = p.start();
+    match p.current() {
+        // `.*` (all-properties spread) or `.NAME` (property selector).
+        SyntaxKind::DOT => {
+            p.bump(SyntaxKind::DOT);
+            if p.at(SyntaxKind::STAR) {
+                p.bump(SyntaxKind::STAR);
+            } else if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+                p.error_code(
+                    sc::EXPECTED_PROP_OR_STAR_AFTER_DOT_IN_PROJECTION,
+                    "expected property name or '*' after '.' in map projection item",
+                );
+            }
+        }
+        // `*` (all-bound-vars spread). Rare openCypher form; lowered as a
+        // scope-wide spread by HIR.
+        SyntaxKind::STAR => {
+            p.bump(SyntaxKind::STAR);
+        }
+        // `IDENT ':' Expr` — literal item, same shape as a map-literal entry.
+        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+            p.bump_any();
+            if !p.eat(SyntaxKind::COLON) {
+                p.error_code(
+                    sc::EXPECTED_COLON_MAP_PROJECTION,
+                    "expected ':' in map projection literal item",
+                );
+            }
+            if expr_bp_depth(p, 0, depth + 1).is_none() {
+                p.error_code(
+                    sc::EXPECTED_VALUE_MAP_PROJECTION,
+                    "expected expression for map projection value",
+                );
+            }
+        }
+        _ => {
+            p.error_code(
+                sc::EXPECTED_MAP_PROJECTION_ITEM,
+                "expected `.name`, `key: expr`, `.*`, or `*` in map projection",
+            );
+            // Token-bump to make recovery progress; the outer loop will
+            // either find a `,` or `}` and continue.
+            if !p.at(SyntaxKind::R_BRACE) && !p.at(SyntaxKind::COMMA) {
+                p.bump_any();
+            }
+        }
+    }
+    m.complete(p, SyntaxKind::MAP_PROJECTION_ITEM);
 }
 
 /// Parse the `[...]` postfix form and classify it as either

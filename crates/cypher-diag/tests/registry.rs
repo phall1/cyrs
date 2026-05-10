@@ -67,7 +67,7 @@ fn all_count_pinned() {
     // bump this number. This ensures the registry stays exhaustive.
     //
     // Breakdown (spec §10.2):
-    //   72  syntax         (E0001–E0072, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh + cy-41u + cy-7lf)
+    //   77  syntax         (E0001–E0082, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh + cy-41u + cy-7lf + cy-01q)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    9  schema-aware   (E3001–E3004, E3006–E3008, E3010, E3011, cy-36u + cy-0ek)
@@ -77,7 +77,7 @@ fn all_count_pinned() {
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  120  total
+    //  125  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -101,6 +101,10 @@ fn all_count_pinned() {
     //         carried into the registry at that time. The bare-pattern
     //         form (cy-7lf) reuses the NODE_PATTERN-level recovery and
     //         does not need a new code.
-    const EXPECTED: usize = 120;
+    // cy-01q: added E0078–E0082 for map projection parser recovery
+    //         (spec §6.1 / §19 row "Map projection"). Distinct from the
+    //         map-literal recovery codes (E0049–E0052) so tools can
+    //         tell projection from literal apart.
+    const EXPECTED: usize = 125;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
