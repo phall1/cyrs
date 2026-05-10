@@ -712,9 +712,9 @@ fn regression_with_comment() {
 /// cy-b5b: `MATCH p = shortestPath((a)-[:KNOWS*]->(b))` must lower to
 /// the same HIR Pattern as a plain path with a path binder. The
 /// shortest-path discriminant is a CST-level annotation; HIR sees a
-/// single PatternPart with `named_as = Some(p)` and the inner
+/// single `PatternPart` with `named_as = Some(p)` and the inner
 /// node-rel-node element list. This guards the `lower_pattern_wrapper`
-/// branch that descends through SHORTEST_PATH_PATTERN.
+/// branch that descends through `SHORTEST_PATH_PATTERN`.
 #[test]
 fn regression_shortest_path_lowers_to_named_pattern_part() {
     let stmt = lower("MATCH p = shortestPath((a)-[:KNOWS*]->(b)) RETURN p");
