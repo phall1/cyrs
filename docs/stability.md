@@ -180,13 +180,29 @@ around, it must be logged here with:
 
 ## CI gate
 
-`.github/workflows/ci.yml` adds a `semver-checks` job
+`.github/workflows/ci.yml` defines a `semver-checks` job
 (cy-2i9.1) that runs
-[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks)
-on every pull request.  The job compares the PR's public API against
-`main`'s most recent commit.  It is advisory pre-1.0 (no published
-crate baseline) but will land hard failures once the first crates.io
-release ships.
+[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks).
+It compares the PR's public API against an `obi1kenobi/cargo-semver-
+checks-action@v2`-resolved baseline.
+
+**Status: disabled (`if: false`) as of fix/ci-infra-rescue.**  The v2
+action resolves the baseline by querying crates.io for each named
+package; because none of the sixteen cyrs crates have shipped to the
+registry yet, the action errors on every PR with `cyrs-ast not found
+in registry (crates.io)`.  The job is left in the workflow so that
+re-enabling it is a one-line change once any of the following holds:
+
+1. **First crates.io publish ships** — any of the 16 crates at
+   `>= 0.0.1` with a real registry baseline.
+2. **Baseline-rev migration** — the action grows (or we switch to)
+   an input that resolves the baseline from a git revision rather
+   than the registry, and we verify it green against `main`.
+
+Either path swaps `if: false` back to
+`if: github.event_name == 'pull_request'`.  Until then the SemVer
+contract is enforced by code review against the `## Stable surfaces`
+list above and the deferred-types note below.
 
 ## 1.0 cutover plan
 

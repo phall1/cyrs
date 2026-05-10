@@ -318,16 +318,33 @@ jobs:
   # PR gate: fuzz smoke (spec §17.4) — ~60 s per target, 5 targets total.
   # Non-blocking (continue-on-error) so a new crash doesn't block the
   # merge of unrelated PRs; nightly run is where new panics are blocking.
+  #
+  # Target pinning (fix/ci-infra-rescue, 2026-05-10):
+  # cargo-fuzz on Linux now defaults to `x86_64-unknown-linux-musl`,
+  # whose stdlib is built with `+crt-static`. ASan (`-Z sanitizer=address`)
+  # is incompatible with statically-linked libc, producing:
+  #   "sanitizer is incompatible with statically linked libc, disable it
+  #    using `-C target-feature=-crt-static`"
+  #   "error[E0463]: can't find crate for `std`"
+  # We pin the build to the GNU target instead, which links libc
+  # dynamically and works with ASan out of the box. Both `cargo fuzz
+  # build` and `cargo fuzz run` need the override; `run` re-builds when
+  # invoked, so omitting it on the run steps would re-trigger the bug.
   # ---------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke (5 min)
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      # Per the comment above; isolated to this job so the workspace
+      # `RUSTFLAGS: -D warnings` still applies elsewhere.
+      FUZZ_TARGET_TRIPLE: x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
+          targets: x86_64-unknown-linux-gnu
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-fuzz }
       - uses: Swatinem/rust-cache@v2
@@ -337,29 +354,29 @@ jobs:
       - name: build fuzz targets
         run: |
           for target in fuzz_lexer fuzz_parser fuzz_formatter fuzz_sema fuzz_plan fuzz_structured_parse fmt_parse_roundtrip; do
-            cargo +nightly fuzz build "$target"
+            cargo +nightly fuzz build --target "$FUZZ_TARGET_TRIPLE" "$target"
           done
       # Dictionaries (cy-h07): per-target dicts under fuzz/dicts/<target>.dict.
       # libFuzzer splices these tokens into mutated inputs, raising the
       # probability of crossing syntactic boundaries that random bytes never
       # reach. Every byte-level target gets its own.
       - name: fuzz_lexer (60 s)
-        run: cargo +nightly fuzz run fuzz_lexer fuzz/corpus/fuzz_lexer -- -dict=fuzz/dicts/fuzz_lexer.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_lexer fuzz/corpus/fuzz_lexer -- -dict=fuzz/dicts/fuzz_lexer.dict -max_total_time=60
       - name: fuzz_parser (60 s)
-        run: cargo +nightly fuzz run fuzz_parser fuzz/corpus/fuzz_parser -- -dict=fuzz/dicts/fuzz_parser.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_parser fuzz/corpus/fuzz_parser -- -dict=fuzz/dicts/fuzz_parser.dict -max_total_time=60
       - name: fuzz_formatter (60 s)
-        run: cargo +nightly fuzz run fuzz_formatter fuzz/corpus/fuzz_formatter -- -dict=fuzz/dicts/fuzz_formatter.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_formatter fuzz/corpus/fuzz_formatter -- -dict=fuzz/dicts/fuzz_formatter.dict -max_total_time=60
       - name: fuzz_sema (60 s)
-        run: cargo +nightly fuzz run fuzz_sema fuzz/corpus/fuzz_sema -- -dict=fuzz/dicts/fuzz_sema.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_sema fuzz/corpus/fuzz_sema -- -dict=fuzz/dicts/fuzz_sema.dict -max_total_time=60
       - name: fuzz_plan (60 s)
-        run: cargo +nightly fuzz run fuzz_plan fuzz/corpus/fuzz_plan -- -dict=fuzz/dicts/fuzz_plan.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_plan fuzz/corpus/fuzz_plan -- -dict=fuzz/dicts/fuzz_plan.dict -max_total_time=60
       # Differential fmt↔parse roundtrip (cy-h07, spec §17.3 P17.3.4).
       - name: fmt_parse_roundtrip (60 s)
-        run: cargo +nightly fuzz run fmt_parse_roundtrip fuzz/corpus/fmt_parse_roundtrip -- -dict=fuzz/dicts/fmt_parse_roundtrip.dict -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fmt_parse_roundtrip fuzz/corpus/fmt_parse_roundtrip -- -dict=fuzz/dicts/fmt_parse_roundtrip.dict -max_total_time=60
       # Grammar-aware target (cy-h07.1) — no dict: its input is an RNG
       # seed, not source text, so a Cypher dict would be meaningless here.
       - name: fuzz_structured_parse (60 s)
-        run: cargo +nightly fuzz run fuzz_structured_parse fuzz/corpus/fuzz_structured_parse -- -max_total_time=60
+        run: cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" fuzz_structured_parse fuzz/corpus/fuzz_structured_parse -- -max_total_time=60
 
   # ---------------------------------------------------------------
   # tree-sitter grammar: generate, self-test, and parity-gate against
@@ -404,11 +421,30 @@ jobs:
   # or acknowledged in docs/stability.md before merging.  Advisory pre-
   # first-crates.io-release (no baseline available for most crates);
   # hard-blocks once we ship 0.1.0.
+  #
+  # Disabled (fix/ci-infra-rescue, 2026-05-10):
+  # `obi1kenobi/cargo-semver-checks-action@v2` resolves the baseline by
+  # pulling the named crates from crates.io.  None of the sixteen cyrs
+  # crates have shipped yet (all 0.0.1, `publish = false`-equivalent),
+  # so the action fails on every PR with:
+  #   "error: failed to retrieve index of crate versions from registry
+  #    Caused by: cyrs-ast not found in registry (crates.io)."
+  # docs/stability.md already documents this as advisory pre-1.0; the
+  # job is left in place (not deleted) so it is trivial to re-enable.
+  #
+  # Reactivation criteria (matching docs/stability.md "1.0 cutover plan"):
+  #   1. First crates.io publish ships (any of the 16 crates at >=0.0.1
+  #      with a real registry baseline), OR
+  #   2. We switch to a baseline-revision flow (e.g. action input
+  #      `baseline-rev: ${{ github.base_ref }}`) and verify it succeeds
+  #      against `main` without registry lookups.
+  # When re-enabling, replace `if: false` with the original
+  # `if: github.event_name == 'pull_request'` guard.
   # ---------------------------------------------------------------
   semver-checks:
     name: cargo-semver-checks
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: false
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
