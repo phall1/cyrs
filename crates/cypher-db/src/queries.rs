@@ -412,25 +412,16 @@ pub fn analyse_file(
 /// Convert a [`cypher_syntax::SyntaxError`] into a [`Diagnostic`].
 ///
 /// `SyntaxError.code` carries the numeric discriminant of the `DiagCode`
-/// variant (e.g. `3` for `E0003`). We look it up in `DiagCode::ALL` to
-/// return a registered constant; unknown codes fall back to `E0001`.
+/// variant (e.g. `3` for `E0003`). The lookup is delegated to
+/// [`DiagCode::from`] for a [`cypher_syntax::SyntaxError`] reference
+/// (cy-emb3) — unknown codes fall back to `E0001`.
 fn syntax_error_to_diagnostic(e: &cypher_syntax::SyntaxError) -> Diagnostic {
-    let code = find_diag_code(e.code);
+    let code = DiagCode::from(e);
     let range = TextRange::new(e.offset, e.offset);
     // `Diagnostic` is `#[non_exhaustive]` (cy-2i9.1).  Use the `error`
     // constructor rather than a struct literal so downstream / cross-crate
     // construction remains SemVer-stable.
     Diagnostic::error(code, range, SmolStr::new(&e.message))
-}
-
-/// Look up a numeric code in [`DiagCode::ALL`] and return the matching
-/// variant, or `DiagCode::E0001` if not found.
-fn find_diag_code(numeric: u16) -> DiagCode {
-    DiagCode::ALL
-        .iter()
-        .copied()
-        .find(|&c| (c as u16) == numeric)
-        .unwrap_or(DiagCode::E0001)
 }
 
 // ---------------------------------------------------------------------------

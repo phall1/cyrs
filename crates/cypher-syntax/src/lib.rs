@@ -12,6 +12,36 @@
 //!
 //! Everything in this crate is domain-free (spec §2). There are no
 //! references to any consumer-specific concept.
+//!
+//! ## Typed diagnostic codes for embedders (cy-emb3)
+//!
+//! [`SyntaxError::code`] is a `u16` that mirrors the discriminant of
+//! the `DiagCode` enum in `cypher-diag`. The numeric form keeps this
+//! crate at the bottom of the crate graph (no edge from `cypher-syntax`
+//! to `cypher-diag`), but matching on raw `u16` values is brittle —
+//! any future renumbering would silently break embedders.
+//!
+//! Embedders that already depend on `cypher-diag` (typically via
+//! `cypher-db` for diagnostic rendering, see
+//! `docs/integration-depth.md`) should lift the numeric code to the
+//! typed enum at the boundary:
+//!
+//! ```ignore
+//! use cypher_diag::DiagCode;
+//! use cypher_syntax::parse;
+//!
+//! let parse = parse("MATCH");
+//! for err in parse.errors() {
+//!     match DiagCode::from(err) {
+//!         DiagCode::E0001 => { /* generic syntax */ }
+//!         DiagCode::E0007 => { /* expected statement */ }
+//!         _ => { /* other */ }
+//!     }
+//! }
+//! ```
+//!
+//! See `cypher_diag::DiagCode::try_from_u16` for a fallible variant
+//! that distinguishes "unknown numeric" from "registered E0001".
 
 // Embedders: see ../../docs/integration-depth.md before depending on this surface.
 

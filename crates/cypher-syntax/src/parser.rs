@@ -107,6 +107,19 @@ pub fn parse(src: &str) -> Parse {
 /// into a full `Diagnostic`: a stable numeric code (matching the
 /// `DiagCode` discriminants in `cypher-diag`), a human-readable message,
 /// and the byte offset at which it was emitted.
+///
+/// Embedders should not match on the raw `u16` `code` field — names
+/// survive renumbering, magic numbers do not (cy-emb3). When
+/// `cypher-diag` is on the dependency graph (typically via `cypher-db`),
+/// lift the numeric to the typed enum:
+///
+/// ```ignore
+/// use cypher_diag::DiagCode;
+/// match DiagCode::from(err) {
+///     DiagCode::E0007 => { /* expected statement */ }
+///     _ => { /* other syntax codes */ }
+/// }
+/// ```
 #[derive(Debug, Clone, Error)]
 #[error("[E{code:04}] {message}")]
 pub struct SyntaxError {
