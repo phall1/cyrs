@@ -32,12 +32,14 @@ pub mod desugar;
 pub mod lower;
 pub mod pretty;
 pub mod scope;
+pub mod visit;
 
 pub use lower::{lower_parse, lower_statement};
 pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
     ScopeNode,
 };
+pub use visit::{Visitor, walk_clause, walk_expr, walk_statement};
 
 use cypher_syntax::{Parse, SyntaxError, SyntaxNode, TextRange};
 

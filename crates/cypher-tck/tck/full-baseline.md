@@ -23,14 +23,14 @@ acceptance is not yet equivalent to pass-rate.
 |---|---|
 | Feature files scanned | **220** |
 | Scenario cases (outline rows expanded) | **3897** |
-| Accepted by parser | **3583** (91.9 %) |
-| Rejected by parser | **314** (8.1 %) |
+| Accepted by parser | **3632** (93.2 %) |
+| Rejected by parser | **265** (6.8 %) |
 
 ## Per-area pass counts
 
 | Area | Accepted | Total | % |
 |---|---|---|---|
-| `clauses/call` | 0 | 52 | 0.0 % |
+| `clauses/call` | 49 | 52 | 94.2 % |
 | `clauses/create` | 76 | 78 | 97.4 % |
 | `clauses/delete` | 37 | 41 | 90.2 % |
 | `clauses/match` | 367 | 381 | 96.3 % |

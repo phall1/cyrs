@@ -45,6 +45,7 @@
 //! Exercised: E0068..=E0069 — list-comprehension recovery (cy-5gh), covered by random prefixes of SOURCES.
 //! Exercised: E0072 — EXISTS(<pattern>) missing ')' (cy-lve), UI fixture `exists_pattern_missing_rparen`.
 //! Exercised: E0073..=E0075 — CALL <proc> YIELD recovery (cy-4mg), covered by random prefixes of `CALL ns.proc(1, 2) YIELD x AS xx, y` and the unit tests in `crates/cypher-syntax/tests/call_yield.rs`.
+//! Exercised: E0077 — shortestPath / allShortestPaths missing `)` (cy-b5b), UI fixture `shortest_path_missing_rparen`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!
