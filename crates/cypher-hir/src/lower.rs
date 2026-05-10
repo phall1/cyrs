@@ -26,7 +26,7 @@
 use indexmap::IndexMap;
 use smol_str::SmolStr;
 
-use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
+use cypher_syntax::{Parse, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
     BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, Pattern,
@@ -46,8 +46,26 @@ use crate::{
 /// Every lowered HIR node's [`HirId`] is recorded in
 /// [`Statement::node_map`] pointing back at its originating
 /// [`SyntaxNode`], satisfying the AST↔HIR map requirement (spec §6.1).
+///
+/// This is a thin wrapper around [`lower_parse`] that runs the parser
+/// first. Callers that already hold a [`Parse`] (e.g. an embedder that
+/// also needs the syntax errors) should call [`lower_parse`] directly to
+/// avoid re-running the lexer and parser — see also [`crate::parse_to_hir`].
 pub fn lower_statement(src: &str) -> Statement {
-    let parse = parse(src);
+    lower_parse(&parse(src))
+}
+
+/// Lower an already-computed [`Parse`] into an HIR [`Statement`].
+///
+/// This is the primitive that does the AST→HIR walk; [`lower_statement`]
+/// is a sugar wrapper that calls [`cypher_syntax::parse`] first. Embedders
+/// that already need the [`Parse`] (e.g. to surface
+/// [`cypher_syntax::SyntaxError`]s) should call this directly so the
+/// lexer + parser pipeline is not run twice.
+///
+/// The `Parse` is borrowed; only the underlying `SyntaxNode` is walked,
+/// so callers retain ownership.
+pub fn lower_parse(parse: &Parse) -> Statement {
     let root = parse.syntax();
     // Find the first STATEMENT child of SOURCE_FILE.
     let stmt_node = root

@@ -31,12 +31,64 @@ pub mod lower;
 pub mod pretty;
 pub mod scope;
 
+pub use lower::{lower_parse, lower_statement};
 pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
     ScopeNode,
 };
 
-use cypher_syntax::{SyntaxNode, TextRange};
+use cypher_syntax::{Parse, SyntaxError, SyntaxNode, TextRange};
+
+/// Aggregated output of [`parse_to_hir`].
+///
+/// Bundles the [`Parse`] (so callers can walk the concrete syntax tree),
+/// the lowered HIR [`Statement`], and the parser's accumulated
+/// [`SyntaxError`]s in a single struct so embedders that want all three
+/// don't have to run the parser twice.
+#[derive(Debug, Clone)]
+pub struct ParseToHir {
+    /// The [`Parse`] result: green tree + accumulated errors.
+    pub parse: Parse,
+    /// Best-effort HIR lowering. Even when [`Self::syntax_errors`] is
+    /// non-empty, the HIR is produced from whatever the parser
+    /// recovered (parsers in this workspace always emit a tree).
+    pub hir: Statement,
+    /// The parser's accumulated [`SyntaxError`]s in source order. A
+    /// clone of `self.parse.errors()`, lifted to an owned `Vec` for
+    /// caller convenience.
+    pub syntax_errors: Vec<SyntaxError>,
+}
+
+/// Parse `src` and lower it to HIR in a single call (cy-emb1).
+///
+/// This is the embedder convenience wrapper: it runs the lexer + parser
+/// exactly once, returning the [`Parse`], the lowered [`Statement`], and
+/// the parser's [`SyntaxError`]s together. Use this on hot paths instead
+/// of separately calling [`cypher_syntax::parse`] and
+/// [`lower::lower_statement`] (which would parse twice).
+///
+/// # Example
+///
+/// ```
+/// use cypher_hir::parse_to_hir;
+///
+/// let result = parse_to_hir("MATCH (n) RETURN n");
+/// assert!(result.syntax_errors.is_empty());
+/// assert!(!result.hir.clauses.is_empty());
+/// // The original `Parse` is still available for AST-level inspection:
+/// let _root = result.parse.syntax();
+/// ```
+#[must_use]
+pub fn parse_to_hir(src: &str) -> ParseToHir {
+    let parse = cypher_syntax::parse(src);
+    let hir = lower::lower_parse(&parse);
+    let syntax_errors = parse.errors().to_vec();
+    ParseToHir {
+        parse,
+        hir,
+        syntax_errors,
+    }
+}
 
 // Re-export span types so downstream crates (cypher-sema) can use them
 // without adding a direct cypher-syntax dependency.
@@ -650,6 +702,35 @@ mod tests {
         let cloned: Statement = stmt.clone();
         let _ = format!("{cloned:?}");
         assert_eq!(cloned.node_count(), stmt.node_count());
+    }
+
+    #[test]
+    fn parse_to_hir_returns_parse_hir_and_empty_errors() {
+        let result = parse_to_hir("MATCH (n) RETURN n");
+        // SyntaxError list is empty for well-formed input.
+        assert!(
+            result.syntax_errors.is_empty(),
+            "expected no syntax errors, got: {:?}",
+            result.syntax_errors
+        );
+        // The Parse is preserved and walks back to the original source.
+        assert_eq!(result.parse.syntax().to_string(), "MATCH (n) RETURN n");
+        // HIR was lowered: at least MATCH + RETURN clauses exist.
+        assert_eq!(result.hir.clauses.len(), 2);
+        assert!(matches!(result.hir.clauses[0], Clause::Match { .. }));
+        assert!(matches!(result.hir.clauses[1], Clause::Return { .. }));
+    }
+
+    #[test]
+    fn lower_statement_matches_lower_parse() {
+        // The sugar wrapper must agree with the primitive.
+        let src = "MATCH (a) RETURN a";
+        let parse = cypher_syntax::parse(src);
+        let via_parse = lower::lower_parse(&parse);
+        let via_str = lower::lower_statement(src);
+        assert_eq!(via_parse.clauses.len(), via_str.clauses.len());
+        assert_eq!(via_parse.bindings.len(), via_str.bindings.len());
+        assert_eq!(via_parse.node_count(), via_str.node_count());
     }
 
     #[test]
