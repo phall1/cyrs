@@ -365,6 +365,79 @@ fn expr_map_literal_basic() {
     insta::assert_snapshot!(format_with_errors("RETURN {a: 1, b: 'two'}"));
 }
 
+// --- Map projection (cy-01q, spec §6.1 / §19) -----------------------------
+//
+// The four projection-item shapes:
+//   .name          property selector
+//   key: expr      literal item
+//   .*             all-properties spread
+//   *              all-bound-vars spread
+//
+// Disambiguation from `MapLiteral`: a projection's `{` is a *postfix
+// trailer* on the subject expression. A bare `{ k: v }` in atom position
+// (no preceding expression) still parses as `MapLiteral`. The
+// `expr_map_literal_basic` snapshot above pins that contract.
+
+#[test]
+fn expr_map_projection_property_selectors() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { .name, .age }"));
+}
+
+#[test]
+fn expr_map_projection_literal_item() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) RETURN n { full_name: n.name, .age }"
+    ));
+}
+
+#[test]
+fn expr_map_projection_all_properties_spread() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { .* }"));
+}
+
+#[test]
+fn expr_map_projection_all_bound_vars_spread() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { * }"));
+}
+
+#[test]
+fn expr_map_projection_mixed_all_four_kinds() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (n) RETURN n { .name, age: 30, .*, * }"
+    ));
+}
+
+#[test]
+fn expr_map_projection_empty() {
+    // Spec is silent on `n { }` — accept it; lowering produces an empty map.
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { }"));
+}
+
+// Bare `{ k: v }` in atom position must still parse as a MAP_LITERAL,
+// not a projection — a projection requires a subject in trailer position.
+#[test]
+fn expr_map_literal_remains_literal_without_subject() {
+    insta::assert_snapshot!(format_with_errors("RETURN { a: 1, b: 2 }"));
+}
+
+// Recovery: missing `}` closer.
+#[test]
+fn err_map_projection_unclosed() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { .name"));
+}
+
+// Recovery: missing `:` in literal item.
+#[test]
+fn err_map_projection_missing_colon() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { age 30 }"));
+}
+
+// Recovery: stray token after `.` (neither identifier nor `*`).
+#[test]
+fn err_map_projection_dot_then_garbage() {
+    insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n { . , .age }"));
+}
+
 #[test]
 fn expr_variable() {
     insta::assert_snapshot!(format_with_errors("MATCH (n) RETURN n"));

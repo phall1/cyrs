@@ -589,6 +589,27 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0072.md`
     E0072 = 72,
+    /// Expected `}` to close a map projection (spec §6.1 / §19 row
+    /// "Map projection"; cy-01q).
+    ///
+    /// Emitted by the parser's `map_projection_postfix` production
+    /// when the closing `}` of `n { ... }` is missing. Distinct from
+    /// E0052 (map literal `}`) so tools can distinguish the two
+    /// recovery paths.
+    E0078 = 78,
+    /// Expected property name or `*` after `.` in a map projection item
+    /// (cy-01q). Inside `n { ... }`, a `.` opens either `.NAME`
+    /// (property selector) or `.*` (all-properties spread); anything
+    /// else is an error.
+    E0079 = 79,
+    /// Expected `:` in a map projection literal item (cy-01q).
+    /// Distinct from E0050 (map literal `:`).
+    E0080 = 80,
+    /// Expected expression for map projection literal value (cy-01q).
+    E0081 = 81,
+    /// Expected an item in map projection: `.name`, `key: expr`, `.*`,
+    /// or `*` (cy-01q).
+    E0082 = 82,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -713,6 +734,11 @@ impl DiagCode {
             Self::E0070 => "E0070",
             Self::E0071 => "E0071",
             Self::E0072 => "E0072",
+            Self::E0078 => "E0078",
+            Self::E0079 => "E0079",
+            Self::E0080 => "E0080",
+            Self::E0081 => "E0081",
+            Self::E0082 => "E0082",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -857,6 +883,11 @@ impl DiagCode {
         Self::E0070,
         Self::E0071,
         Self::E0072,
+        Self::E0078,
+        Self::E0079,
+        Self::E0080,
+        Self::E0081,
+        Self::E0082,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -995,6 +1026,11 @@ mod tests {
             DiagCode::E0070,
             DiagCode::E0071,
             DiagCode::E0072,
+            DiagCode::E0078,
+            DiagCode::E0079,
+            DiagCode::E0080,
+            DiagCode::E0081,
+            DiagCode::E0082,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,

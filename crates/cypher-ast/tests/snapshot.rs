@@ -16,10 +16,11 @@ use std::fmt::Write as _;
 
 use cypher_ast::{
     ArgList, BinaryExpr, CallClause, CaseExpr, CreateClause, DeleteClause, FunctionCall, LabelExpr,
-    ListComprehension, ListLiteral, ListPredicateExpr, MapLiteral, MatchClause, MergeAction,
-    MergeClause, NodePattern, OrderBy, ParenExpr, Pattern, PatternComprehension, PatternPredicate,
-    PropertyMap, RelDetail, RemoveClause, ReturnClause, ReturnItem, SetClause, SourceFile,
-    UnaryExpr, UnwindClause, WhereClause, WithClause, YieldItem,
+    ListComprehension, ListLiteral, ListPredicateExpr, MapLiteral, MapProjection,
+    MapProjectionItem, MatchClause, MergeAction, MergeClause, NodePattern, OrderBy, ParenExpr,
+    Pattern, PatternComprehension, PatternPredicate, PropertyMap, RelDetail, RemoveClause,
+    ReturnClause, ReturnItem, SetClause, SourceFile, UnaryExpr, UnwindClause, WhereClause,
+    WithClause, YieldItem,
 };
 use cypher_syntax::{SyntaxNode, parse};
 use rowan::{NodeOrToken, WalkEvent};
@@ -105,6 +106,12 @@ fn ast_name(node: &SyntaxNode) -> Option<&'static str> {
     }
     if MapLiteral::cast(node.clone()).is_some() {
         return Some("Expr::MapLiteral");
+    }
+    if MapProjection::cast(node.clone()).is_some() {
+        return Some("Expr::MapProjection");
+    }
+    if MapProjectionItem::cast(node.clone()).is_some() {
+        return Some("MapProjectionItem");
     }
     if ListComprehension::cast(node.clone()).is_some() {
         return Some("Expr::ListComprehension");
@@ -410,6 +417,90 @@ fn expr_function_call() {
 #[test]
 fn expr_paren() {
     insta::assert_snapshot!(dump("RETURN (1 + 2) * 3"));
+}
+
+// ---------------------------------------------------------------------------
+// Map projection (cy-01q, spec §6.1 / §19)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn expr_map_projection_property_selectors() {
+    insta::assert_snapshot!(dump("MATCH (n) RETURN n { .name, .age }"));
+}
+
+#[test]
+fn expr_map_projection_mixed_all_four_kinds() {
+    insta::assert_snapshot!(dump("MATCH (n) RETURN n { .name, age: 30, .*, * }"));
+}
+
+// Confirms a bare `{ k: v }` in atom position is still typed as
+// `Expr::MapLiteral`, not `Expr::MapProjection` — the postfix-trailer
+// disambiguation rule.
+#[test]
+fn expr_map_literal_remains_literal_without_subject() {
+    insta::assert_snapshot!(dump("RETURN { a: 1, b: 2 }"));
+}
+
+// Sanity: the typed AST extension methods on `MapProjection` /
+// `MapProjectionItem` classify the four item shapes correctly.
+#[test]
+fn map_projection_item_kinds_classify_correctly() {
+    use cypher_ast::MapProjectionItemKind;
+    use cypher_syntax::SyntaxKind;
+    let parse = parse("MATCH (n) RETURN n { .name, age: 30, .*, * }");
+    let src = SourceFile::cast(parse.syntax()).unwrap();
+
+    // Walk down to the MAP_PROJECTION node via the typed AST.
+    let proj = src
+        .syntax()
+        .descendants()
+        .find_map(MapProjection::cast)
+        .expect("MAP_PROJECTION present");
+
+    // Subject `n` parses as `VAR_EXPR` — that kind isn't in the typed
+    // `Expr` enum (v1 leaves variable refs unwrapped in the codegen
+    // alternation), so `proj.subject()` returns `None`. HIR lowering
+    // walks the CST children directly to find the subject. We assert
+    // that shape here so the contract is pinned.
+    assert!(proj.subject().is_none());
+    let raw_subject = proj
+        .syntax()
+        .children()
+        .next()
+        .expect("MAP_PROJECTION has children");
+    assert_eq!(raw_subject.kind(), SyntaxKind::VAR_EXPR);
+
+    let kinds: Vec<MapProjectionItemKind> = proj.items().map(|i| i.kind()).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            MapProjectionItemKind::PropertySelector,
+            MapProjectionItemKind::Literal,
+            MapProjectionItemKind::AllPropertiesSpread,
+            MapProjectionItemKind::AllBoundVarsSpread,
+        ]
+    );
+
+    // Literal item carries its key.
+    let literal_item = proj
+        .items()
+        .find(|i| i.kind() == MapProjectionItemKind::Literal)
+        .unwrap();
+    assert_eq!(
+        literal_item
+            .key_token()
+            .map(|t| t.text().to_string())
+            .as_deref(),
+        Some("age")
+    );
+    // `value()` returns `Some(_)` only when the value parses to a kind the
+    // typed `Expr` enum recognizes. Bare literals (LITERAL_EXPR) and
+    // variable refs (VAR_EXPR) aren't promoted to `Expr` arms in v1
+    // (they're skipped by codegen — see `generated.rs::Expr::cast`); HIR
+    // lowering walks the CST to type those. Pin the contract via the raw
+    // CST kind so future codegen extensions don't silently change it.
+    let value_kind = literal_item.syntax().children().next().map(|n| n.kind());
+    assert_eq!(value_kind, Some(cypher_syntax::SyntaxKind::LITERAL_EXPR));
 }
 
 // ---------------------------------------------------------------------------

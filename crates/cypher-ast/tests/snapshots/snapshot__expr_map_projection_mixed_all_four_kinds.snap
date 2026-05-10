@@ -1,0 +1,51 @@
+---
+source: crates/cypher-ast/tests/snapshot.rs
+expression: "dump(\"MATCH (n) RETURN n { .name, age: 30, .*, * }\")"
+---
+SourceFile(SOURCE_FILE@0..44)
+  STATEMENT@0..44
+    MatchClause(MATCH_CLAUSE@0..9)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    ReturnClause(RETURN_CLAUSE@9..44)
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..44
+        RETURN_ITEMS@16..44
+          ReturnItem(RETURN_ITEM@16..44)
+            Expr::MapProjection(MAP_PROJECTION@16..44)
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              WHITESPACE@18..19 " "
+              L_BRACE@19..20 "{"
+              MapProjectionItem(MAP_PROJECTION_ITEM@20..26)
+                WHITESPACE@20..21 " "
+                DOT@21..22 "."
+                IDENT@22..26 "name"
+              COMMA@26..27 ","
+              MapProjectionItem(MAP_PROJECTION_ITEM@27..35)
+                WHITESPACE@27..28 " "
+                IDENT@28..31 "age"
+                COLON@31..32 ":"
+                LITERAL_EXPR@32..35
+                  WHITESPACE@32..33 " "
+                  INT_LITERAL@33..35 "30"
+              COMMA@35..36 ","
+              MapProjectionItem(MAP_PROJECTION_ITEM@36..39)
+                WHITESPACE@36..37 " "
+                DOT@37..38 "."
+                STAR@38..39 "*"
+              COMMA@39..40 ","
+              MapProjectionItem(MAP_PROJECTION_ITEM@40..42)
+                WHITESPACE@40..41 " "
+                STAR@41..42 "*"
+              WHITESPACE@42..43 " "
+              R_BRACE@43..44 "}"

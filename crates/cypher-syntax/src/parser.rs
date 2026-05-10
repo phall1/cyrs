@@ -621,6 +621,26 @@ pub(crate) mod syntax_codes {
     /// §19 row "shortest-path"). E0076 reserved for `CALL { ... }`
     /// block subquery (cy-4mg follow-up — block form deferred per §20 D1).
     pub(crate) const EXPECTED_RPAREN_SHORTEST_PATH: u16 = 77;
+    /// E0078 — expected `}` to close a map projection (cy-01q, spec §6.1 /
+    /// §19 row "Map projection"). Distinct from E0052 (map literal close)
+    /// so tooling can tell projection from literal recovery apart.
+    /// Renumbered from E0073 to avoid collision with cy-4mg.
+    pub(crate) const EXPECTED_RBRACE_MAP_PROJECTION: u16 = 78;
+    /// E0079 — expected property name or `*` after `.` in a map projection
+    /// item (cy-01q). The `.` opens either `.NAME` (property selector) or
+    /// `.*` (all-properties spread); anything else is an error.
+    /// Renumbered from E0074.
+    pub(crate) const EXPECTED_PROP_OR_STAR_AFTER_DOT_IN_PROJECTION: u16 = 79;
+    /// E0080 — expected `:` in a map projection literal item (cy-01q).
+    /// Distinct from E0050 (map literal `:`) for the same reason as
+    /// E0078 vs E0052. Renumbered from E0075.
+    pub(crate) const EXPECTED_COLON_MAP_PROJECTION: u16 = 80;
+    /// E0081 — expected expression for map projection value (cy-01q).
+    /// Renumbered from E0076.
+    pub(crate) const EXPECTED_VALUE_MAP_PROJECTION: u16 = 81;
+    /// E0082 — expected an item in map projection: `.name`, `key: expr`,
+    /// `.*`, or `*` (cy-01q). Renumbered from E0077.
+    pub(crate) const EXPECTED_MAP_PROJECTION_ITEM: u16 = 82;
 
     // ---- dialect gates (E4xxx, shared with cypher-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`
