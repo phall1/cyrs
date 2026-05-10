@@ -5,7 +5,6 @@ expression: "fmt(\"MATCH (n) RETURN n;\\n// cypher-fmt: off\\nmatch(n:Person{nam
 MATCH (n)
 RETURN n;
 // cypher-fmt: off
-
 match(n:Person{name:'Alice'})return n.name
 // cypher-fmt: on
 MATCH (m)

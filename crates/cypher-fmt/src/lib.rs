@@ -387,6 +387,47 @@ mod tests {
         assert_snapshot!(a);
     }
 
+    /// cy-eu2 (spec §13.4): a `// cypher-fmt: off` directive followed
+    /// (after some intervening whitespace) by raw content must round-trip
+    /// idempotently — `fmt(fmt(s)) == fmt(s)`. The fuzzer-found regression
+    /// was that the second pass added an extra blank line after the
+    /// directive because the first pass left a `\n` plus a buffered raw
+    /// blank line, and the parser then re-tokenised that boundary as a
+    /// blank line that the printer's blank-line normaliser added on top of
+    /// the pre-existing buffered blank.
+    #[test]
+    fn idempotent_around_fmt_off_directive() {
+        // Minimal repro distilled from CI run 25634957583.
+        let s = "00// cypher-fmt: off\nOs * absent";
+        let a = format(s);
+        let b = format(&a);
+        assert_eq!(a, b, "fmt(fmt(s)) != fmt(s):\n  a = {a:?}\n  b = {b:?}");
+    }
+
+    /// Generic fixpoint property — a small handful of fixtures that should
+    /// all be fmt-idempotent on the first re-format.
+    #[test]
+    fn fixpoint_on_assorted_fixtures() {
+        let fixtures: &[&str] = &[
+            "",
+            "MATCH (n) RETURN n",
+            "// hello\nMATCH (n) RETURN n",
+            "MATCH (n) RETURN n;\n\nMATCH (m) RETURN m",
+            "// cypher-fmt: off\nfoo bar baz\n// cypher-fmt: on\nMATCH (n) RETURN n",
+            "MATCH (n) RETURN n;\n// cypher-fmt: off\nraw stuff here\n// cypher-fmt: on",
+            "00// cypher-fmt: off\nOs * absent",
+            "// cypher-fmt: off\n\nMATCH (n) RETURN n",
+        ];
+        for src in fixtures {
+            let a = format(src);
+            let b = format(&a);
+            assert_eq!(
+                a, b,
+                "fmt is not a fixpoint for {src:?}:\n  fmt(s)      = {a:?}\n  fmt(fmt(s)) = {b:?}"
+            );
+        }
+    }
+
     // ------------------------------------------------------------------
     // Options: keyword_casing = Lower
     // ------------------------------------------------------------------

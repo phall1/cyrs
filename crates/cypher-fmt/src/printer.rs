@@ -49,9 +49,9 @@ pub struct Printer {
     pending: Pending,
     /// Pending blank lines (collapsed to ≤ 1).
     pending_blank: bool,
-    /// Whether we are in a `cypher-fmt: off` region.
-    fmt_off: bool,
-    /// Buffer for raw (unformatted) content while `fmt_off`.
+    /// `cypher-fmt: off` region state (spec §13.4).
+    fmt_state: FmtState,
+    /// Buffer for raw (unformatted) content while in `FmtState::Off*`.
     raw_buf: String,
 }
 
@@ -60,6 +60,20 @@ enum Pending {
     Nothing,
     Space,
     Newline,
+}
+
+/// Tri-state for the `// cypher-fmt: off` / `on` region (spec §13.4).
+///
+/// `OffJustEntered` is the brief state immediately after emitting an
+/// off-directive; the next raw chunk must drop one leading `\n` to keep
+/// `fmt(fmt(s)) == fmt(s)` (cy-eu2). `emit_comment` always writes exactly
+/// one `\n` after the directive, so without this strip the buffered blank
+/// line grows by one `\n` per formatting pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FmtState {
+    On,
+    OffJustEntered,
+    Off,
 }
 
 impl Printer {
@@ -71,7 +85,7 @@ impl Printer {
             at_line_start: true,
             pending: Pending::Nothing,
             pending_blank: false,
-            fmt_off: false,
+            fmt_state: FmtState::On,
             raw_buf: String::new(),
         }
     }
@@ -102,14 +116,17 @@ impl Printer {
             let is_on =
                 t == "// cypher-fmt: on" || t == "//cypher-fmt:on" || t == "// cypher-fmt:on";
 
-            if is_off && !self.fmt_off {
-                self.fmt_off = true;
+            if is_off && self.fmt_state == FmtState::On {
                 // Emit the comment itself (formatted), then suppress.
+                // `emit_comment` pushes one `\n` after the directive, so the
+                // first raw chunk we buffer must drop one leading `\n` to
+                // keep `fmt(fmt(s)) == fmt(s)` (cy-eu2).
                 self.emit_comment(text, kind);
+                self.fmt_state = FmtState::OffJustEntered;
                 return;
             }
-            if is_on && self.fmt_off {
-                self.fmt_off = false;
+            if is_on && self.fmt_state != FmtState::On {
+                self.fmt_state = FmtState::On;
                 // Flush raw buffer first.
                 if !self.raw_buf.is_empty() {
                     let raw = std::mem::take(&mut self.raw_buf);
@@ -123,8 +140,20 @@ impl Printer {
         // ----------------------------------------------------------------
         // When formatting is off: accumulate verbatim.
         // ----------------------------------------------------------------
-        if self.fmt_off {
-            self.raw_buf.push_str(text);
+        if self.fmt_state != FmtState::On {
+            // Drop one leading `\n` from the first raw chunk after the
+            // off-directive so the trailer emission is idempotent (cy-eu2).
+            // `emit_comment` already wrote exactly one `\n` after the
+            // directive; without this strip, a second formatter pass would
+            // re-add a `\n` on top of the buffered blank line that the
+            // first pass produced.
+            let to_push = if self.fmt_state == FmtState::OffJustEntered {
+                self.fmt_state = FmtState::Off;
+                text.strip_prefix('\n').unwrap_or(text)
+            } else {
+                text
+            };
+            self.raw_buf.push_str(to_push);
             return;
         }
 
