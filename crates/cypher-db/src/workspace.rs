@@ -459,23 +459,26 @@ impl Database {
         let sf = record.source_file;
 
         // Pull the current tree from Salsa so `incremental_reparse` gets a
-        // real `SyntaxNode` to dispatch on.  The smart path (when it lands)
-        // will reuse the green tree rather than the source string; calling
-        // parse_cst here warms the memo and — critically — pins the
-        // `Arc<Parse>` that the future sub-tree splicer needs.
+        // real `SyntaxNode` to dispatch on.  Calling parse_cst here warms
+        // the memo and pins the `Arc<Parse>` that the sub-tree splicer
+        // (cy-li5) reuses on the smart path.
         let parse_out = parse_cst(&self.inner, sf);
         let old_tree = parse_out.parse().syntax();
 
-        // Dispatch through the edit crate. Today this is a whole-file
-        // reparse fallback; the return value's source string is the new
-        // canonical text, which we feed back into Salsa to bump the
-        // revision and invalidate downstream queries.
+        // Dispatch through the edit crate.  On the smart path this returns
+        // a green-spliced `Parse` whose tree shares structure with the old
+        // one; on the fallback path it is a whole-file reparse.  Either
+        // way the resulting source text is canonical.
         let new_parse = incremental_reparse(&old_tree, edit);
         let new_source = new_parse.syntax().to_string();
 
-        // Salsa will detect whether the source actually changed and skip
-        // downstream re-execution via the standard revision-bump protocol.
-        self.inner.set_source(sf, new_source);
+        // cy-li6: publish the freshly-computed `Parse` to Salsa as the
+        // memoised `parse_cst` result for the next revision.  Without this
+        // wiring the bench would re-parse `new_source` from scratch on the
+        // next `analyse_file`, defeating the smart-path savings.
+        let new_parse_out = crate::ParseOutput::new(new_parse);
+        self.inner
+            .set_source_with_parse(sf, new_source, new_parse_out);
         Ok(())
     }
 
@@ -769,6 +772,92 @@ mod tests {
             !Arc::ptr_eq(&before.0, &after.0),
             "edit_file must bump the Salsa revision → new Arc"
         );
+    }
+
+    /// cy-li6: after `edit_file`, the next `parse_cst` query must return the
+    /// same `Arc<Parse>` that `incremental_reparse` produced — i.e. the
+    /// precomputed Parse is published to Salsa instead of being reparsed.
+    #[test]
+    fn edit_file_publishes_precomputed_parse_to_salsa() {
+        use cypher_syntax::{TextEdit, TextRange, TextSize};
+
+        let mut db = Database::new();
+        let id = db.open_file(
+            Path::new("e.cyp"),
+            "RETURN 1".into(),
+            DialectMode::GqlAligned,
+        );
+        // Warm parse_cst so the SourceFile input exists in Salsa storage.
+        let _ = db.parse_cst(id).unwrap();
+
+        // Apply an edit. The smart path inside `edit_file` will splice a
+        // sub-tree and publish the resulting Parse via the cy-li6
+        // `precomputed_parse` input slot.
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(7), TextSize::new(8)), "42");
+        db.edit_file(id, &edit).unwrap();
+
+        // Read the published hint directly from Salsa.
+        let sf = db.source_file(id).unwrap();
+        let hint = sf
+            .precomputed_parse(&db.inner)
+            .as_ref()
+            .expect("edit_file must publish a precomputed Parse to the SourceFile input")
+            .clone();
+
+        // The next parse_cst call must return that exact Arc — proving
+        // the Salsa-tracked query short-circuited on the hint instead of
+        // re-parsing the source string.
+        let after = db.parse_cst(id).unwrap();
+        assert!(
+            Arc::ptr_eq(&hint.0, &after.0),
+            "parse_cst after edit_file must return the precomputed Parse Arc, \
+             not a freshly re-parsed one"
+        );
+
+        // And a second parse_cst call must hit Salsa's memo (same Arc).
+        let after2 = db.parse_cst(id).unwrap();
+        assert!(
+            Arc::ptr_eq(&after.0, &after2.0),
+            "parse_cst memo must be stable across subsequent queries"
+        );
+
+        // Source text is the post-edit canonical text.
+        assert_eq!(after.parse().syntax().to_string(), "RETURN 42");
+    }
+
+    /// cy-li6: a non-incremental `update_file` must clear any stale
+    /// precomputed Parse so the next `parse_cst` re-parses fresh source.
+    #[test]
+    fn update_file_clears_precomputed_parse_hint() {
+        use cypher_syntax::{TextEdit, TextRange, TextSize};
+
+        let mut db = Database::new();
+        let id = db.open_file(
+            Path::new("e.cyp"),
+            "RETURN 1".into(),
+            DialectMode::GqlAligned,
+        );
+        let _ = db.parse_cst(id).unwrap();
+
+        // Seed the hint via edit_file.
+        let edit = TextEdit::replace(TextRange::new(TextSize::new(7), TextSize::new(8)), "42");
+        db.edit_file(id, &edit).unwrap();
+
+        let sf = db.source_file(id).unwrap();
+        assert!(
+            sf.precomputed_parse(&db.inner).is_some(),
+            "edit_file must seed the precomputed_parse hint"
+        );
+
+        // Full source replacement must clear the stale hint.
+        db.update_file(id, "RETURN 99".into()).unwrap();
+        assert!(
+            sf.precomputed_parse(&db.inner).is_none(),
+            "update_file must clear the stale precomputed_parse hint"
+        );
+
+        let after = db.parse_cst(id).unwrap();
+        assert_eq!(after.parse().syntax().to_string(), "RETURN 99");
     }
 
     #[test]
