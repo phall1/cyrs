@@ -52,8 +52,7 @@ fn area_of(rel: &Path) -> String {
         .collect();
     parts
         .first()
-        .map(|s| (*s).to_owned())
-        .unwrap_or_else(|| "<root>".to_owned())
+        .map_or_else(|| "<root>".to_owned(), |s| (*s).to_owned())
 }
 
 fn walk_features(root: &Path) -> Vec<PathBuf> {
