@@ -24,6 +24,7 @@ use codespan_reporting::diagnostic::{
 use codespan_reporting::files::{Error as FilesError, SimpleFile};
 use codespan_reporting::term::termcolor::{ColorChoice, NoColor, StandardStream, WriteColor};
 use codespan_reporting::term::{self, Config};
+use cypher_syntax::TextRangeExt;
 
 use crate::{Diagnostic, Severity};
 
@@ -90,14 +91,14 @@ fn to_codespan(d: &Diagnostic) -> CrDiagnostic<()> {
         Severity::Help => CrSeverity::Help,
     };
 
-    let primary = CrLabel::new(LabelStyle::Primary, (), to_range(d.primary.range))
+    let primary = CrLabel::new(LabelStyle::Primary, (), d.primary.range.as_byte_range())
         .with_message(d.primary.caption.as_str().to_owned());
 
     let mut labels = Vec::with_capacity(1 + d.labels.len());
     labels.push(primary);
     for l in &d.labels {
         labels.push(
-            CrLabel::new(LabelStyle::Secondary, (), to_range(l.range))
+            CrLabel::new(LabelStyle::Secondary, (), l.range.as_byte_range())
                 .with_message(l.caption.as_str().to_owned()),
         );
     }
@@ -115,10 +116,6 @@ fn to_codespan(d: &Diagnostic) -> CrDiagnostic<()> {
         .with_message(d.message.as_str().to_owned())
         .with_labels(labels)
         .with_notes(notes)
-}
-
-fn to_range(r: cypher_syntax::TextRange) -> std::ops::Range<usize> {
-    usize::from(r.start())..usize::from(r.end())
 }
 
 #[cfg(test)]

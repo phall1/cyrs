@@ -12,7 +12,7 @@
 //! large files) does not return hints for the whole document.
 
 use cypher_db::{Database, FileId};
-use cypher_syntax::{LineIndex, TextRange, TextSize};
+use cypher_syntax::{LineIndex, TextRange, TextRangeExt, TextSize};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range};
 
 /// Compute inlay hints for the requested range.  Returns an empty
@@ -31,7 +31,7 @@ pub(crate) fn compute(db: &Database, file_id: FileId, range: Range) -> Vec<Inlay
     let stmt = cypher_hir::lower::lower_statement(&source);
     let mut hints: Vec<InlayHint> = Vec::new();
     for binding in stmt.bindings.values() {
-        if !ranges_intersect(filter, binding.defined_at) {
+        if !filter.intersects(binding.defined_at) {
             continue;
         }
         let pos = offset_to_position(&line_index, binding.defined_at.end());
@@ -72,8 +72,4 @@ fn offset_to_position(line_index: &LineIndex, offset: TextSize) -> Position {
         line: utf16.line,
         character: utf16.col,
     }
-}
-
-fn ranges_intersect(a: TextRange, b: TextRange) -> bool {
-    a.start() <= b.end() && b.start() <= a.end()
 }
