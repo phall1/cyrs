@@ -708,3 +708,45 @@ fn regression_with_comment() {
         "HIR round-trip failed for source with comment"
     );
 }
+
+/// cy-b5b: `MATCH p = shortestPath((a)-[:KNOWS*]->(b))` must lower to
+/// the same HIR Pattern as a plain path with a path binder. The
+/// shortest-path discriminant is a CST-level annotation; HIR sees a
+/// single PatternPart with `named_as = Some(p)` and the inner
+/// node-rel-node element list. This guards the `lower_pattern_wrapper`
+/// branch that descends through SHORTEST_PATH_PATTERN.
+#[test]
+fn regression_shortest_path_lowers_to_named_pattern_part() {
+    let stmt = lower(
+        "MATCH p = shortestPath((a)-[:KNOWS*]->(b)) RETURN p",
+    );
+    let parts = stmt.clauses.iter().find_map(|c| match c {
+        Clause::Match { pattern, .. } => Some(&pattern.parts),
+        _ => None,
+    });
+    let parts = parts.expect("MATCH clause present");
+    assert_eq!(parts.len(), 1, "shortestPath wraps a single path part");
+    let part = &parts[0];
+    assert!(part.named_as.is_some(), "path binder `p` must produce named_as");
+    // Inner shape: NODE, REL, NODE.
+    assert_eq!(part.elements.len(), 3, "(a)-[*]->(b) is three elements");
+}
+
+/// cy-b5b: `allShortestPaths(...)` lowers identically to `shortestPath(...)`
+/// at the HIR layer (the discriminant is preserved in the CST and
+/// surfaced by the plan / pretty layers).
+#[test]
+fn regression_all_shortest_paths_lowers_to_pattern_part() {
+    let stmt = lower(
+        "MATCH p = allShortestPaths((a)-[:KNOWS*1..3]->(b)) RETURN p",
+    );
+    let part_count = stmt
+        .clauses
+        .iter()
+        .filter_map(|c| match c {
+            Clause::Match { pattern, .. } => Some(pattern.parts.len()),
+            _ => None,
+        })
+        .sum::<usize>();
+    assert_eq!(part_count, 1);
+}
