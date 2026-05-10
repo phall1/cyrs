@@ -147,7 +147,7 @@ fn tck_baseline() -> Result<()> {
         &[
             "test",
             "-p",
-            "cypher-tck",
+            "cyrs-tck",
             "--features",
             "full-tck",
             "--test",
@@ -275,7 +275,7 @@ fn gate() -> Result<()> {
 }
 
 /// All crates that have a `tests/ui.rs` integration test harness.
-const UI_CRATES: &[&str] = &["cypher-syntax", "cypher-sema", "cypher-fmt", "cypher-plan"];
+const UI_CRATES: &[&str] = &["cyrs-syntax", "cyrs-sema", "cyrs-fmt", "cyrs-plan"];
 
 /// Re-bless compiletest golden sidecars (spec §17.6).
 ///

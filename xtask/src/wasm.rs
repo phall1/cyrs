@@ -334,7 +334,7 @@ fn run_cargo_wasm(workspace: &Path) -> Result<()> {
     cmd.current_dir(workspace).args([
         "build",
         "-p",
-        "cypher-wasm",
+        "cyrs-wasm",
         "--target",
         "wasm32-unknown-unknown",
         "--release",
@@ -376,7 +376,7 @@ fn run_cargo_wasm_lsp(workspace: &Path) -> Result<()> {
     cmd.current_dir(workspace).args([
         "build",
         "-p",
-        "cypher-lsp",
+        "cyrs-lsp",
         "--features",
         "web-lsp",
         "--target",

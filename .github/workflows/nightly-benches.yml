@@ -68,7 +68,7 @@ jobs:
       # The bench crate is its own [workspace] so the main workspace
       # target dir is separate; build the binary up front so the bench's
       # own `cargo build` step is a no-op.
-      - name: pre-build cypher-agent (release)
+      - name: pre-build cyrs-agent (release)
         run: cargo build --release -p cyrs-agent
 
       # Run all four heavy benches.  Each bench has `harness = false` +
@@ -173,7 +173,7 @@ jobs:
   # Skipped on the weekly Sunday soak cron so the soak runner is free.
   # ---------------------------------------------------------------------------
   wasm-size:
-    name: cypher-wasm size gate (≤ 2 MB brotli)
+    name: cyrs-wasm size gate (≤ 2 MB brotli)
     if: github.event.schedule != '0 3 * * 0'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -204,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cypher-wasm-pkg-${{ github.run_id }}
+          name: cyrs-wasm-pkg-${{ github.run_id }}
           path: crates/cypher-wasm/pkg/
           if-no-files-found: ignore
           retention-days: 30

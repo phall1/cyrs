@@ -21,6 +21,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded PR runs (see ci.yml for rationale). Main-branch runs
+# are NOT cancelled because the bench-baseline job persists an artifact
+# that subsequent PRs depend on.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
