@@ -9,7 +9,9 @@
 Lexer, recovering parser, lossless CST, typed AST, HIR with name
 resolution, schema-aware semantic analysis, diagnostics engine,
 formatter, incremental analysis database, language server, agent-facing
-JSON API, CLI. GQL-aligned and openCypher v9 compatible.
+JSON API, CLI. openCypher v9 front-end (93.2 % TCK acceptance) with
+in-progress GQL ISO/IEC 39075:2024 support (parser bootstrap landed —
+11.1 % on a 7-feature seed corpus; see [coverage](#coverage)).
 
 > Rust-compiler-grade. No execution. No domain coupling.
 
@@ -110,6 +112,41 @@ available as the [`cyrs-lang`](https://crates.io/crates/cyrs-lang) meta-crate.
   affected queries on every edit.
 - **LSP server + JSON agent API** — share a single
   `cyrs-lang-services` engine layer; zero logic duplication.
+
+---
+
+## Coverage
+
+cyrs is a **Cypher front-end** first; GQL ISO/IEC 39075:2024 support is a
+deliberate, in-progress second track. The numbers below are rolling
+measurements written by the TCK harness (spec §17.5), not aspirations.
+
+| Surface | Corpus | Result | Source |
+| ------- | ------ | ------ | ------ |
+| openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cypher-tck/tck/full-baseline.md`](./crates/cypher-tck/tck/full-baseline.md) |
+| GQL ISO/IEC 39075:2024 | hand-authored bootstrap (7 feature files, 18 expanded scenarios) | **2 / 18 accepted (11.1 %)** | [`crates/cypher-tck/tck/gql-iso-39075/baseline.md`](./crates/cypher-tck/tck/gql-iso-39075/baseline.md) |
+
+**Caveat on the openCypher number.** "Accepted" means the parser emits
+zero syntax errors for the scenario's `When executing query:` step. It
+is **not** an end-to-end pass-rate: the front-end does no execution
+(spec §1.3 N1), and `Expected::Error` scenarios are still untriaged
+(`Expected::Ignored`) — see the baseline file's preamble. Treat 93.2 %
+as parser acceptance, not semantic conformance.
+
+**State of GQL.** The GQL track is a parser bootstrap (bead cy-0hj):
+the corpus pins the GQL-distinct surface so future beads can land
+parser changes against a stable set of scenarios. The following
+GQL-only constructs are explicitly **not yet implemented**:
+
+- `INSERT NODE` (GQL insert syntax distinct from Cypher `CREATE`)
+- `FILTER` clause
+- `REPEATABLE ELEMENTS`
+- `IS TYPED` predicate
+- `ANY SHORTEST` path selector
+
+If you need GQL parity today, this is not it. If you want a
+production-track Cypher front-end with a credible path to GQL
+alignment, read on.
 
 ---
 
