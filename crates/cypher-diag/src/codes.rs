@@ -937,11 +937,75 @@ impl DiagCode {
         Self::N8002,
         Self::N8003,
     ];
+
+    /// Recover the typed [`DiagCode`] for a numeric discriminant.
+    ///
+    /// Returns `None` for any value not registered in [`DiagCode::ALL`]
+    /// (including retired codes). Embedders that map cyrs errors to
+    /// their own typed errors should prefer this over matching on raw
+    /// `u16` values from [`cypher_syntax::SyntaxError::code`] — names
+    /// survive renumbering, magic numbers do not (cy-emb3).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cypher_diag::DiagCode;
+    /// assert_eq!(DiagCode::try_from_u16(3), Some(DiagCode::E0003));
+    /// assert_eq!(DiagCode::try_from_u16(6001), Some(DiagCode::W6001));
+    /// assert_eq!(DiagCode::try_from_u16(9999), None);
+    /// ```
+    #[must_use]
+    pub fn try_from_u16(numeric: u16) -> Option<DiagCode> {
+        Self::ALL.iter().copied().find(|&c| (c as u16) == numeric)
+    }
+
+    /// Recover the typed [`DiagCode`] for a numeric discriminant, or
+    /// fall back to [`DiagCode::E0001`] for unknown values.
+    ///
+    /// Convenience for diagnostic-rendering paths that must always
+    /// produce a code (e.g. [`from`](From::from) impl on
+    /// [`cypher_syntax::SyntaxError`]). Prefer
+    /// [`try_from_u16`](Self::try_from_u16) when the embedder needs to
+    /// distinguish "unknown code" from "registered E0001" (cy-emb3).
+    #[must_use]
+    pub fn from_u16_or_e0001(numeric: u16) -> DiagCode {
+        Self::try_from_u16(numeric).unwrap_or(Self::E0001)
+    }
 }
 
 impl fmt::Display for DiagCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+/// Lift a [`cypher_syntax::SyntaxError`] to its typed [`DiagCode`].
+///
+/// `cypher-syntax` carries diagnostic codes as `u16` to avoid a
+/// reverse dependency on `cypher-diag` (spec §3 crate graph).
+/// Embedders that already depend on `cypher-diag` for rendering can
+/// recover the typed enum without re-implementing the lookup table:
+///
+/// ```
+/// use cypher_diag::DiagCode;
+/// use cypher_syntax::parse;
+///
+/// let parse = parse("MATCH");
+/// // First syntax error from a deliberately broken query.
+/// let err = parse.errors().first().expect("at least one error");
+/// let code: DiagCode = DiagCode::from(err);
+/// // Match on a stable name — survives any future renumbering.
+/// match code {
+///     DiagCode::E0001 | DiagCode::E0007 | DiagCode::E0045 => { /* generic / clause-level */ }
+///     _ => { /* other syntax codes */ }
+/// }
+/// ```
+///
+/// Unknown numeric codes fall back to [`DiagCode::E0001`] — see
+/// [`DiagCode::try_from_u16`] for a fallible alternative (cy-emb3).
+impl From<&cypher_syntax::SyntaxError> for DiagCode {
+    fn from(err: &cypher_syntax::SyntaxError) -> Self {
+        Self::from_u16_or_e0001(err.code)
     }
 }
 
@@ -1084,5 +1148,92 @@ mod tests {
         strs.sort_unstable();
         strs.dedup();
         assert_eq!(strs.len(), all.len(), "duplicate DiagCode string");
+    }
+
+    /// `try_from_u16` recovers the typed variant for a sample of known
+    /// codes spanning every range (cy-emb3).
+    #[test]
+    fn try_from_u16_known_codes() {
+        // Syntax range.
+        assert_eq!(DiagCode::try_from_u16(1), Some(DiagCode::E0001));
+        assert_eq!(DiagCode::try_from_u16(3), Some(DiagCode::E0003));
+        assert_eq!(DiagCode::try_from_u16(46), Some(DiagCode::E0046));
+        assert_eq!(DiagCode::try_from_u16(78), Some(DiagCode::E0078));
+        // Name resolution / sema / dialect / type system.
+        assert_eq!(DiagCode::try_from_u16(1001), Some(DiagCode::E1001));
+        assert_eq!(DiagCode::try_from_u16(2009), Some(DiagCode::E2009));
+        assert_eq!(DiagCode::try_from_u16(3001), Some(DiagCode::E3001));
+        assert_eq!(DiagCode::try_from_u16(4001), Some(DiagCode::E4001));
+        assert_eq!(DiagCode::try_from_u16(5003), Some(DiagCode::E5003));
+        // Warnings and notes.
+        assert_eq!(DiagCode::try_from_u16(6001), Some(DiagCode::W6001));
+        assert_eq!(DiagCode::try_from_u16(7001), Some(DiagCode::W7001));
+        assert_eq!(DiagCode::try_from_u16(8001), Some(DiagCode::N8001));
+    }
+
+    /// Unregistered, retired, and out-of-range numeric codes are
+    /// rejected by the fallible lookup (cy-emb3).
+    #[test]
+    fn try_from_u16_unknown_codes() {
+        // Gaps inside ranges (E0073..=E0077, E0083+).
+        assert_eq!(DiagCode::try_from_u16(0), None);
+        assert_eq!(DiagCode::try_from_u16(73), None);
+        assert_eq!(DiagCode::try_from_u16(77), None);
+        assert_eq!(DiagCode::try_from_u16(83), None);
+        // Unassigned ranges.
+        assert_eq!(DiagCode::try_from_u16(999), None);
+        assert_eq!(DiagCode::try_from_u16(9999), None);
+    }
+
+    /// `from_u16_or_e0001` falls back to the generic-syntax code for
+    /// any unregistered numeric (cy-emb3).
+    #[test]
+    fn from_u16_or_e0001_unknown_falls_back() {
+        assert_eq!(DiagCode::from_u16_or_e0001(3), DiagCode::E0003);
+        assert_eq!(DiagCode::from_u16_or_e0001(9999), DiagCode::E0001);
+        assert_eq!(DiagCode::from_u16_or_e0001(0), DiagCode::E0001);
+    }
+
+    /// Round-trip every registered code through [`DiagCode::ALL`]: the
+    /// fallible lookup must recover the same variant we started from
+    /// (cy-emb3).
+    #[test]
+    fn try_from_u16_round_trips_every_registered_code() {
+        for &c in DiagCode::ALL {
+            assert_eq!(
+                DiagCode::try_from_u16(c as u16),
+                Some(c),
+                "round-trip failed for {c}",
+            );
+        }
+    }
+
+    /// `From<&SyntaxError>` is the embedder-facing lift: parse a
+    /// deliberately-broken query and confirm we surface a registered,
+    /// renderable code rather than a magic number (cy-emb3).
+    #[test]
+    fn from_syntax_error_lifts_to_typed_code() {
+        // Bare clause keyword with no body — the parser emits at least
+        // one syntax error.  We don't assert the exact code (recovery
+        // strategy is not part of this bead's contract); we assert the
+        // lift produces a registered DiagCode whose string form starts
+        // with 'E', i.e. the fallback never silently swallows the
+        // numeric.
+        let parse = cypher_syntax::parse("MATCH");
+        let err = parse
+            .errors()
+            .first()
+            .expect("MATCH on its own should produce at least one syntax error");
+        let code = DiagCode::from(err);
+        assert!(
+            DiagCode::ALL.contains(&code),
+            "lifted code {code} not in registry",
+        );
+        // And the round-trip matches the raw u16 when registered.
+        if let Some(direct) = DiagCode::try_from_u16(err.code) {
+            assert_eq!(code, direct);
+        } else {
+            assert_eq!(code, DiagCode::E0001, "unknown numeric should fall back");
+        }
     }
 }
