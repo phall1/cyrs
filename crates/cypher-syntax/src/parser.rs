@@ -517,7 +517,12 @@ pub(crate) mod syntax_codes {
     /// E0043 — expected expression after `WHERE`.
     pub(crate) const EXPECTED_WHERE_EXPR: u16 = 43;
     /// E0044 — clause not yet implemented (deferred construct).
-    pub(crate) const UNIMPLEMENTED_CLAUSE: u16 = 44;
+    /// E0044 — was the cy-nom-era "unimplemented clause" stub error
+    /// emitted by `deferred_clause_stub`. cy-4mg landed CALL — the last
+    /// previously-deferred clause — so the helper is gone. Code number
+    /// retained to preserve the diagnostic registry's monotonic numbering.
+    #[allow(dead_code)]
+    pub(crate) const UNIMPLEMENTED_CLAUSE_RESERVED: u16 = 44;
     /// E0045 — expected a clause keyword.
     pub(crate) const EXPECTED_CLAUSE: u16 = 45;
     /// E0046 — invalid escape sequence in string literal.
