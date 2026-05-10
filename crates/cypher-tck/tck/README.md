@@ -5,13 +5,17 @@ integration tests run against.  See spec 0001 §17.5.
 
 ## Layout
 
-| Path              | Purpose                                                    |
-| ----------------- | ---------------------------------------------------------- |
-| `v1.toml`         | Hand-written v1 slice — pre-commit gate input.             |
-| `v1-baseline.md`  | Descriptive snapshot of the v1 slice pass state.           |
-| `full/`           | Vendored upstream openCypher TCK (opt-in via `full-tck`).  |
-| `full/VENDORED.md`| Upstream pin + refresh procedure for `full/`.              |
-| `full-baseline.md`| Auto-generated pass-rate snapshot for the full corpus.     |
+| Path                | Purpose                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `v1.toml`           | Hand-written v1 slice — pre-commit gate input.             |
+| `v1-baseline.md`    | Descriptive snapshot of the v1 slice pass state.           |
+| `embedder-m23.toml` | Curated M23 fundamentals — pre-commit gate input (cy-emb6).|
+| `full/`             | Vendored upstream openCypher TCK (opt-in via `full-tck`).  |
+| `full/VENDORED.md`  | Upstream pin + refresh procedure for `full/`.              |
+| `full-baseline.md`  | Auto-generated pass-rate snapshot for the full corpus.     |
+
+The on-disk shape of `embedder-m23.toml` is identical to `v1.toml`;
+see the file's header comment for the add-only ratchet policy.
 
 ## v1 slice format (`v1.toml`)
 

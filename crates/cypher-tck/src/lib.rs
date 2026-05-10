@@ -4,14 +4,20 @@
 //! the scaffolding to fetch, parse, and execute those scenarios against
 //! the front-end.
 //!
-//! Two corpora feed into the harness:
+//! Three corpora feed into the harness:
 //!
 //! 1. **`tck/v1.toml`** — a hand-written, representative slice of the
 //!    full openCypher TCK.  Every scenario is classified per-bead and
 //!    is expected to stay green on every PR.  The `cargo test -p
-//!    cypher-tck` pre-commit gate runs only this slice.
+//!    cypher-tck` pre-commit gate runs this slice.
 //!
-//! 2. **`tck/full/`** — the upstream openCypher TCK corpus, vendored
+//! 2. **`tck/embedder-m23.toml`** — a curated subset of M23-fundamental
+//!    scenarios, gated alongside `v1.toml` for embedders that pin the
+//!    openCypher M23 corpus on every PR (bead cy-emb6, embedder-issue
+//!    0006).  Scenarios may only be added when they pass; regressions
+//!    are parser bugs, never silenced.
+//!
+//! 3. **`tck/full/`** — the upstream openCypher TCK corpus, vendored
 //!    at tag `2024.3` (see `tck/full/VENDORED.md`).  The harness
 //!    loads this corpus only under the `full-tck` Cargo feature.
 //!    Every freshly-ingested scenario defaults to
@@ -91,4 +97,15 @@ pub fn v1_tags() -> &'static [&'static str] {
         "@EXISTS-SUBQUERY",
         "@LOAD-CSV",
     ]
+}
+
+/// The embedder M23 tag used by `tck/embedder-m23.toml` (bead cy-emb6).
+///
+/// The embedder-M23 fixture marks every scenario with `@M23` so the
+/// harness can filter the file independently from the v1 slice.  The
+/// tag set is otherwise identical: scenarios additionally carry their
+/// area tags (`@MATCH`, `@CREATE`, ...) for human readability.
+#[must_use]
+pub fn embedder_m23_tag() -> &'static str {
+    "@M23"
 }
