@@ -45,12 +45,19 @@ jobs:
           - fuzz_structured_parse
           - fmt_parse_roundtrip
 
+    # Pin to the GNU target (not the cargo-fuzz default of musl) so that
+    # ASan, which is incompatible with `+crt-static`, can link `std`.
+    # See ci.yml `fuzz-smoke` for the full root-cause comment.
+    env:
+      FUZZ_TARGET_TRIPLE: x86_64-unknown-linux-gnu
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
+          targets: x86_64-unknown-linux-gnu
 
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-fuzz }
@@ -61,7 +68,7 @@ jobs:
           key: fuzz-nightly-${{ matrix.target }}
 
       - name: build ${{ matrix.target }}
-        run: cargo +nightly fuzz build ${{ matrix.target }}
+        run: cargo +nightly fuzz build --target "$FUZZ_TARGET_TRIPLE" ${{ matrix.target }}
 
       - name: run ${{ matrix.target }} (${{ env.FUZZ_TIME }} s)
         run: |
@@ -76,7 +83,7 @@ jobs:
               dict_flag="-dict=fuzz/dicts/${{ matrix.target }}.dict"
               ;;
           esac
-          cargo +nightly fuzz run ${{ matrix.target }} \
+          cargo +nightly fuzz run --target "$FUZZ_TARGET_TRIPLE" ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} \
             -- $dict_flag -max_total_time=${{ env.FUZZ_TIME }}
 
