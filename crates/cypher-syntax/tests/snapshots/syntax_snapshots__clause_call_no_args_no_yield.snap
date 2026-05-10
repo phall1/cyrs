@@ -1,0 +1,13 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"CALL db.ping\")"
+---
+SOURCE_FILE@0..12
+  STATEMENT@0..12
+    CALL_CLAUSE@0..12
+      CALL_KW@0..4 "CALL"
+      PROCEDURE_NAME@4..12
+        WHITESPACE@4..5 " "
+        IDENT@5..7 "db"
+        DOT@7..8 "."
+        IDENT@8..12 "ping"

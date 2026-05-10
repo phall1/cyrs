@@ -1,0 +1,1 @@
+CALL db.foo(1 YIELD x RETURN x

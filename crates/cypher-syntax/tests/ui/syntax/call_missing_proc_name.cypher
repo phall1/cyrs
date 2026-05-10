@@ -1,0 +1,1 @@
+CALL  YIELD x RETURN x

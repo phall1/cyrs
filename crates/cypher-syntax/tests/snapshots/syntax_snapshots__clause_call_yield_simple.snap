@@ -1,0 +1,31 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"CALL db.labels() YIELD label RETURN label\")"
+---
+SOURCE_FILE@0..41
+  STATEMENT@0..41
+    CALL_CLAUSE@0..28
+      CALL_KW@0..4 "CALL"
+      PROCEDURE_NAME@4..14
+        WHITESPACE@4..5 " "
+        IDENT@5..7 "db"
+        DOT@7..8 "."
+        IDENT@8..14 "labels"
+      L_PAREN@14..15 "("
+      R_PAREN@15..16 ")"
+      YIELD_SUBCLAUSE@16..28
+        WHITESPACE@16..17 " "
+        YIELD_KW@17..22 "YIELD"
+        YIELD_ITEM@22..28
+          NAME@22..28
+            WHITESPACE@22..23 " "
+            IDENT@23..28 "label"
+    RETURN_CLAUSE@28..41
+      WHITESPACE@28..29 " "
+      RETURN_KW@29..35 "RETURN"
+      RETURN_BODY@35..41
+        RETURN_ITEMS@35..41
+          RETURN_ITEM@35..41
+            VAR_EXPR@35..41
+              WHITESPACE@35..36 " "
+              IDENT@36..41 "label"

@@ -1,0 +1,3 @@
+error[E0073]: expected procedure name after CALL
+ --> call_missing_proc_name.cypher:6
+

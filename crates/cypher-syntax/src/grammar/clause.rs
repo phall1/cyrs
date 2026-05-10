@@ -31,19 +31,151 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
     }
 }
 
-/// Consume the deferred clause's keyword, emit a diagnostic, and skip to
-/// the next clause-start / `;` / EOF. Used while only MATCH/WHERE/RETURN
-/// are implemented — keeps downstream tests interpretable.
-fn deferred_clause_stub(p: &mut Parser<'_>) {
+/// `CallClause = 'CALL' QualifiedName ('(' ArgList? ')')? YieldClause?`
+/// — spec §14 / §19 row "CALL <proc> YIELD ..." (cy-4mg, child of cy-lve).
+///
+/// Standalone (non-subquery) form. The block form `CALL { <subquery> }`
+/// is deferred per spec §19 / §20 D1 and recovered by emitting an
+/// `UNIMPLEMENTED_CLAUSE` diagnostic and swallowing the balanced braces
+/// — mirrors the EXISTS-block treatment in
+/// `expression::exists_block_deferred` (cy-lve tranche A).
+///
+/// `QualifiedName` is `IDENT ('.' IDENT)*` and is wrapped in a
+/// `PROCEDURE_NAME` node for the typed AST.  `YieldClause` is wrapped in
+/// a `YIELD_SUBCLAUSE` node containing one or more `YIELD_ITEM` nodes
+/// (each a `NameRef` with an optional `AS NameDef` alias).
+fn call_clause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::CALL_KW));
     let m = p.start();
-    let kw = p.current();
-    p.error_code(
-        sc::UNIMPLEMENTED_CLAUSE,
-        format!("{kw:?} clause is not implemented in cy-nom"),
-    );
-    p.bump_any();
-    p.recover_until(TokenSet::EMPTY);
-    m.complete(p, SyntaxKind::ERROR);
+    p.bump(SyntaxKind::CALL_KW);
+
+    // Block-subquery form `CALL { ... }` — deferred per §19 / §20 D1.
+    // We surface this with the existing UNIMPLEMENTED_CLAUSE code (E0044)
+    // pending a dedicated dialect gate; a follow-up bead may upgrade it.
+    if p.at(SyntaxKind::L_BRACE) {
+        p.error_code(
+            sc::UNIMPLEMENTED_CLAUSE,
+            "CALL { ... } block subqueries are deferred per spec §19 / §20 D1",
+        );
+        consume_balanced_braces(p);
+        m.complete(p, SyntaxKind::ERROR);
+        return;
+    }
+
+    // Procedure name: `IDENT ('.' IDENT)*`.
+    if !(p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(
+            sc::EXPECTED_PROCEDURE_NAME,
+            "expected procedure name after CALL",
+        );
+        // Recover up to a YIELD or the next clause boundary.
+        p.recover_until(TokenSet::new(&[SyntaxKind::YIELD_KW]));
+    } else {
+        let pn = p.start();
+        p.bump_any();
+        while p.at(SyntaxKind::DOT) {
+            p.bump(SyntaxKind::DOT);
+            if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+                p.error_code(
+                    sc::EXPECTED_PROCEDURE_NAME,
+                    "expected identifier after \'.\' in procedure name",
+                );
+                break;
+            }
+        }
+        pn.complete(p, SyntaxKind::PROCEDURE_NAME);
+    }
+
+    // Optional argument list: `'(' ArgList? ')'`.
+    if p.at(SyntaxKind::L_PAREN) {
+        p.bump(SyntaxKind::L_PAREN);
+        if !p.at(SyntaxKind::R_PAREN) {
+            let args = p.start();
+            if expression::expr(p).is_none() {
+                p.error_code(sc::EXPECTED_CALL_ARG, "expected procedure argument");
+            }
+            while p.at(SyntaxKind::COMMA) {
+                p.bump(SyntaxKind::COMMA);
+                if expression::expr(p).is_none() {
+                    p.error_code(sc::EXPECTED_CALL_ARG, "expected procedure argument");
+                    break;
+                }
+            }
+            args.complete(p, SyntaxKind::ARG_LIST);
+        }
+        if !p.eat(SyntaxKind::R_PAREN) {
+            p.error_code(
+                sc::EXPECTED_RPAREN_CALL_ARGS,
+                "expected \')\' to close CALL argument list",
+            );
+        }
+    }
+
+    // Optional YIELD subclause.
+    if p.at(SyntaxKind::YIELD_KW) {
+        yield_subclause(p);
+    }
+
+    m.complete(p, SyntaxKind::CALL_CLAUSE);
+}
+
+/// `YieldClause = 'YIELD' YieldItem (',' YieldItem)*` — standalone-form
+/// scope for cy-4mg.  `YIELD *` and trailing `WHERE` are deferred — the
+/// non-subquery `CALL` form rarely uses them in TCK clauses/call
+/// scenarios; explicit yield-item lists are the dominant shape.
+fn yield_subclause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::YIELD_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::YIELD_KW);
+    yield_item(p);
+    while p.at(SyntaxKind::COMMA) {
+        p.bump(SyntaxKind::COMMA);
+        yield_item(p);
+    }
+    m.complete(p, SyntaxKind::YIELD_SUBCLAUSE);
+}
+
+/// `YieldItem = NameRef ('AS' NameDef)?`.  Wraps the name in a `NAME`
+/// node so HIR resolution can point at the binder span; the optional
+/// alias is a trailing `NAME` after `AS`.
+fn yield_item(p: &mut Parser<'_>) {
+    let m = p.start();
+    if !(p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_YIELD_ITEM, "expected identifier in YIELD item");
+        m.complete(p, SyntaxKind::YIELD_ITEM);
+        return;
+    }
+    name_binder(p);
+    if p.eat(SyntaxKind::AS_KW) {
+        if !(p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT)) {
+            p.error_code(sc::EXPECTED_IDENT_AFTER_AS, "expected identifier after AS");
+        } else {
+            name_binder(p);
+        }
+    }
+    m.complete(p, SyntaxKind::YIELD_ITEM);
+}
+
+/// Skip a brace-delimited block, tracking nesting so inner maps don\'t
+/// prematurely close the skip. Used to recover from the deferred
+/// `CALL { ... }` block-subquery form.
+fn consume_balanced_braces(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_BRACE));
+    p.bump(SyntaxKind::L_BRACE);
+    let mut depth: u32 = 1;
+    while depth > 0 && !p.at(SyntaxKind::EOF) {
+        match p.current() {
+            SyntaxKind::L_BRACE => {
+                depth += 1;
+                p.bump(SyntaxKind::L_BRACE);
+            }
+            SyntaxKind::R_BRACE => {
+                depth -= 1;
+                p.bump(SyntaxKind::R_BRACE);
+            }
+            _ => p.bump_any(),
+        }
+    }
 }
 
 /// `MatchClause = 'MATCH' Pattern (',' Pattern)* WhereClause?`

@@ -1,0 +1,3 @@
+error[E0074]: expected ')' to close CALL argument list
+ --> call_missing_rparen_args.cypher:14
+

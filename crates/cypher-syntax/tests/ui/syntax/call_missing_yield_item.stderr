@@ -1,0 +1,3 @@
+error[E0075]: expected identifier in YIELD item
+ --> call_missing_yield_item.cypher:23
+

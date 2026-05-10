@@ -1,6 +1,8 @@
-error[E1001]: unresolved variable `x`
+error[E3008]: unknown procedure `unknown.procedure`
   ┌─ e3008_unknown_procedure.cypher:1:1
-  │
-1 │ // E3008: call to unknown procedure (schema-aware)
-  │ ^
+  │  
+1 │ ╭ // E3008: call to unknown procedure (schema-aware)
+2 │ │ // schema: {"labels":[],"rel_types":[],"functions":[],"procedures":[]}
+3 │ │ CALL unknown.procedure() YIELD x RETURN x
+  │ ╰────────────────────────────────^
 

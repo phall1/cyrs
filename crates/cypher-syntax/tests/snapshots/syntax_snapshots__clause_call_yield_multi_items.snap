@@ -1,0 +1,45 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"CALL db.relTypes() YIELD relType, count RETURN relType, count\")"
+---
+SOURCE_FILE@0..61
+  STATEMENT@0..33
+    CALL_CLAUSE@0..33
+      CALL_KW@0..4 "CALL"
+      PROCEDURE_NAME@4..16
+        WHITESPACE@4..5 " "
+        IDENT@5..7 "db"
+        DOT@7..8 "."
+        IDENT@8..16 "relTypes"
+      L_PAREN@16..17 "("
+      R_PAREN@17..18 ")"
+      YIELD_SUBCLAUSE@18..33
+        WHITESPACE@18..19 " "
+        YIELD_KW@19..24 "YIELD"
+        YIELD_ITEM@24..32
+          NAME@24..32
+            WHITESPACE@24..25 " "
+            IDENT@25..32 "relType"
+        COMMA@32..33 ","
+        YIELD_ITEM@33..33
+  ERROR@33..39
+    WHITESPACE@33..34 " "
+    COUNT_KW@34..39 "count"
+  STATEMENT@39..61
+    RETURN_CLAUSE@39..61
+      WHITESPACE@39..40 " "
+      RETURN_KW@40..46 "RETURN"
+      RETURN_BODY@46..61
+        RETURN_ITEMS@46..61
+          RETURN_ITEM@46..54
+            VAR_EXPR@46..54
+              WHITESPACE@46..47 " "
+              IDENT@47..54 "relType"
+          COMMA@54..55 ","
+          RETURN_ITEM@55..61
+            VAR_EXPR@55..61
+              WHITESPACE@55..56 " "
+              COUNT_KW@56..61 "count"
+---errors---
+@34: expected identifier in YIELD item
+@34: expected ';' or end of input

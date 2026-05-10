@@ -44,6 +44,9 @@
 //! Exercised: E0065..=E0067 — list-predicate recovery (cy-8x5), covered by existing UI fixture for list predicates.
 //! Exercised: E0068..=E0069 — list-comprehension recovery (cy-5gh), covered by random prefixes of SOURCES.
 //! Exercised: E0072 — EXISTS(<pattern>) missing ')' (cy-lve), UI fixture `exists_pattern_missing_rparen`.
+//! Exercised: E0073 — CALL missing procedure name (cy-4mg), UI fixture `call_missing_proc_name`.
+//! Exercised: E0074 — CALL argument list missing ')' (cy-4mg), UI fixture `call_missing_rparen_args`.
+//! Exercised: E0075 — YIELD item missing identifier (cy-4mg), UI fixture `call_missing_yield_item`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

@@ -213,7 +213,6 @@ fn clause_detach_delete() {
 // TODO(cy-nom): SET (property / labels / map) (deferred_clause_stub).
 // TODO(cy-nom): REMOVE (property / labels) (deferred_clause_stub).
 // TODO(cy-nom): DELETE / DETACH DELETE (deferred_clause_stub).
-// TODO(cy-nom): CALL / CALL YIELD (deferred_clause_stub).
 //
 // Each of the deferred clauses *does* produce a tree today — a stub
 // ERROR node wrapping the keyword — but the shape will change when the
@@ -750,4 +749,50 @@ fn err_unterminated_string() {
 #[test]
 fn err_missing_closing_bracket_in_rel() {
     insta::assert_snapshot!(format_with_errors("MATCH (a)-[r (b) RETURN a"));
+}
+
+
+// ---------------------------------------------------------------------------
+// CALL / CALL YIELD (cy-4mg, spec §14)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn clause_call_yield_simple() {
+    insta::assert_snapshot!(format_with_errors(
+        "CALL db.labels() YIELD label RETURN label"
+    ));
+}
+
+#[test]
+fn clause_call_yield_aliased() {
+    insta::assert_snapshot!(format_with_errors(
+        "CALL db.labels() YIELD label AS l RETURN l"
+    ));
+}
+
+#[test]
+fn clause_call_yield_multi_items() {
+    insta::assert_snapshot!(format_with_errors(
+        "CALL db.relTypes() YIELD relType, count RETURN relType, count"
+    ));
+}
+
+#[test]
+fn clause_call_with_args() {
+    insta::assert_snapshot!(format_with_errors(
+        "CALL db.idx.fulltext.search('idx', 'q') YIELD node RETURN node"
+    ));
+}
+
+#[test]
+fn clause_call_no_args_no_yield() {
+    insta::assert_snapshot!(format_with_errors("CALL db.ping"));
+}
+
+#[test]
+fn err_call_block_form_deferred() {
+    // `CALL { ... }` (block subquery) is deferred per spec §19 / §20 D1;
+    // the parser surfaces it via UNIMPLEMENTED_CLAUSE (E0044) and skips
+    // the balanced braces.
+    insta::assert_snapshot!(format_with_errors("CALL { MATCH (n) RETURN n }"));
 }

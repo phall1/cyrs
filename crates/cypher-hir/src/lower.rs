@@ -31,7 +31,7 @@ use cypher_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 use crate::{
     BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, Pattern,
     PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement, UnaryOp,
-    VarId, VarKind,
+    VarId, VarKind, YieldItem,
 };
 
 // ---------------------------------------------------------------------------
@@ -333,6 +333,88 @@ impl LowerCtx {
                     id,
                     projections,
                     filter,
+                    span,
+                })
+            }
+            SyntaxKind::CALL_CLAUSE => {
+                let id = self.alloc_hir(node.clone());
+                // Procedure name: collect the IDENT children of the
+                // PROCEDURE_NAME node, joined by '.'.
+                let procedure = node
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::PROCEDURE_NAME)
+                    .map(|pn| {
+                        let parts: Vec<String> = pn
+                            .children_with_tokens()
+                            .filter_map(SyntaxElement::into_token)
+                            .filter(|t| {
+                                t.kind() == SyntaxKind::IDENT
+                                    || t.kind() == SyntaxKind::QUOTED_IDENT
+                            })
+                            .map(|t| t.text().to_string())
+                            .collect();
+                        SmolStr::new(parts.join("."))
+                    })
+                    .unwrap_or_else(|| SmolStr::new(""));
+                // Arguments: each child of the ARG_LIST is an Expr.
+                let args = node
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::ARG_LIST)
+                    .map(|al| {
+                        al.children()
+                            .filter_map(|n| self.try_lower_expr(n))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                // Yield items: walk the YIELD_SUBCLAUSE's YIELD_ITEMs.
+                // Each YIELD_ITEM has 1-2 NAME children: the source name
+                // and an optional alias (after AS). Allocate a Value-kind
+                // VarId for the *visible* name (alias if present, else
+                // source) so downstream resolution can bind to it.
+                let yields = node
+                    .children()
+                    .find(|n| n.kind() == SyntaxKind::YIELD_SUBCLAUSE)
+                    .map(|ys| {
+                        ys.children()
+                            .filter(|n| n.kind() == SyntaxKind::YIELD_ITEM)
+                            .map(|yi| {
+                                let mut names = yi
+                                    .children()
+                                    .filter(|n| n.kind() == SyntaxKind::NAME);
+                                let name_node = names.next();
+                                let alias_node = names.next();
+                                let name: SmolStr = name_node
+                                    .as_ref()
+                                    .and_then(ident_text)
+                                    .map(SmolStr::new)
+                                    .unwrap_or_default();
+                                let alias: Option<SmolStr> = alias_node
+                                    .as_ref()
+                                    .and_then(ident_text)
+                                    .map(SmolStr::new);
+                                // Bind the visible name as a Value-kind
+                                // var so subsequent clauses can reference it.
+                                let visible = alias.clone().unwrap_or_else(|| name.clone());
+                                let bind_node = alias_node.as_ref().or(name_node.as_ref());
+                                if let Some(bn) = bind_node
+                                    && !visible.is_empty()
+                                {
+                                    let _ = self.bind_var(
+                                        &visible,
+                                        VarKind::Value,
+                                        bn.text_range(),
+                                    );
+                                }
+                                YieldItem { name, alias }
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                Some(Clause::Call {
+                    id,
+                    procedure,
+                    args,
+                    yields,
                     span,
                 })
             }

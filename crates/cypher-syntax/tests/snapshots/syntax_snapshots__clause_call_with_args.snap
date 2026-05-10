@@ -1,0 +1,42 @@
+---
+source: crates/cypher-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"CALL db.idx.fulltext.search('idx', 'q') YIELD node RETURN node\")"
+---
+SOURCE_FILE@0..62
+  STATEMENT@0..62
+    CALL_CLAUSE@0..50
+      CALL_KW@0..4 "CALL"
+      PROCEDURE_NAME@4..27
+        WHITESPACE@4..5 " "
+        IDENT@5..7 "db"
+        DOT@7..8 "."
+        IDENT@8..11 "idx"
+        DOT@11..12 "."
+        IDENT@12..20 "fulltext"
+        DOT@20..21 "."
+        IDENT@21..27 "search"
+      L_PAREN@27..28 "("
+      ARG_LIST@28..38
+        LITERAL_EXPR@28..33
+          STRING_LITERAL@28..33 "'idx'"
+        COMMA@33..34 ","
+        LITERAL_EXPR@34..38
+          WHITESPACE@34..35 " "
+          STRING_LITERAL@35..38 "'q'"
+      R_PAREN@38..39 ")"
+      YIELD_SUBCLAUSE@39..50
+        WHITESPACE@39..40 " "
+        YIELD_KW@40..45 "YIELD"
+        YIELD_ITEM@45..50
+          NAME@45..50
+            WHITESPACE@45..46 " "
+            IDENT@46..50 "node"
+    RETURN_CLAUSE@50..62
+      WHITESPACE@50..51 " "
+      RETURN_KW@51..57 "RETURN"
+      RETURN_BODY@57..62
+        RETURN_ITEMS@57..62
+          RETURN_ITEM@57..62
+            VAR_EXPR@57..62
+              WHITESPACE@57..58 " "
+              IDENT@58..62 "node"
