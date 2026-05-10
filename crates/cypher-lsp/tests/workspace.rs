@@ -214,7 +214,11 @@ impl Workspace {
     }
 
     fn uri_for(p: &Path) -> String {
-        format!("file://{}", p.display())
+        // Use the crate's own URI builder so the string we hand the
+        // server matches the key it stores in `open_files` on every
+        // platform (Windows needs `file:///C:/foo/bar`, not the
+        // malformed `file://C:\foo\bar` that `Path::display` produces).
+        cypher_lsp::path_to_file_uri_string(p)
     }
 
     /// Byte offset of `needle` in `text`, converted into a UTF-16

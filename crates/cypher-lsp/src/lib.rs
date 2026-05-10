@@ -341,7 +341,7 @@ pub(crate) fn ensure_project_loaded(server: &mut Server, hint: &std::path::Path)
     // Files opened via `didOpen` later will map to the same on-disk
     // path but a different URI key; we dedupe by absolute path.
     for member in &manifest.members {
-        let uri_str = format!("file://{}", member.display());
+        let uri_str = path_to_file_uri_string(member);
         if server.open_files.contains_key(&uri_str) {
             continue;
         }
@@ -1379,18 +1379,79 @@ fn offset_to_position(
 /// Best-effort `file://…` URI → `PathBuf`.  Accepts the "narrow"
 /// form the stdlib crate normalises everything into; no
 /// percent-decoding beyond what `lsp_types::Uri::to_string` round-trips.
+///
+/// Windows note: a properly-formed `file:` URI for a local Windows
+/// path is `file:///C:/Users/foo` (three slashes after `file:`, drive
+/// letter followed by `:`, forward slashes throughout).  The strip on
+/// `file://` leaves `/C:/Users/foo`; we drop the leading `/` when the
+/// next two chars look like a drive letter (`X:`) so `PathBuf::from`
+/// gets `C:/Users/foo`, which `std::path` happily accepts on Windows.
+/// On Unix this branch never fires because Unix absolute paths start
+/// with `/`, never `<letter>:`.
 pub(crate) fn uri_to_file_path(uri: &str) -> Option<std::path::PathBuf> {
     let rest = uri.strip_prefix("file://")?;
     // Drop an optional `localhost` authority.
     let rest = rest
         .strip_prefix("localhost/")
         .map_or_else(|| rest.to_string(), |r| format!("/{r}"));
-    Some(std::path::PathBuf::from(rest))
+
+    // Strip the leading `/` for Windows-style paths so `/C:/...`
+    // becomes `C:/...`.  Detection is a simple drive-letter check:
+    // ASCII letter followed by `:` at byte positions 1 and 2.
+    let bytes = rest.as_bytes();
+    let trimmed = if bytes.len() >= 3
+        && bytes[0] == b'/'
+        && bytes[1].is_ascii_alphabetic()
+        && bytes[2] == b':'
+    {
+        &rest[1..]
+    } else {
+        rest.as_str()
+    };
+
+    Some(std::path::PathBuf::from(trimmed))
 }
 
+/// `Path` → `file:` URI.  Portable: produces a URI that round-trips
+/// through `uri_to_file_path` and parses as a valid `lsp_types::Uri`.
+///
+/// On Unix the path is already `/abs/path`, so the result is
+/// `file:///abs/path`.  On Windows the path looks like
+/// `C:\foo\bar`; we replace `\` with `/` and prepend a `/` so the
+/// result is `file:///C:/foo/bar` — the form mandated by RFC 8089
+/// and accepted by `fluent_uri` (which `lsp_types::Uri` uses).
 fn file_path_to_uri(path: &std::path::Path) -> Option<Uri> {
-    let uri_str = format!("file://{}", path.display());
+    let uri_str = path_to_file_uri_string(path);
     uri_str.parse().ok()
+}
+
+/// Build the `file:` URI string used as the `open_files` map key.
+/// Kept as a separate helper so the eager-load code in
+/// `ensure_project_loaded` and other callers that index into
+/// `open_files` produce the exact same key as `file_path_to_uri`.
+pub fn path_to_file_uri_string(path: &std::path::Path) -> String {
+    let display = path.display().to_string();
+
+    // On Windows, normalise Path-isms into URI shape:
+    //   1. Strip the verbatim/extended-length prefix `\\?\` if
+    //      present — it's a kernel-level marker, not a URI concept.
+    //   2. Replace `\` with `/`.
+    // We only do this on Windows so a Unix path containing a
+    // literal backslash (rare but legal) is preserved verbatim.
+    #[cfg(windows)]
+    let display = {
+        let stripped = display.strip_prefix(r"\\?\").unwrap_or(&display).to_owned();
+        stripped.replace('\\', "/")
+    };
+
+    // Ensure the URI has the `file:///` triple-slash form for
+    // absolute paths.  Unix paths already start with `/`; Windows
+    // drive paths start with `C:` and need a leading `/` injected.
+    if display.starts_with('/') {
+        format!("file://{display}")
+    } else {
+        format!("file:///{display}")
+    }
 }
 
 /// Load the source of `path` and build a `LineIndex`.  Prefers the
@@ -1694,6 +1755,67 @@ mod tests {
         assert_ne!(
             a_parse, b_parse,
             "recycled SourceFile must produce a fresh ParseOutput after eviction"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // URI <-> Path conversion: portable across Unix and Windows
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn uri_to_file_path_handles_unix_absolute_path() {
+        let p = super::uri_to_file_path("file:///tmp/a.cyp").expect("must parse");
+        assert_eq!(p, std::path::PathBuf::from("/tmp/a.cyp"));
+    }
+
+    #[test]
+    fn uri_to_file_path_strips_drive_letter_leading_slash() {
+        // `file:///C:/Users/foo.cyp` is the canonical form per RFC 8089.
+        // After stripping `file://` we have `/C:/Users/foo.cyp`; the
+        // helper must drop the leading `/` so `PathBuf::from` receives
+        // `C:/Users/foo.cyp`, which is the form `std::path` accepts on
+        // Windows as a rooted drive path.
+        let p = super::uri_to_file_path("file:///C:/Users/foo.cyp").expect("must parse");
+        assert_eq!(p.to_string_lossy(), "C:/Users/foo.cyp");
+    }
+
+    #[test]
+    fn uri_to_file_path_rejects_non_file_scheme() {
+        assert!(super::uri_to_file_path("https://example.com/").is_none());
+    }
+
+    #[test]
+    fn path_to_file_uri_string_unix() {
+        let s = super::path_to_file_uri_string(std::path::Path::new("/tmp/a.cyp"));
+        assert_eq!(s, "file:///tmp/a.cyp");
+        // Round-trip via the parser.
+        let back = super::uri_to_file_path(&s).unwrap();
+        assert_eq!(back, std::path::PathBuf::from("/tmp/a.cyp"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn path_to_file_uri_string_windows() {
+        // The exact failure shape from the Windows CI run: a tempdir
+        // path with backslashes.  The helper must turn this into the
+        // RFC 8089 form `file:///C:/...` so `lsp_types::Uri` accepts it.
+        let s = super::path_to_file_uri_string(std::path::Path::new(
+            r"C:\Users\runner\AppData\Local\Temp\.tmpXXXX\a.cyp",
+        ));
+        assert_eq!(
+            s,
+            "file:///C:/Users/runner/AppData/Local/Temp/.tmpXXXX/a.cyp"
+        );
+
+        // It must also parse as a real lsp_types::Uri.
+        let _: super::Uri = s.parse().expect("URI must parse");
+
+        // And the inverse must give us back something std::path on
+        // Windows recognises as the same drive-rooted path.
+        let back = super::uri_to_file_path(&s).expect("URI must parse back");
+        assert_eq!(
+            back,
+            std::path::PathBuf::from(r"C:/Users/runner/AppData/Local/Temp/.tmpXXXX/a.cyp")
         );
     }
 }
