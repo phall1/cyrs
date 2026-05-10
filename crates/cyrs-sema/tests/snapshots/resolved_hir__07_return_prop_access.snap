@@ -1,0 +1,22 @@
+---
+source: crates/cyrs-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (n:Person) RETURN n.name\")"
+---
+Statement {
+  span: 0..30
+  bindings: [
+    Var(0) 0: n (Node) @7..8
+  ]
+  clauses: [
+    Match @0..16 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@7..8]:Person) @5..16
+        ]
+      }
+    }
+    Return(distinct=false) @16..30 {
+      proj[0]: Var(0)[n←Node@7..8].name
+    }
+  ]
+}

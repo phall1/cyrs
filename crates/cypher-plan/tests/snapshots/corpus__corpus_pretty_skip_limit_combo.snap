@@ -1,8 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Limit 10
-  Skip 20
-    Project [$0 AS n]
-      Source (AS $0)

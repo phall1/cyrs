@@ -11,7 +11,7 @@
 //! 2. `fmt(parse(fmt(s))) == fmt(s)` — semantic-preservation under
 //!    formatting (spec §17.3 P17.3.4 / P17.3.3). The formatter is
 //!    supposed to round-trip on valid input; this is the same oracle
-//!    `crates/cypher-fmt/tests/properties.rs` uses, exercised over a
+//!    `crates/cyrs-fmt/tests/properties.rs` uses, exercised over a
 //!    much larger distribution of shapes than proptest's strategies cover.
 //! 3. Every downstream stage (HIR lowering, sema, plan) runs without
 //!    panic on the generated source. Adds breadth coverage for free.
@@ -52,7 +52,7 @@ fuzz_target!(|data: &[u8]| {
     let src = random_valid_cypher(&mut rng, depth);
 
     // -------- Oracle 1: parser produces no ERROR nodes --------
-    let parsed = cypher_syntax::parse(&src);
+    let parsed = cyrs_syntax::parse(&src);
     if !parsed.errors().is_empty() {
         panic!(
             "generator produced input with parser errors: {src:?}\nerrors: {:?}",
@@ -62,10 +62,10 @@ fuzz_target!(|data: &[u8]| {
     let root = parsed.syntax();
     let has_error_node = root.preorder_with_tokens().any(|ev| match ev {
         rowan::WalkEvent::Enter(rowan::NodeOrToken::Node(n)) => {
-            n.kind() == cypher_syntax::SyntaxKind::ERROR
+            n.kind() == cyrs_syntax::SyntaxKind::ERROR
         }
         rowan::WalkEvent::Enter(rowan::NodeOrToken::Token(t)) => {
-            t.kind() == cypher_syntax::SyntaxKind::ERROR
+            t.kind() == cyrs_syntax::SyntaxKind::ERROR
         }
         _ => false,
     });
@@ -75,8 +75,8 @@ fuzz_target!(|data: &[u8]| {
     );
 
     // -------- Oracle 2: formatter idempotence + semantic preservation --------
-    let once = cypher_fmt::format(&src);
-    let twice = cypher_fmt::format(&once);
+    let once = cyrs_fmt::format(&src);
+    let twice = cyrs_fmt::format(&once);
     assert_eq!(
         once, twice,
         "formatter not idempotent:\n  src: {src:?}\n  once: {once:?}\n  twice: {twice:?}"
@@ -84,7 +84,7 @@ fuzz_target!(|data: &[u8]| {
 
     // parse(fmt(s)) must also be clean on valid input. If it isn't, the
     // formatter reshaped a parseable source into an unparseable one.
-    let reparsed = cypher_syntax::parse(&once);
+    let reparsed = cyrs_syntax::parse(&once);
     assert!(
         reparsed.errors().is_empty(),
         "fmt(src) no longer parses:\n  src: {src:?}\n  fmt: {once:?}\n  errors: {:?}",
@@ -93,10 +93,10 @@ fuzz_target!(|data: &[u8]| {
     let reparsed_root = reparsed.syntax();
     let reparsed_has_error = reparsed_root.preorder_with_tokens().any(|ev| match ev {
         rowan::WalkEvent::Enter(rowan::NodeOrToken::Node(n)) => {
-            n.kind() == cypher_syntax::SyntaxKind::ERROR
+            n.kind() == cyrs_syntax::SyntaxKind::ERROR
         }
         rowan::WalkEvent::Enter(rowan::NodeOrToken::Token(t)) => {
-            t.kind() == cypher_syntax::SyntaxKind::ERROR
+            t.kind() == cyrs_syntax::SyntaxKind::ERROR
         }
         _ => false,
     });
@@ -107,15 +107,15 @@ fuzz_target!(|data: &[u8]| {
 
     // -------- Oracle 3: downstream stages run without panic --------
     // Lower to HIR and run sema; any panic is a blocker. We do not
-    // assert on diagnostic content — `cypher-sema` may legitimately
+    // assert on diagnostic content — `cyrs-sema` may legitimately
     // flag the generator's output (e.g. unknown function calls).
-    let stmt = cypher_hir::lower::lower_statement(&src);
-    let mut sink = cypher_diag::DiagnosticsSink::new();
-    let opts = cypher_sema::SemaOptions::default();
-    cypher_sema::analyse(&stmt, None, &opts, &mut sink);
+    let stmt = cyrs_hir::lower::lower_statement(&src);
+    let mut sink = cyrs_diag::DiagnosticsSink::new();
+    let opts = cyrs_sema::SemaOptions::default();
+    cyrs_sema::analyse(&stmt, None, &opts, &mut sink);
 
     // Plan lowering is intentionally NOT exercised here: per
-    // `cypher_plan::lower::lower_statement` (bead cy-b4b), the HIR must
+    // `cyrs_plan::lower::lower_statement` (bead cy-b4b), the HIR must
     // have been name-resolved first, and the byte-level `fuzz_plan`
     // target already covers the raw-input panic surface. Feeding our
     // generator's HIR into the plan lowerer would trip the explicit

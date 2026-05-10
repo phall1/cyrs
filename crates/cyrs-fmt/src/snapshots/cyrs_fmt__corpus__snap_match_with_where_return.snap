@@ -1,0 +1,8 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WITH n WHERE n.active = true RETURN n\")"
+---
+MATCH (n)
+WITH n
+WHERE n.active = TRUE
+RETURN n

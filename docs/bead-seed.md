@@ -72,7 +72,7 @@ edge into it is closed.
 
 | ID    | Title                                          | Spec refs                     | Deps                    |
 | ----- | ---------------------------------------------- | ----------------------------- | ----------------------- |
-| B050  | `cypher-sema` skeleton + `Type` enum           | §7.2                          | B035                    |
+| B050  | `cyrs-sema` skeleton + `Type` enum           | §7.2                          | B035                    |
 | B051  | Unification engine + `Num` unification         | §7.2                          | B050                    |
 | B052  | Schema-free pass (aggregation / ordering / params / kinds) | §7.1, §7.3, §7.4, §7.6 | B051, B006              |
 | B053  | Schema-aware pass (labels/types/props/fn arity) | §7.1                         | B052, B040, B041, B042  |
@@ -122,10 +122,10 @@ edge into it is closed.
 
 | ID    | Title                                    | Spec refs | Deps        |
 | ----- | ---------------------------------------- | --------- | ----------- |
-| B100  | `cypher-cli` subcommands (parse/check/fmt/plan/explain) | §16 | B093    |
-| B101  | `cypher-lsp` stdio/TCP + LSP features | §14      | B093        |
-| B102  | `cypher-agent` JSON protocol (11 ops)    | §15       | B093, B065  |
-| B103  | `cypher-tck` harness + v1 green tags     | §17.5     | B093        |
+| B100  | `cyrs-cli` subcommands (parse/check/fmt/plan/explain) | §16 | B093    |
+| B101  | `cyrs-lsp` stdio/TCP + LSP features | §14      | B093        |
+| B102  | `cyrs-agent` JSON protocol (11 ops)    | §15       | B093, B065  |
+| B103  | `cyrs-tck` harness + v1 green tags     | §17.5     | B093        |
 
 ## Tier 11 — Big-picture quality (cross-cutting)
 
@@ -140,7 +140,7 @@ edge into it is closed.
 | B116  | Miri CI (`-Zmiri-strict-provenance`)           | §17.12    | B115                                    |
 | B117  | `cargo deny` allowlist + `cargo audit` PR gate | §17.16    | B001                                    |
 | B118  | `cargo llvm-cov` coverage gates per crate      | §17.9     | B115                                    |
-| B119  | `cypher-testkit` dev crate (fixtures, compiletest runner, mock executor) | §3.1, §17.6 | B002 |
+| B119  | `cyrs-testkit` dev crate (fixtures, compiletest runner, mock executor) | §3.1, §17.6 | B002 |
 
 ---
 

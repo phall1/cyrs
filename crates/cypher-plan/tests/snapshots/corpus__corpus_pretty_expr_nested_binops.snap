@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS n]
-  Filter (((($0.age > 18) AND ($0.active = true)) OR ($0.role = "admin")))
-    Source (AS $0)

@@ -1,0 +1,23 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN ALL(x IN xs)\")"
+---
+SOURCE_FILE@0..19
+  STATEMENT@0..19
+    RETURN_CLAUSE@0..19
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..19
+        RETURN_ITEMS@6..19
+          RETURN_ITEM@6..19
+            LIST_PREDICATE_EXPR@6..19
+              WHITESPACE@6..7 " "
+              ALL_KW@7..10 "ALL"
+              L_PAREN@10..11 "("
+              NAME@11..12
+                IDENT@11..12 "x"
+              WHITESPACE@12..13 " "
+              IN_KW@13..15 "IN"
+              VAR_EXPR@15..18
+                WHITESPACE@15..16 " "
+                IDENT@16..18 "xs"
+              R_PAREN@18..19 ")"

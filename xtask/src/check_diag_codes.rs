@@ -1,7 +1,7 @@
 //! `cargo xtask check-diag-codes` — registry consistency gate
 //! (spec §10.2, §17.17, bead cy-wnm).
 //!
-//! Walks `crates/cypher-diag/src/codes.rs` for the authoritative set of
+//! Walks `crates/cyrs-diag/src/codes.rs` for the authoritative set of
 //! diagnostic codes, then grep-walks all workspace `.rs` files for
 //! `Code::…` references.  Fails the gate if any referenced code is not
 //! registered — a misspelled variant otherwise compiles-fine today
@@ -23,7 +23,7 @@
 //!
 //! This gate runs in CI before the full test matrix.  Parsing .rs via
 //! regex is ugly but keeps the dependency surface small: the
-//! alternative (load cypher-diag via syn / rust-analyzer) would make
+//! alternative (load cyrs-diag via syn / rust-analyzer) would make
 //! this gate the slowest step in the pipeline for no extra rigour on
 //! what we actually care about (typos).
 
@@ -50,7 +50,7 @@ const REGISTRY_REGEX: &str = r"(?m)(?-u)^ {4}([EWN][0-9]{4})[ \t]*=[ \t]*[0-9]+[
 
 /// Entry point for `cargo xtask check-diag-codes`.  Returns `Ok(())` iff
 /// every diagnostic-code reference in `crates/**/*.rs` is registered in
-/// `cypher-diag/src/codes.rs`.  Unused registry entries are printed as
+/// `cyrs-diag/src/codes.rs`.  Unused registry entries are printed as
 /// info but do not fail the gate.
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
@@ -90,7 +90,7 @@ pub fn run() -> Result<()> {
 }
 
 fn load_registry(root: &Path) -> Result<BTreeSet<String>> {
-    let path = root.join("crates/cypher-diag/src/codes.rs");
+    let path = root.join("crates/cyrs-diag/src/codes.rs");
     let content =
         std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let re = regex::Regex::new(REGISTRY_REGEX).expect("REGISTRY_REGEX must compile");
@@ -112,7 +112,7 @@ fn scan_references(root: &Path) -> Result<BTreeSet<String>> {
     let mut refs = BTreeSet::new();
     walk_rs_files(&root.join("crates"), &mut |path| {
         // Skip codes.rs itself — it declares variants, not references.
-        if path.ends_with("crates/cypher-diag/src/codes.rs") {
+        if path.ends_with("crates/cyrs-diag/src/codes.rs") {
             return Ok(());
         }
         let content =

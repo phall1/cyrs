@@ -1,0 +1,34 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "input": 0,
+      "op": "filter",
+      "predicate": {
+        "bin_op": "and",
+        "kind": "bin_op",
+        "lhs": {
+          "kind": "bool",
+          "value": true
+        },
+        "rhs": {
+          "bin_op": "eq",
+          "kind": "bin_op",
+          "lhs": {
+            "kind": "int",
+            "value": 42
+          },
+          "rhs": {
+            "kind": "float",
+            "value": 3.0
+          }
+        }
+      }
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

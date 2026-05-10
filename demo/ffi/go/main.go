@@ -1,12 +1,12 @@
-// Go smoke test for the cypher-ffi C ABI.  Spec 0004 §10.2.
+// Go smoke test for the cyrs-ffi C ABI.  Spec 0004 §10.2.
 //
 // Build:
 //
-//	cargo build -p cypher-ffi --release
+//	cargo build -p cyrs-ffi --release
 //	cd demo/ffi/go
 //	CGO_LDFLAGS="-L../../../target/release -lcypher_ffi" go run main.go
 //
-// The program dlopens the produced `libcypher_ffi.{dylib,so}`, runs
+// The program dlopens the produced `libcyrs_ffi.{dylib,so}`, runs
 // `cypher_check` on a malformed query (`MATCH (n RETURN n` — unclosed
 // paren), and prints every diagnostic to stdout.  Exit code 0 iff at
 // least one diagnostic was reported.
@@ -14,7 +14,7 @@
 package main
 
 /*
-#cgo CFLAGS: -I../../../crates/cypher-ffi/include
+#cgo CFLAGS: -I../../../crates/cyrs-ffi/include
 #include <stdlib.h>
 #include <string.h>
 #include "cypher.h"

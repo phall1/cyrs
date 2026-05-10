@@ -1,0 +1,45 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH p = (a)-[:KNOWS]->(b) RETURN p\")"
+---
+SOURCE_FILE@0..36
+  STATEMENT@0..36
+    MATCH_CLAUSE@0..27
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..27
+        NAMED_PATTERN_PART@5..27
+          NAME@5..7
+            WHITESPACE@5..6 " "
+            IDENT@6..7 "p"
+          WHITESPACE@7..8 " "
+          EQ@8..9 "="
+          PATTERN_PART@9..27
+            NODE_PATTERN@9..13
+              WHITESPACE@9..10 " "
+              L_PAREN@10..11 "("
+              NAME@11..12
+                IDENT@11..12 "a"
+              R_PAREN@12..13 ")"
+            REL_PATTERN@13..24
+              MINUS@13..14 "-"
+              REL_DETAIL@14..22
+                L_BRACK@14..15 "["
+                REL_TYPE_EXPR@15..21
+                  COLON@15..16 ":"
+                  IDENT@16..21 "KNOWS"
+                R_BRACK@21..22 "]"
+              ARROW_R@22..24 "->"
+            NODE_PATTERN@24..27
+              L_PAREN@24..25 "("
+              NAME@25..26
+                IDENT@25..26 "b"
+              R_PAREN@26..27 ")"
+    RETURN_CLAUSE@27..36
+      WHITESPACE@27..28 " "
+      RETURN_KW@28..34 "RETURN"
+      RETURN_BODY@34..36
+        RETURN_ITEMS@34..36
+          RETURN_ITEM@34..36
+            VAR_EXPR@34..36
+              WHITESPACE@34..35 " "
+              IDENT@35..36 "p"

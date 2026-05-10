@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (a)-[r:KNOWS {since: 2020}]->(b) RETURN a, b, r.since\")"
+---
+MATCH (a)-[r:KNOWS {since: 2020}]->(b)
+RETURN a, b, r.since

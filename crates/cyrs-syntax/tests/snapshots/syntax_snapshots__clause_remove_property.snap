@@ -1,0 +1,29 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n:Person) REMOVE n.age\")"
+---
+SOURCE_FILE@0..29
+  STATEMENT@0..29
+    MATCH_CLAUSE@0..16
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..16
+        PATTERN_PART@5..16
+          NODE_PATTERN@5..16
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..15
+              COLON@8..9 ":"
+              IDENT@9..15 "Person"
+            R_PAREN@15..16 ")"
+    REMOVE_CLAUSE@16..29
+      WHITESPACE@16..17 " "
+      REMOVE_KW@17..23 "REMOVE"
+      REMOVE_ITEM@23..29
+        PROP_ACCESS_EXPR@23..29
+          VAR_EXPR@23..25
+            WHITESPACE@23..24 " "
+            IDENT@24..25 "n"
+          DOT@25..26 "."
+          IDENT@26..29 "age"

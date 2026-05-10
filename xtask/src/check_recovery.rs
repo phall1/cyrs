@@ -1,7 +1,7 @@
 //! `cargo xtask check-recovery` — spec §4.3 / §17.18 coverage invariant.
 //!
-//! Parses the two normative artefacts — `crates/cypher-ast/cypher.ungrammar`
-//! and `crates/cypher-syntax/docs/recovery.md` — into their production-name
+//! Parses the two normative artefacts — `crates/cyrs-ast/cypher.ungrammar`
+//! and `crates/cyrs-syntax/docs/recovery.md` — into their production-name
 //! sets and fails with a two-sided diff on any asymmetry. The invariant is:
 //! every production named in the ungrammar has an entry in `recovery.md`,
 //! and every entry in `recovery.md` names a live production.
@@ -28,8 +28,8 @@ use anyhow::{Context, Result, anyhow};
 /// Entry point called from `xtask::main`. Verifies the coverage invariant.
 pub fn run() -> Result<()> {
     let workspace = workspace_root();
-    let ungrammar = workspace.join("crates/cypher-ast/cypher.ungrammar");
-    let recovery = workspace.join("crates/cypher-syntax/docs/recovery.md");
+    let ungrammar = workspace.join("crates/cyrs-ast/cypher.ungrammar");
+    let recovery = workspace.join("crates/cyrs-syntax/docs/recovery.md");
 
     let grammar_names = parse_ungrammar_file(&ungrammar)
         .with_context(|| format!("parsing {}", ungrammar.display()))?;

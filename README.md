@@ -15,7 +15,7 @@ in-progress GQL ISO/IEC 39075:2024 support (parser bootstrap landed —
 
 > Rust-compiler-grade. No execution. No domain coupling.
 
-![cypher-lsp + nvim demo](./demo/demo.gif)
+![cyrs-lsp + nvim demo](./demo/demo.gif)
 
 ---
 
@@ -28,19 +28,19 @@ consumers execute the typed Plan IR against their own storage.
   Cypher / GQL text
         │
         ▼
-  cypher-syntax      lexer, recovering parser, lossless CST
+  cyrs-syntax      lexer, recovering parser, lossless CST
         │
         ▼
-  cypher-ast         typed AST wrappers over the CST
+  cyrs-ast         typed AST wrappers over the CST
         │
         ▼
-  cypher-hir         lowered HIR, name resolution, scope graph
+  cyrs-hir         lowered HIR, name resolution, scope graph
         │
         ▼
-  cypher-sema        type system + semantic analysis (schema-aware)
+  cyrs-sema        type system + semantic analysis (schema-aware)
         │
         ▼
-  cypher-plan        logical read / write Plan IR
+  cyrs-plan        logical read / write Plan IR
         │
         ▼
   consumer executes against its own storage
@@ -103,7 +103,7 @@ available as the [`cyrs-lang`](https://crates.io/crates/cyrs-lang) meta-crate.
 - **Scope graph + name resolution** — HIR layer handles `WITH`, `UNWIND`,
   aggregation scopes, and pattern bindings.
 - **Schema-aware semantic analysis** — schema is a trait
-  (`cypher-schema::SchemaProvider`); no hard-coded assumptions.
+  (`cyrs-schema::SchemaProvider`); no hard-coded assumptions.
 - **Stable diagnostic codes** — `E0001…`, `W6000…`, `N8000…`. See spec
   §10. Codes are SemVer — once assigned, meaning never changes.
 - **Idempotent formatter** — `fmt(fmt(x)) == fmt(x)`, round-trips through
@@ -123,8 +123,8 @@ measurements written by the TCK harness (spec §17.5), not aspirations.
 
 | Surface | Corpus | Result | Source |
 | ------- | ------ | ------ | ------ |
-| openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cypher-tck/tck/full-baseline.md`](./crates/cypher-tck/tck/full-baseline.md) |
-| GQL ISO/IEC 39075:2024 | hand-authored bootstrap (7 feature files, 18 expanded scenarios) | **2 / 18 accepted (11.1 %)** | [`crates/cypher-tck/tck/gql-iso-39075/baseline.md`](./crates/cypher-tck/tck/gql-iso-39075/baseline.md) |
+| openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cyrs-tck/tck/full-baseline.md`](./crates/cyrs-tck/tck/full-baseline.md) |
+| GQL ISO/IEC 39075:2024 | hand-authored bootstrap (7 feature files, 18 expanded scenarios) | **2 / 18 accepted (11.1 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](./crates/cyrs-tck/tck/gql-iso-39075/baseline.md) |
 
 **Caveat on the openCypher number.** "Accepted" means the parser emits
 zero syntax errors for the scenario's `When executing query:` step. It
@@ -203,7 +203,7 @@ For VS Code / VSCodium, the language client lives at
 | `cyrs-cli`     | `cypher {parse,check,fmt,explain,plan}`                      |
 | `cyrs-tck`     | openCypher TCK harness                                       |
 | `cyrs-testkit` | Shared test fixtures, compiletest runner (dev only)          |
-| `cypher`         | Meta-crate re-exporting the library surface                  |
+| `cyrs-lang`    | Meta-crate re-exporting the library surface                  |
 
 ---
 
@@ -232,7 +232,7 @@ hand-maintained artefact kept in lock-step by the
 
 **Parity claim:** the grammar parses the same TCK v1 surface as the Rust
 parser — every `outcome = "ok"` scenario in
-`crates/cypher-tck/tck/v1.toml` parses without `(ERROR)` nodes, every
+`crates/cyrs-tck/tck/v1.toml` parses without `(ERROR)` nodes, every
 `outcome = "error"` scenario produces at least one. Regressions fail CI.
 
 ### Neovim (nvim-treesitter)

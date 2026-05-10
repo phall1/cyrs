@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"// cypher-fmt: off\\nmatch(n)return n\\n// cypher-fmt: on\\nMATCH (m) RETURN m\")"
+---
+// cypher-fmt: off
+match(n)return n
+// cypher-fmt: on
+MATCH (m)
+RETURN m

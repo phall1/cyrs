@@ -5,8 +5,8 @@
 
 ## Problem
 
-`cypher_syntax::SyntaxError::code` is a `u16` whose values match the
-`DiagCode` discriminants in `cypher-diag`. Embedders mapping errors to
+`cyrs_syntax::SyntaxError::code` is a `u16` whose values match the
+`DiagCode` discriminants in `cyrs-diag`. Embedders mapping errors to
 their own typed errors (e.g. `embedder::error::ErrorKind`) need to
 write a giant `match err.code { 1 => …, 3 => …, … }` against magic
 numbers.
@@ -16,7 +16,7 @@ silently regresses to "unknown error → generic fallback."
 
 ## Proposed shape
 
-Re-export `DiagCode` from `cypher-syntax` (or add a thin `code_enum()`
+Re-export `DiagCode` from `cyrs-syntax` (or add a thin `code_enum()`
 method on `SyntaxError` that returns the typed enum), so embedders
 match on names:
 

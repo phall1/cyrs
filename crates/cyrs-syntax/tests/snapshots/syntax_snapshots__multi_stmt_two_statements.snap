@@ -1,0 +1,25 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN 1; RETURN 2\")"
+---
+SOURCE_FILE@0..18
+  STATEMENT@0..8
+    RETURN_CLAUSE@0..8
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..8
+        RETURN_ITEMS@6..8
+          RETURN_ITEM@6..8
+            LITERAL_EXPR@6..8
+              WHITESPACE@6..7 " "
+              INT_LITERAL@7..8 "1"
+  SEMI@8..9 ";"
+  STATEMENT@9..18
+    RETURN_CLAUSE@9..18
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..18
+        RETURN_ITEMS@16..18
+          RETURN_ITEM@16..18
+            LITERAL_EXPR@16..18
+              WHITESPACE@16..17 " "
+              INT_LITERAL@17..18 "2"

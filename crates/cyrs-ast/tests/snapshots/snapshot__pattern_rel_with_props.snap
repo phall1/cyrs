@@ -1,0 +1,51 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+assertion_line: 308
+expression: "dump(\"MATCH (a)-[r:KNOWS {since: 2020}]->(b) RETURN r\")"
+---
+SourceFile(SOURCE_FILE@0..47)
+  STATEMENT@0..47
+    MatchClause(MATCH_CLAUSE@0..38)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..38)
+        PATTERN_PART@5..38
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+          REL_PATTERN@9..35
+            MINUS@9..10 "-"
+            RelDetail(REL_DETAIL@10..33)
+              L_BRACK@10..11 "["
+              NAME@11..12
+                IDENT@11..12 "r"
+              REL_TYPE_EXPR@12..18
+                COLON@12..13 ":"
+                IDENT@13..18 "KNOWS"
+              PropertyMap(PROPERTY_MAP@18..32)
+                WHITESPACE@18..19 " "
+                L_BRACE@19..20 "{"
+                IDENT@20..25 "since"
+                COLON@25..26 ":"
+                LITERAL_EXPR@26..31
+                  WHITESPACE@26..27 " "
+                  INT_LITERAL@27..31 "2020"
+                R_BRACE@31..32 "}"
+              R_BRACK@32..33 "]"
+            ARROW_R@33..35 "->"
+          NodePattern(NODE_PATTERN@35..38)
+            L_PAREN@35..36 "("
+            NAME@36..37
+              IDENT@36..37 "b"
+            R_PAREN@37..38 ")"
+    ReturnClause(RETURN_CLAUSE@38..47)
+      WHITESPACE@38..39 " "
+      RETURN_KW@39..45 "RETURN"
+      RETURN_BODY@45..47
+        RETURN_ITEMS@45..47
+          ReturnItem(RETURN_ITEM@45..47)
+            VAR_EXPR@45..47
+              WHITESPACE@45..46 " "
+              IDENT@46..47 "r"

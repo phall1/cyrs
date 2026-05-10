@@ -48,7 +48,7 @@ enum Cmd {
     },
     /// Fetch and vendor the openCypher TCK corpus (spec §17.5).
     TckFetch,
-    /// Regenerate `crates/cypher-tck/tck/full-baseline.md` by running
+    /// Regenerate `crates/cyrs-tck/tck/full-baseline.md` by running
     /// the full-tck harness (spec §17.5, bead cy-p5q).
     ///
     /// Thin wrapper around `cargo test -p cyrs-tck --features
@@ -73,12 +73,12 @@ enum Cmd {
     /// every TCK v1 scenario's parse outcome between tree-sitter and cyrs.
     #[command(name = "tree-sitter-parity")]
     TreeSitterParity,
-    /// Build the cypher-wasm cdylib + run wasm-bindgen (bead cy-u6r,
+    /// Build the cyrs-wasm cdylib + run wasm-bindgen (bead cy-u6r,
     /// spec 0004 §4).  Missing wasm tooling produces a skip, not a
     /// failure.
     #[command(name = "wasm-build")]
     WasmBuild,
-    /// Full cypher-wasm size pipeline + gate (spec 0004 §4.2): cargo
+    /// Full cyrs-wasm size pipeline + gate (spec 0004 §4.2): cargo
     /// build → wasm-bindgen → wasm-opt -Os → brotli -q 11.  Fails if
     /// the brotli artifact exceeds 2 MB.
     #[command(name = "wasm-size")]
@@ -87,15 +87,15 @@ enum Cmd {
     /// (spec 0004 §10.1).  Skips if wasm-pack is not on PATH.
     #[command(name = "wasm-smoke")]
     WasmSmoke,
-    /// Build the cypher-lsp wasm artifact for the LSP-Web demo worker
+    /// Build the cyrs-lsp wasm artifact for the LSP-Web demo worker
     /// (bead cy-m0d, spec 0004 §7).  Mirrors `wasm-build` with the
     /// `web-lsp` feature, `--target no-modules`, and a 3 MB brotli
     /// size cap.  Missing wasm tooling produces a skip, not a failure.
     #[command(name = "lsp-web-build")]
     LspWebBuild,
-    /// Generate or verify the cypher-ffi C header (spec 0004 §5.6).
+    /// Generate or verify the cyrs-ffi C header (spec 0004 §5.6).
     ///
-    /// Default mode regenerates `crates/cypher-ffi/include/cypher.h`.
+    /// Default mode regenerates `crates/cyrs-ffi/include/cypher.h`.
     /// `--check` mode runs cbindgen into a tempfile and diffs it
     /// against the committed header; exits 1 on drift.  Wired into
     /// `cargo xtask gate` so ABI drift blocks the pre-commit gate.
@@ -139,7 +139,7 @@ fn main() -> Result<()> {
 /// Regenerate the full-TCK pass-rate baseline (spec §17.5, bead
 /// cy-p5q).  Runs the `tck_full_baseline` integration test with the
 /// `full-tck` Cargo feature enabled; the test writes
-/// `crates/cypher-tck/tck/full-baseline.md` as a side-effect.
+/// `crates/cyrs-tck/tck/full-baseline.md` as a side-effect.
 fn tck_baseline() -> Result<()> {
     println!("==> cargo test -p cyrs-tck --features full-tck tck_full_baseline");
     run(
@@ -265,7 +265,7 @@ fn gate() -> Result<()> {
 
     // C-ABI drift gate (spec 0004 §5.6, bead cy-dh6).  Runs on every
     // commit — not just nightly — because a drifted header is a silent
-    // SemVer-major break the moment cypher-ffi ships.  Skips gracefully
+    // SemVer-major break the moment cyrs-ffi ships.  Skips gracefully
     // if cbindgen is not on PATH (see xtask::cbindgen::run).
     println!("==> xtask cbindgen --check");
     xtask::cbindgen::run(true)?;

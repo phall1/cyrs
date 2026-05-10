@@ -1,6 +1,6 @@
 //! bench_parse — lexer + recovering parser (spec §17.10).
 //!
-//! Measures `cypher_syntax::parse` on a representative multi-clause query.
+//! Measures `cyrs_syntax::parse` on a representative multi-clause query.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
@@ -17,7 +17,7 @@ RETURN n.name AS source, m.name AS target, hops
 fn bench_parse(c: &mut Criterion) {
     c.bench_function("parse", |b| {
         b.iter(|| {
-            let _parse = cypher_syntax::parse(std::hint::black_box(QUERY));
+            let _parse = cyrs_syntax::parse(std::hint::black_box(QUERY));
         });
     });
 }

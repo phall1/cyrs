@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person) WHERE n.active = true WITH n MATCH (n)-[r:KNOWS]->(m) RETURN n, m\")"
+---
+MATCH (n:Person)
+WHERE n.active = TRUE
+WITH n
+MATCH (n)-[r:KNOWS]->(m)
+RETURN n, m

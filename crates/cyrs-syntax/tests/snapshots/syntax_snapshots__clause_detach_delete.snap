@@ -1,0 +1,27 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n:Person) DETACH DELETE n\")"
+---
+SOURCE_FILE@0..32
+  STATEMENT@0..32
+    MATCH_CLAUSE@0..16
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..16
+        PATTERN_PART@5..16
+          NODE_PATTERN@5..16
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            LABEL_EXPR@8..15
+              COLON@8..9 ":"
+              IDENT@9..15 "Person"
+            R_PAREN@15..16 ")"
+    DELETE_CLAUSE@16..32
+      WHITESPACE@16..17 " "
+      DETACH_KW@17..23 "DETACH"
+      WHITESPACE@23..24 " "
+      DELETE_KW@24..30 "DELETE"
+      VAR_EXPR@30..32
+        WHITESPACE@30..31 " "
+        IDENT@31..32 "n"

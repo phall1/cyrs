@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/tests/sema_diag.rs
+expression: "render_diags_with_schema(src, \"e3007_function_arity_mismatch.cypher\", &schema)"
+---
+error[E3007]: function `size` expects exactly 1 argument(s) but got 2
+  ┌─ e3007_function_arity_mismatch.cypher:1:1
+  │
+1 │ RETURN size('hello', 'extra')
+  │ ^

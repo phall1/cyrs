@@ -1,6 +1,6 @@
 //! bench_sema — semantic analysis (spec §17.10).
 //!
-//! Measures `cypher_sema::analyse` on a representative multi-clause query.
+//! Measures `cyrs_sema::analyse` on a representative multi-clause query.
 //! The HIR is built once outside the loop so that only analysis is measured.
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -15,13 +15,13 @@ RETURN n.name AS source, m.name AS target, hops
 "#;
 
 fn bench_sema(c: &mut Criterion) {
-    let stmt = cypher_hir::lower::lower_statement(QUERY);
-    let opts = cypher_sema::SemaOptions::default();
+    let stmt = cyrs_hir::lower::lower_statement(QUERY);
+    let opts = cyrs_sema::SemaOptions::default();
 
     c.bench_function("sema", |b| {
         b.iter(|| {
-            let mut sink = cypher_diag::DiagnosticsSink::new();
-            cypher_sema::analyse(
+            let mut sink = cyrs_diag::DiagnosticsSink::new();
+            cyrs_sema::analyse(
                 std::hint::black_box(&stmt),
                 None,
                 std::hint::black_box(&opts),

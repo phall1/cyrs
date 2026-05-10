@@ -1,0 +1,11 @@
+---
+source: crates/cyrs-hir/src/lower.rs
+expression: render(&stmt)
+---
+clauses: 3
+bindings: 1
+nodes_in_map: 4
+clause[0]: Match
+clause[1]: Where
+clause[2]: Return(distinct=false, items=1)
+binding: n (Node)

@@ -1,6 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [ALL($0 IN $1) AS pred]
-  Source (AS $1)

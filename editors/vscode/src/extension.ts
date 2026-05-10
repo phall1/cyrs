@@ -3,7 +3,7 @@
 // The Rust binary (`cypher-lsp`) is feature-complete (hover, definition,
 // references, completion + resolve, rename, semantic tokens, inlay hints,
 // formatting full + range, code actions, folding, signature help, file
-// watchers — see `crates/cypher-lsp/src/lib.rs::server_capabilities`).
+// watchers — see `crates/cyrs-lsp/src/lib.rs::server_capabilities`).
 // This extension is a thin client: it spawns the binary on stdio and
 // forwards the user's settings as `initializationOptions` (spec §14.3).
 //
@@ -186,7 +186,7 @@ function buildInitializationOptions(
 
     // The formatting block is a forward-compat slot — `cypher-lsp` does
     // not yet read these from `initializationOptions`, but mirroring the
-    // `cypher-fmt::FormatOptions` struct here lets the user tune it from
+    // `cyrs-fmt::FormatOptions` struct here lets the user tune it from
     // settings the moment server-side wiring lands. (FYI: the server
     // currently uses `FormatOptions::default()`.)
     opts.formatting = {

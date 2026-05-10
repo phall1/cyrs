@@ -1,0 +1,21 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN xs[-1]\")"
+---
+SOURCE_FILE@0..13
+  STATEMENT@0..13
+    RETURN_CLAUSE@0..13
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..13
+        RETURN_ITEMS@6..13
+          RETURN_ITEM@6..13
+            INDEX_EXPR@6..13
+              VAR_EXPR@6..9
+                WHITESPACE@6..7 " "
+                IDENT@7..9 "xs"
+              L_BRACK@9..10 "["
+              UNARY_EXPR@10..12
+                MINUS@10..11 "-"
+                LITERAL_EXPR@11..12
+                  INT_LITERAL@11..12 "1"
+              R_BRACK@12..13 "]"

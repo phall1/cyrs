@@ -1,5 +1,0 @@
----
-source: crates/cypher-hir/src/desugar.rs
-expression: render_expr(&expr)
----
-Slice(Var(0)[..Int(3)])

@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-sema/src/kinds.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E2007: variable `p` has kind `Path` and does not support property access; use `nodes()` or `relationships()` to extract graph elements first

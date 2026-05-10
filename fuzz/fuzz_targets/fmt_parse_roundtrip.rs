@@ -21,7 +21,7 @@
 //!   - The structural comparison is explicit: we walk both CSTs in
 //!     lockstep and compare kinds, ignoring WHITESPACE / COMMENT /
 //!     LINE_COMMENT / BLOCK_COMMENT tokens. A mismatch is a P0 bug
-//!     against `cypher-fmt`.
+//!     against `cyrs-fmt`.
 //!
 //! If this target ever crashes, treat it as a blocker — §17.4 forbids
 //! any new panic on any input.
@@ -37,7 +37,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // -------- Oracle 1: parse is total + lossless --------
-    let parsed = cypher_syntax::parse(s);
+    let parsed = cyrs_syntax::parse(s);
     let root = parsed.syntax();
     assert_eq!(
         root.text().to_string(),
@@ -53,15 +53,15 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // -------- Oracle 2: formatter is total + idempotent --------
-    let once = cypher_fmt::format(s);
-    let twice = cypher_fmt::format(&once);
+    let once = cyrs_fmt::format(s);
+    let twice = cyrs_fmt::format(&once);
     assert_eq!(
         once, twice,
         "formatter not idempotent:\n  src: {s:?}\n  once: {once:?}\n  twice: {twice:?}"
     );
 
     // -------- Oracle 3: parse(fmt(s)) is still clean --------
-    let reparsed = cypher_syntax::parse(&once);
+    let reparsed = cyrs_syntax::parse(&once);
     assert!(
         reparsed.errors().is_empty(),
         "fmt(src) no longer parses:\n  src: {s:?}\n  fmt: {once:?}\n  errors: {:?}",

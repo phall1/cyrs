@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (a:Person)-[r1:KNOWS]->(b:Person)-[r2:LIKES]->(c:Movie) RETURN a, b, c\")"
+---
+MATCH (a:Person)-[r1:KNOWS]->(b:Person)-[r2:LIKES]->(c:Movie)
+RETURN a, b, c

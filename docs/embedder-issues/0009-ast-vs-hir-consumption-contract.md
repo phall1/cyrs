@@ -7,15 +7,15 @@
 
 cyrs has three plausible consumption layers for a downstream embedder:
 
-1. **Typed AST** (`cypher-ast`) — rowan-backed wrappers, lossless,
+1. **Typed AST** (`cyrs-ast`) — rowan-backed wrappers, lossless,
    borrows from `Parse`. Embedder pays for tree walks but gets exact
    spans for diagnostics.
 
-2. **HIR** (`cypher-hir`) — owned, name-resolved, desugared. Embedder
+2. **HIR** (`cyrs-hir`) — owned, name-resolved, desugared. Embedder
    gets a clean IR but loses the lossless tree (HIR keeps a HirId map
    back to syntax for diagnostics).
 
-3. **Plan IR** (`cypher-plan`) — logical operator graph. Embedder
+3. **Plan IR** (`cyrs-plan`) — logical operator graph. Embedder
    skips writing its own planner.
 
 cyrs's spec (0001) describes each layer's purpose internally but does

@@ -77,12 +77,12 @@ bench = false
 
 [dependencies]
 libfuzzer-sys = "0.4"
-cypher-syntax = { package = "cyrs-syntax", path = "../crates/cypher-syntax" }
-cypher-fmt    = { package = "cyrs-fmt",    path = "../crates/cypher-fmt" }
-cypher-hir    = { package = "cyrs-hir",    path = "../crates/cypher-hir" }
-cypher-sema   = { package = "cyrs-sema",   path = "../crates/cypher-sema" }
-cypher-diag   = { package = "cyrs-diag",   path = "../crates/cypher-diag" }
-cypher-plan   = { package = "cyrs-plan",   path = "../crates/cypher-plan" }
+cyrs-syntax = { path = "../crates/cyrs-syntax" }
+cyrs-fmt    = { path = "../crates/cyrs-fmt" }
+cyrs-hir    = { path = "../crates/cyrs-hir" }
+cyrs-sema   = { path = "../crates/cyrs-sema" }
+cyrs-diag   = { path = "../crates/cyrs-diag" }
+cyrs-plan   = { path = "../crates/cyrs-plan" }
 
 # Deterministic RNG for the grammar-aware generator (cy-h07.1). We pin
 # `rand_chacha` directly so the generator's byte output stays stable across
@@ -92,7 +92,7 @@ rand         = { version = "0.8", default-features = false, features = ["std_rng
 rand_chacha  = { version = "0.3", default-features = false }
 
 # Needed by `fuzz_structured_parse` to walk the CST looking for ERROR
-# nodes — same version cypher-syntax uses internally.
+# nodes — same version cyrs-syntax uses internally.
 rowan        = "0.15"
 
 [profile.release]

@@ -1,7 +1,7 @@
 {
   "name": "cyrs-vscode",
   "displayName": "cyrs — Cypher / GQL Language Support",
-  "description": "Syntax highlighting and language-server integration for Cypher / GQL, powered by cypher-lsp.",
+  "description": "Syntax highlighting and language-server integration for Cypher / GQL, powered by cyrs-lsp.",
   "version": "0.0.1",
   "publisher": "phall1",
   "license": "Apache-2.0 OR MIT",
@@ -103,28 +103,28 @@
           "type": "integer",
           "default": 100,
           "minimum": 1,
-          "description": "Soft column limit forwarded to `cypher-fmt` (spec §13.3).",
+          "description": "Soft column limit forwarded to `cyrs-fmt` (spec §13.3).",
           "scope": "resource"
         },
         "cyrs.formatting.keywordCasing": {
           "type": "string",
           "enum": ["Upper", "Lower", "Preserve"],
           "default": "Upper",
-          "description": "Keyword casing policy for `cypher-fmt`.",
+          "description": "Keyword casing policy for `cyrs-fmt`.",
           "scope": "resource"
         },
         "cyrs.formatting.trailingCommas": {
           "type": "string",
           "enum": ["Always", "AsNeeded", "Never"],
           "default": "AsNeeded",
-          "description": "Trailing-comma policy for `cypher-fmt`.",
+          "description": "Trailing-comma policy for `cyrs-fmt`.",
           "scope": "resource"
         },
         "cyrs.formatting.indentStyle": {
           "type": "string",
           "enum": ["Spaces", "Tabs"],
           "default": "Spaces",
-          "description": "Indentation style for `cypher-fmt`.",
+          "description": "Indentation style for `cyrs-fmt`.",
           "scope": "resource"
         },
         "cyrs.formatting.indentWidth": {

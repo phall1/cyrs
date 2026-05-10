@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person)-[r:KNOWS]->(m:Person) WITH n.name AS name, m.name AS friend, r.since AS year RETURN name, friend, year\")"
+---
+MATCH (n:Person)-[r:KNOWS]->(m:Person)
+WITH n.name AS name, m.name AS friend, r.since AS year
+RETURN name, friend, year

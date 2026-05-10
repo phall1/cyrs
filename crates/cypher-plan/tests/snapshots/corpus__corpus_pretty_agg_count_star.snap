@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS cnt]
-  Aggregate keys=[] aggs=[count($0)]
-    Source (AS $0)

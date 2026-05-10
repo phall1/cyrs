@@ -1,0 +1,15 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 251
+expression: "format_with_errors(\"RETURN $name\")"
+---
+SOURCE_FILE@0..12
+  STATEMENT@0..12
+    RETURN_CLAUSE@0..12
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..12
+        RETURN_ITEMS@6..12
+          RETURN_ITEM@6..12
+            PARAM_EXPR@6..12
+              WHITESPACE@6..7 " "
+              PARAM@7..12 "$name"

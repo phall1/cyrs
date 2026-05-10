@@ -11,7 +11,7 @@
 //!
 //! The ideal invariant is that steady-state per-edit reanalysis time is
 //! *sub-linear* in file size.  cy-zv0 introduced the
-//! `Database::edit_file(TextEdit)` API plus `cypher_syntax::incremental_reparse`,
+//! `Database::edit_file(TextEdit)` API plus `cyrs_syntax::incremental_reparse`,
 //! but the underlying reparse is still a whole-file fallback (the API-first
 //! tranche of Option A).  Until the smart sub-tree splicer lands in a
 //! follow-up bead, the observed scaling ratio sits near 2.0 and the budget
@@ -20,7 +20,7 @@
 //! # Bench-harness hook required for a sub-linear ratio
 //!
 //! The API surface is now in place — `Database::edit_file` routes through
-//! `cypher_syntax::incremental_reparse`.  What remains is the smart
+//! `cyrs_syntax::incremental_reparse`.  What remains is the smart
 //! implementation:
 //!
 //! 1. Identify the covering sub-tree for the edit range
@@ -64,8 +64,8 @@ use std::time::{Duration, Instant};
 
 use criterion::Criterion;
 
-use cypher_db::{Database, DialectMode};
-use cypher_syntax::{TextEdit, TextSize};
+use cyrs_db::{Database, DialectMode};
+use cyrs_syntax::{TextEdit, TextSize};
 
 // ---------------------------------------------------------------------------
 // Configuration

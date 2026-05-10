@@ -1,0 +1,41 @@
+[package]
+name         = "cyrs-agent"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Stateless JSON API for Cypher / GQL frontend operations (parse/check/complete/hover/rewrite/...)."
+
+[[bin]]
+name = "cypher-agent"
+path = "src/main.rs"
+
+[dependencies]
+cyrs-db            = { workspace = true }
+cyrs-diag          = { workspace = true }
+cyrs-fmt           = { workspace = true }
+cyrs-hir           = { workspace = true }
+cyrs-lang-services = { workspace = true }
+cyrs-plan          = { workspace = true, features = ["serde"] }
+cyrs-schema        = { workspace = true }
+cyrs-sema          = { workspace = true }
+cyrs-syntax        = { workspace = true }
+serde                = { workspace = true }
+serde_json           = { workspace = true }
+anyhow               = { workspace = true }
+smol_str             = { workspace = true }
+tracing              = { workspace = true }
+tracing-subscriber   = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

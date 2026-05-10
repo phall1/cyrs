@@ -1,0 +1,8 @@
+---
+source: crates/cyrs-sema/src/resolve.rs
+expression: "render_result(&stmt, false)"
+---
+scopes: 2
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=Return parent=Some(0) bindings=[]
+diagnostics: 0

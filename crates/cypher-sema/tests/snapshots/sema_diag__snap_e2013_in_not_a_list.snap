@@ -1,9 +1,0 @@
----
-source: crates/cypher-sema/tests/sema_diag.rs
-expression: "render_diags(src, \"e2013_in_not_a_list.cypher\")"
----
-error[E2013]: `IN` right-hand side must be a list but found `String`
-  ┌─ e2013_in_not_a_list.cypher:1:1
-  │
-1 │ RETURN 1 IN 'not-a-list'
-  │ ^

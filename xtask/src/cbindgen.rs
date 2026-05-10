@@ -1,9 +1,9 @@
 //! `cargo xtask cbindgen` / `cargo xtask cbindgen --check` — regenerate
-//! or verify the committed C header at `crates/cypher-ffi/include/cypher.h`.
+//! or verify the committed C header at `crates/cyrs-ffi/include/cypher.h`.
 //! Spec 0004 §5.6.
 //!
-//! The generator runs `cbindgen --config crates/cypher-ffi/cbindgen.toml
-//! --crate cypher-ffi` and writes the result to the crate's `include/`
+//! The generator runs `cbindgen --config crates/cyrs-ffi/cbindgen.toml
+//! --crate cyrs-ffi` and writes the result to the crate's `include/`
 //! directory.  `--check` mode runs the same generation into a tempfile,
 //! diffs the two files byte-for-byte, and exits 1 on drift (the
 //! `SemVer`-critical gate invariant).
@@ -23,7 +23,7 @@ use anyhow::{Result, anyhow, bail};
 /// Entry point for `cargo xtask cbindgen [--check]`.
 pub fn run(check: bool) -> Result<()> {
     let workspace = workspace_root();
-    let crate_dir = workspace.join("crates/cypher-ffi");
+    let crate_dir = workspace.join("crates/cyrs-ffi");
     let config = crate_dir.join("cbindgen.toml");
     let committed = crate_dir.join("include/cypher.h");
 
@@ -45,7 +45,7 @@ pub fn run(check: bool) -> Result<()> {
     // Target path: on --check, generate into a tempfile; otherwise write
     // directly to the committed path.
     let output: PathBuf = if check {
-        std::env::temp_dir().join(format!("cypher-ffi-cbindgen-{}.h", std::process::id()))
+        std::env::temp_dir().join(format!("cyrs-ffi-cbindgen-{}.h", std::process::id()))
     } else {
         committed.clone()
     };
@@ -100,7 +100,7 @@ pub fn run(check: bool) -> Result<()> {
     let actual_str = String::from_utf8_lossy(&actual);
     let committed_str = String::from_utf8_lossy(&committed_bytes);
     bail!(
-        "cypher-ffi cbindgen drift: committed header differs from a fresh generation.\n\
+        "cyrs-ffi cbindgen drift: committed header differs from a fresh generation.\n\
          Committed: {committed_path}\n\
          Run `cargo xtask cbindgen` and commit the result.\n\
          \n\

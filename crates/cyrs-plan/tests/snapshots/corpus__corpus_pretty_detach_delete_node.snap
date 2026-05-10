@@ -1,0 +1,8 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Filter (($0.name = "Alice"))
+  Source (:Person AS $0)
+WriteOps:
+  DetachDelete [$0]

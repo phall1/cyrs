@@ -24,7 +24,7 @@ waiting on cyrs to close out features beyond M23.
 
 ## Proposed shape
 
-Add `cyrs/crates/cypher-tck/tck/embedder-m23.toml` that names every
+Add `cyrs/crates/cyrs-tck/tck/embedder-m23.toml` that names every
 scenario the legacy parser currently passes. CI gates this slice in
 addition to `v1.toml`. When cyrs's full-corpus pass rate hits parity
 with M23, the slice can be retired.

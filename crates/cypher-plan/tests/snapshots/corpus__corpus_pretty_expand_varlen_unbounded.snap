@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS n, $2 AS m]
-  Expand ($0)-[:KNOWS*..(->) $1]->( AS $2)
-    Source (AS $0)

@@ -1,8 +1,0 @@
----
-source: crates/cypher-plan/tests/serde_pretty.rs
-expression: pretty(&plan)
----
-Source (:Person AS $0)
-WriteOps:
-  SetProperty $0.age = 30
-  SetLabels $0 :Admin

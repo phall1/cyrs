@@ -1,0 +1,67 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [],
+  "var_map": [],
+  "write_ops": [
+    {
+      "bind": 0,
+      "labels": [
+        "Person"
+      ],
+      "op": "create_node",
+      "props": {
+        "entries": [
+          [
+            "name",
+            {
+              "kind": "str",
+              "value": "Alice"
+            }
+          ]
+        ],
+        "kind": "map"
+      }
+    },
+    {
+      "bind": 1,
+      "labels": [
+        "Person"
+      ],
+      "op": "create_node",
+      "props": {
+        "entries": [
+          [
+            "name",
+            {
+              "kind": "str",
+              "value": "Bob"
+            }
+          ]
+        ],
+        "kind": "map"
+      }
+    },
+    {
+      "bind": 2,
+      "from": 0,
+      "op": "create_rel",
+      "props": {
+        "entries": [
+          [
+            "since",
+            {
+              "kind": "int",
+              "value": 2020
+            }
+          ]
+        ],
+        "kind": "map"
+      },
+      "rel_type": "KNOWS",
+      "to": 1
+    }
+  ]
+}

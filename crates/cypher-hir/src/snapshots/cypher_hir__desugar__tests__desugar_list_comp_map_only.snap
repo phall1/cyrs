@@ -1,5 +1,0 @@
----
-source: crates/cypher-hir/src/desugar.rs
-expression: render_expr(&expr)
----
-ListComp(var=1, iterable=Var(0), filter=None, map=Prop(Var(1).name))

@@ -1,0 +1,10 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+WriteOps:
+  MergeNode (:Person AS $0) props={email: $email}
+    ON CREATE:
+      SetProperty $0.created = true
+    ON MATCH:
+      SetProperty $0.updated = true

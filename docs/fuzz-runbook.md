@@ -45,7 +45,7 @@ syntactically interesting shapes.
 
 Current groups (shared base, cy-h07):
 
-- Every `*_KW` variant in `crates/cypher-syntax/src/kind.rs`.
+- Every `*_KW` variant in `crates/cyrs-syntax/src/kind.rs`.
 - Punctuation + multi-char operators (`<=`, `->`, `<->`, `..`, …).
 - Literal shapes: quoted strings, integers, floats (incl. scientific),
   `null`, bools, `$param`, backtick-escaped identifiers.
@@ -96,7 +96,7 @@ There is no codegen script yet — the block is hand-maintained. To
 manually refresh the keyword section:
 
 ```sh
-rg '_KW(?:\s*=\s*\d+)?,?\s*$' crates/cypher-syntax/src/kind.rs \
+rg '_KW(?:\s*=\s*\d+)?,?\s*$' crates/cyrs-syntax/src/kind.rs \
   | rg -o '[A-Z][A-Z_]+(?=_KW)' \
   | sort -u
 ```
@@ -165,7 +165,7 @@ follow-up beads before the fuzz smoke gate can turn blocking.
 1. **`fuzz_plan` — pattern-part empty-element panic.** — **FIXED (cy-f2t).**
    - Reproducer: 5 bytes `MATCH` (bare keyword; parser recovers, HIR
      lowerer produces a pattern with zero elements).
-   - Previously panicked at `crates/cypher-plan/src/lower.rs:682` with
+   - Previously panicked at `crates/cyrs-plan/src/lower.rs:682` with
      `pattern part must have at least one element`.
    - Fix: `precheck_statement` now rejects empty / leading-`Rel`
      pattern parts as `PlanLowerError::EmptyPatternPart`; the in-body
@@ -181,7 +181,7 @@ follow-up beads before the fuzz smoke gate can turn blocking.
    - Root cause: the formatter's whitespace-canonicalisation pass
      treats a trailing newline adjacent to a string literal differently
      on the first vs second pass.
-   - Expected fix: inside `cypher-fmt::format`, ensure the
+   - Expected fix: inside `cyrs-fmt::format`, ensure the
      trivia-rewriting pass is a true fixed point on any input.
    - Repro kept OUT of `fuzz/corpus/fuzz_formatter/` for the same
      reason as above.
@@ -220,7 +220,7 @@ When a run crashes, libFuzzer writes the reproducer to
 3. **Classify the crash.**
 
    - **Panic from inside a crate:** read the stack trace. File the bug
-     against the crate that panicked (e.g. `cypher-plan/src/lower.rs`),
+     against the crate that panicked (e.g. `cyrs-plan/src/lower.rs`),
      tag P0 in `.beads/`. Every panic on any input is a spec violation
      (§17.4).
    - **Oracle assertion:** if the oracle asserts an invariant and the

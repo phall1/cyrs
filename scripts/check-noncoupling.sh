@@ -25,7 +25,7 @@
 # the shape domain leakage actually takes; standalone `Event` in a
 # parser crate is not.
 #
-# `cypher-lsp` is exempt from the `Capability` compound check
+# `cyrs-lsp` is exempt from the `Capability` compound check
 # because the LSP protocol itself uses `Capability`/`Capabilities`
 # suffixes on standard types (`ServerCapabilities`,
 # `TextDocumentSyncCapability`). The crate is a thin shell over
@@ -62,7 +62,7 @@ unambiguous='\b(Actor|provenance|bitemporal|expertise)\b'
 # one side. `BranchHead`, `HeadBranch`, `ActorEvent`, `EventLog`
 # all match; a lone `Event` does not.
 compound='([A-Z][a-z0-9]+)(Event|Operation|Capability|Branch)\b|\b(Event|Operation|Capability|Branch)([A-Z][a-z0-9]+)'
-# `Capability` sub-pattern is suppressed under cypher-lsp/ (LSP
+# `Capability` sub-pattern is suppressed under cyrs-lsp/ (LSP
 # protocol types); see header comment.
 compound_no_lsp='([A-Z][a-z0-9]+)(Event|Operation|Branch)\b|\b(Event|Operation|Branch)([A-Z][a-z0-9]+)'
 
@@ -72,9 +72,9 @@ compound_no_lsp='([A-Z][a-z0-9]+)(Event|Operation|Branch)\b|\b(Event|Operation|B
 # entry is a regex alternation matched with `-w` semantics (extended by
 # the \b anchors in `compound`).
 #
-#   rowan::WalkEvent       — parser tree-walk iterator variant (cypher-fmt).
-#   lsp_types::FileEvent   — LSP didChangeWatchedFiles payload (cypher-lsp).
-#   web_sys::MessageEvent  — Web Worker postMessage event (cypher-lsp wasm).
+#   rowan::WalkEvent       — parser tree-walk iterator variant (cyrs-fmt).
+#   lsp_types::FileEvent   — LSP didChangeWatchedFiles payload (cyrs-lsp).
+#   web_sys::MessageEvent  — Web Worker postMessage event (cyrs-lsp wasm).
 #
 # The anchors around each entry prevent false negatives: an identifier
 # such as `ActorWalkEvent` would still be flagged by the main regex
@@ -90,21 +90,21 @@ bad_unambiguous="$(
     -print0 \
   | xargs -0 grep -n -E -i "$unambiguous" 2>/dev/null || true
 )"
-# Outside cypher-lsp: full compound check.
+# Outside cyrs-lsp: full compound check.
 bad_compound="$(
   find . -name '*.rs' \
     -not -path './target/*' \
     -not -path '*/tests/*' \
     -not -path '*/fixtures/*' \
-    -not -path './crates/cypher-lsp/*' \
+    -not -path './crates/cyrs-lsp/*' \
     -print0 \
   | xargs -0 grep -n -E "$compound" 2>/dev/null \
   | grep -v -E "$external_allow" \
   || true
 )"
-# Inside cypher-lsp: compound check minus `Capability` suffix.
+# Inside cyrs-lsp: compound check minus `Capability` suffix.
 bad_compound_lsp="$(
-  find ./crates/cypher-lsp -name '*.rs' \
+  find ./crates/cyrs-lsp -name '*.rs' \
     -not -path '*/target/*' \
     -not -path '*/tests/*' \
     -not -path '*/fixtures/*' \

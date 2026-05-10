@@ -1,0 +1,21 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+assertion_line: 410
+expression: "dump(\"RETURN length('hello')\")"
+---
+SourceFile(SOURCE_FILE@0..22)
+  STATEMENT@0..22
+    ReturnClause(RETURN_CLAUSE@0..22)
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..22
+        RETURN_ITEMS@6..22
+          ReturnItem(RETURN_ITEM@6..22)
+            Expr::FunctionCall(FUNCTION_CALL@6..22)
+              VAR_EXPR@6..13
+                WHITESPACE@6..7 " "
+                IDENT@7..13 "length"
+              L_PAREN@13..14 "("
+              ArgList(ARG_LIST@14..21)
+                LITERAL_EXPR@14..21
+                  STRING_LITERAL@14..21 "'hello'"
+              R_PAREN@21..22 ")"

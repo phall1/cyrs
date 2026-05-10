@@ -1,0 +1,35 @@
+[package]
+name         = "cyrs-hir"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "High-level IR for Cypher / GQL with scope graph and name resolution (spec 0001 §6)."
+
+[lib]
+name = "cyrs_hir"
+
+[dependencies]
+cyrs-syntax = { workspace = true }
+cyrs-ast    = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+
+[dev-dependencies]
+insta      = { workspace = true }
+proptest   = { workspace = true }
+rowan      = { workspace = true }
+cyrs-fmt = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

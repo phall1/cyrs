@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n)-[r]->(m) RETURN n, r, m\")"
+---
+MATCH (n)-[r]->(m)
+RETURN n, r, m

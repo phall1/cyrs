@@ -1,4 +1,4 @@
-// Dedicated Worker that hosts the `cypher-lsp` wasm artifact
+// Dedicated Worker that hosts the `cyrs-lsp` wasm artifact
 // (spec 0004 §7, bead cy-m0d).
 //
 // The main thread speaks JSON-RPC over `postMessage`; this worker
@@ -9,13 +9,13 @@
 //
 //     cargo xtask lsp-web-build
 //
-// That produces `./pkg-lsp/cypher_lsp.js` + `cypher_lsp_bg.wasm`
+// That produces `./pkg-lsp/cyrs_lsp.js` + `cyrs_lsp_bg.wasm`
 // (wasm-bindgen `--target no-modules`).  We load the JS via
 // importScripts — `type: "module"` workers do not honour
 // wasm-bindgen's no-modules output, so this file is a classic worker.
 
-const PKG_JS_URL = "./pkg-lsp/cypher_lsp.js";
-const PKG_WASM_URL = "./pkg-lsp/cypher_lsp_bg.wasm";
+const PKG_JS_URL = "./pkg-lsp/cyrs_lsp.js";
+const PKG_WASM_URL = "./pkg-lsp/cyrs_lsp_bg.wasm";
 
 // Buffer messages received before the wasm module finishes booting.
 // `start_lsp` sets `self.onmessage` on the Rust side, which receives

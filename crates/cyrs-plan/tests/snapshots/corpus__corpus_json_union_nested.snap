@@ -1,0 +1,82 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "label": [
+        "A"
+      ],
+      "op": "source"
+    },
+    {
+      "input": 0,
+      "items": [
+        {
+          "alias": "x",
+          "expr": {
+            "id": 0,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "project"
+    },
+    {
+      "bind": 1,
+      "label": [
+        "B"
+      ],
+      "op": "source"
+    },
+    {
+      "input": 2,
+      "items": [
+        {
+          "alias": "x",
+          "expr": {
+            "id": 1,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "project"
+    },
+    {
+      "kind": "all",
+      "left": 1,
+      "op": "union",
+      "right": 3
+    },
+    {
+      "bind": 2,
+      "label": [
+        "C"
+      ],
+      "op": "source"
+    },
+    {
+      "input": 5,
+      "items": [
+        {
+          "alias": "x",
+          "expr": {
+            "id": 2,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "project"
+    },
+    {
+      "kind": "distinct",
+      "left": 4,
+      "op": "union",
+      "right": 6
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

@@ -1,8 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n:Person)-[r:KNOWS]->(m) WITH n, count(m) AS friendCount RETURN n.name, friendCount ORDER BY friendCount DESC\")"
----
-MATCH (n:Person)-[r:KNOWS]->(m)
-WITH n, COUNT(m) AS friendCount
-RETURN n.name, friendCount
-ORDER BY friendCount DESC

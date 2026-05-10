@@ -1,6 +1,0 @@
----
-source: crates/cypher-sema/src/infer.rs
-expression: run(&stmt)
----
-diagnostics: 1
-  E5012: builtin `values` argument has type `Node` but expected `Map`

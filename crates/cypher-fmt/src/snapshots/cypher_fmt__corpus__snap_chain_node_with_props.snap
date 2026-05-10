@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n:Person {name: 'Alice', age: 30}) RETURN n\")"
----
-MATCH (n:Person {name: 'Alice', age: 30})
-RETURN n

@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/tests/sema_diag.rs
+expression: "render_diags(src, \"e2009_arithmetic_type_mismatch.cypher\")"
+---
+error[E2009]: arithmetic operand must be numeric (`Int`, `Float`, or `Num`) but found `Bool`
+  ┌─ e2009_arithmetic_type_mismatch.cypher:1:1
+  │
+1 │ RETURN true + 1
+  │ ^

@@ -1,6 +1,6 @@
 # fuzz_lexer-specific extras — lexical edge cases not covered by the
 # shared base. The lexer is driven by logos; these shapes target
-# byte-level branch conditions in crates/cypher-syntax/src/kind.rs and
+# byte-level branch conditions in crates/cyrs-syntax/src/kind.rs and
 # the escape-handling paths in the string-literal rules.
 #
 # Note: libFuzzer's dictionary parser only accepts \xNN, \\, and \"

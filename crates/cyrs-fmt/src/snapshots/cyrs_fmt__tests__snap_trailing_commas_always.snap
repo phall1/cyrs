@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "format_with(\"MATCH (n) RETURN n.name, n.age, n.id\", &opts).unwrap()"
+---
+MATCH (n)
+RETURN n.name, n.age, n.id

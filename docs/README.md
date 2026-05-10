@@ -19,8 +19,8 @@ to bottom when a spec is relevant to the work at hand.
   `cypher-project.toml` workspace manifest: members, dialect defaults,
   lint levels, schema wiring.
 - [`specs/0004-interop-surfaces.md`](specs/0004-interop-surfaces.md) —
-  Interop surfaces: `cypher-wasm` (WASM + Monaco), `cypher-ffi` (stable C
-  ABI + cbindgen), `cypher-py` (PyO3 wheel), LSP-Web transport, and the
+  Interop surfaces: `cyrs-wasm` (WASM + Monaco), `cyrs-ffi` (stable C
+  ABI + cbindgen), `cyrs-py` (PyO3 wheel), LSP-Web transport, and the
   tree-sitter parity contract; pins stability commitments for each.
 
 ## Conventions

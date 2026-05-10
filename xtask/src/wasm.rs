@@ -6,8 +6,8 @@
 //!
 //! 1. `cargo build -p cyrs-wasm --target wasm32-unknown-unknown --release`
 //! 2. `wasm-bindgen --target web --out-dir <pkg> <artifact>.wasm`
-//! 3. `wasm-opt -Os <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm`
-//! 4. `brotli -q 11 <pkg>/cypher_wasm_bg.wasm -o <pkg>/cypher_wasm_bg.wasm.br`
+//! 3. `wasm-opt -Os <pkg>/cyrs_wasm_bg.wasm -o <pkg>/cyrs_wasm_bg.wasm`
+//! 4. `brotli -q 11 <pkg>/cyrs_wasm_bg.wasm -o <pkg>/cyrs_wasm_bg.wasm.br`
 //!
 //! The `cyrs-lsp` (LSP-Web) pipeline is a sibling with a different
 //! target directory, `--target no-modules` for use inside a classic
@@ -22,12 +22,12 @@
 //! so the size gate holds in aggregate.
 //!
 //! `wasm-smoke` is identical except it drives `wasm-pack test`
-//! (feature-gated behind `wasm-smoke` in `cypher-wasm/Cargo.toml`) and
+//! (feature-gated behind `wasm-smoke` in `cyrs-wasm/Cargo.toml`) and
 //! again is a skip if `wasm-pack` is not on PATH.
 //!
 //! The gate: when the full pipeline runs, the brotli-compressed
-//! artifact must be ≤ 2 MB for cypher-wasm (spec 0004 §4.2) and ≤ 3 MB
-//! for cypher-lsp (spec 0004 §7, looser because LSP carries
+//! artifact must be ≤ 2 MB for cyrs-wasm (spec 0004 §4.2) and ≤ 3 MB
+//! for cyrs-lsp (spec 0004 §7, looser because LSP carries
 //! lsp-types).
 
 #![allow(clippy::uninlined_format_args)]
@@ -62,13 +62,13 @@ pub fn build() -> Result<()> {
         );
         return Ok(());
     };
-    let pkg_dir = workspace.join("crates/cypher-wasm/pkg");
+    let pkg_dir = workspace.join("crates/cyrs-wasm/pkg");
     std::fs::create_dir_all(&pkg_dir)?;
     let wasm_path = workspace
         .join("target")
         .join("wasm32-unknown-unknown")
         .join("release")
-        .join("cypher_wasm.wasm");
+        .join("cyrs_wasm.wasm");
     if !wasm_path.is_file() {
         bail!("wasm artifact not found at {}", wasm_path.display());
     }
@@ -100,8 +100,8 @@ pub fn build() -> Result<()> {
 pub fn size() -> Result<()> {
     build()?;
     let workspace = workspace_root();
-    let pkg_dir = workspace.join("crates/cypher-wasm/pkg");
-    let bg = pkg_dir.join("cypher_wasm_bg.wasm");
+    let pkg_dir = workspace.join("crates/cyrs-wasm/pkg");
+    let bg = pkg_dir.join("cyrs_wasm_bg.wasm");
     if !bg.is_file() {
         println!(
             "[xtask wasm-size] no {} on disk (wasm-bindgen skipped); \
@@ -139,7 +139,7 @@ pub fn size() -> Result<()> {
         );
         return Ok(());
     };
-    let br = pkg_dir.join("cypher_wasm_bg.wasm.br");
+    let br = pkg_dir.join("cyrs_wasm_bg.wasm.br");
     if br.exists() {
         std::fs::remove_file(&br)?;
     }
@@ -165,7 +165,7 @@ pub fn size() -> Result<()> {
     );
     if size > SIZE_LIMIT_BYTES {
         bail!(
-            "cypher-wasm brotli artifact {size} bytes exceeds 2 MB cap ({SIZE_LIMIT_BYTES} bytes) — see spec 0004 §4.2"
+            "cyrs-wasm brotli artifact {size} bytes exceeds 2 MB cap ({SIZE_LIMIT_BYTES} bytes) — see spec 0004 §4.2"
         );
     }
     println!("[xtask wasm-size] OK");
@@ -185,7 +185,7 @@ pub fn smoke() -> Result<()> {
         return Ok(());
     };
     let workspace = workspace_root();
-    let crate_dir = workspace.join("crates/cypher-wasm");
+    let crate_dir = workspace.join("crates/cyrs-wasm");
     println!(
         "==> (cd {} && wasm-pack test --headless --chrome --features wasm-smoke)",
         crate_dir.display()
@@ -229,7 +229,7 @@ pub fn lsp_web_build() -> Result<()> {
         .join("target")
         .join("wasm32-unknown-unknown")
         .join("release")
-        .join("cypher_lsp.wasm");
+        .join("cyrs_lsp.wasm");
     if !wasm_path.is_file() {
         bail!("lsp wasm artifact not found at {}", wasm_path.display());
     }
@@ -254,7 +254,7 @@ pub fn lsp_web_build() -> Result<()> {
 
     // Optional -Os + brotli pass, mirrors `size()` above but with the
     // LSP-Web limit.
-    let bg = pkg_dir.join("cypher_lsp_bg.wasm");
+    let bg = pkg_dir.join("cyrs_lsp_bg.wasm");
     if !bg.is_file() {
         println!(
             "[xtask lsp-web-build] no {} on disk (wasm-bindgen skipped); \
@@ -292,7 +292,7 @@ pub fn lsp_web_build() -> Result<()> {
         );
         return Ok(());
     };
-    let br = pkg_dir.join("cypher_lsp_bg.wasm.br");
+    let br = pkg_dir.join("cyrs_lsp_bg.wasm.br");
     if br.exists() {
         std::fs::remove_file(&br)?;
     }
@@ -318,7 +318,7 @@ pub fn lsp_web_build() -> Result<()> {
     );
     if size > LSP_SIZE_LIMIT_BYTES {
         bail!(
-            "cypher-lsp (web-lsp) brotli artifact {size} bytes exceeds 3 MB cap ({LSP_SIZE_LIMIT_BYTES} bytes) — see spec 0004 §7"
+            "cyrs-lsp (web-lsp) brotli artifact {size} bytes exceeds 3 MB cap ({LSP_SIZE_LIMIT_BYTES} bytes) — see spec 0004 §7"
         );
     }
     println!("[xtask lsp-web-build] OK");
@@ -362,7 +362,7 @@ fn run_cargo_wasm(workspace: &Path) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "cargo build for cypher-wasm (wasm32) exited with {}",
+        "cargo build for cyrs-wasm (wasm32) exited with {}",
         output.status
     );
 }
@@ -407,7 +407,7 @@ fn run_cargo_wasm_lsp(workspace: &Path) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "cargo build for cypher-lsp (wasm32 --features web-lsp) exited with {}",
+        "cargo build for cyrs-lsp (wasm32 --features web-lsp) exited with {}",
         output.status
     );
 }

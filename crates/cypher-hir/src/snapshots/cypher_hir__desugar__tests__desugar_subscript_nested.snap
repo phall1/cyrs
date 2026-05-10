@@ -1,5 +1,0 @@
----
-source: crates/cypher-hir/src/desugar.rs
-expression: render_expr(&expr)
----
-Prop(Prop(Var(0).x).y)

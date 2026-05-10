@@ -33,11 +33,11 @@
 #![deny(unreachable_patterns)]
 #![deny(missing_docs)]
 
-// ── cypher-plan ───────────────────────────────────────────────────────────────
+// ── cyrs-plan ───────────────────────────────────────────────────────────────
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::Direction`].
-pub fn touch_plan_direction(d: &cypher_plan::Direction) {
-    use cypher_plan::Direction;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::Direction`].
+pub fn touch_plan_direction(d: &cyrs_plan::Direction) {
+    use cyrs_plan::Direction;
     match d {
         Direction::Outgoing => (),
         Direction::Incoming => (),
@@ -46,9 +46,9 @@ pub fn touch_plan_direction(d: &cypher_plan::Direction) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::RelLength`].
-pub fn touch_plan_rel_length(r: &cypher_plan::RelLength) {
-    use cypher_plan::RelLength;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::RelLength`].
+pub fn touch_plan_rel_length(r: &cyrs_plan::RelLength) {
+    use cyrs_plan::RelLength;
     match r {
         RelLength::Single => (),
         RelLength::Variable { .. } => (),
@@ -56,9 +56,9 @@ pub fn touch_plan_rel_length(r: &cypher_plan::RelLength) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::UnionKind`].
-pub fn touch_plan_union_kind(u: &cypher_plan::UnionKind) {
-    use cypher_plan::UnionKind;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::UnionKind`].
+pub fn touch_plan_union_kind(u: &cyrs_plan::UnionKind) {
+    use cyrs_plan::UnionKind;
     match u {
         UnionKind::All => (),
         UnionKind::Distinct => (),
@@ -66,9 +66,9 @@ pub fn touch_plan_union_kind(u: &cypher_plan::UnionKind) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::SortDir`].
-pub fn touch_plan_sort_dir(s: &cypher_plan::SortDir) {
-    use cypher_plan::SortDir;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::SortDir`].
+pub fn touch_plan_sort_dir(s: &cyrs_plan::SortDir) {
+    use cyrs_plan::SortDir;
     match s {
         SortDir::Asc => (),
         SortDir::Desc => (),
@@ -76,9 +76,9 @@ pub fn touch_plan_sort_dir(s: &cypher_plan::SortDir) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::BinOp`].
-pub fn touch_plan_bin_op(b: &cypher_plan::BinOp) {
-    use cypher_plan::BinOp;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::BinOp`].
+pub fn touch_plan_bin_op(b: &cyrs_plan::BinOp) {
+    use cyrs_plan::BinOp;
     match b {
         BinOp::Add => (),
         BinOp::Sub => (),
@@ -105,9 +105,9 @@ pub fn touch_plan_bin_op(b: &cypher_plan::BinOp) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::UnaryOp`].
-pub fn touch_plan_unary_op(u: &cypher_plan::UnaryOp) {
-    use cypher_plan::UnaryOp;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::UnaryOp`].
+pub fn touch_plan_unary_op(u: &cyrs_plan::UnaryOp) {
+    use cyrs_plan::UnaryOp;
     match u {
         UnaryOp::Neg => (),
         UnaryOp::Not => (),
@@ -115,9 +115,9 @@ pub fn touch_plan_unary_op(u: &cypher_plan::UnaryOp) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::ListPredKind`].
-pub fn touch_plan_list_pred_kind(k: &cypher_plan::ListPredKind) {
-    use cypher_plan::ListPredKind;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::ListPredKind`].
+pub fn touch_plan_list_pred_kind(k: &cyrs_plan::ListPredKind) {
+    use cyrs_plan::ListPredKind;
     match k {
         ListPredKind::Any => (),
         ListPredKind::All => (),
@@ -127,9 +127,9 @@ pub fn touch_plan_list_pred_kind(k: &cypher_plan::ListPredKind) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::ReadOp`].
-pub fn touch_plan_read_op(op: &cypher_plan::ReadOp) {
-    use cypher_plan::ReadOp;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::ReadOp`].
+pub fn touch_plan_read_op(op: &cyrs_plan::ReadOp) {
+    use cyrs_plan::ReadOp;
     match op {
         ReadOp::Source { .. } => (),
         ReadOp::Expand { .. } => (),
@@ -148,9 +148,9 @@ pub fn touch_plan_read_op(op: &cypher_plan::ReadOp) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::WriteOp`].
-pub fn touch_plan_write_op(op: &cypher_plan::WriteOp) {
-    use cypher_plan::WriteOp;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::WriteOp`].
+pub fn touch_plan_write_op(op: &cyrs_plan::WriteOp) {
+    use cyrs_plan::WriteOp;
     match op {
         WriteOp::CreateNode { .. } => (),
         WriteOp::CreateRel { .. } => (),
@@ -165,9 +165,9 @@ pub fn touch_plan_write_op(op: &cypher_plan::WriteOp) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_plan::Expr`].
-pub fn touch_plan_expr(e: &cypher_plan::Expr) {
-    use cypher_plan::Expr;
+/// Wildcard-tolerant exhaustive match on [`cyrs_plan::Expr`].
+pub fn touch_plan_expr(e: &cyrs_plan::Expr) {
+    use cyrs_plan::Expr;
     match e {
         Expr::Null => (),
         Expr::Bool(_) => (),
@@ -193,11 +193,11 @@ pub fn touch_plan_expr(e: &cypher_plan::Expr) {
     }
 }
 
-// ── cypher-hir ────────────────────────────────────────────────────────────────
+// ── cyrs-hir ────────────────────────────────────────────────────────────────
 
-/// Wildcard-tolerant exhaustive match on [`cypher_hir::Direction`].
-pub fn touch_hir_direction(d: &cypher_hir::Direction) {
-    use cypher_hir::Direction;
+/// Wildcard-tolerant exhaustive match on [`cyrs_hir::Direction`].
+pub fn touch_hir_direction(d: &cyrs_hir::Direction) {
+    use cyrs_hir::Direction;
     match d {
         Direction::Outgoing => (),
         Direction::Incoming => (),
@@ -206,9 +206,9 @@ pub fn touch_hir_direction(d: &cypher_hir::Direction) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_hir::RelLength`].
-pub fn touch_hir_rel_length(r: &cypher_hir::RelLength) {
-    use cypher_hir::RelLength;
+/// Wildcard-tolerant exhaustive match on [`cyrs_hir::RelLength`].
+pub fn touch_hir_rel_length(r: &cyrs_hir::RelLength) {
+    use cyrs_hir::RelLength;
     match r {
         RelLength::Single => (),
         RelLength::Variable { .. } => (),
@@ -216,9 +216,9 @@ pub fn touch_hir_rel_length(r: &cypher_hir::RelLength) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_hir::ListPredKind`].
-pub fn touch_hir_list_pred_kind(k: &cypher_hir::ListPredKind) {
-    use cypher_hir::ListPredKind;
+/// Wildcard-tolerant exhaustive match on [`cyrs_hir::ListPredKind`].
+pub fn touch_hir_list_pred_kind(k: &cyrs_hir::ListPredKind) {
+    use cyrs_hir::ListPredKind;
     match k {
         ListPredKind::Any => (),
         ListPredKind::All => (),
@@ -228,11 +228,11 @@ pub fn touch_hir_list_pred_kind(k: &cypher_hir::ListPredKind) {
     }
 }
 
-// ── cypher-diag ───────────────────────────────────────────────────────────────
+// ── cyrs-diag ───────────────────────────────────────────────────────────────
 
-/// Wildcard-tolerant exhaustive match on [`cypher_diag::Severity`].
-pub fn touch_diag_severity(s: &cypher_diag::Severity) {
-    use cypher_diag::Severity;
+/// Wildcard-tolerant exhaustive match on [`cyrs_diag::Severity`].
+pub fn touch_diag_severity(s: &cyrs_diag::Severity) {
+    use cyrs_diag::Severity;
     match s {
         Severity::Error => (),
         Severity::Warning => (),
@@ -242,9 +242,9 @@ pub fn touch_diag_severity(s: &cypher_diag::Severity) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_diag::Applicability`].
-pub fn touch_diag_applicability(a: &cypher_diag::Applicability) {
-    use cypher_diag::Applicability;
+/// Wildcard-tolerant exhaustive match on [`cyrs_diag::Applicability`].
+pub fn touch_diag_applicability(a: &cyrs_diag::Applicability) {
+    use cyrs_diag::Applicability;
     match a {
         Applicability::MachineApplicable => (),
         Applicability::MaybeIncorrect => (),
@@ -254,11 +254,11 @@ pub fn touch_diag_applicability(a: &cypher_diag::Applicability) {
     }
 }
 
-// ── cypher-db ─────────────────────────────────────────────────────────────────
+// ── cyrs-db ─────────────────────────────────────────────────────────────────
 
-/// Wildcard-tolerant exhaustive match on [`cypher_db::DialectMode`].
-pub fn touch_db_dialect_mode(d: &cypher_db::DialectMode) {
-    use cypher_db::DialectMode;
+/// Wildcard-tolerant exhaustive match on [`cyrs_db::DialectMode`].
+pub fn touch_db_dialect_mode(d: &cyrs_db::DialectMode) {
+    use cyrs_db::DialectMode;
     match d {
         DialectMode::GqlAligned => (),
         DialectMode::OpenCypherV9 => (),
@@ -266,12 +266,12 @@ pub fn touch_db_dialect_mode(d: &cypher_db::DialectMode) {
     }
 }
 
-// ── cypher-lang-services ──────────────────────────────────────────────────────
+// ── cyrs-lang-services ──────────────────────────────────────────────────────
 
 /// Wildcard-tolerant exhaustive match on
-/// [`cypher_lang_services::CompletionItemKind`].
-pub fn touch_completion_item_kind(k: &cypher_lang_services::CompletionItemKind) {
-    use cypher_lang_services::CompletionItemKind;
+/// [`cyrs_lang_services::CompletionItemKind`].
+pub fn touch_completion_item_kind(k: &cyrs_lang_services::CompletionItemKind) {
+    use cyrs_lang_services::CompletionItemKind;
     match k {
         CompletionItemKind::Keyword => (),
         CompletionItemKind::Label => (),
@@ -283,9 +283,9 @@ pub fn touch_completion_item_kind(k: &cypher_lang_services::CompletionItemKind) 
 }
 
 /// Wildcard-tolerant exhaustive match on
-/// [`cypher_lang_services::SymbolKind`].
-pub fn touch_symbol_kind(k: &cypher_lang_services::SymbolKind) {
-    use cypher_lang_services::SymbolKind;
+/// [`cyrs_lang_services::SymbolKind`].
+pub fn touch_symbol_kind(k: &cyrs_lang_services::SymbolKind) {
+    use cyrs_lang_services::SymbolKind;
     match k {
         SymbolKind::Label => (),
         SymbolKind::RelType => (),
@@ -295,11 +295,11 @@ pub fn touch_symbol_kind(k: &cypher_lang_services::SymbolKind) {
     }
 }
 
-// ── cypher-schema ─────────────────────────────────────────────────────────────
+// ── cyrs-schema ─────────────────────────────────────────────────────────────
 
-/// Wildcard-tolerant exhaustive match on [`cypher_schema::Cardinality`].
-pub fn touch_schema_cardinality(c: &cypher_schema::Cardinality) {
-    use cypher_schema::Cardinality;
+/// Wildcard-tolerant exhaustive match on [`cyrs_schema::Cardinality`].
+pub fn touch_schema_cardinality(c: &cyrs_schema::Cardinality) {
+    use cyrs_schema::Cardinality;
     match c {
         Cardinality::OneToOne => (),
         Cardinality::OneToMany => (),
@@ -309,9 +309,9 @@ pub fn touch_schema_cardinality(c: &cypher_schema::Cardinality) {
     }
 }
 
-/// Wildcard-tolerant exhaustive match on [`cypher_schema::ProcMode`].
-pub fn touch_schema_proc_mode(m: &cypher_schema::ProcMode) {
-    use cypher_schema::ProcMode;
+/// Wildcard-tolerant exhaustive match on [`cyrs_schema::ProcMode`].
+pub fn touch_schema_proc_mode(m: &cyrs_schema::ProcMode) {
+    use cyrs_schema::ProcMode;
     match m {
         ProcMode::Read => (),
         ProcMode::Write => (),
@@ -331,22 +331,22 @@ mod tests {
 
     #[test]
     fn matchers_run_without_panicking() {
-        touch_plan_direction(&cypher_plan::Direction::Outgoing);
-        touch_plan_rel_length(&cypher_plan::RelLength::Single);
-        touch_plan_union_kind(&cypher_plan::UnionKind::All);
-        touch_plan_sort_dir(&cypher_plan::SortDir::Asc);
-        touch_plan_bin_op(&cypher_plan::BinOp::Add);
-        touch_plan_unary_op(&cypher_plan::UnaryOp::Neg);
-        touch_plan_list_pred_kind(&cypher_plan::ListPredKind::Any);
-        touch_hir_direction(&cypher_hir::Direction::Outgoing);
-        touch_hir_rel_length(&cypher_hir::RelLength::Single);
-        touch_hir_list_pred_kind(&cypher_hir::ListPredKind::Any);
-        touch_diag_severity(&cypher_diag::Severity::Error);
-        touch_diag_applicability(&cypher_diag::Applicability::Unspecified);
-        touch_db_dialect_mode(&cypher_db::DialectMode::GqlAligned);
-        touch_completion_item_kind(&cypher_lang_services::CompletionItemKind::Keyword);
-        touch_symbol_kind(&cypher_lang_services::SymbolKind::Label);
-        touch_schema_cardinality(&cypher_schema::Cardinality::OneToOne);
-        touch_schema_proc_mode(&cypher_schema::ProcMode::Read);
+        touch_plan_direction(&cyrs_plan::Direction::Outgoing);
+        touch_plan_rel_length(&cyrs_plan::RelLength::Single);
+        touch_plan_union_kind(&cyrs_plan::UnionKind::All);
+        touch_plan_sort_dir(&cyrs_plan::SortDir::Asc);
+        touch_plan_bin_op(&cyrs_plan::BinOp::Add);
+        touch_plan_unary_op(&cyrs_plan::UnaryOp::Neg);
+        touch_plan_list_pred_kind(&cyrs_plan::ListPredKind::Any);
+        touch_hir_direction(&cyrs_hir::Direction::Outgoing);
+        touch_hir_rel_length(&cyrs_hir::RelLength::Single);
+        touch_hir_list_pred_kind(&cyrs_hir::ListPredKind::Any);
+        touch_diag_severity(&cyrs_diag::Severity::Error);
+        touch_diag_applicability(&cyrs_diag::Applicability::Unspecified);
+        touch_db_dialect_mode(&cyrs_db::DialectMode::GqlAligned);
+        touch_completion_item_kind(&cyrs_lang_services::CompletionItemKind::Keyword);
+        touch_symbol_kind(&cyrs_lang_services::SymbolKind::Label);
+        touch_schema_cardinality(&cyrs_schema::Cardinality::OneToOne);
+        touch_schema_proc_mode(&cyrs_schema::ProcMode::Read);
     }
 }

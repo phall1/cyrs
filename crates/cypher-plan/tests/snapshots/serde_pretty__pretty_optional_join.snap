@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/serde_pretty.rs
-expression: pretty(&plan)
----
-OptionalJoin
-  Source (:Person AS $0)
-  Source (:Post AS $1)

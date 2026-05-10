@@ -9,7 +9,7 @@
 # fuzz/dicts/<target>.dict embed this content plus target-specific extras.
 # Run `fuzz/dicts/regen.sh` after editing this file to refresh them.
 #
-# Regeneration: keep in sync with crates/cypher-syntax/src/kind.rs.
+# Regeneration: keep in sync with crates/cyrs-syntax/src/kind.rs.
 # Every `*_KW` variant in that file MUST appear below; see
 # docs/fuzz-runbook.md for the refresh procedure.
 #

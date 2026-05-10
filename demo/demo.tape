@@ -1,10 +1,10 @@
-# cypher-lsp demo tape.
+# cyrs-lsp demo tape.
 #
 # Record with:
 #   vhs demo/demo.tape
 #
 # Produces demo/demo.gif. The tape assumes it runs from the workspace
-# root. It (re)builds cypher-lsp first so the nvim config can locate
+# root. It (re)builds cyrs-lsp first so the nvim config can locate
 # `target/debug/cypher-lsp`.
 
 Output demo/demo.gif
@@ -19,7 +19,7 @@ Set Theme "Catppuccin Mocha"
 # ---------------------------------------------------------------------
 # Build (no-op when already compiled).
 # ---------------------------------------------------------------------
-Type "cargo build -p cypher-lsp --quiet"
+Type "cargo build -p cyrs-lsp --quiet"
 Enter
 Sleep 2s
 
@@ -51,7 +51,7 @@ Sleep 2500ms
 Escape
 Type ":e demo/samples/needs_fmt.cyp"
 Enter
-# Give the filetype autocmd time to spin up a fresh cypher-lsp client
+# Give the filetype autocmd time to spin up a fresh cyrs-lsp client
 # for the new buffer before BufWritePre fires.
 Sleep 3s
 

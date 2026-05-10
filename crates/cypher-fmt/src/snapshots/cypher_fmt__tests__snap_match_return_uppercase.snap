@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"match (n) return n\")"
----
-MATCH (n)
-RETURN n

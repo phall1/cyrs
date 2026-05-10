@@ -9,10 +9,10 @@ at-scale perf suite (cy-y6a).
 
 | Bench file | Measures |
 |---|---|
-| `benches/bench_parse.rs` | `cypher_syntax::parse` — lexer + recovering CST parser |
-| `benches/bench_format.rs` | `cypher_fmt::format` — CST-driven formatter |
-| `benches/bench_sema.rs` | `cypher_sema::analyse` — semantic analysis (schema-free) |
-| `benches/bench_plan.rs` | `cypher_plan::lower::lower_statement` — HIR → logical plan |
+| `benches/bench_parse.rs` | `cyrs_syntax::parse` — lexer + recovering CST parser |
+| `benches/bench_format.rs` | `cyrs_fmt::format` — CST-driven formatter |
+| `benches/bench_sema.rs` | `cyrs_sema::analyse` — semantic analysis (schema-free) |
+| `benches/bench_plan.rs` | `cyrs_plan::lower::lower_statement` — HIR → logical plan |
 | `benches/bench_incremental.rs` | Long-horizon RSS-stability workload (agent + LSP churn) |
 | `benches/bench_lsp_completion.rs` | End-to-end LSP completion round-trip (p95 ≤ 25 ms) |
 
@@ -25,7 +25,7 @@ See `.github/workflows/nightly-benches.yml`.
 | `benches/large_file.rs` | 10 k-line parse + HIR-lower + diagnose, p95 budgets in `large_file.budget.toml` |
 | `benches/bench_incremental_edit.rs` | 1 k single-char edits in a 1 k-line fixture; super-linear-regression gate |
 | `benches/bench_workspace_fan.rs` | 100-file workspace `cypher check <dir>` sweep — warm-up budget + steady-state RSS ceiling |
-| `benches/bench_agent_throughput.rs` | 10 k JSON round trips against `cypher-agent`; ops/sec floor + p99 ceiling |
+| `benches/bench_agent_throughput.rs` | 10 k JSON round trips against `cyrs-agent`; ops/sec floor + p99 ceiling |
 | `benches/bench_incremental_24h.rs` | 24-hour RSS soak (weekly 4 h, on-demand 24 h) — slow-leak slope gate |
 
 ## Running locally

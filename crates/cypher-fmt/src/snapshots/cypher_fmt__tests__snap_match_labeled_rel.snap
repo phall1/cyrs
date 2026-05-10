@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n)-[r:KNOWS]->(m) RETURN n\")"
----
-MATCH (n)-[r:KNOWS]->(m)
-RETURN n

@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"\")"
+---
+SOURCE_FILE@0..0

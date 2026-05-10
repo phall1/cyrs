@@ -19,12 +19,12 @@ let span = Span::new(range.start().into(), range.end().into());
 
 ## Proposed shape
 
-`cypher-syntax` could expose a `TextRange` extension trait or a `pub
+`cyrs-syntax` could expose a `TextRange` extension trait or a `pub
 fn as_byte_range(r: TextRange) -> std::ops::Range<usize>` so embedders
 can interop with their own Span/Range types in one call.
 
 Alternatively, document the recommended conversion idiom in a
-README or `cypher-syntax::span` module doc.
+README or `cyrs-syntax::span` module doc.
 
 ## Why it matters for the embedder
 

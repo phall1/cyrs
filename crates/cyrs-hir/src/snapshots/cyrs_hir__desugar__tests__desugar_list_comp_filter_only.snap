@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-hir/src/desugar.rs
+expression: render_expr(&expr)
+---
+ListComp(var=1, iterable=Var(0), filter=BinOp(Gt, Var(1), Int(0)), map=Var(1))

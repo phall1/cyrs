@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-sema/src/kinds.rs
+expression: run(&stmt)
+---
+diagnostics: 0

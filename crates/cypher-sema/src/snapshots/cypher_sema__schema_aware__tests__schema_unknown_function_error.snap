@@ -1,6 +1,0 @@
----
-source: crates/cypher-sema/src/schema_aware.rs
-expression: "run(&stmt, &schema)"
----
-diagnostics: 1
-  E3006: unknown function `totally_unknown_fn`

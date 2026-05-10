@@ -1,7 +1,7 @@
 # editors/
 
 Editor integrations for cyrs. Each subdirectory is a standalone client
-that consumes the `cypher-lsp` binary published by `crates/cypher-lsp/`.
+that consumes the `cyrs-lsp` binary published by `crates/cyrs-lsp/`.
 Layout mirrors the `editors/code/` convention used by `rust-analyzer`.
 
 | Path | Editor | Notes |

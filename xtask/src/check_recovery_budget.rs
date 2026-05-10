@@ -2,22 +2,22 @@
 //! (bead cy-gkh, spec 0001 §10.2 + §17.3).
 //!
 //! The recovery-property test at
-//! `crates/cypher-syntax/tests/recovery_properties.rs` is the quality gate
+//! `crates/cyrs-syntax/tests/recovery_properties.rs` is the quality gate
 //! for parser error recovery in the `E0000..=E0999` range (spec §10.2):
 //! every recovery code must be exercised either directly by the property
 //! test (which asserts bounded diagnostics + locality for random prefixes
 //! of curated TCK sources) or indirectly by a compiletest UI fixture under
-//! `crates/cypher-syntax/tests/ui/syntax/`.
+//! `crates/cyrs-syntax/tests/ui/syntax/`.
 //!
 //! This gate flags any `E0xxx` code that is registered in the
-//! [`cypher-diag` registry][codes] **and** referenced from parser emit
+//! [`cyrs-diag` registry][codes] **and** referenced from parser emit
 //! sites, but does not appear in either the property test file or a UI
 //! fixture `.stderr`. The intent is to catch a PR that adds a recovery
 //! code without also adding the fixture or property-test input that
 //! exercises it — which would otherwise leave the code silently unexercised
 //! and drift out of the property-test's curated corpus.
 //!
-//! [codes]: ../../../crates/cypher-diag/src/codes.rs
+//! [codes]: ../../../crates/cyrs-diag/src/codes.rs
 //!
 //! # Scope
 //!
@@ -50,27 +50,27 @@ const SYNTAX_MAX: u16 = 999;
 
 /// Parser emit sites — these files reference recovery codes via
 /// `sc::EXPECTED_…` constants. The constants resolve to `u16` values in
-/// `crates/cypher-syntax/src/parser.rs`. This scan collects the *numeric*
+/// `crates/cyrs-syntax/src/parser.rs`. This scan collects the *numeric*
 /// codes emitted by the parser; anything registered in the `DiagCode`
 /// enum but never emitted here is not in scope.
 const PARSER_EMIT_SITES: &[&str] = &[
-    "crates/cypher-syntax/src/grammar/clause.rs",
-    "crates/cypher-syntax/src/grammar/expression.rs",
-    "crates/cypher-syntax/src/grammar/pattern.rs",
-    "crates/cypher-syntax/src/grammar/statement.rs",
-    "crates/cypher-syntax/src/grammar/mod.rs",
-    "crates/cypher-syntax/src/parser.rs",
+    "crates/cyrs-syntax/src/grammar/clause.rs",
+    "crates/cyrs-syntax/src/grammar/expression.rs",
+    "crates/cyrs-syntax/src/grammar/pattern.rs",
+    "crates/cyrs-syntax/src/grammar/statement.rs",
+    "crates/cyrs-syntax/src/grammar/mod.rs",
+    "crates/cyrs-syntax/src/parser.rs",
 ];
 
 /// Recovery-property test file (bead cy-gkh / §17.3). Codes referenced
 /// here count as exercised by the property gate regardless of whether a
 /// UI fixture exists.
-const RECOVERY_PROPERTY_TEST: &str = "crates/cypher-syntax/tests/recovery_properties.rs";
+const RECOVERY_PROPERTY_TEST: &str = "crates/cyrs-syntax/tests/recovery_properties.rs";
 
 /// UI fixture root. Every `.stderr` sidecar under this directory is
 /// scanned for `E00xx` mentions; a code whose stderr contains `E00xx`
 /// counts as exercised by the compiletest harness.
-const UI_SYNTAX_DIR: &str = "crates/cypher-syntax/tests/ui/syntax";
+const UI_SYNTAX_DIR: &str = "crates/cyrs-syntax/tests/ui/syntax";
 
 /// Entry point for `cargo xtask check-recovery-budget`.
 ///
@@ -134,7 +134,7 @@ pub fn run() -> Result<()> {
 /// value by grepping `parser.rs` for its declaration.
 fn scan_parser_emit_sites(root: &Path) -> Result<BTreeSet<u16>> {
     // First pass: build a name → numeric map from the constants file.
-    let parser_rs = root.join("crates/cypher-syntax/src/parser.rs");
+    let parser_rs = root.join("crates/cyrs-syntax/src/parser.rs");
     let parser_src = std::fs::read_to_string(&parser_rs)
         .with_context(|| format!("reading {}", parser_rs.display()))?;
     // ASCII-only regex classes so the regex crate stays slim (default

@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WHERE n.a > 1 AND n.b < 2 RETURN n\")"
+---
+MATCH (n)
+WHERE n.a > 1 AND n.b < 2
+RETURN n

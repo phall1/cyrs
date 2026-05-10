@@ -1,0 +1,33 @@
+[package]
+name         = "cyrs-testkit"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+description  = "Dev-only test helpers for cyrs; not re-exported from the main `cypher` meta-crate (spec 0001 §17.6)."
+publish      = false
+
+[lib]
+name = "cyrs_testkit"
+
+[dependencies]
+cyrs-syntax = { workspace = true }
+cyrs-ast    = { workspace = true }
+cyrs-hir    = { workspace = true }
+cyrs-sema   = { workspace = true }
+cyrs-schema = { workspace = true }
+cyrs-diag   = { workspace = true }
+cyrs-plan   = { workspace = true }
+cyrs-fmt    = { workspace = true }
+cyrs-db     = { workspace = true }
+insta         = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile      = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+smol_str      = { workspace = true }
+
+[lints]
+workspace = true

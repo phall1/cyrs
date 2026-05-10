@@ -1,5 +1,0 @@
----
-source: crates/cypher-hir/src/desugar.rs
-expression: where_clause_rendered
----
-Where(BinOp(And, BinOp(Eq, Prop(Var(0).name), String("Alice")), BinOp(Eq, Prop(Var(0).age), Int(30))))

@@ -1,9 +1,0 @@
----
-source: crates/cypher-sema/tests/sema_diag.rs
-expression: "render_diags_with_schema(src, \"e3002_unknown_rel_type.cypher\", &schema)"
----
-error[E3002]: unknown relationship type `:GHOST_REL`
-  ┌─ e3002_unknown_rel_type.cypher:1:10
-  │
-1 │ MATCH (a)-[r:GHOST_REL]->(b) RETURN r
-  │          ^^^^^^^^^^^^^^^^

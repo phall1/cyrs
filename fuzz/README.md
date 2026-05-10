@@ -4,11 +4,11 @@ Seven libFuzzer / cargo-fuzz targets exercising each pipeline stage:
 
 | Target | Exercises |
 |---|---|
-| `fuzz_lexer` | `cypher_syntax::lex` — token stream from arbitrary bytes. |
-| `fuzz_parser` | `cypher_syntax::parse` — recovering parser on arbitrary bytes. |
-| `fuzz_formatter` | `cypher_fmt::format` — idempotence + no-panic on arbitrary input. |
-| `fuzz_sema` | `cypher_hir::lower::lower_statement` + `cypher_sema::resolve` — name-resolution + kind checks. |
-| `fuzz_plan` | `cypher_plan::lower::lower_statement` — HIR → plan lowering. |
+| `fuzz_lexer` | `cyrs_syntax::lex` — token stream from arbitrary bytes. |
+| `fuzz_parser` | `cyrs_syntax::parse` — recovering parser on arbitrary bytes. |
+| `fuzz_formatter` | `cyrs_fmt::format` — idempotence + no-panic on arbitrary input. |
+| `fuzz_sema` | `cyrs_hir::lower::lower_statement` + `cyrs_sema::resolve` — name-resolution + kind checks. |
+| `fuzz_plan` | `cyrs_plan::lower::lower_statement` — HIR → plan lowering. |
 | `fuzz_structured_parse` | grammar-aware generator → parse + fmt + sema (cy-h07.1). |
 | `fmt_parse_roundtrip` | differential `parse(s) == parse(fmt(s))` structural equality (cy-h07, P17.3.4). |
 

@@ -1,7 +1,7 @@
 //! `cargo xtask tree-sitter-parity` — interop gate for the
 //! `tree-sitter-cypher` grammar (bead cy-od5.1).
 //!
-//! The Rust parser in `cypher-syntax` is authoritative, but we maintain a
+//! The Rust parser in `cyrs-syntax` is authoritative, but we maintain a
 //! parallel tree-sitter grammar in `tree-sitter-cypher/` for editor
 //! integrations (Neovim, Helix, GitHub). This task keeps the two in
 //! lock-step by running every TCK v1 scenario through both parsers and
@@ -28,7 +28,7 @@ use anyhow::{Context, Result, anyhow, bail};
 pub fn run() -> Result<()> {
     let workspace = workspace_root();
     let grammar_dir = workspace.join("tree-sitter-cypher");
-    let tck_file = workspace.join("crates/cypher-tck/tck/v1.toml");
+    let tck_file = workspace.join("crates/cyrs-tck/tck/v1.toml");
 
     if !grammar_dir.is_dir() {
         bail!("tree-sitter-cypher/ not found at {}", grammar_dir.display());
@@ -129,7 +129,7 @@ struct Scenario {
 /// TCK-sourced scenario count independently from the supplement.
 const SUPPLEMENTARY_COUNT: usize = 12;
 
-/// Grammar-v1 scenarios that aren't yet in `crates/cypher-tck/tck/v1.toml`
+/// Grammar-v1 scenarios that aren't yet in `crates/cyrs-tck/tck/v1.toml`
 /// (this bead lives entirely inside `tree-sitter-cypher/` and cannot edit
 /// the TCK fixture). Each entry locks an expected parse outcome for a
 /// construct the tree-sitter grammar added in cy-h0p.

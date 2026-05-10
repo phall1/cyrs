@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"RETURN {name: 'Alice', age: 30} AS person\")"
+---
+RETURN {name: 'Alice', age: 30} AS person

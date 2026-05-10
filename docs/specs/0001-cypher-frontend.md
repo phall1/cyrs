@@ -17,15 +17,15 @@ change and the operator approval that unlocked it. The spec body is
 otherwise verbatim as of the last-locked date above.
 
 - **2026-04-22 — cy-wmc** (operator-approved in session, 2026-04-22). §3.1
-  crate table: add `cypher-project` to the allowed dependencies of
-  `cypher-lang-services` and `cypher-lsp`. Rationale: cy-o8c tranche 2
+  crate table: add `cyrs-project` to the allowed dependencies of
+  `cyrs-lang-services` and `cyrs-lsp`. Rationale: cy-o8c tranche 2
   (cross-file LSP navigation, bead cy-kkw) needs the workspace project
-  model inside the lang-services engine; making `cypher-lsp`'s edge to
-  `cypher-project` explicit keeps §3.1 the single source of truth even
-  though the dep is already reachable transitively via `cypher-lang-services`.
+  model inside the lang-services engine; making `cyrs-lsp`'s edge to
+  `cyrs-project` explicit keeps §3.1 the single source of truth even
+  though the dep is already reachable transitively via `cyrs-lang-services`.
   This amendment also reconciles §3.1 with AGENTS.md §3 by landing the
-  previously-implicit rows for `cypher-project` (spec 0003) and
-  `cypher-lang-services` (the shared LSP/agent engine described in §3.2);
+  previously-implicit rows for `cyrs-project` (spec 0003) and
+  `cyrs-lang-services` (the shared LSP/agent engine described in §3.2);
   those crates already exist under `crates/`, were documented in AGENTS.md §3,
   and are now mirrored here so the spec is authoritative.
 
@@ -140,46 +140,46 @@ C2.5. MSRV and toolchain pinning live in the cypher workspace's own
 
 | Crate            | Purpose                                                                              | Depends on                                          |
 | ---------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------- |
-| `cypher-syntax`  | Lexer, event-based recovering parser, lossless CST (rowan green/red tree), SyntaxKind | `rowan`, `logos`, `smol_str`                        |
-| `cypher-ast`     | Typed AST wrappers over CST nodes, generated from an `ungrammar`-style description    | `cypher-syntax`                                     |
-| `cypher-hir`     | Lowered HIR, name resolution, scope graph, desugaring                                 | `cypher-ast`, `cypher-syntax`                       |
-| `cypher-sema`    | Semantic passes (schema-free + schema-aware), type system, aggregation scope          | `cypher-hir`, `cypher-schema`                       |
-| `cypher-schema`  | `SchemaProvider` trait, schema types, function/procedure catalog types                | `cypher-syntax` (for types only)                    |
-| `cypher-diag`    | Diagnostic type, code registry, severity, labels, fix-its, rendering backends         | `cypher-syntax`                                     |
-| `cypher-plan`    | Read-plan and write-plan logical IR, lowering from HIR                                | `cypher-hir`                                        |
-| `cypher-fmt`     | CST-driven formatter                                                                 | `cypher-syntax`                                     |
-| `cypher-db`      | Salsa-based incremental analysis database tying the above                            | `cypher-syntax`, `cypher-hir`, `cypher-sema`, `cypher-plan`, `cypher-schema`, `cypher-diag`, `salsa` |
-| `cypher-project` | Workspace project manifest loader (`cypher-project.toml`): members, dialect defaults, lint levels, schema wiring (spec 0003) | `cypher-schema`, `smol_str`, `thiserror`, `serde`, `toml`, `globset`, `walkdir` |
-| `cypher-lang-services` | Shared completion / hover / rewrite engines keyed on `(db, file_id, byte-offset)`; thin adapter target for LSP and agent | `cypher-db`, `cypher-hir`, `cypher-schema`, `cypher-sema`, `cypher-syntax`, `cypher-ast`, `cypher-fmt`, `cypher-project` |
-| `cypher-lsp`     | Language server binary (stdio + TCP)                                                 | `cypher-lang-services`, `cypher-db`, `cypher-diag`, `cypher-fmt`, `cypher-project`, `lsp-server`, `lsp-types` |
-| `cypher-agent`   | JSON-over-stdio agent API binary                                                     | `cypher-lang-services`, `cypher-db`, `cypher-diag`, `cypher-fmt`, `serde_json` |
-| `cypher-cli`     | CLI binary: `cypher {parse,check,fmt,explain,plan}`                                   | `cypher-db`, `cypher-diag`, `cypher-fmt`, `cypher-schema`, `cypher-project` |
-| `cypher-tck`     | openCypher TCK harness                                                               | `cypher-db`                                         |
+| `cyrs-syntax`  | Lexer, event-based recovering parser, lossless CST (rowan green/red tree), SyntaxKind | `rowan`, `logos`, `smol_str`                        |
+| `cyrs-ast`     | Typed AST wrappers over CST nodes, generated from an `ungrammar`-style description    | `cyrs-syntax`                                     |
+| `cyrs-hir`     | Lowered HIR, name resolution, scope graph, desugaring                                 | `cyrs-ast`, `cyrs-syntax`                       |
+| `cyrs-sema`    | Semantic passes (schema-free + schema-aware), type system, aggregation scope          | `cyrs-hir`, `cyrs-schema`                       |
+| `cyrs-schema`  | `SchemaProvider` trait, schema types, function/procedure catalog types                | `cyrs-syntax` (for types only)                    |
+| `cyrs-diag`    | Diagnostic type, code registry, severity, labels, fix-its, rendering backends         | `cyrs-syntax`                                     |
+| `cyrs-plan`    | Read-plan and write-plan logical IR, lowering from HIR                                | `cyrs-hir`                                        |
+| `cyrs-fmt`     | CST-driven formatter                                                                 | `cyrs-syntax`                                     |
+| `cyrs-db`      | Salsa-based incremental analysis database tying the above                            | `cyrs-syntax`, `cyrs-hir`, `cyrs-sema`, `cyrs-plan`, `cyrs-schema`, `cyrs-diag`, `salsa` |
+| `cyrs-project` | Workspace project manifest loader (`cypher-project.toml`): members, dialect defaults, lint levels, schema wiring (spec 0003) | `cyrs-schema`, `smol_str`, `thiserror`, `serde`, `toml`, `globset`, `walkdir` |
+| `cyrs-lang-services` | Shared completion / hover / rewrite engines keyed on `(db, file_id, byte-offset)`; thin adapter target for LSP and agent | `cyrs-db`, `cyrs-hir`, `cyrs-schema`, `cyrs-sema`, `cyrs-syntax`, `cyrs-ast`, `cyrs-fmt`, `cyrs-project` |
+| `cyrs-lsp`     | Language server binary (stdio + TCP)                                                 | `cyrs-lang-services`, `cyrs-db`, `cyrs-diag`, `cyrs-fmt`, `cyrs-project`, `lsp-server`, `lsp-types` |
+| `cyrs-agent`   | JSON-over-stdio agent API binary                                                     | `cyrs-lang-services`, `cyrs-db`, `cyrs-diag`, `cyrs-fmt`, `serde_json` |
+| `cyrs-cli`     | CLI binary: `cypher {parse,check,fmt,explain,plan}`                                   | `cyrs-db`, `cyrs-diag`, `cyrs-fmt`, `cyrs-schema`, `cyrs-project` |
+| `cyrs-tck`     | openCypher TCK harness                                                               | `cyrs-db`                                         |
 | `cypher`         | Meta-crate re-exporting the library surface for convenience                          | all non-binary crates above                         |
 
 ### 3.2. Dependency rules
 
 - Any crate may depend on its left-of-column predecessors only (roughly: no
   cycles, semantic layering).
-- No crate above `cypher-db` may depend on `salsa`. Incrementality is an
+- No crate above `cyrs-db` may depend on `salsa`. Incrementality is an
   integration concern; each pure layer must be usable without it.
-- Binary crates (`cypher-lsp`, `cypher-agent`, `cypher-cli`) are thin shells
-  over `cypher-db`. No analysis logic lives in binaries.
-- Test-only code: `cypher-testkit` (not published) provides shared fixtures,
+- Binary crates (`cyrs-lsp`, `cyrs-agent`, `cyrs-cli`) are thin shells
+  over `cyrs-db`. No analysis logic lives in binaries.
+- Test-only code: `cyrs-testkit` (not published) provides shared fixtures,
   snapshot helpers, and the compiletest runner.
 
 ### 3.3. Rationale
 
 The split matches the consumer use cases directly. A library consumer that
 only wants to parse and format does not pull in `salsa`. A consumer building
-an IDE pulls `cypher-db` + `cypher-lsp`. A consumer building a query planner
-for their own graph store pulls `cypher-db` + their own executor. The meta-
+an IDE pulls `cyrs-db` + `cyrs-lsp`. A consumer building a query planner
+for their own graph store pulls `cyrs-db` + their own executor. The meta-
 crate `cypher` exists for the 90% case (parse-to-plan) where consumers want
 one dependency and care less about surface minimization.
 
 ---
 
-## 4. Syntax Layer (`cypher-syntax`)
+## 4. Syntax Layer (`cyrs-syntax`)
 
 ### 4.1. Lexer
 
@@ -251,10 +251,10 @@ primitives:
 For every grammar production, the spec-accompanying recovery table lists:
 which tokens are synchronization points, which tokens are "skip-and-recover",
 which tokens trigger virtual insertion. The table is a normative part of this
-spec and lives in `cypher-syntax/docs/recovery.md` (to be written as part of
+spec and lives in `cyrs-syntax/docs/recovery.md` (to be written as part of
 implementation).
 
-**Coverage invariant.** Every production named in `cypher-ast/cypher.ungrammar`
+**Coverage invariant.** Every production named in `cyrs-ast/cypher.ungrammar`
 MUST have an entry in `recovery.md`. Entries for productions that no longer
 exist in the grammar MUST be removed. This invariant is enforced structurally
 by `cargo xtask check-recovery`, which parses both files and fails with a
@@ -286,7 +286,7 @@ produces one CST per file, with `SyntaxKind::Statement` children. Trailing
 
 ---
 
-## 5. AST Layer (`cypher-ast`)
+## 5. AST Layer (`cyrs-ast`)
 
 ### 5.1. Wrappers, not owned values
 
@@ -317,7 +317,7 @@ the conversion function.
 
 ---
 
-## 6. Name Resolution & HIR (`cypher-hir`)
+## 6. Name Resolution & HIR (`cyrs-hir`)
 
 ### 6.1. HIR shape
 
@@ -388,7 +388,7 @@ errors at semantic analysis, not at name resolution.
 
 ---
 
-## 7. Semantic Analysis (`cypher-sema`)
+## 7. Semantic Analysis (`cyrs-sema`)
 
 ### 7.1. Two modes, one pipeline
 
@@ -408,7 +408,7 @@ diagnostic's surface which mode produced it except by its error code.
 
 ### 7.2. Type system
 
-Types, expressed in the `cypher_sema::Type` enum:
+Types, expressed in the `cyrs_sema::Type` enum:
 
 ```
 Type = Any
@@ -485,7 +485,7 @@ externally via `SemaOptions::parameter_hints` to typecheck in advance.
 
 ---
 
-## 8. Schema Provider (`cypher-schema`)
+## 8. Schema Provider (`cyrs-schema`)
 
 ### 8.1. Trait
 
@@ -609,7 +609,7 @@ spec may add `DialectMode::Neo4jCurrent`.
 
 ---
 
-## 10. Diagnostics (`cypher-diag`)
+## 10. Diagnostics (`cyrs-diag`)
 
 ### 10.1. Diagnostic type
 
@@ -642,14 +642,14 @@ pub struct Diagnostic {
 
 Codes are **stable**. Once assigned, a code's meaning cannot change. New
 checks get new codes; removed checks leave their code retired, never reused.
-A registry file `cypher-diag/src/codes.rs` is the source of truth; CI fails
+A registry file `cyrs-diag/src/codes.rs` is the source of truth; CI fails
 on duplicate codes or on codes referenced in tests but not registered.
 
 ### 10.3. Rendering backends
 
 - Plain-text (default, terminal with ANSI) — codespan-reporting under the
   hood.
-- JSON — one-object-per-diagnostic, stable field names, used by `cypher-agent`.
+- JSON — one-object-per-diagnostic, stable field names, used by `cyrs-agent`.
 - LSP — produced directly from `Diagnostic` via a small converter.
 - SARIF — deferred (trivial to add; not v1).
 
@@ -677,7 +677,7 @@ declaration that mismatched, etc.
 
 ---
 
-## 11. Incremental Query Database (`cypher-db`)
+## 11. Incremental Query Database (`cyrs-db`)
 
 ### 11.1. Choice: Salsa
 
@@ -721,7 +721,7 @@ one `Database` per process.
 
 ### 11.6. Memoization bounds
 
-Long-running embedders (`cypher-lsp`, `cypher-agent`) field many queries
+Long-running embedders (`cyrs-lsp`, `cyrs-agent`) field many queries
 over a single process lifetime. Unbounded Salsa memo tables leak. Three
 bounds are normative:
 
@@ -731,12 +731,12 @@ bounds are normative:
   `Database::options` at construction; not mutable after construction.
   Cheap queries (`ast`, `diagnostics`) are uncapped (their memo cost is
   dominated by their upstream, which is already capped).
-- **LSP FileId eviction.** `cypher-lsp` MUST evict a `FileId` on
+- **LSP FileId eviction.** `cyrs-lsp` MUST evict a `FileId` on
   `textDocument/didClose` when the document is not referenced by any
   open document. Eviction calls Salsa's input-removal API; memoized
   derived values keyed on that `FileId` are reclaimed on the next
   revision bump.
-- **Agent FileId reuse.** `cypher-agent` is stateless-per-call: each
+- **Agent FileId reuse.** `cyrs-agent` is stateless-per-call: each
   request carries `{text}` rather than a `FileId` handle. The server MUST
   intern all requests onto a single `FileId` per dialect (the text
   changes; the `FileId` does not), so memoization budget is bounded by
@@ -755,7 +755,7 @@ access patterns.
 
 ---
 
-## 12. Plan IR (`cypher-plan`)
+## 12. Plan IR (`cyrs-plan`)
 
 ### 12.1. Shape
 
@@ -824,12 +824,12 @@ execution time; the plan does not carry values.
 
 Consumers implement an executor trait (not defined in this crate; lives in
 the consumer's own code — this is the entire point of §2). A reference
-`mock-executor` lives in `cypher-testkit` for integration testing of plan
+`mock-executor` lives in `cyrs-testkit` for integration testing of plan
 lowering.
 
 ---
 
-## 13. Formatter (`cypher-fmt`)
+## 13. Formatter (`cyrs-fmt`)
 
 ### 13.1. CST-driven, not AST-driven
 
@@ -864,7 +864,7 @@ formatting in a range. This is test-suite-asserted.
 
 ---
 
-## 14. LSP Server (`cypher-lsp`)
+## 14. LSP Server (`cyrs-lsp`)
 
 ### 14.1. Transport
 
@@ -914,7 +914,7 @@ benchmark suite (§17.10).
 
 ---
 
-## 15. Agent JSON API (`cypher-agent`)
+## 15. Agent JSON API (`cyrs-agent`)
 
 ### 15.1. Wire protocol
 
@@ -954,7 +954,7 @@ consumer needs partial diagnostic delivery.
 
 ---
 
-## 16. CLI (`cypher-cli`)
+## 16. CLI (`cyrs-cli`)
 
 Binary name: `cypher`.
 
@@ -984,13 +984,13 @@ Coverage gate (§17.9) applies per-crate.
 
 ### 17.2. Snapshot tests (`insta`)
 
-- `cypher-syntax`: CST snapshots for every grammar production, both
+- `cyrs-syntax`: CST snapshots for every grammar production, both
   well-formed and error cases.
-- `cypher-ast`: AST pretty-print snapshots.
-- `cypher-hir`: HIR pretty-print snapshots with resolved-name overlay.
-- `cypher-sema`: diagnostic snapshots (rendered).
-- `cypher-plan`: plan-pretty snapshots.
-- `cypher-fmt`: formatter input/output pairs.
+- `cyrs-ast`: AST pretty-print snapshots.
+- `cyrs-hir`: HIR pretty-print snapshots with resolved-name overlay.
+- `cyrs-sema`: diagnostic snapshots (rendered).
+- `cyrs-plan`: plan-pretty snapshots.
+- `cyrs-fmt`: formatter input/output pairs.
 
 Snapshot corpus lives in `crates/<name>/tests/snapshots/`. Regeneration is
 a developer action (`cargo insta review`); CI rejects any unreviewed
@@ -1044,7 +1044,7 @@ full run. Any new panic on the nightly corpus is a blocking bug.
 Sanitizers: fuzz binaries built with ASan + UBSan. Found UB — even in
 dependencies — is a blocking bug.
 
-### 17.5. openCypher TCK conformance (`cypher-tck`)
+### 17.5. openCypher TCK conformance (`cyrs-tck`)
 
 The openCypher TCK is executed on every PR. We track conformance per
 feature tag; a green tag means every scenario under that tag passes.
@@ -1058,7 +1058,7 @@ v1 must not green-tag: `@CALL-SUBQUERY`, `@EXISTS-SUBQUERY`, `@LOAD-CSV`.
 Attempting them fails with the planned compatibility diagnostic codes
 from §10.2.
 
-### 17.6. Golden compiletest corpus (`cypher-testkit`)
+### 17.6. Golden compiletest corpus (`cyrs-testkit`)
 
 UI-test-style golden tests modelled on `rustc`'s `compiletest`. Each test
 is an input `.cypher` file paired with expected `.stderr` (diagnostic
@@ -1087,8 +1087,8 @@ oracle. Enabled under `cfg(feature = "diff-test")`.
 
 ### 17.8. Mutation testing (`cargo-mutants`)
 
-Run weekly on CI. Target ≥ 90% kill rate on `cypher-sema` and `cypher-hir`;
-≥ 85% on `cypher-syntax`; ≥ 80% on `cypher-plan`. Surviving mutants are
+Run weekly on CI. Target ≥ 90% kill rate on `cyrs-sema` and `cyrs-hir`;
+≥ 85% on `cyrs-syntax`; ≥ 80% on `cyrs-plan`. Surviving mutants are
 triaged; each is either converted into a test or explicitly annotated as
 "equivalent mutant" with justification.
 
@@ -1098,18 +1098,18 @@ Per-crate line coverage minimums:
 
 | Crate            | Minimum |
 | ---------------- | ------- |
-| `cypher-syntax`  | 90%     |
-| `cypher-ast`     | 90%     |
-| `cypher-hir`     | 90%     |
-| `cypher-sema`    | 95%     |
-| `cypher-schema`  | 95%     |
-| `cypher-diag`    | 90%     |
-| `cypher-plan`    | 90%     |
-| `cypher-fmt`     | 95%     |
-| `cypher-db`      | 85%     |
-| `cypher-lsp`     | 75%     |
-| `cypher-agent`   | 85%     |
-| `cypher-cli`     | 80%     |
+| `cyrs-syntax`  | 90%     |
+| `cyrs-ast`     | 90%     |
+| `cyrs-hir`     | 90%     |
+| `cyrs-sema`    | 95%     |
+| `cyrs-schema`  | 95%     |
+| `cyrs-diag`    | 90%     |
+| `cyrs-plan`    | 90%     |
+| `cyrs-fmt`     | 95%     |
+| `cyrs-db`      | 85%     |
+| `cyrs-lsp`     | 75%     |
+| `cyrs-agent`   | 85%     |
+| `cyrs-cli`     | 80%     |
 
 Lower on binaries because their hot path is integration-tested (§17.11);
 higher on semantic libraries because those are the correctness surface.
@@ -1189,8 +1189,8 @@ clean. Release workflow is `cargo xtask release`.
 
 Enforces the §4.3 coverage invariant. The subcommand:
 
-1. Parses `cypher-ast/cypher.ungrammar` into its production set.
-2. Parses `cypher-syntax/docs/recovery.md` into its entry set (entries are
+1. Parses `cyrs-ast/cypher.ungrammar` into its production set.
+2. Parses `cyrs-syntax/docs/recovery.md` into its entry set (entries are
    keyed by production name in stable H3 headings).
 3. Fails with a two-sided diff if either set contains names not in the
    other.
@@ -1274,7 +1274,7 @@ Each deferred item is a separate spec when taken up (0002, 0003, …).
 ## 21. Open Questions
 
 Q21.1. Should we ship a reference mock executor for `Plan` in a separate
-crate (`cypher-mock-executor`) or only in `cypher-testkit`? Default: in
+crate (`cypher-mock-executor`) or only in `cyrs-testkit`? Default: in
 testkit (we don't want people shipping our mock to prod). Flag for
 reconsideration after the Plan IR is stable.
 

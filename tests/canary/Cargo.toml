@@ -11,9 +11,9 @@ name = "cyrs_canary"
 path = "src/lib.rs"
 
 [dependencies]
-cyrs-plan = { path = "../../crates/cypher-plan" }
-cyrs-hir = { path = "../../crates/cypher-hir" }
-cyrs-diag = { path = "../../crates/cypher-diag" }
-cyrs-db = { path = "../../crates/cypher-db" }
-cyrs-lang-services = { path = "../../crates/cypher-lang-services" }
-cyrs-schema = { path = "../../crates/cypher-schema" }
+cyrs-plan = { path = "../../crates/cyrs-plan" }
+cyrs-hir = { path = "../../crates/cyrs-hir" }
+cyrs-diag = { path = "../../crates/cyrs-diag" }
+cyrs-db = { path = "../../crates/cyrs-db" }
+cyrs-lang-services = { path = "../../crates/cyrs-lang-services" }
+cyrs-schema = { path = "../../crates/cyrs-schema" }

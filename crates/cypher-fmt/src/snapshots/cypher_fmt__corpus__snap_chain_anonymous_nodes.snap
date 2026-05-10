@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (:Person)-[:KNOWS]->(:Person)-[:LIKES]->(m:Movie) RETURN m.title\")"
----
-MATCH (:Person)-[:KNOWS]->(:Person)-[:LIKES]->(m:Movie)
-RETURN m.title

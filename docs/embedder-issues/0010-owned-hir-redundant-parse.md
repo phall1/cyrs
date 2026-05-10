@@ -5,7 +5,7 @@
 
 ## Problem
 
-`cypher_hir::lower::lower_statement(src: &str) -> Statement` takes a
+`cyrs_hir::lower::lower_statement(src: &str) -> Statement` takes a
 `&str` and re-runs the syntax parse internally. Embedders that already
 have a `Parse` (because they extracted syntax errors from it first) end
 up paying the parse cost twice.
@@ -20,7 +20,7 @@ wrapper over a `lower_parse(&Parse)` primitive.
 ```rust
 pub fn lower_parse(parse: &Parse) -> Statement;
 pub fn lower_statement(src: &str) -> Statement {
-    lower_parse(&cypher_syntax::parse(src))
+    lower_parse(&cyrs_syntax::parse(src))
 }
 ```
 

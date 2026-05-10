@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n) RETURN n.price * n.quantity + n.tax AS total\")"
----
-MATCH (n)
-RETURN n.price * n.quantity + n.tax AS total

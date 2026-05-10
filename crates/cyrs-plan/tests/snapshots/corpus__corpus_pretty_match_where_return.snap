@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0.name AS name, $0.age AS age]
+  Filter (($0.age > 18))
+    Source (:Person AS $0)
