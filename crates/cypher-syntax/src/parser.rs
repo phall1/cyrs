@@ -75,6 +75,14 @@ impl Parse {
     pub fn errors(&self) -> &[SyntaxError] {
         &self.errors
     }
+
+    /// Construct a `Parse` from raw parts. Crate-private — used by the
+    /// incremental smart-path splicer (cy-li5) which builds a new green
+    /// tree via `replace_with` and supplies a re-derived error list.
+    #[cfg(feature = "incremental")]
+    pub(crate) fn from_parts(green: GreenNode, errors: Vec<SyntaxError>) -> Self {
+        Parse { green, errors }
+    }
 }
 
 /// Entry point. Parses a complete source file.
