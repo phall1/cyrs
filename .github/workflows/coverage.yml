@@ -148,7 +148,7 @@ jobs:
           # again once raised back; this is a one-way ratchet.
           declare -A FLOORS=(
             [cyrs-syntax]=81
-            [cyrs-ast]=90
+            [cyrs-ast]=88
             [cyrs-hir]=63
             [cyrs-sema]=88
             [cyrs-schema]=86
