@@ -797,6 +797,11 @@ pub enum WriteOp {
 }
 ```
 
+> **Coverage matrix (non-normative).** For an up-to-date map of which
+> Cypher write constructs lower into which `WriteOp` variants today, see
+> [`docs/plan-write-coverage.md`](../plan-write-coverage.md). The enum
+> surface above is locked; the matrix is a living document.
+
 ### 12.2. Expression IR
 
 A shared `Expr` enum reused by read and write plans. Fully resolved: every
