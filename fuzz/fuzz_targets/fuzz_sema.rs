@@ -1,4 +1,4 @@
-//! fuzz_sema — parses, lowers to HIR, then runs `cypher_sema::analyse`.
+//! fuzz_sema — parses, lowers to HIR, then runs `cyrs_sema::analyse`.
 //!
 //! Oracle: no panic; diagnostic spans lie within the input range (spec §17.4).
 
@@ -11,12 +11,12 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Lower to HIR (includes AST parse).
-    let stmt = cypher_hir::lower::lower_statement(s);
+    let stmt = cyrs_hir::lower::lower_statement(s);
 
     // Run semantic analysis — must not panic.
-    let mut sink = cypher_diag::DiagnosticsSink::new();
-    let opts = cypher_sema::SemaOptions::default();
-    cypher_sema::analyse(&stmt, None, &opts, &mut sink);
+    let mut sink = cyrs_diag::DiagnosticsSink::new();
+    let opts = cyrs_sema::SemaOptions::default();
+    cyrs_sema::analyse(&stmt, None, &opts, &mut sink);
 
     // Span invariant: every diagnostic primary span must lie within input.
     let src_len = s.len() as u32;

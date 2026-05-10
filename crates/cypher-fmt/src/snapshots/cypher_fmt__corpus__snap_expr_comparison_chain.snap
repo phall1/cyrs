@@ -1,7 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n) WHERE n.age >= 18 AND n.age <= 65 RETURN n\")"
----
-MATCH (n)
-WHERE n.age >= 18 AND n.age <= 65
-RETURN n

@@ -11,11 +11,11 @@ versions track the cyrs workspace version.
 - Initial scaffold (bead cy-9w5).
 - Language registration for `cypher` (`.cyp`, `.cypher`, `.gql`).
 - TextMate grammar for keywords, literals, comments, labels, properties,
-  parameters, and operators. Semantic tokens from `cypher-lsp` refine
+  parameters, and operators. Semantic tokens from `cyrs-lsp` refine
   highlighting at runtime.
-- Language-client wiring to the `cypher-lsp` binary over stdio.
+- Language-client wiring to the `cyrs-lsp` binary over stdio.
   Discovery: `cyrs.server.path` setting, then `$CYPHER_LSP`, then
-  `cypher-lsp` on `$PATH` (mirrors `demo/nvim/init.lua`).
+  `cyrs-lsp` on `$PATH` (mirrors `demo/nvim/init.lua`).
 - Settings for schema source / dialect / formatter options forwarded as
   `initializationOptions` (spec §14.3).
 - `cyrs.restartServer` command.

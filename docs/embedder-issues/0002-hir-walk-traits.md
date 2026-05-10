@@ -15,14 +15,14 @@ these to cyrs, embedders need a HIR walk surface that:
 3. Has a `Visitor` and `MutVisitor` trait, or at minimum stable
    `match`-able enums whose variants don't change without a major bump.
 
-Today `cypher-hir` exposes `Statement`, `Clause`, `Expr`, etc., as
+Today `cyrs-hir` exposes `Statement`, `Clause`, `Expr`, etc., as
 public enums (good!) — but there is no documented walk trait. Embedders
 must reinvent visitor patterns and accept the churn.
 
 ## Proposed shape
 
 ```rust
-// in cypher-hir
+// in cyrs-hir
 pub trait Visitor {
     fn visit_statement(&mut self, stmt: &Statement) { walk_statement(self, stmt) }
     fn visit_clause(&mut self, clause: &Clause)    { walk_clause(self, clause) }
@@ -46,4 +46,4 @@ and visitor coverage.
 Without this, stage 2 (porting plan/builder.rs and semantic.rs) requires
 hand-writing recursive `match` arms across every HIR variant — duplicating
 work the cyrs project will eventually need to do anyway for
-`cypher-sema` and `cypher-fmt`.
+`cyrs-sema` and `cyrs-fmt`.

@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS n]
+  Filter (((($0.name STARTS WITH "Al") AND ($0.bio CONTAINS "developer")) AND ($0.email ENDS WITH ".com")))
+    Source (AS $0)

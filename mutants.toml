@@ -9,13 +9,13 @@
 #   cargo mutants --list
 #
 # Run against a single library crate:
-#   cargo mutants --package cypher-sema
-#   cargo mutants --package cypher-hir
-#   cargo mutants --package cypher-syntax
-#   cargo mutants --package cypher-plan
+#   cargo mutants --package cyrs-sema
+#   cargo mutants --package cyrs-hir
+#   cargo mutants --package cyrs-syntax
+#   cargo mutants --package cyrs-plan
 #
 # Run with JSON output for offline triage:
-#   cargo mutants --package cypher-sema --json-output out.json --no-shuffle
+#   cargo mutants --package cyrs-sema --json-output out.json --no-shuffle
 #
 # HOW THRESHOLDS ARE ENFORCED IN CI
 # ----------------------------------
@@ -23,16 +23,16 @@
 # per library crate and fails the job when the measured kill rate falls
 # below the §17.8 floor:
 #
-#   cypher-sema   ≥ 90%
-#   cypher-hir    ≥ 90%
-#   cypher-syntax ≥ 85%
-#   cypher-plan   ≥ 80%
+#   cyrs-sema   ≥ 90%
+#   cyrs-hir    ≥ 90%
+#   cyrs-syntax ≥ 85%
+#   cyrs-plan   ≥ 80%
 #
 # Surviving mutants are not silently ignored: each is either converted
 # into a test or explicitly annotated with `#[mutants::skip]` and a
 # justification comment explaining why it is an equivalent mutant.
 #
-# Binaries (cypher-cli, cypher-lsp, cypher-agent) are excluded from
+# Binaries (cyrs-cli, cyrs-lsp, cyrs-agent) are excluded from
 # mutation testing because they contain only thin-shell wiring whose
 # correctness is covered by integration tests (§17.11).
 
@@ -42,10 +42,10 @@
 # (binaries, the meta-crate, testkit, db, schema, fmt, diag, ast, tck)
 # is omitted because the spec does not assign it a kill-rate target.
 examine_globs = [
-    "crates/cypher-syntax/src/**/*.rs",
-    "crates/cypher-hir/src/**/*.rs",
-    "crates/cypher-sema/src/**/*.rs",
-    "crates/cypher-plan/src/**/*.rs",
+    "crates/cyrs-syntax/src/**/*.rs",
+    "crates/cyrs-hir/src/**/*.rs",
+    "crates/cyrs-sema/src/**/*.rs",
+    "crates/cyrs-plan/src/**/*.rs",
 ]
 
 # ── Exclusions ─────────────────────────────────────────────────────────────

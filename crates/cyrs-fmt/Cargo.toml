@@ -1,0 +1,34 @@
+[package]
+name         = "cyrs-fmt"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Formatter for Cypher / GQL source that round-trips through the parser (spec 0001 §13)."
+
+[lib]
+name = "cyrs_fmt"
+
+[dependencies]
+cyrs-syntax = { workspace = true }
+rowan         = { workspace = true }
+smol_str      = { workspace = true }
+
+[dev-dependencies]
+proptest          = { workspace = true }
+insta             = { workspace = true }
+cyrs-testkit    = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

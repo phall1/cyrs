@@ -1,0 +1,45 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "label": [
+        "Person"
+      ],
+      "op": "source"
+    },
+    {
+      "input": 0,
+      "items": [
+        {
+          "alias": "name",
+          "expr": {
+            "kind": "prop",
+            "prop": "name",
+            "target": {
+              "id": 0,
+              "kind": "var"
+            }
+          }
+        },
+        {
+          "alias": "age",
+          "expr": {
+            "kind": "prop",
+            "prop": "age",
+            "target": {
+              "id": 0,
+              "kind": "var"
+            }
+          }
+        }
+      ],
+      "op": "project"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

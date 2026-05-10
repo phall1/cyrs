@@ -5,7 +5,7 @@
 //! structural-equality routine. The binary itself is `#![no_main]` and
 //! hosts only the libFuzzer entry point; every pure function lives here.
 
-use cypher_syntax::{SyntaxKind, SyntaxNode};
+use cyrs_syntax::{SyntaxKind, SyntaxNode};
 use rowan::{NodeOrToken, WalkEvent};
 
 /// Serialise the trivia-stripped shape of a CST into a stable string.
@@ -85,8 +85,8 @@ mod tests {
     /// produce the same shape.
     #[test]
     fn shape_ignores_whitespace() {
-        let a = cypher_syntax::parse("MATCH (n) RETURN n");
-        let b = cypher_syntax::parse("MATCH   (n)\n  RETURN   n");
+        let a = cyrs_syntax::parse("MATCH (n) RETURN n");
+        let b = cyrs_syntax::parse("MATCH   (n)\n  RETURN   n");
         assert_eq!(shape(&a.syntax()), shape(&b.syntax()));
     }
 
@@ -94,24 +94,24 @@ mod tests {
     /// formatter must not rename.
     #[test]
     fn shape_distinguishes_variable_names() {
-        let a = cypher_syntax::parse("MATCH (n) RETURN n");
-        let b = cypher_syntax::parse("MATCH (m) RETURN m");
+        let a = cyrs_syntax::parse("MATCH (n) RETURN n");
+        let b = cyrs_syntax::parse("MATCH (m) RETURN m");
         assert_ne!(shape(&a.syntax()), shape(&b.syntax()));
     }
 
     /// Line comments are trivia and ignored by `shape`.
     #[test]
     fn shape_ignores_line_comments() {
-        let a = cypher_syntax::parse("MATCH (n) RETURN n");
-        let b = cypher_syntax::parse("MATCH (n) // hi\nRETURN n");
+        let a = cyrs_syntax::parse("MATCH (n) RETURN n");
+        let b = cyrs_syntax::parse("MATCH (n) // hi\nRETURN n");
         assert_eq!(shape(&a.syntax()), shape(&b.syntax()));
     }
 
     /// Block comments are trivia and ignored by `shape`.
     #[test]
     fn shape_ignores_block_comments() {
-        let a = cypher_syntax::parse("MATCH (n) RETURN n");
-        let b = cypher_syntax::parse("MATCH /* x */ (n) RETURN n");
+        let a = cyrs_syntax::parse("MATCH (n) RETURN n");
+        let b = cyrs_syntax::parse("MATCH /* x */ (n) RETURN n");
         assert_eq!(shape(&a.syntax()), shape(&b.syntax()));
     }
 
@@ -122,12 +122,12 @@ mod tests {
     /// formatter rewrites `null` → `NULL`, which must not trip P17.3.4.
     #[test]
     fn shape_ignores_keyword_case() {
-        let lo = cypher_syntax::parse("MATCH (n) RETURN null");
-        let hi = cypher_syntax::parse("MATCH (n) RETURN NULL");
+        let lo = cyrs_syntax::parse("MATCH (n) RETURN null");
+        let hi = cyrs_syntax::parse("MATCH (n) RETURN NULL");
         assert_eq!(shape(&lo.syntax()), shape(&hi.syntax()));
 
-        let lo = cypher_syntax::parse("match (n) return n");
-        let hi = cypher_syntax::parse("MATCH (n) RETURN n");
+        let lo = cyrs_syntax::parse("match (n) return n");
+        let hi = cyrs_syntax::parse("MATCH (n) RETURN n");
         assert_eq!(shape(&lo.syntax()), shape(&hi.syntax()));
     }
 
@@ -135,8 +135,8 @@ mod tests {
     /// not rename `n` to `m`.
     #[test]
     fn shape_keeps_identifier_case() {
-        let upper = cypher_syntax::parse("MATCH (N) RETURN N");
-        let lower = cypher_syntax::parse("MATCH (n) RETURN n");
+        let upper = cyrs_syntax::parse("MATCH (N) RETURN N");
+        let lower = cyrs_syntax::parse("MATCH (n) RETURN n");
         assert_ne!(shape(&upper.syntax()), shape(&lower.syntax()));
     }
 
@@ -144,7 +144,7 @@ mod tests {
     /// cleanly (an opened but never-closed bracket is a reliable producer).
     #[test]
     fn contains_error_flags_unbalanced_bracket() {
-        let parsed = cypher_syntax::parse("MATCH (n RETURN n");
+        let parsed = cyrs_syntax::parse("MATCH (n RETURN n");
         // Either the parser reports errors, or recovery produces an
         // ERROR node — either is a "has errors" signal we want flagged.
         assert!(!parsed.errors().is_empty() || contains_error(&parsed.syntax()));
@@ -153,7 +153,7 @@ mod tests {
     /// `contains_error` returns `false` on a clean parse.
     #[test]
     fn contains_error_false_on_clean_parse() {
-        let parsed = cypher_syntax::parse("MATCH (n) RETURN n");
+        let parsed = cyrs_syntax::parse("MATCH (n) RETURN n");
         assert!(parsed.errors().is_empty());
         assert!(!contains_error(&parsed.syntax()));
     }
@@ -179,10 +179,10 @@ mod tests {
             "OPTIONAL MATCH (a) RETURN a",
         ];
         for src in samples {
-            let parsed = cypher_syntax::parse(src);
+            let parsed = cyrs_syntax::parse(src);
             assert!(parsed.errors().is_empty(), "sample did not parse: {src:?}");
-            let fmt = cypher_fmt::format(src);
-            let reparsed = cypher_syntax::parse(&fmt);
+            let fmt = cyrs_fmt::format(src);
+            let reparsed = cyrs_syntax::parse(&fmt);
             assert!(
                 reparsed.errors().is_empty(),
                 "fmt({src:?}) = {fmt:?} did not re-parse"

@@ -1,0 +1,45 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n) RETURN n { full_name: n.name, .age }\")"
+---
+SOURCE_FILE@0..46
+  STATEMENT@0..46
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..46
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..46
+        RETURN_ITEMS@16..46
+          RETURN_ITEM@16..46
+            MAP_PROJECTION@16..46
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              WHITESPACE@18..19 " "
+              L_BRACE@19..20 "{"
+              MAP_PROJECTION_ITEM@20..38
+                WHITESPACE@20..21 " "
+                IDENT@21..30 "full_name"
+                COLON@30..31 ":"
+                PROP_ACCESS_EXPR@31..38
+                  VAR_EXPR@31..33
+                    WHITESPACE@31..32 " "
+                    IDENT@32..33 "n"
+                  DOT@33..34 "."
+                  IDENT@34..38 "name"
+              COMMA@38..39 ","
+              MAP_PROJECTION_ITEM@39..44
+                WHITESPACE@39..40 " "
+                DOT@40..41 "."
+                IDENT@41..44 "age"
+              WHITESPACE@44..45 " "
+              R_BRACE@45..46 "}"

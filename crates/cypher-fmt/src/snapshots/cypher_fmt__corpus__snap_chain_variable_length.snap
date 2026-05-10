@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (a:Person)-[r:KNOWS*1..3]->(b:Person) RETURN a.name, b.name\")"
----
-MATCH (a:Person)-[r:KNOWS*1..3]->(b:Person)
-RETURN a.name, b.name

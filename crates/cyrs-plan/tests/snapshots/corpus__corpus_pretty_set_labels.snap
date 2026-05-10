@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Source (:Person AS $0)
+WriteOps:
+  SetLabels $0 :Admin:Moderator

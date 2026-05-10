@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/tests/sema_diag.rs
+expression: "render_diags(src, \"e1001_unresolved_variable.cypher\")"
+---
+error[E1001]: unresolved variable `z`
+  ┌─ e1001_unresolved_variable.cypher:1:1
+  │
+1 │ MATCH (n) RETURN z
+  │ ^

@@ -1,6 +1,6 @@
 # Node.js FFI smoke test
 
-Dlopens `libcypher_ffi.{dylib,so,dll}` via [koffi], runs
+Dlopens `libcyrs_ffi.{dylib,so,dll}` via [koffi], runs
 `cypher_check` on a malformed query, prints diagnostics.  Spec 0004
 §10.2.
 
@@ -10,7 +10,7 @@ Dlopens `libcypher_ffi.{dylib,so,dll}` via [koffi], runs
 
 ```bash
 # from the workspace root
-cargo build -p cypher-ffi --release
+cargo build -p cyrs-ffi --release
 
 # from this directory
 npm install
@@ -35,5 +35,5 @@ OK
 - We pick `koffi` over `ffi-napi` because ffi-napi is tied to a native
   addon that breaks on every Node.js major bump.  koffi ships pure
   WebAssembly + C for its loader and survives Node upgrades cleanly.
-- The committed C header at `crates/cypher-ffi/include/cypher.h` is the
+- The committed C header at `crates/cyrs-ffi/include/cypher.h` is the
   authoritative ABI; regenerate with `cargo xtask cbindgen`.

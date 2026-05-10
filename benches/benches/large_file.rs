@@ -8,10 +8,10 @@
 //! MATCH/WITH) and provides three end-to-end latency benchmarks plus
 //! p95 gates:
 //!
-//! 1. **bench_parse_10k** — `cypher_syntax::parse` on the full source.
+//! 1. **bench_parse_10k** — `cyrs_syntax::parse` on the full source.
 //! 2. **bench_hir_lower_10k** — iterate every statement, `lower_statement`
 //!    + `desugar_statement` (each call re-parses internally, matching the
-//!    public API shape in `cypher-hir`).
+//!    public API shape in `cyrs-hir`).
 //! 3. **bench_diagnose_10k** — `Database::new()` → `open_file` → full
 //!    `all_diagnostics` round-trip (parse + HIR lower + sema).
 //!
@@ -55,9 +55,9 @@ use std::time::{Duration, Instant};
 
 use criterion::Criterion;
 
-use cypher_db::{Database, DialectMode};
-use cypher_hir::desugar::desugar_statement;
-use cypher_hir::lower::lower_statement;
+use cyrs_db::{Database, DialectMode};
+use cyrs_hir::desugar::desugar_statement;
+use cyrs_hir::lower::lower_statement;
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -181,7 +181,7 @@ fn load_budgets() -> Budgets {
 fn bench_parse_10k(c: &mut Criterion, src: &str) {
     c.bench_function("parse_10k", |b| {
         b.iter(|| {
-            let parse = cypher_syntax::parse(black_box(src));
+            let parse = cyrs_syntax::parse(black_box(src));
             black_box(parse.syntax());
         });
     });
@@ -226,11 +226,11 @@ fn sample_p95(samples: &mut [Duration]) -> Duration {
 
 fn p95_parse(src: &str) -> Duration {
     // One warmup to prime allocator / CPU caches.
-    let _ = cypher_syntax::parse(src);
+    let _ = cyrs_syntax::parse(src);
     let mut samples = Vec::with_capacity(GATE_ITERATIONS);
     for _ in 0..GATE_ITERATIONS {
         let t0 = Instant::now();
-        black_box(cypher_syntax::parse(black_box(src)).syntax());
+        black_box(cyrs_syntax::parse(black_box(src)).syntax());
         samples.push(t0.elapsed());
     }
     sample_p95(&mut samples)
@@ -291,7 +291,7 @@ fn p95_diagnose(src: &str) -> Duration {
 /// one of our templates invalid — the bench surfaces the mismatch
 /// before the first measurement, not in a noisy timing diff.
 fn assert_clean_parse(src: &str) {
-    let parse = cypher_syntax::parse(src);
+    let parse = cyrs_syntax::parse(src);
     let errors = parse.errors();
     assert!(
         errors.is_empty(),

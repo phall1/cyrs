@@ -1,9 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Union DISTINCT
-  Project [$0.name AS name]
-    Source (:Person AS $0)
-  Project [$1.name AS name]
-    Source (:Animal AS $1)

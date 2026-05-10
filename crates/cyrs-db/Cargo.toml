@@ -1,0 +1,37 @@
+[package]
+name         = "cyrs-db"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Salsa-backed incremental analysis database for Cypher / GQL (spec 0001 §11)."
+
+[lib]
+name = "cyrs_db"
+
+[dependencies]
+cyrs-syntax = { workspace = true }
+cyrs-ast    = { workspace = true }
+cyrs-hir    = { workspace = true }
+cyrs-sema   = { workspace = true }
+cyrs-schema = { workspace = true }
+cyrs-diag   = { workspace = true }
+cyrs-plan   = { workspace = true }
+cyrs-fmt    = { workspace = true }
+smol_str      = { workspace = true }
+indexmap      = { workspace = true }
+tracing       = { workspace = true }
+salsa         = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

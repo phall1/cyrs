@@ -1,9 +1,0 @@
----
-source: crates/cypher-sema/src/resolve.rs
-expression: "render_result(&stmt, false)"
----
-scopes: 3
-  scope[0] kind=Root parent=None bindings=[]
-  scope[1] kind=Unwind parent=Some(0) bindings=["x"]
-  scope[2] kind=Return parent=Some(1) bindings=[]
-diagnostics: 0

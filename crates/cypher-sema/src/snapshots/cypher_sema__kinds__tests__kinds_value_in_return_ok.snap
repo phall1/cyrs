@@ -1,5 +1,0 @@
----
-source: crates/cypher-sema/src/kinds.rs
-expression: run(&stmt)
----
-diagnostics: 0

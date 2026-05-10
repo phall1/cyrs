@@ -1,0 +1,8 @@
+---
+source: crates/cyrs-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 0
+write_ops: 1
+var_map_entries: 1
+write[0]: CreateNode(labels=["Person"], bind=Some(0))

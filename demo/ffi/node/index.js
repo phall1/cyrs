@@ -1,14 +1,14 @@
-// Node.js smoke test for the cypher-ffi C ABI.  Spec 0004 §10.2.
+// Node.js smoke test for the cyrs-ffi C ABI.  Spec 0004 §10.2.
 //
 // Uses `koffi` (a pure-JS, no-native-build FFI loader) to open
-// libcypher_ffi.{dylib,so} and invoke `cypher_check` on a malformed
+// libcyrs_ffi.{dylib,so} and invoke `cypher_check` on a malformed
 // query.  Picks koffi over ffi-napi because the latter requires a
 // native build step (and re-breaks every Node major); koffi is a
 // single npm dep.
 //
 // Run:
 //
-//   cargo build -p cypher-ffi --release     (from workspace root)
+//   cargo build -p cyrs-ffi --release     (from workspace root)
 //   cd demo/ffi/node && npm install && npm start
 //
 // The script exits 0 when at least one diagnostic is reported for
@@ -28,11 +28,11 @@ function dylibPath() {
     const base = path.join(workspaceRoot, "target", "release");
     switch (process.platform) {
         case "darwin":
-            return path.join(base, "libcypher_ffi.dylib");
+            return path.join(base, "libcyrs_ffi.dylib");
         case "linux":
-            return path.join(base, "libcypher_ffi.so");
+            return path.join(base, "libcyrs_ffi.so");
         case "win32":
-            return path.join(base, "cypher_ffi.dll");
+            return path.join(base, "cyrs_ffi.dll");
         default:
             throw new Error(`unsupported platform ${process.platform}`);
     }

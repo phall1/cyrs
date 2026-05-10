@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) RETURN toLower(n.name)\")"
+---
+MATCH (n)
+RETURN toLower(n.name)

@@ -1,0 +1,51 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+expression: "dump(\"MATCH (n) WHERE n.id IN [1, 2, 3] RETURN n\")"
+---
+SourceFile(SOURCE_FILE@0..42)
+  STATEMENT@0..42
+    MatchClause(MATCH_CLAUSE@0..33)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+      WhereClause(WHERE_CLAUSE@9..33)
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        IN_EXPR@15..33
+          PROP_ACCESS_EXPR@15..20
+            VAR_EXPR@15..17
+              WHITESPACE@15..16 " "
+              IDENT@16..17 "n"
+            DOT@17..18 "."
+            IDENT@18..20 "id"
+          WHITESPACE@20..21 " "
+          IN_KW@21..23 "IN"
+          Expr::ListLiteral(LIST_LITERAL@23..33)
+            WHITESPACE@23..24 " "
+            L_BRACK@24..25 "["
+            LITERAL_EXPR@25..26
+              INT_LITERAL@25..26 "1"
+            COMMA@26..27 ","
+            LITERAL_EXPR@27..29
+              WHITESPACE@27..28 " "
+              INT_LITERAL@28..29 "2"
+            COMMA@29..30 ","
+            LITERAL_EXPR@30..32
+              WHITESPACE@30..31 " "
+              INT_LITERAL@31..32 "3"
+            R_BRACK@32..33 "]"
+    ReturnClause(RETURN_CLAUSE@33..42)
+      WHITESPACE@33..34 " "
+      RETURN_KW@34..40 "RETURN"
+      RETURN_BODY@40..42
+        RETURN_ITEMS@40..42
+          ReturnItem(RETURN_ITEM@40..42)
+            VAR_EXPR@40..42
+              WHITESPACE@40..41 " "
+              IDENT@41..42 "n"

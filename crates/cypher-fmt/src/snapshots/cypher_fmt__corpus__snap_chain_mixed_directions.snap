@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (a)-[r1]->(b)<-[r2]-(c) RETURN a, b, c\")"
----
-MATCH (a)-[r1]->(b)<-[r2]-(c)
-RETURN a, b, c

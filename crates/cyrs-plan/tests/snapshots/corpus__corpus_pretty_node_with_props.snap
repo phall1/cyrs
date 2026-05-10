@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS n]
+  Filter ({name: "Alice"})
+    Source (:Person AS $0)

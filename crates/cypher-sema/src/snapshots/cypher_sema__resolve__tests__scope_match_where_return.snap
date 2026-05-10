@@ -1,9 +1,0 @@
----
-source: crates/cypher-sema/src/resolve.rs
-expression: "render_src(\"MATCH (n) WHERE n.age > 18 RETURN n\")"
----
-scopes: 3
-  scope[0] kind=Root parent=None bindings=[]
-  scope[1] kind=Match parent=Some(0) bindings=["n"]
-  scope[2] kind=Return parent=Some(1) bindings=[]
-diagnostics: 0

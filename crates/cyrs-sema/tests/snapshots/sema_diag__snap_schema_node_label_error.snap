@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/tests/sema_diag.rs
+expression: "render_diags_with_schema(src, \"e3001_unknown_label.cypher\", &schema)"
+---
+error[E3001]: unknown label `:Ghost`
+  ┌─ e3001_unknown_label.cypher:1:6
+  │
+1 │ MATCH (n:Ghost) RETURN n
+  │      ^^^^^^^^^^

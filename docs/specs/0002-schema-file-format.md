@@ -288,9 +288,9 @@ a future lint candidate).
 
 ### 9.2 Lint checks
 
-`cypher_schema::lint::lint(&InMemorySchema) -> Vec<SchemaLint>` runs
+`cyrs_schema::lint::lint(&InMemorySchema) -> Vec<SchemaLint>` runs
 the following post-load checks. Each finding carries a stable
-diagnostic code registered in `cypher-diag` per spec 0001 §10.2:
+diagnostic code registered in `cyrs-diag` per spec 0001 §10.2:
 
 | Code    | Severity | Check                                                   |
 | ------- | -------- | ------------------------------------------------------- |
@@ -322,14 +322,14 @@ The linter uses only codes already in the semantic-schema-aware
 - `E3011` — self-referential relationship type (§9.2).
 - `W6010` — unreachable label (§9.2).
 
-Ownership of the codes lives in `cypher-diag`; `cypher-schema`
+Ownership of the codes lives in `cyrs-diag`; `cyrs-schema`
 references them by their canonical string (`"E3010"`, `"E3011"`,
 `"W6010"`) to stay on its single allowed dependency edge
-(`cypher-syntax` types only, spec 0001 §3.1).
+(`cyrs-syntax` types only, spec 0001 §3.1).
 
 ### 9.4 Schema diff
 
-`cypher_schema::diff::diff(old, new) -> SchemaDiff` computes a
+`cyrs_schema::diff::diff(old, new) -> SchemaDiff` computes a
 deterministic structural diff between two schemas. The output shape
 carries three buckets — `adds`, `removes`, `breaking` — each a
 `Vec<DiffEntry>` sorted by `(category, path, detail)` so the JSON
@@ -373,7 +373,7 @@ where `≡` is semantic equality — ordering within collections does not
 matter, comments and whitespace do not matter, but every declaration
 round-trips byte-for-byte in its scalar fields.
 
-The test harness (`crates/cypher-schema/tests/file.rs`) expresses this
+The test harness (`crates/cyrs-schema/tests/file.rs`) expresses this
 property on a representative fixture at v0; a proptest suite over
 schema shape is deferred to a later bead.
 
@@ -403,7 +403,7 @@ change and a spec revision.
 
 ## 12. Public API surface
 
-Three loader functions live in `cypher_schema::file`:
+Three loader functions live in `cyrs_schema::file`:
 
 ```rust
 pub fn load_from_toml_str(input: &str) -> Result<InMemorySchema, SchemaLoadError>;
@@ -411,7 +411,7 @@ pub fn load_from_toml_path(path: &Path) -> Result<InMemorySchema, SchemaLoadErro
 pub fn serialise_to_toml(schema: &InMemorySchema) -> String;
 ```
 
-The linter (§9.2) lives in `cypher_schema::lint`:
+The linter (§9.2) lives in `cyrs_schema::lint`:
 
 ```rust
 pub fn lint(schema: &InMemorySchema) -> Vec<SchemaLint>;
@@ -420,7 +420,7 @@ pub struct SchemaLint { pub code: &'static str, pub severity: LintSeverity, pub 
 pub enum LintSeverity { Error, Warning }
 ```
 
-The diff (§9.4) lives in `cypher_schema::diff`:
+The diff (§9.4) lives in `cyrs_schema::diff`:
 
 ```rust
 pub fn diff(old: &InMemorySchema, new: &InMemorySchema) -> SchemaDiff;
@@ -430,7 +430,7 @@ pub struct DiffEntry { pub kind: String, pub category: String, pub path: String,
 ```
 
 [`InMemorySchema`] is the concrete `SchemaProvider` implementation in
-`cypher-schema`; see spec 0001 §8.1 for the trait contract.
+`cyrs-schema`; see spec 0001 §8.1 for the trait contract.
 
 CLI surface:
 
@@ -537,7 +537,7 @@ and exits `1` because `E`-severity lints fired.
 ```
 
 The full JSON structure is snapshot-tested in
-`crates/cypher-cli/tests/snapshots/integration__schema_diff_report.snap`.
+`crates/cyrs-cli/tests/snapshots/integration__schema_diff_report.snap`.
 
 ---
 

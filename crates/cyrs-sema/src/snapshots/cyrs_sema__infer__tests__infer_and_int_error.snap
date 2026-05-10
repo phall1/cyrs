@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-sema/src/infer.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E2011: boolean operator requires `Bool` operands but found `Int`

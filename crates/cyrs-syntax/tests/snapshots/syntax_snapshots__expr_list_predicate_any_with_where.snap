@@ -1,0 +1,34 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN ANY(x IN xs WHERE x > 0)\")"
+---
+SOURCE_FILE@0..31
+  STATEMENT@0..31
+    RETURN_CLAUSE@0..31
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..31
+        RETURN_ITEMS@6..31
+          RETURN_ITEM@6..31
+            LIST_PREDICATE_EXPR@6..31
+              WHITESPACE@6..7 " "
+              ANY_KW@7..10 "ANY"
+              L_PAREN@10..11 "("
+              NAME@11..12
+                IDENT@11..12 "x"
+              WHITESPACE@12..13 " "
+              IN_KW@13..15 "IN"
+              VAR_EXPR@15..18
+                WHITESPACE@15..16 " "
+                IDENT@16..18 "xs"
+              WHITESPACE@18..19 " "
+              WHERE_KW@19..24 "WHERE"
+              BINARY_EXPR@24..30
+                VAR_EXPR@24..26
+                  WHITESPACE@24..25 " "
+                  IDENT@25..26 "x"
+                WHITESPACE@26..27 " "
+                GT@27..28 ">"
+                LITERAL_EXPR@28..30
+                  WHITESPACE@28..29 " "
+                  INT_LITERAL@29..30 "0"
+              R_PAREN@30..31 ")"

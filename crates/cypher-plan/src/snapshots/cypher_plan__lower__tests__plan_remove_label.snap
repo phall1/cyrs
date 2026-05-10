@@ -1,9 +1,0 @@
----
-source: crates/cypher-plan/src/lower.rs
-expression: render(&plan)
----
-read_ops: 1
-write_ops: 1
-var_map_entries: 1
-op[0]: Source(label=["Person"], bind=0)
-write[0]: RemoveLabels(target=0, labels=["Person"])

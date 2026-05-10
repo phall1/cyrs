@@ -1,11 +1,11 @@
-// cypher-wasm Monaco demo glue (spec 0004 §4 + §7).
+// cyrs-wasm Monaco demo glue (spec 0004 §4 + §7).
 //
 // Two backends:
 //
 // * agent-wasm — in-page wasm-bindgen bundle calling the agent surface
 //   (`CypherDatabase.check`) on every edit.  This is the cy-u6r mode.
 //
-// * lsp-wasm — a Worker running `cypher-lsp`'s wasm artifact with
+// * lsp-wasm — a Worker running `cyrs-lsp`'s wasm artifact with
 //   `postMessage` as the transport (spec 0004 §7).  The main thread
 //   speaks JSON-RPC: `initialize`, `textDocument/didOpen`,
 //   `textDocument/didChange`.  Diagnostics arrive through
@@ -16,7 +16,7 @@
 // integration is asserted statically in CI and by the demo reviewer
 // flipping the radio toggle.
 
-const AGENT_PKG_URL = "../../crates/cypher-wasm/pkg/cypher_wasm.js";
+const AGENT_PKG_URL = "../../crates/cyrs-wasm/pkg/cyrs_wasm.js";
 const LSP_WORKER_URL = "./worker.js";
 const EXPECTED_PROTO = 1;
 
@@ -39,7 +39,7 @@ function setStatus(msg, { err = false } = {}) {
 }
 
 /** Translate a diagnostic JSON entry into a Monaco IMarkerData.
- *  Accepts both the cypher-diag JSON shape (agent-wasm) and the LSP
+ *  Accepts both the cyrs-diag JSON shape (agent-wasm) and the LSP
  *  Diagnostic shape (lsp-wasm). */
 function diagnosticToMarker(diag, model) {
     // agent-wasm shape: { range: [startOffset, endOffset], message,
@@ -112,7 +112,7 @@ require(["vs/editor/editor.main"], async () => {
     /** Push markers for a list of diagnostic JSON entries. */
     function applyDiagnostics(diagnostics) {
         const markers = diagnostics.map((d) => diagnosticToMarker(d, model));
-        monaco.editor.setModelMarkers(model, "cypher-wasm", markers);
+        monaco.editor.setModelMarkers(model, "cyrs-wasm", markers);
         setStatus(
             diagnostics.length === 0
                 ? "OK — 0 diagnostics"
@@ -129,7 +129,7 @@ require(["vs/editor/editor.main"], async () => {
         if (backend?.dispose) {
             try { backend.dispose(); } catch { /* swallow */ }
         }
-        monaco.editor.setModelMarkers(model, "cypher-wasm", []);
+        monaco.editor.setModelMarkers(model, "cyrs-wasm", []);
         setStatus(`loading ${mode}…`);
         if (mode === "agent-wasm") {
             backend = await initAgentMode(model, applyDiagnostics);

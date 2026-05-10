@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n) RETURN DISTINCT n\")"
----
-MATCH (n)
-RETURN DISTINCT n

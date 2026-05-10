@@ -13,11 +13,11 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Produce HIR.
-    let stmt = cypher_hir::lower::lower_statement(s);
+    let stmt = cyrs_hir::lower::lower_statement(s);
 
     // Lower to plan — must not panic on any HIR shape. Pre-condition
     // violations (un-resolved names, un-desugared expressions) surface as
     // `Err(PlanLowerError::…)` per cy-wlr; the oracle is "no panic", so
     // we discard the `Result` rather than asserting it is `Ok`.
-    let _ = cypher_plan::lower::lower_statement(&stmt);
+    let _ = cyrs_plan::lower::lower_statement(&stmt);
 });

@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS n]
+  Filter ((($0.email IS NOT NULL) AND ($0.phone IS NULL)))
+    Source (AS $0)

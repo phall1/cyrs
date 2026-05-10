@@ -1,0 +1,39 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+expression: "dump(\"MATCH (n) RETURN n { .name, .age }\")"
+---
+SourceFile(SOURCE_FILE@0..34)
+  STATEMENT@0..34
+    MatchClause(MATCH_CLAUSE@0..9)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    ReturnClause(RETURN_CLAUSE@9..34)
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..34
+        RETURN_ITEMS@16..34
+          ReturnItem(RETURN_ITEM@16..34)
+            Expr::MapProjection(MAP_PROJECTION@16..34)
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              WHITESPACE@18..19 " "
+              L_BRACE@19..20 "{"
+              MapProjectionItem(MAP_PROJECTION_ITEM@20..26)
+                WHITESPACE@20..21 " "
+                DOT@21..22 "."
+                IDENT@22..26 "name"
+              COMMA@26..27 ","
+              MapProjectionItem(MAP_PROJECTION_ITEM@27..32)
+                WHITESPACE@27..28 " "
+                DOT@28..29 "."
+                IDENT@29..32 "age"
+              WHITESPACE@32..33 " "
+              R_BRACE@33..34 "}"

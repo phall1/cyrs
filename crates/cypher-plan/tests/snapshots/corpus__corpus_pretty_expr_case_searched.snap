@@ -1,6 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [CASE WHEN ($0.age < 18) THEN "minor" WHEN ($0.age < 65) THEN "adult" ELSE "senior" END AS category]
-  Source (AS $0)

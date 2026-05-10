@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [toLower($0.name) AS lower_name, size($0.friends) AS friend_count, toString($0.age) AS age_str]
+  Source (AS $0)

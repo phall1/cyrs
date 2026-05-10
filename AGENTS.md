@@ -70,43 +70,43 @@ Dependency edges below are **allowed**. Anything else is forbidden —
 there is no "it's convenient" exception.
 
 ```
-cypher-syntax        → (external only: rowan, logos, smol_str, text-size, drop_bomb)
-cypher-ast           → cypher-syntax
-cypher-hir           → cypher-ast, cypher-syntax
-cypher-schema        → cypher-syntax (types only)
-cypher-project       → cypher-schema, smol_str, thiserror, serde, toml,
+cyrs-syntax        → (external only: rowan, logos, smol_str, text-size, drop_bomb)
+cyrs-ast           → cyrs-syntax
+cyrs-hir           → cyrs-ast, cyrs-syntax
+cyrs-schema        → cyrs-syntax (types only)
+cyrs-project       → cyrs-schema, smol_str, thiserror, serde, toml,
                        globset, walkdir
-cypher-sema          → cypher-hir, cypher-schema
-cypher-diag          → cypher-syntax
-cypher-plan          → cypher-hir
-cypher-fmt           → cypher-syntax
-cypher-db            → cypher-syntax, cypher-hir, cypher-sema, cypher-plan,
-                       cypher-schema, cypher-diag, salsa
-cypher-lang-services → cypher-db, cypher-hir, cypher-schema, cypher-sema,
-                       cypher-syntax, cypher-ast, cypher-fmt
-cypher-lsp           → cypher-lang-services, cypher-db, cypher-diag,
-                       cypher-fmt, lsp-server, lsp-types
-cypher-agent         → cypher-lang-services, cypher-db, cypher-diag,
-                       cypher-fmt, serde_json
-cypher-cli           → cypher-db, cypher-diag, cypher-fmt, cypher-schema,
-                       cypher-project
-cypher-tck           → cypher-db
-cypher-testkit       → any (dev only, not published)
+cyrs-sema          → cyrs-hir, cyrs-schema
+cyrs-diag          → cyrs-syntax
+cyrs-plan          → cyrs-hir
+cyrs-fmt           → cyrs-syntax
+cyrs-db            → cyrs-syntax, cyrs-hir, cyrs-sema, cyrs-plan,
+                       cyrs-schema, cyrs-diag, salsa
+cyrs-lang-services → cyrs-db, cyrs-hir, cyrs-schema, cyrs-sema,
+                       cyrs-syntax, cyrs-ast, cyrs-fmt
+cyrs-lsp           → cyrs-lang-services, cyrs-db, cyrs-diag,
+                       cyrs-fmt, lsp-server, lsp-types
+cyrs-agent         → cyrs-lang-services, cyrs-db, cyrs-diag,
+                       cyrs-fmt, serde_json
+cyrs-cli           → cyrs-db, cyrs-diag, cyrs-fmt, cyrs-schema,
+                       cyrs-project
+cyrs-tck           → cyrs-db
+cyrs-testkit       → any (dev only, not published)
 cypher               → all non-binary crates above
 ```
 
-- **`cypher-lang-services` is the shared home for LSP/agent engines.**
+- **`cyrs-lang-services` is the shared home for LSP/agent engines.**
   The completion, hover, and rewrite engines both binaries expose live
   here as pure functions keyed on `(db, file_id, byte-offset)`.  The
   LSP and agent crates are thin adapters: position ↔ byte-offset and
   wire-format conversion on the edges; zero logic duplication.
 
-- **No crate above `cypher-db` may depend on `salsa`.** Incrementality
+- **No crate above `cyrs-db` may depend on `salsa`.** Incrementality
   is an integration concern.
-- **Binaries are thin shells.** No analysis logic in `cypher-lsp`,
-  `cypher-agent`, `cypher-cli`. If you catch yourself writing a parser
+- **Binaries are thin shells.** No analysis logic in `cyrs-lsp`,
+  `cyrs-agent`, `cyrs-cli`. If you catch yourself writing a parser
   call inside a binary crate, move it into the relevant library crate.
-- **`cypher-testkit` is dev-only.** Never re-exported from `cypher`.
+- **`cyrs-testkit` is dev-only.** Never re-exported from `cypher`.
 
 **Pointing embedders at the right layer.** The crate graph above is
 who-may-depend-on-whom *inside* the workspace. For an external
@@ -246,7 +246,7 @@ agent session — it blocks.
 
 - Codes are **stable**. Once assigned, never change meaning. Retired
   codes are never reused.
-- Registry lives at `crates/cypher-diag/src/codes.rs`. Every emit
+- Registry lives at `crates/cyrs-diag/src/codes.rs`. Every emit
   site references a registered constant; raw strings are forbidden by
   CI lint.
 - Ranges:
@@ -289,7 +289,7 @@ these.
   unblessed diffs.
 - **Fuzz targets** exist for lexer, parser, formatter, sema, plan
   (§17.4). PR gate: 5 minutes per target. Any panic is a blocker.
-- **TCK conformance** (`cypher-tck`): the v1 tags in §17.5 must be
+- **TCK conformance** (`cyrs-tck`): the v1 tags in §17.5 must be
   green on every PR.
 - **Benchmarks** (`criterion`) with a 10% regression gate per §17.10.
 - **Miri** nightly with `-Zmiri-strict-provenance`. No UB, including

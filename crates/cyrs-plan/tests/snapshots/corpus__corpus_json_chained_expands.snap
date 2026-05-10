@@ -1,0 +1,77 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "label": [
+        "Person"
+      ],
+      "op": "source"
+    },
+    {
+      "bind_rel": 1,
+      "bind_to": 2,
+      "from": 0,
+      "input": 0,
+      "op": "expand",
+      "rel": {
+        "direction": "outgoing",
+        "length": {
+          "kind": "single"
+        },
+        "types": [
+          "KNOWS"
+        ]
+      },
+      "to": {
+        "labels": []
+      }
+    },
+    {
+      "bind_rel": 3,
+      "bind_to": 4,
+      "from": 2,
+      "input": 1,
+      "op": "expand",
+      "rel": {
+        "direction": "outgoing",
+        "length": {
+          "kind": "single"
+        },
+        "types": [
+          "LIKES"
+        ]
+      },
+      "to": {
+        "labels": [
+          "Post"
+        ]
+      }
+    },
+    {
+      "input": 2,
+      "items": [
+        {
+          "alias": "n",
+          "expr": {
+            "id": 0,
+            "kind": "var"
+          }
+        },
+        {
+          "alias": "p",
+          "expr": {
+            "id": 4,
+            "kind": "var"
+          }
+        }
+      ],
+      "op": "project"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

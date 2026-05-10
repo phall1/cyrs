@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0.address.city AS city]
+  Source (AS $0)

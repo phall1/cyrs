@@ -1,6 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "format_with(\"Match (n) Return n\", &opts).unwrap()"
----
-Match (n)
-Return n

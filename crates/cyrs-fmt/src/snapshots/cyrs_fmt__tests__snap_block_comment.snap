@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"/* find all */ MATCH (n) RETURN n\")"
+---
+/* find all */
+MATCH (n)
+RETURN n

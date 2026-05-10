@@ -1,7 +1,7 @@
 -- Minimal Neovim config for the cypher-lsp demo.
 --
 -- Usage:
---   cargo build --release -p cypher-lsp
+--   cargo build --release -p cyrs-lsp
 --   nvim -u demo/nvim/init.lua demo/samples/unclosed_paren.cyp
 --
 -- No plugins. Just filetype detection, LSP spin-up, and a format-on-save
@@ -55,7 +55,7 @@ vim.api.nvim_create_autocmd("FileType", {
     if not bin then
       vim.notify(
         "cypher-lsp binary not found. Build it with:\n"
-          .. "    cargo build --release -p cypher-lsp\n"
+          .. "    cargo build --release -p cyrs-lsp\n"
           .. "or set $CYPHER_LSP to an absolute path.",
         vim.log.levels.WARN
       )

@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$0 AS total, $1 AS mean]
+  Aggregate keys=[] aggs=[sum($0.salary), avg($0.salary)]
+    Source (:Person AS $0)

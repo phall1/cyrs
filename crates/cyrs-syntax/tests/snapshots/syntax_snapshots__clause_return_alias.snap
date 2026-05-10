@@ -1,0 +1,33 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 138
+expression: "format_with_errors(\"MATCH (n) RETURN n.name AS name\")"
+---
+SOURCE_FILE@0..31
+  STATEMENT@0..31
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..31
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..31
+        RETURN_ITEMS@16..31
+          RETURN_ITEM@16..31
+            PROP_ACCESS_EXPR@16..23
+              VAR_EXPR@16..18
+                WHITESPACE@16..17 " "
+                IDENT@17..18 "n"
+              DOT@18..19 "."
+              IDENT@19..23 "name"
+            WHITESPACE@23..24 " "
+            AS_KW@24..26 "AS"
+            WHITESPACE@26..27 " "
+            IDENT@27..31 "name"

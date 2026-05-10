@@ -53,7 +53,7 @@ use std::time::Duration;
 
 use criterion::Criterion;
 
-use cypher_db::{Database, DialectMode};
+use cyrs_db::{Database, DialectMode};
 
 // ---------------------------------------------------------------------------
 // Workload configuration

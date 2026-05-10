@@ -23,7 +23,7 @@ bumps, cross-cutting gates, coordinated releases).  See spec 0001 §18.
 - `cy-urk` (§18): per-crate `CHANGELOG.md` skeletons and this
   workspace-level changelog.
 - `cy-zgz` (§18): release-prep landing — CHANGELOG for
-  `cypher-lang-services` (was missing), shields.io badges on every
+  `cyrs-lang-services` (was missing), shields.io badges on every
   publishable crate README, `.github/workflows/release.yml`
   (release-plz, `workflow_dispatch`-only), `.github/workflows/
   sign-release.yml` (cosign keyless + CycloneDX SBOM + SLSA
@@ -33,7 +33,7 @@ bumps, cross-cutting gates, coordinated releases).  See spec 0001 §18.
 
 ### Changed
 
-- `cypher-db` (§11.6, bead cy-bh5): `Database::remove_file` now pools
+- `cyrs-db` (§11.6, bead cy-bh5): `Database::remove_file` now pools
   freed Salsa input handles and recycles them in `open_file`.  Required
   because Salsa 0.26 cannot delete input structs; without pooling, LSP
   file churn grew RSS unboundedly.

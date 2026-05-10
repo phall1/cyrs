@@ -1,8 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"MATCH (n) RETURN n SKIP 10 LIMIT 5\")"
----
-MATCH (n)
-RETURN n
-SKIP 10
-LIMIT 5

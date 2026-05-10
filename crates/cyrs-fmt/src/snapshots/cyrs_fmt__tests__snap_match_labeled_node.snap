@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person) RETURN n\")"
+---
+MATCH (n:Person)
+RETURN n

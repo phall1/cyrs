@@ -1,13 +1,13 @@
 # Go FFI smoke test
 
-Dlopens `libcypher_ffi.{dylib,so}` via cgo, runs `cypher_check` on a
+Dlopens `libcyrs_ffi.{dylib,so}` via cgo, runs `cypher_check` on a
 malformed query, prints diagnostics.  Spec 0004 §10.2.
 
 ## Run
 
 ```bash
 # from the workspace root
-cargo build -p cypher-ffi --release
+cargo build -p cyrs-ffi --release
 
 # from this directory
 CGO_LDFLAGS="-L../../../target/release -lcypher_ffi" go run main.go
@@ -30,5 +30,5 @@ returns `NULL`.
 
 - On Linux add `-Wl,-rpath,../../../target/release` to `CGO_LDFLAGS` so
   the dynamic loader can find the library at runtime.
-- The committed header at `crates/cypher-ffi/include/cypher.h` is the
+- The committed header at `crates/cyrs-ffi/include/cypher.h` is the
   authoritative interface; regenerate with `cargo xtask cbindgen`.

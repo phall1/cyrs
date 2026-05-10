@@ -1,8 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS n, $2 AS p]
-  OptionalJoin
-    Source (:Person AS $0)
-    Expand ($0)-[:LIKES(->) $1]->(:Post AS $2)

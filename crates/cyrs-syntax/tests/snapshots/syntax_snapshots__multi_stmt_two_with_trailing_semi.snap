@@ -1,0 +1,48 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n) RETURN n; MATCH (m) RETURN m;\")"
+---
+SOURCE_FILE@0..39
+  STATEMENT@0..18
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..18
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..18
+        RETURN_ITEMS@16..18
+          RETURN_ITEM@16..18
+            VAR_EXPR@16..18
+              WHITESPACE@16..17 " "
+              IDENT@17..18 "n"
+  SEMI@18..19 ";"
+  STATEMENT@19..38
+    MATCH_CLAUSE@19..29
+      WHITESPACE@19..20 " "
+      MATCH_KW@20..25 "MATCH"
+      PATTERN@25..29
+        PATTERN_PART@25..29
+          NODE_PATTERN@25..29
+            WHITESPACE@25..26 " "
+            L_PAREN@26..27 "("
+            NAME@27..28
+              IDENT@27..28 "m"
+            R_PAREN@28..29 ")"
+    RETURN_CLAUSE@29..38
+      WHITESPACE@29..30 " "
+      RETURN_KW@30..36 "RETURN"
+      RETURN_BODY@36..38
+        RETURN_ITEMS@36..38
+          RETURN_ITEM@36..38
+            VAR_EXPR@36..38
+              WHITESPACE@36..37 " "
+              IDENT@37..38 "m"
+  SEMI@38..39 ";"

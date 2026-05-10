@@ -1,8 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "format_with(\"match (n:Person) where n.age > 30 With n Return n.name\",\n&opts).unwrap()"
----
-match (n:Person)
-where n.age > 30
-With n
-Return n.name

@@ -1,0 +1,10 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"/* \\n  find all nodes\\n  in the graph\\n*/\\nMATCH (n) RETURN n\")"
+---
+/* 
+  find all nodes
+  in the graph
+*/
+MATCH (n)
+RETURN n

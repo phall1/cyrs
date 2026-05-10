@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/src/lower.rs
-expression: pretty(&plan)
----
-Project [$0 AS _v0]
-  Filter (($0.x = 1))
-    Source (AS $0)

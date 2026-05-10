@@ -1,0 +1,15 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 226
+expression: "format_with_errors(\"RETURN 42\")"
+---
+SOURCE_FILE@0..9
+  STATEMENT@0..9
+    RETURN_CLAUSE@0..9
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..9
+        RETURN_ITEMS@6..9
+          RETURN_ITEM@6..9
+            LITERAL_EXPR@6..9
+              WHITESPACE@6..7 " "
+              INT_LITERAL@7..9 "42"

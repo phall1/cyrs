@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Limit 25
+  Skip 5
+    OrderBy [$0.name ASC]
+      Project [$0.name AS name]
+        Source (:Person AS $0)

@@ -1,6 +1,0 @@
----
-source: crates/cypher-sema/src/infer.rs
-expression: run_with_return_type(&stmt)
----
-diagnostics: 0
-return[0]: Union([Any, String])

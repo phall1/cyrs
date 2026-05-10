@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n) WHERE\")"
+---
+MATCH (n)
+WHERE

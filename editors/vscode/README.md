@@ -2,16 +2,16 @@
 
 VS Code language support for [cyrs](https://github.com/phall1/cyrs), a
 compiler front-end for Cypher / GQL written in Rust. Powered by the
-`cypher-lsp` language server (spec §14).
+`cyrs-lsp` language server (spec §14).
 
 > Status: preview. Marketplace publishing is the maintainer's manual step;
 > for now, dev-install via the steps below.
 
 ## Features
 
-The extension is a thin client over `cypher-lsp`. Everything the server
+The extension is a thin client over `cyrs-lsp`. Everything the server
 advertises in
-[`server_capabilities`](https://github.com/phall1/cyrs/blob/main/crates/cypher-lsp/src/lib.rs)
+[`server_capabilities`](https://github.com/phall1/cyrs/blob/main/crates/cyrs-lsp/src/lib.rs)
 is available out of the box:
 
 - Diagnostics with stable codes (parser, name-resolution, sema).
@@ -23,7 +23,7 @@ is available out of the box:
 - Rename with `prepareProvider`.
 - Semantic tokens (full + range).
 - Inlay hints.
-- Document and range formatting (powered by `cypher-fmt`).
+- Document and range formatting (powered by `cyrs-fmt`).
 - Code actions.
 - Folding ranges.
 - Signature help (triggers on `(` and `,`).
@@ -59,7 +59,7 @@ launch an Extension Development Host.
 
 | Setting | Default | Notes |
 | ------- | ------- | ----- |
-| `cyrs.server.path` | `""` | Absolute path to `cypher-lsp`. Falls back to `$CYPHER_LSP`, then `$PATH`. |
+| `cyrs.server.path` | `""` | Absolute path to `cyrs-lsp`. Falls back to `$CYPHER_LSP`, then `$PATH`. |
 | `cyrs.server.extraEnv` | `{}` | Extra env vars for the server process. |
 | `cyrs.trace.server` | `"off"` | LSP trace level (`off` / `messages` / `verbose`). |
 | `cyrs.schema.source` | `"none"` | Forwarded as `initializationOptions.schemaSource`. |

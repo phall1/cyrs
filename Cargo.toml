@@ -1,26 +1,26 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/cypher-syntax",
-    "crates/cypher-ast",
-    "crates/cypher-hir",
-    "crates/cypher-sema",
-    "crates/cypher-schema",
-    "crates/cypher-project",
-    "crates/cypher-diag",
-    "crates/cypher-plan",
-    "crates/cypher-fmt",
-    "crates/cypher-db",
-    "crates/cypher-lang-services",
-    "crates/cypher-lsp",
-    "crates/cypher-agent",
-    "crates/cypher-cli",
-    "crates/cypher-tck",
-    "crates/cypher-testkit",
-    "crates/cypher",
-    "crates/cypher-wasm",
-    "crates/cypher-ffi",
-    "crates/cypher-py",
+    "crates/cyrs-syntax",
+    "crates/cyrs-ast",
+    "crates/cyrs-hir",
+    "crates/cyrs-sema",
+    "crates/cyrs-schema",
+    "crates/cyrs-project",
+    "crates/cyrs-diag",
+    "crates/cyrs-plan",
+    "crates/cyrs-fmt",
+    "crates/cyrs-db",
+    "crates/cyrs-lang-services",
+    "crates/cyrs-lsp",
+    "crates/cyrs-agent",
+    "crates/cyrs-cli",
+    "crates/cyrs-tck",
+    "crates/cyrs-testkit",
+    "crates/cyrs-lang",
+    "crates/cyrs-wasm",
+    "crates/cyrs-ffi",
+    "crates/cyrs-py",
     "tests/canary",
     "xtask",
 ]
@@ -32,7 +32,7 @@ members = [
 # the same reason: it has its own [workspace] table and must not be pulled in
 # by the workspace resolver.
 exclude = ["fuzz", "benches"]
-default-members = ["crates/cypher-cli"]
+default-members = ["crates/cyrs-cli"]
 
 [workspace.package]
 version      = "0.0.1"
@@ -91,26 +91,26 @@ assert_cmd     = "2"
 predicates     = "3"
 toml           = "0.8"
 
-# incremental query engine (spec §11.1 — only cypher-db and above may use this)
+# incremental query engine (spec §11.1 — only cyrs-db and above may use this)
 salsa = "0.26"
 
 # internal — version is set for cargo publish; local development still uses path.
-cypher-syntax        = { package = "cyrs-syntax", version = "0.0.1", path = "crates/cypher-syntax" }
-cypher-ast           = { package = "cyrs-ast", version = "0.0.1", path = "crates/cypher-ast" }
-cypher-hir           = { package = "cyrs-hir", version = "0.0.1", path = "crates/cypher-hir" }
-cypher-sema          = { package = "cyrs-sema", version = "0.0.1", path = "crates/cypher-sema" }
-cypher-schema        = { package = "cyrs-schema", version = "0.0.1", path = "crates/cypher-schema" }
-cypher-project       = { package = "cyrs-project", version = "0.0.1", path = "crates/cypher-project" }
-cypher-diag          = { package = "cyrs-diag", version = "0.0.1", path = "crates/cypher-diag" }
-cypher-plan          = { package = "cyrs-plan", version = "0.0.1", path = "crates/cypher-plan" }
-cypher-fmt           = { package = "cyrs-fmt", version = "0.0.1", path = "crates/cypher-fmt" }
-cypher-db            = { package = "cyrs-db", version = "0.0.1", path = "crates/cypher-db" }
-cypher-lang-services = { package = "cyrs-lang-services", version = "0.0.1", path = "crates/cypher-lang-services" }
-cypher-tck           = { package = "cyrs-tck", version = "0.0.1", path = "crates/cypher-tck" }
-# cypher-testkit is dev-only (publish = false) — no version so `cargo
+cyrs-syntax        = { version = "0.0.1", path = "crates/cyrs-syntax" }
+cyrs-ast           = { version = "0.0.1", path = "crates/cyrs-ast" }
+cyrs-hir           = { version = "0.0.1", path = "crates/cyrs-hir" }
+cyrs-sema          = { version = "0.0.1", path = "crates/cyrs-sema" }
+cyrs-schema        = { version = "0.0.1", path = "crates/cyrs-schema" }
+cyrs-project       = { version = "0.0.1", path = "crates/cyrs-project" }
+cyrs-diag          = { version = "0.0.1", path = "crates/cyrs-diag" }
+cyrs-plan          = { version = "0.0.1", path = "crates/cyrs-plan" }
+cyrs-fmt           = { version = "0.0.1", path = "crates/cyrs-fmt" }
+cyrs-db            = { version = "0.0.1", path = "crates/cyrs-db" }
+cyrs-lang-services = { version = "0.0.1", path = "crates/cyrs-lang-services" }
+cyrs-tck           = { version = "0.0.1", path = "crates/cyrs-tck" }
+# cyrs-testkit is dev-only (publish = false) — no version so `cargo
 # publish` strips it cleanly from published dev-dependencies.
-cypher-testkit       = { package = "cyrs-testkit", path = "crates/cypher-testkit" }
-cypher               = { package = "cyrs-lang", version = "0.0.1", path = "crates/cypher" }
+cyrs-testkit       = { path = "crates/cyrs-testkit" }
+cyrs-lang          = { version = "0.0.1", path = "crates/cyrs-lang" }
 
 # ---------------------------------------------------------------------------
 # Lints. Spec §17.13 forbids unsafe workspace-wide.
@@ -123,9 +123,9 @@ missing_debug_implementations = "warn"
 # Spec §C2.4 / §17.15: every public item in the workspace surface
 # carries a rustdoc comment.  Promoted from `warn` to `deny` in
 # cy-p47 once the legacy backlog hit zero.  Catalog files that
-# enumerate grammar productions (cypher-ast/src/generated.rs —
-# codegen output, cypher-syntax/src/kind.rs, cypher-hir/src/lib.rs,
-# cypher-db/src/inputs.rs) carry a file-level
+# enumerate grammar productions (cyrs-ast/src/generated.rs —
+# codegen output, cyrs-syntax/src/kind.rs, cyrs-hir/src/lib.rs,
+# cyrs-db/src/inputs.rs) carry a file-level
 # `#![allow(missing_docs)]`: each variant's semantics live in the
 # grammar / Salsa-input spec and per-item docstrings would be
 # pure boilerplate.

@@ -1,0 +1,34 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (n) RETURN exists(n.prop)\")"
+---
+SOURCE_FILE@0..31
+  STATEMENT@0..31
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..31
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..31
+        RETURN_ITEMS@16..31
+          RETURN_ITEM@16..31
+            FUNCTION_CALL@16..31
+              VAR_EXPR@16..23
+                WHITESPACE@16..17 " "
+                EXISTS_KW@17..23 "exists"
+              L_PAREN@23..24 "("
+              ARG_LIST@24..30
+                PROP_ACCESS_EXPR@24..30
+                  VAR_EXPR@24..25
+                    IDENT@24..25 "n"
+                  DOT@25..26 "."
+                  IDENT@26..30 "prop"
+              R_PAREN@30..31 ")"

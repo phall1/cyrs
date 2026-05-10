@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-sema/src/dialect.rs
+expression: "run_check(&GATE_LOAD_CSV, DialectMode::OpenCypherV9)"
+---
+denied: E4015: construct `load_csv` is not allowed in dialect `OpenCypherV9`; allowed in: no v1 dialect (deferred construct, see spec §9.3)

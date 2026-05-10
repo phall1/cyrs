@@ -82,7 +82,7 @@ pub fn random_valid_cypher<R: RngCore + ?Sized>(rng: &mut R, max_depth: u8) -> S
 /// Ordering is stable and forms the index into the parallel arrays on
 /// [`CoverageCounters`]. New variants append to the end so old indices
 /// keep meaning; this mirrors the `SyntaxKind` stability policy in
-/// `crates/cypher-syntax/src/kind.rs`.
+/// `crates/cyrs-syntax/src/kind.rs`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Clause {
     /// `MATCH <pattern> [WHERE …]`
@@ -262,7 +262,7 @@ pub static COVERAGE: CoverageCounters = CoverageCounters::new();
 
 /// Identifier pool — intentionally short so generated statements land in
 /// the Birthday-paradox regime of variable reuse, which in turn exercises
-/// the scope/name-resolution machinery in `cypher-hir` and `cypher-sema`.
+/// the scope/name-resolution machinery in `cyrs-hir` and `cyrs-sema`.
 const VARS: &[&str] = &["n", "m", "r", "p", "x", "y", "a", "b"];
 
 /// Node-label pool.
@@ -275,7 +275,7 @@ const REL_TYPES: &[&str] = &["KNOWS", "WORKS_AT", "OWNS", "HAS"];
 const PROP_KEYS: &[&str] = &["name", "age", "id", "score", "kind"];
 
 /// Whitelisted function names — every entry must parse as a `FUNCTION_CALL`
-/// node. We do NOT require semantic validity; `cypher-sema` may flag an
+/// node. We do NOT require semantic validity; `cyrs-sema` may flag an
 /// unknown function, but the parser accepts any IDENT followed by `(`.
 const FUNCS: &[&str] = &["count", "size", "coalesce", "toLower", "toUpper", "length"];
 
@@ -699,17 +699,17 @@ mod tests {
     /// Walk a parsed tree and return `true` iff it contains any ERROR
     /// node or token.
     fn has_error_nodes(s: &str) -> bool {
-        let parse = cypher_syntax::parse(s);
+        let parse = cyrs_syntax::parse(s);
         if !parse.errors().is_empty() {
             return true;
         }
         let root = parse.syntax();
         root.preorder_with_tokens().any(|ev| match ev {
             WalkEvent::Enter(rowan::NodeOrToken::Node(n)) => {
-                n.kind() == cypher_syntax::SyntaxKind::ERROR
+                n.kind() == cyrs_syntax::SyntaxKind::ERROR
             }
             WalkEvent::Enter(rowan::NodeOrToken::Token(t)) => {
-                t.kind() == cypher_syntax::SyntaxKind::ERROR
+                t.kind() == cyrs_syntax::SyntaxKind::ERROR
             }
             _ => false,
         })

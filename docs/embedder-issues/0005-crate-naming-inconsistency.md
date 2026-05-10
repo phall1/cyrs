@@ -9,16 +9,16 @@ Every crate in cyrs has split names:
 
 | Directory | Package name | Lib name |
 |-----------|-------------|----------|
-| `crates/cypher-syntax/` | `cyrs-syntax` | `cypher_syntax` |
-| `crates/cypher-ast/` | `cyrs-ast` | `cypher_ast` |
-| `crates/cypher-hir/` | `cyrs-hir` | `cypher_hir` |
+| `crates/cyrs-syntax/` | `cyrs-syntax` | `cyrs_syntax` |
+| `crates/cyrs-ast/` | `cyrs-ast` | `cyrs_ast` |
+| `crates/cyrs-hir/` | `cyrs-hir` | `cyrs_hir` |
 | … | … | … |
-| `crates/cypher/` | `cyrs-lang` | `cypher` |
+| `crates/cyrs-lang/` | `cyrs-lang` | `cypher` |
 
 Embedders have to write:
 
 ```toml
-cypher-syntax = { package = "cyrs-syntax", path = "..." }
+cyrs-syntax = { package = "cyrs-syntax", path = "..." }
 ```
 
 …in every Cargo.toml that consumes cyrs. The `package = "..."` rename

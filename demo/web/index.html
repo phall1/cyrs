@@ -1,10 +1,10 @@
 <!doctype html>
 <!--
-    cypher-wasm Monaco playground — spec 0004 §4 + §7 demo page.
+    cyrs-wasm Monaco playground — spec 0004 §4 + §7 demo page.
 
     No build step.  Loads one of two wasm-bindgen bundles:
 
-    * "agent-wasm" (spec 0004 §4) — ../../crates/cypher-wasm/pkg
+    * "agent-wasm" (spec 0004 §4) — ../../crates/cyrs-wasm/pkg
       populated by `cargo xtask wasm-build`.
     * "lsp-wasm"   (spec 0004 §7) — ./pkg-lsp
       populated by `cargo xtask lsp-web-build` (cy-m0d).
@@ -26,7 +26,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>cyrs · cypher-wasm playground</title>
+    <title>cyrs · cyrs-wasm playground</title>
     <style>
         :root {
             color-scheme: light dark;
@@ -73,7 +73,7 @@
 </head>
 <body>
     <header>
-        <h1>cypher-wasm · Monaco demo</h1>
+        <h1>cyrs-wasm · Monaco demo</h1>
         <span class="muted">spec 0004 §4 / §7 · proto version <span id="proto">?</span></span>
         <fieldset id="mode-toggle" style="margin-left:auto; border:none; padding:0;">
             <label style="margin-right:0.75rem;">

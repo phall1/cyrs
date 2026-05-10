@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person) RETURN n.name, n.age ORDER BY n.age DESC, n.name ASC\")"
+---
+MATCH (n:Person)
+RETURN n.name, n.age
+ORDER BY n.age DESC, n.name ASC

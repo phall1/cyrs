@@ -1,6 +1,6 @@
 //! bench_format — CST-driven formatter (spec §17.10).
 //!
-//! Measures `cypher_fmt::format` on a representative multi-clause query.
+//! Measures `cyrs_fmt::format` on a representative multi-clause query.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
@@ -16,7 +16,7 @@ RETURN n.name AS source, m.name AS target, hops
 fn bench_format(c: &mut Criterion) {
     c.bench_function("format", |b| {
         b.iter(|| {
-            let _out = cypher_fmt::format(std::hint::black_box(QUERY));
+            let _out = cyrs_fmt::format(std::hint::black_box(QUERY));
         });
     });
 }

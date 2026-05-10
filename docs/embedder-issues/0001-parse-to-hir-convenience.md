@@ -1,4 +1,4 @@
-# 0001 — `cypher-hir` should expose a single-call `parse_to_hir`
+# 0001 — `cyrs-hir` should expose a single-call `parse_to_hir`
 
 **Severity:** medium
 **Discovered:** embedder legacy-parser→cyrs migration, stage 0
@@ -8,9 +8,9 @@
 Today an embedder that wants `(syntax errors, hir)` has to call:
 
 ```rust
-let parse = cypher_syntax::parse(src);            // parse #1
+let parse = cyrs_syntax::parse(src);            // parse #1
 let errs  = parse.errors();
-let hir   = cypher_hir::lower::lower_statement(src); // parse #2 — re-lexes!
+let hir   = cyrs_hir::lower::lower_statement(src); // parse #2 — re-lexes!
 ```
 
 `lower_statement` takes `&str`, not the existing `Parse`/`SyntaxNode`, so
@@ -20,14 +20,14 @@ it re-runs the full lexer + parser pipeline. For a JIT-style embedder
 ## Proposed shape
 
 ```rust
-// in cypher-hir
-pub fn lower_parse(parse: &cypher_syntax::Parse) -> Statement;
+// in cyrs-hir
+pub fn lower_parse(parse: &cyrs_syntax::Parse) -> Statement;
 
 // or, the convenience the caller actually wants:
 pub fn parse_to_hir(src: &str) -> ParseToHir;
 
 pub struct ParseToHir {
-    pub parse: cypher_syntax::Parse,
+    pub parse: cyrs_syntax::Parse,
     pub hir: Statement,                     // best-effort even on errors
     pub syntax_errors: Vec<SyntaxError>,
 }

@@ -1,0 +1,69 @@
+[package]
+name         = "cyrs-wasm"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "WebAssembly binding (wasm-bindgen) that exposes the Cypher / GQL frontend agent op surface as JavaScript callables (spec 0004 §4)."
+
+[lib]
+name = "cyrs_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# `wasm-smoke` gates the wasm-bindgen-test round-trip added for spec
+# 0004 §10.1.  The feature is off by default so CI runners without the
+# wasm toolchain do not see the optional dev dep; `cargo xtask
+# wasm-smoke` enables it when `wasm-pack` is on PATH.
+wasm-smoke = []
+
+[dependencies]
+cyrs-db            = { workspace = true }
+cyrs-diag          = { workspace = true }
+cyrs-fmt           = { workspace = true }
+cyrs-lang-services = { workspace = true }
+# cyrs-syntax is reachable transitively through every other dep above;
+# cyrs-lang-services's public API is keyed on `cyrs_syntax::TextSize`
+# (spec 0001 §14) and this crate's JS entry points convert a JS `u32`
+# offset into that `TextSize` at the boundary.  No new analysis surface.
+cyrs-syntax        = { workspace = true }
+# Spec 0001 §7 schema provider trait — implemented locally by the
+# deserialize-only `WasmSchema` so `schemaSet` can install a user-
+# supplied label set without widening into cyrs-project / cyrs-hir.
+cyrs-schema        = { workspace = true }
+# `smol_str` mirrors the agent crate's use via the SchemaProvider
+# implementation; no new behaviour.
+smol_str             = { workspace = true }
+# Plan / HIR lowering are reached via cyrs-db's public API plus the
+# lang-services engines; no direct dep on cyrs-hir/plan is added here
+# because spec 0004 §3 pins cyrs-wasm's dep list to the adapter set.
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+
+# Browser / JS boundary — wasm-bindgen handles the JS ↔ Rust ABI and
+# serde-wasm-bindgen carries the agent wire types across as idiomatic JS
+# objects rather than JSON strings (spec 0004 §4.1).
+wasm-bindgen        = "0.2"
+serde-wasm-bindgen  = "0.6"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Only pulled in when building for wasm32; native test runs do not
+# touch wasm-bindgen-test.  Spec 0004 §10.1 smoke test lives behind the
+# `wasm-smoke` feature flag.
+wasm-bindgen-test = "0.3"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# cyrs-wasm is a thin adapter crate.  Like the other binding crates
+# (spec 0004 §2.1) the workspace lints apply; `unsafe_code = forbid` from
+# the workspace table covers us without a crate-local opt-out.
+[lints]
+workspace = true

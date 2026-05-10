@@ -4,13 +4,13 @@ A [tree-sitter][ts] grammar for Cypher / GQL, parity-tested against the
 Rust [`cyrs`][cyrs] front-end.
 
 This subproject lives inside the `cyrs` repository but is published as an
-independent npm/tree-sitter grammar. The Rust parser in `cypher-syntax`
+independent npm/tree-sitter grammar. The Rust parser in `cyrs-syntax`
 is authoritative; this grammar is a parallel hand-maintained artefact
 kept in lock-step by the `cargo xtask tree-sitter-parity` harness.
 
 ## Parity claim
 
-For every scenario in `crates/cypher-tck/tck/v1.toml` (the cyrs TCK v1
+For every scenario in `crates/cyrs-tck/tck/v1.toml` (the cyrs TCK v1
 surface, 48 scenarios as of today) plus 12 supplementary scenarios
 compiled into `xtask tree-sitter-parity` to cover grammar-v1 surfaces
 that aren't yet in the TCK fixture (UNION, list comp with map, list

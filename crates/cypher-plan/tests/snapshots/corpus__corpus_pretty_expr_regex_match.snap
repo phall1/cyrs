@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS n]
-  Filter (($0.name =~ "^Alice.*"))
-    Source (AS $0)

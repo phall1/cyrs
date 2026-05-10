@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-sema/src/kinds.rs
+expression: run(&stmt)
+---
+diagnostics: 1
+  E2008: variable `n` used in relationship-pattern position but has kind `Node`; expected `Relationship`

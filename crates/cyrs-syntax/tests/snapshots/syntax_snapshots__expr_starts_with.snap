@@ -1,0 +1,23 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 314
+expression: "format_with_errors(\"RETURN a STARTS WITH 'foo'\")"
+---
+SOURCE_FILE@0..26
+  STATEMENT@0..26
+    RETURN_CLAUSE@0..26
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..26
+        RETURN_ITEMS@6..26
+          RETURN_ITEM@6..26
+            STRING_OP_EXPR@6..26
+              VAR_EXPR@6..8
+                WHITESPACE@6..7 " "
+                IDENT@7..8 "a"
+              WHITESPACE@8..9 " "
+              STARTS_KW@9..15 "STARTS"
+              WHITESPACE@15..16 " "
+              WITH_KW@16..20 "WITH"
+              LITERAL_EXPR@20..26
+                WHITESPACE@20..21 " "
+                STRING_LITERAL@21..26 "'foo'"

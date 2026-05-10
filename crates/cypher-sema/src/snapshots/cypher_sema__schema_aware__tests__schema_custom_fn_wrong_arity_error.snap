@@ -1,6 +1,0 @@
----
-source: crates/cypher-sema/src/schema_aware.rs
-expression: "run(&stmt, &schema)"
----
-diagnostics: 1
-  E3007: function `custom_fn` expects exactly 1 argument(s) but got 0

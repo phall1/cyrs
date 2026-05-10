@@ -34,9 +34,9 @@ type signature you consume, what is preserved, what is lost, the
 public type to import, the `cargo add` line, and a five-line snippet
 showing the entry point.
 
-### 1. Parse (`cypher-syntax`) — the lossless tree
+### 1. Parse (`cyrs-syntax`) — the lossless tree
 
-- **Consume:** [`cypher_syntax::Parse`] (root) and [`SyntaxNode`] for
+- **Consume:** [`cyrs_syntax::Parse`] (root) and [`SyntaxNode`] for
   walks. The tree is a `rowan` green/red graph parameterised by
   [`Lang`]; every byte of input — including whitespace, comments, and
   fragments the parser couldn't make sense of — is in there
@@ -46,15 +46,15 @@ showing the entry point.
 - **Lost:** nothing structural, but **no** name resolution, no types,
   no desugar. A `MATCH (a {name: $n})` is still a shorthand-property
   pattern, not a `WHERE`.
-- **Public type:** `cypher_syntax::Parse`, `cypher_syntax::SyntaxNode`,
-  `cypher_syntax::SyntaxKind`.
+- **Public type:** `cyrs_syntax::Parse`, `cyrs_syntax::SyntaxNode`,
+  `cyrs_syntax::SyntaxKind`.
 
 ```sh
-cargo add cypher-syntax
+cargo add cyrs-syntax
 ```
 
 ```rust
-use cypher_syntax::parse;
+use cyrs_syntax::parse;
 
 let parse = parse("MATCH (a:Person) RETURN a");
 let root = parse.syntax();
@@ -64,7 +64,7 @@ assert_eq!(root.to_string(), "MATCH (a:Person) RETURN a");
 
 [s44]: ./specs/0001-cypher-frontend.md#44-cst
 
-### 2. AST (`cypher-ast`) — typed wrappers over the CST
+### 2. AST (`cyrs-ast`) — typed wrappers over the CST
 
 - **Consume:** generated wrapper structs (`Statement`, `Clause`,
   `Expression`, …) that hold a [`SyntaxNode`] and expose typed
@@ -76,17 +76,17 @@ assert_eq!(root.to_string(), "MATCH (a:Person) RETURN a");
   ([spec §5.3][s53]).
 - **Lost:** still no name resolution; still no types; still no
   desugar. `WITH ... AS x` introduces no scope yet at this layer.
-- **Public type:** `cypher_ast::Statement`, `cypher_ast::Clause`,
-  `cypher_ast::Expression`, plus the rest of the generated catalogue
-  in `cypher_ast::generated`.
+- **Public type:** `cyrs_ast::Statement`, `cyrs_ast::Clause`,
+  `cyrs_ast::Expression`, plus the rest of the generated catalogue
+  in `cyrs_ast::generated`.
 
 ```sh
-cargo add cypher-syntax cypher-ast
+cargo add cyrs-syntax cyrs-ast
 ```
 
 ```rust
-use cypher_ast::{AstNode, SourceFile};
-use cypher_syntax::parse;
+use cyrs_ast::{AstNode, SourceFile};
+use cyrs_syntax::parse;
 
 let parse = parse("MATCH (a:Person) RETURN a");
 let file = SourceFile::cast(parse.syntax()).unwrap();
@@ -96,9 +96,9 @@ for stmt in file.statements() { /* typed walk */ }
 [s51]: ./specs/0001-cypher-frontend.md#51-wrappers-not-owned-values
 [s53]: ./specs/0001-cypher-frontend.md#53-missing-fields-are-option
 
-### 3. HIR (`cypher-hir`) — resolved, desugared, owned
+### 3. HIR (`cyrs-hir`) — resolved, desugared, owned
 
-- **Consume:** [`cypher_hir::Statement`], an owned tree of `Clause`,
+- **Consume:** [`cyrs_hir::Statement`], an owned tree of `Clause`,
   `Expr`, `PatternElement`, etc. Every variable reference carries its
   defining `VarId`; sugar (list comprehensions, pattern predicates,
   shorthand property matching, map projection) has been expanded
@@ -110,15 +110,15 @@ for stmt in file.statements() { /* typed walk */ }
   Spans survive only via the `HirId → SyntaxNode` map. Source
   formatting cannot be reconstructed from HIR alone — fall back to
   the AST/CST for that.
-- **Public type:** `cypher_hir::Statement`, `cypher_hir::Clause`,
-  `cypher_hir::Expr`, `cypher_hir::VarId`, `cypher_hir::HirId`.
+- **Public type:** `cyrs_hir::Statement`, `cyrs_hir::Clause`,
+  `cyrs_hir::Expr`, `cyrs_hir::VarId`, `cyrs_hir::HirId`.
 
 ```sh
-cargo add cypher-hir
+cargo add cyrs-hir
 ```
 
 ```rust
-use cypher_hir::lower::lower_statement;
+use cyrs_hir::lower::lower_statement;
 
 let stmt = lower_statement("MATCH (a:Person {name: $n}) RETURN a");
 // Pattern shorthand has been desugared to MATCH + WHERE;
@@ -129,7 +129,7 @@ for clause in &stmt.clauses { /* walk owned HIR */ }
 [s61]: ./specs/0001-cypher-frontend.md#61-hir-shape
 [s63]: ./specs/0001-cypher-frontend.md#63-variable-kinds
 
-### 4. Sema (`cypher-sema`) — type system on top of HIR
+### 4. Sema (`cyrs-sema`) — type system on top of HIR
 
 - **Consume:** the diagnostic stream + `Type` annotations produced by
   running sema over a HIR statement. Two modes share a single pipeline
@@ -141,17 +141,17 @@ for clause in &stmt.clauses { /* walk owned HIR */ }
 - **Lost:** sema does not retain the HIR; it consumes one and emits
   diagnostics + a type map. Re-run with the same HIR if you need to
   re-type after a rewrite.
-- **Public type:** `cypher_sema::ty::Type`, `cypher_sema::DialectMode`,
-  the analyses in `cypher_sema` (currently coupled with `cypher-diag`).
+- **Public type:** `cyrs_sema::ty::Type`, `cyrs_sema::DialectMode`,
+  the analyses in `cyrs_sema` (currently coupled with `cyrs-diag`).
 
 ```sh
-cargo add cypher-hir cypher-sema cypher-schema cypher-diag
+cargo add cyrs-hir cyrs-sema cyrs-schema cyrs-diag
 ```
 
 ```rust
-use cypher_hir::lower::lower_statement;
+use cyrs_hir::lower::lower_statement;
 // Compose your own `SchemaProvider` impl, then run analyses
-// from `cypher-sema`. (The exact public entry point depends on
+// from `cyrs-sema`. (The exact public entry point depends on
 // the in-progress sema surface — see crate docs.)
 let stmt = lower_statement("MATCH (a) RETURN a.unknown");
 // hand `stmt` plus your schema to the sema analyses…
@@ -160,9 +160,9 @@ let stmt = lower_statement("MATCH (a) RETURN a.unknown");
 [s71]: ./specs/0001-cypher-frontend.md#71-two-modes-one-pipeline
 [s102]: ./specs/0001-cypher-frontend.md#102-code-scheme
 
-### 5. Plan (`cypher-plan`) — logical operator graph
+### 5. Plan (`cyrs-plan`) — logical operator graph
 
-- **Consume:** [`cypher_plan::lower::PlanStatement`], a directed
+- **Consume:** [`cyrs_plan::lower::PlanStatement`], a directed
   acyclic graph of [`ReadOp`] / [`WriteOp`] nodes with typed columns.
   Logical only: no cost model, no cardinality, no physical operator
   selection ([spec §12.1][s121]). Variable identities are
@@ -173,17 +173,17 @@ let stmt = lower_statement("MATCH (a) RETURN a.unknown");
 - **Lost:** spans (you keep a `VarMap` back to source), trivia,
   any source formatting. Sema diagnostics are *upstream* of plan;
   if your input does not type-check, do not lower.
-- **Public type:** `cypher_plan::ReadOp`, `cypher_plan::WriteOp`,
-  `cypher_plan::Expr`, `cypher_plan::OpId`, `cypher_plan::VarId`,
-  `cypher_plan::lower::PlanStatement`.
+- **Public type:** `cyrs_plan::ReadOp`, `cyrs_plan::WriteOp`,
+  `cyrs_plan::Expr`, `cyrs_plan::OpId`, `cyrs_plan::VarId`,
+  `cyrs_plan::lower::PlanStatement`.
 
 ```sh
-cargo add cypher-hir cypher-plan
+cargo add cyrs-hir cyrs-plan
 ```
 
 ```rust
-use cypher_hir::lower::lower_statement as hir_lower;
-use cypher_plan::lower::lower_statement as plan_lower;
+use cyrs_hir::lower::lower_statement as hir_lower;
+use cyrs_plan::lower::lower_statement as plan_lower;
 
 let hir = hir_lower("MATCH (a:Person) RETURN a");
 let plan = plan_lower(&hir).expect("HIR was sema-clean");
@@ -193,7 +193,7 @@ let plan = plan_lower(&hir).expect("HIR was sema-clean");
 [s121]: ./specs/0001-cypher-frontend.md#121-shape
 [s123]: ./specs/0001-cypher-frontend.md#123-ownership-of-identifiers
 
-### 6. Agent JSON (`cypher-agent`) — out-of-process protocol
+### 6. Agent JSON (`cyrs-agent`) — out-of-process protocol
 
 - **Consume:** stdin/stdout JSON Lines, one request per line. Ten
   ops: `parse`, `check`, `complete`, `hover`, `format`, `rewrite`,
@@ -211,8 +211,8 @@ let plan = plan_lower(&hir).expect("HIR was sema-clean");
   stdin/stdout.
 
 ```sh
-cargo install cyrs-cli         # ships the `cypher-agent` binary too
-cypher-agent < requests.jsonl  # one JSON request per line
+cargo install cyrs-cli         # ships the `cyrs-agent` binary too
+cyrs-agent < requests.jsonl  # one JSON request per line
 ```
 
 ```jsonc

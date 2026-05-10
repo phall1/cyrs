@@ -1,0 +1,8 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+Limit 5
+  Skip 10
+    OrderBy [$0 DESC]
+      Source (AS $0)

@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [((($0.price * $0.qty) + $0.shipping) - $0.discount) AS total]
+  Source (AS $0)

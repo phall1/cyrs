@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-fmt/src/lib.rs
+expression: "fmt(\"MATCH (n:Person) RETURN n.firstName + ' ' + n.lastName AS fullName\")"
+---
+MATCH (n:Person)
+RETURN n.firstName + ' ' + n.lastName AS fullName

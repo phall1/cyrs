@@ -1,8 +1,8 @@
 {
-  "name": "cypher-ffi-node-smoke",
+  "name": "cyrs-ffi-node-smoke",
   "version": "0.0.1",
   "private": true,
-  "description": "Node smoke test for cypher-ffi via koffi (spec 0004 §10.2).",
+  "description": "Node smoke test for cyrs-ffi via koffi (spec 0004 §10.2).",
   "type": "module",
   "scripts": {
     "start": "node index.js"

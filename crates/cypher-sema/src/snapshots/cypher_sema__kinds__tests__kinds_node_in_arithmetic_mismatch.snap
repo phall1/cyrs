@@ -1,6 +1,0 @@
----
-source: crates/cypher-sema/src/kinds.rs
-expression: run(&stmt)
----
-diagnostics: 1
-  E2007: variable `n` has kind `Node` but is used in an arithmetic expression; only `Value` variables are valid here

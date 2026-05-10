@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+Union ALL
+  Source (:Person AS $0)
+  Source (:Animal AS $1)

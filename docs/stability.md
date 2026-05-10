@@ -19,13 +19,13 @@ bumps once 1.0 lands.  Pre-1.0 we already avoid gratuitous churn here
 and track changes in `CHANGELOG.md`:
 
 - **Diagnostic codes and their messages.**  The registry in
-  `crates/cypher-diag/src/codes.rs` (AGENTS.md §7, spec §10.2) is
+  `crates/cyrs-diag/src/codes.rs` (AGENTS.md §7, spec §10.2) is
   append-only.  Codes never change meaning; retired codes are never
   reused.  Message wording may be polished, but the code → message
   mapping must stay recognisable to existing consumers.  CI's
   `check-diag-codes` xtask enforces registry integrity.
 - **Agent JSON wire protocol.**  The `op` names and required-field
-  semantics documented in `crates/cypher-agent/src/main.rs` (spec §15.2)
+  semantics documented in `crates/cyrs-agent/src/main.rs` (spec §15.2)
   are stable: `parse`, `check`, `complete`, `hover`, `format`,
   `rewrite`, `plan`, `explain`, `schema_set`, `schema_clear`,
   `shutdown`.  New optional fields on requests or responses are
@@ -57,16 +57,16 @@ pinned on them to soften the blow — adding a new enum variant or
 struct field is a non-breaking change, but semantic shape changes are
 not.
 
-- **HIR shape** — `cypher_hir::{Expr, Clause, Statement, PatternElement,
+- **HIR shape** — `cyrs_hir::{Expr, Clause, Statement, PatternElement,
   SetItem, RemoveItem, BinOp, UnaryOp, VarKind, MapProjectionItem}`
   internals.  Lowering shape evolves with each new Cypher construct
   brought in.  See "Deferred: intra-workspace `non_exhaustive`" below
   for why these are not yet attributed.
-- **Plan IR shape** — `cypher_plan::{ReadOp, WriteOp, Expr, OpId, BinOp,
+- **Plan IR shape** — `cyrs_plan::{ReadOp, WriteOp, Expr, OpId, BinOp,
   UnaryOp, Direction, RelLength, UnionKind, SortDir}`.  Attributed
   `#[non_exhaustive]` (cy-2i9.1) so new operators / expressions don't
   force SemVer-major releases, but the variant *set* is still growing.
-- **Type lattice** — `cypher_sema::ty::Type`.  The 14-ish variant type
+- **Type lattice** — `cyrs_sema::ty::Type`.  The 14-ish variant type
   lattice will grow with each semantic improvement; see `Deferred`.
 - **LSP extensions beyond baseline LSP spec.**  Cyrs's LSP server
   implements the standard LSP protocol; any non-standard `workspace/
@@ -80,14 +80,14 @@ not.
 
 ## Internal (no guarantees)
 
-- **Salsa tracked query signatures.**  The `cypher-db` query functions
+- **Salsa tracked query signatures.**  The `cyrs-db` query functions
   (`parse_cst`, `ast`, `resolved_names`, `plan`, `all_diagnostics`,
   etc.) are implementation details of incrementality.  Their memoised
   return shapes can change whenever the schema / analysis layer does;
   downstream code should query the `Database` trait, not the Salsa
   internals.
-- **Codegen'd AST.**  `crates/cypher-ast/src/generated.rs` is produced
-  by `cargo xtask codegen` from `cypher-syntax/src/grammar/
+- **Codegen'd AST.**  `crates/cyrs-ast/src/generated.rs` is produced
+  by `cargo xtask codegen` from `cyrs-syntax/src/grammar/
   cypher.ungrammar`.  The *grammar* is a spec-governed artifact; the
   *generated Rust* is an implementation detail.  `SyntaxKind` is
   additionally marked `#[non_exhaustive]` so grammar growth is
@@ -112,46 +112,46 @@ to soften future variant / field additions:
 
 **Enums**
 
-- `cypher_hir::{Direction, RelLength}`
-- `cypher_plan::{Direction, RelLength, UnionKind, SortDir, ReadOp,
+- `cyrs_hir::{Direction, RelLength}`
+- `cyrs_plan::{Direction, RelLength, UnionKind, SortDir, ReadOp,
   WriteOp, Expr, BinOp, UnaryOp}`
-- `cypher_sema::DialectMode`
-- `cypher_schema::{Cardinality, ProcMode}`
-- `cypher_db::DialectMode`
-- `cypher_diag::{Severity, Applicability}`
-- `cypher_lang_services::CompletionItemKind`
-- `cypher_syntax::SyntaxKind` *(pre-existing; cy-2i9.1 preserves it)*
-- `cypher_fmt::FormatError` *(pre-existing)*
+- `cyrs_sema::DialectMode`
+- `cyrs_schema::{Cardinality, ProcMode}`
+- `cyrs_db::DialectMode`
+- `cyrs_diag::{Severity, Applicability}`
+- `cyrs_lang_services::CompletionItemKind`
+- `cyrs_syntax::SyntaxKind` *(pre-existing; cy-2i9.1 preserves it)*
+- `cyrs_fmt::FormatError` *(pre-existing)*
 
 **Structs**
 
-- `cypher_diag::Diagnostic`
-- `cypher_schema::PropertyDecl`  *(constructor: `PropertyDecl::new`)*
-- `cypher_lang_services::{CompletionItem, Hover, RewriteEdit,
+- `cyrs_diag::Diagnostic`
+- `cyrs_schema::PropertyDecl`  *(constructor: `PropertyDecl::new`)*
+- `cyrs_lang_services::{CompletionItem, Hover, RewriteEdit,
   RewritePayload}`
-- `cypher_db::UnknownFileId`
+- `cyrs_db::UnknownFileId`
 
 ### Deferred: intra-workspace `non_exhaustive`
 
 The following enums / structs are **listed in the bead but not yet
 attributed** because they are matched exhaustively across the workspace
-(cross-crate, from `cypher-sema` / `cypher-plan` / `cypher-db` /
-`cypher-lang-services` / `cypher-lsp`).  Adding `#[non_exhaustive]`
+(cross-crate, from `cyrs-sema` / `cyrs-plan` / `cyrs-db` /
+`cyrs-lang-services` / `cyrs-lsp`).  Adding `#[non_exhaustive]`
 would force a wildcard arm at every cross-crate match site — 28+
-sites in `cypher-sema` alone for `HirExpr` / `Clause` / `SetItem` etc.
+sites in `cyrs-sema` alone for `HirExpr` / `Clause` / `SetItem` etc.
 We prefer to land the attribute in a follow-up bead that performs the
 mechanical match-arm churn in one focused commit rather than
 piggyback it on the SemVer gating work:
 
-- `cypher_hir::{VarKind, Clause, PatternElement, Expr, SetItem,
+- `cyrs_hir::{VarKind, Clause, PatternElement, Expr, SetItem,
   RemoveItem, MapProjectionItem, BinOp, UnaryOp}`
-- `cypher_sema::ty::Type`
-- `cypher_schema::PropertyType`
-- `cypher_hir::{Statement, Binding}` (structs — many cross-crate
+- `cyrs_sema::ty::Type`
+- `cyrs_schema::PropertyType`
+- `cyrs_hir::{Statement, Binding}` (structs — many cross-crate
   constructions)
-- `cypher_plan::{AggExpr, OrderKey}` (structs — integration-test
+- `cyrs_plan::{AggExpr, OrderKey}` (structs — integration-test
   fixtures construct via literals)
-- `cypher_schema::{EndpointDecl, FunctionSignature, ProcedureSignature,
+- `cyrs_schema::{EndpointDecl, FunctionSignature, ProcedureSignature,
   ParamDecl, YieldDecl, FnCategories}`
 
 None of the deferred types are stable today; all are documented as

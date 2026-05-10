@@ -1,0 +1,20 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN count(n)\")"
+---
+SOURCE_FILE@0..15
+  STATEMENT@0..15
+    RETURN_CLAUSE@0..15
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..15
+        RETURN_ITEMS@6..15
+          RETURN_ITEM@6..15
+            FUNCTION_CALL@6..15
+              VAR_EXPR@6..12
+                WHITESPACE@6..7 " "
+                COUNT_KW@7..12 "count"
+              L_PAREN@12..13 "("
+              ARG_LIST@13..14
+                VAR_EXPR@13..14
+                  IDENT@13..14 "n"
+              R_PAREN@14..15 ")"

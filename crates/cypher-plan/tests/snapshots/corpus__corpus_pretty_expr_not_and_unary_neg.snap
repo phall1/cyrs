@@ -1,7 +1,0 @@
----
-source: crates/cypher-plan/tests/corpus.rs
-expression: pretty(&plan)
----
-Project [$0 AS n]
-  Filter ((NOT($0.deleted) AND (-($0.score) > -(100))))
-    Source (AS $0)

@@ -1,0 +1,40 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+assertion_line: 208
+expression: "dump(\"OPTIONAL MATCH (a:Person {name: 'Alice'}) RETURN a\")"
+---
+SourceFile(SOURCE_FILE@0..50)
+  STATEMENT@0..50
+    OPTIONAL_MATCH_CLAUSE@0..41
+      OPTIONAL_KW@0..8 "OPTIONAL"
+      WHITESPACE@8..9 " "
+      MATCH_KW@9..14 "MATCH"
+      Pattern(PATTERN@14..41)
+        PATTERN_PART@14..41
+          NodePattern(NODE_PATTERN@14..41)
+            WHITESPACE@14..15 " "
+            L_PAREN@15..16 "("
+            NAME@16..17
+              IDENT@16..17 "a"
+            LabelExpr(LABEL_EXPR@17..24)
+              COLON@17..18 ":"
+              IDENT@18..24 "Person"
+            PropertyMap(PROPERTY_MAP@24..40)
+              WHITESPACE@24..25 " "
+              L_BRACE@25..26 "{"
+              IDENT@26..30 "name"
+              COLON@30..31 ":"
+              LITERAL_EXPR@31..39
+                WHITESPACE@31..32 " "
+                STRING_LITERAL@32..39 "'Alice'"
+              R_BRACE@39..40 "}"
+            R_PAREN@40..41 ")"
+    ReturnClause(RETURN_CLAUSE@41..50)
+      WHITESPACE@41..42 " "
+      RETURN_KW@42..48 "RETURN"
+      RETURN_BODY@48..50
+        RETURN_ITEMS@48..50
+          ReturnItem(RETURN_ITEM@48..50)
+            VAR_EXPR@48..50
+              WHITESPACE@48..49 " "
+              IDENT@49..50 "a"

@@ -1,0 +1,46 @@
+[package]
+name         = "cyrs-plan"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Logical plan IR lowered from Cypher / GQL HIR (spec 0001 §12)."
+
+[lib]
+name = "cyrs_plan"
+
+[features]
+# The `serde` feature enables JSON serialisation/deserialisation of all plan
+# types (spec §12). Enable with --features cyrs-plan/serde.
+# The feature is always enabled in test/dev builds via the dev-dep below.
+serde = ["dep:serde", "dep:serde_json", "indexmap/serde", "smol_str/serde"]
+
+[dependencies]
+cyrs-hir = { workspace = true }
+smol_str   = { workspace = true }
+indexmap   = { workspace = true }
+serde      = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+insta          = { workspace = true, features = ["json"] }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+indexmap       = { workspace = true }
+cyrs-plan    = { path = ".", features = ["serde"] }
+cyrs-testkit = { workspace = true }
+proptest       = { workspace = true }
+cyrs-syntax  = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

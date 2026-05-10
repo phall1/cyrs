@@ -62,18 +62,18 @@ harness = false
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [dependencies]
-cypher-syntax  = { path = "../crates/cypher-syntax", package = "cyrs-syntax" }
-cypher-fmt     = { path = "../crates/cypher-fmt",    package = "cyrs-fmt" }
-cypher-hir     = { path = "../crates/cypher-hir",    package = "cyrs-hir" }
-cypher-sema    = { path = "../crates/cypher-sema",   package = "cyrs-sema" }
-cypher-diag    = { path = "../crates/cypher-diag",   package = "cyrs-diag" }
-cypher-plan    = { path = "../crates/cypher-plan",   package = "cyrs-plan" }
-cypher-db      = { path = "../crates/cypher-db",     package = "cyrs-db" }
-cypher-lsp     = { path = "../crates/cypher-lsp",    package = "cyrs-lsp" }
+cyrs-syntax  = { path = "../crates/cyrs-syntax" }
+cyrs-fmt     = { path = "../crates/cyrs-fmt" }
+cyrs-hir     = { path = "../crates/cyrs-hir" }
+cyrs-sema    = { path = "../crates/cyrs-sema" }
+cyrs-diag    = { path = "../crates/cyrs-diag" }
+cyrs-plan    = { path = "../crates/cyrs-plan" }
+cyrs-db      = { path = "../crates/cyrs-db" }
+cyrs-lsp     = { path = "../crates/cyrs-lsp" }
 # cy-y6a: bench_workspace_fan drives `cypher check <dir>` via the cy-o8c
-# workspace DB.  We mirror `cypher-cli::check_project` in-process rather
+# workspace DB.  We mirror `cyrs-cli::check_project` in-process rather
 # than spawning the CLI binary to keep measurements subprocess-free.
-cypher-project = { path = "../crates/cypher-project", package = "cyrs-project" }
+cyrs-project = { path = "../crates/cyrs-project" }
 # LSP Connection::memory() returns a pair of crossbeam channels; the
 # bench harness owns one side to drive requests at the server thread.
 lsp-server    = "0.7"

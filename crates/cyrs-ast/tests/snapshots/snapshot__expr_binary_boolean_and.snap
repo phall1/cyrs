@@ -1,0 +1,56 @@
+---
+source: crates/cyrs-ast/tests/snapshot.rs
+assertion_line: 380
+expression: "dump(\"MATCH (n) WHERE n.age > 18 AND n.active = true RETURN n\")"
+---
+SourceFile(SOURCE_FILE@0..55)
+  STATEMENT@0..55
+    MatchClause(MATCH_CLAUSE@0..46)
+      MATCH_KW@0..5 "MATCH"
+      Pattern(PATTERN@5..9)
+        PATTERN_PART@5..9
+          NodePattern(NODE_PATTERN@5..9)
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "n"
+            R_PAREN@8..9 ")"
+      WhereClause(WHERE_CLAUSE@9..46)
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        Expr::BinaryExpr(BINARY_EXPR@15..46)
+          Expr::BinaryExpr(BINARY_EXPR@15..26)
+            PROP_ACCESS_EXPR@15..21
+              VAR_EXPR@15..17
+                WHITESPACE@15..16 " "
+                IDENT@16..17 "n"
+              DOT@17..18 "."
+              IDENT@18..21 "age"
+            WHITESPACE@21..22 " "
+            GT@22..23 ">"
+            LITERAL_EXPR@23..26
+              WHITESPACE@23..24 " "
+              INT_LITERAL@24..26 "18"
+          WHITESPACE@26..27 " "
+          AND_KW@27..30 "AND"
+          Expr::BinaryExpr(BINARY_EXPR@30..46)
+            PROP_ACCESS_EXPR@30..39
+              VAR_EXPR@30..32
+                WHITESPACE@30..31 " "
+                IDENT@31..32 "n"
+              DOT@32..33 "."
+              IDENT@33..39 "active"
+            WHITESPACE@39..40 " "
+            EQ@40..41 "="
+            LITERAL_EXPR@41..46
+              WHITESPACE@41..42 " "
+              TRUE_KW@42..46 "true"
+    ReturnClause(RETURN_CLAUSE@46..55)
+      WHITESPACE@46..47 " "
+      RETURN_KW@47..53 "RETURN"
+      RETURN_BODY@53..55
+        RETURN_ITEMS@53..55
+          ReturnItem(RETURN_ITEM@53..55)
+            VAR_EXPR@53..55
+              WHITESPACE@53..54 " "
+              IDENT@54..55 "n"

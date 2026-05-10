@@ -1,5 +1,0 @@
----
-source: crates/cypher-fmt/src/lib.rs
-expression: "fmt(\"!@#$%\")"
----
-!@#$%

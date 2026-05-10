@@ -1,0 +1,73 @@
+[package]
+name         = "cyrs-lang"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Cypher / GQL frontend — lossless CST, typed AST, HIR, semantic analysis, schema-aware checks, diagnostics, formatter, plan IR."
+
+# ---------------------------------------------------------------------------
+# Feature flags — spec 0001 §17.15.
+#
+# Default pulls in the full library surface (all library sub-crates).
+# The three slice features let CI verify that each slice compiles in
+# isolation with --no-default-features.  Note: cyrs-lsp is a binary
+# crate (no library target), so the lsp-only feature exercises the LSP
+# hosting layer — cyrs-db + cyrs-fmt + cyrs-diag — without the
+# LSP binary wrapper.
+# ---------------------------------------------------------------------------
+[lib]
+name = "cyrs"
+
+[features]
+default = [
+    "core",
+    "fmt",
+    "schema",
+]
+# core: lexer / parser / AST / HIR / sema / diagnostics / plan / DB
+core = [
+    "dep:cyrs-syntax",
+    "dep:cyrs-ast",
+    "dep:cyrs-hir",
+    "dep:cyrs-sema",
+    "dep:cyrs-diag",
+    "dep:cyrs-plan",
+    "dep:cyrs-db",
+]
+# lsp-only: the library surface consumed by the LSP binary (cyrs-db, diag, fmt)
+lsp-only = [
+    "core",
+    "fmt",
+]
+# fmt-only: formatter library surface
+fmt-only = ["fmt", "core"]
+fmt = ["dep:cyrs-fmt", "core"]
+# schema-only: schema / type-system library surface
+schema-only = ["schema", "core"]
+schema = ["dep:cyrs-schema", "dep:cyrs-project", "core"]
+
+[dependencies]
+cyrs-syntax  = { workspace = true, optional = true }
+cyrs-ast     = { workspace = true, optional = true }
+cyrs-hir     = { workspace = true, optional = true }
+cyrs-sema    = { workspace = true, optional = true }
+cyrs-schema  = { workspace = true, optional = true }
+cyrs-project = { workspace = true, optional = true }
+cyrs-diag    = { workspace = true, optional = true }
+cyrs-plan    = { workspace = true, optional = true }
+cyrs-fmt     = { workspace = true, optional = true }
+cyrs-db      = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

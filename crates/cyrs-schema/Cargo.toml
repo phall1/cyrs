@@ -1,0 +1,40 @@
+[package]
+name         = "cyrs-schema"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Schema types and SchemaProvider trait for Cypher / GQL (spec 0001 §8)."
+
+[dependencies]
+smol_str  = { workspace = true }
+indexmap  = { workspace = true }
+serde     = { workspace = true, optional = true }
+toml      = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+[lib]
+name = "cyrs_schema"
+
+[features]
+default = ["file"]
+serde   = ["dep:serde", "indexmap/serde", "smol_str/serde"]
+# Spec 0002: TOML schema-file loader / round-trip surface.
+# Pulls in `toml`, `thiserror`, and `serde` (for derive).
+file    = ["serde", "dep:toml", "dep:thiserror", "smol_str/serde"]
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

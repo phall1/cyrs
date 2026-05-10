@@ -1,0 +1,15 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"RETURN []\")"
+---
+SOURCE_FILE@0..9
+  STATEMENT@0..9
+    RETURN_CLAUSE@0..9
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..9
+        RETURN_ITEMS@6..9
+          RETURN_ITEM@6..9
+            LIST_LITERAL@6..9
+              WHITESPACE@6..7 " "
+              L_BRACK@7..8 "["
+              R_BRACK@8..9 "]"

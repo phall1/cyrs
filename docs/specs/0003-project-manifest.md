@@ -155,7 +155,7 @@ path = "schema.toml"                 # relative to manifest dir; optional
 
 - `path` (string, optional) — path to a `schema.toml` (spec 0002), relative
   to the manifest directory. When present, the loader passes the file to
-  `cypher_schema::file::load_from_toml_path` and stores the resulting
+  `cyrs_schema::file::load_from_toml_path` and stores the resulting
   `InMemorySchema` on the manifest.
 - When the whole `[project.schema]` table is absent, the project runs in
   schema-free mode: the semantic pass skips schema-aware checks exactly
@@ -186,7 +186,7 @@ in order:
    to member `.cyp` files.
 4. **Schema loading.** If `[project.schema].path` is set, resolve the
    path against the manifest directory and call
-   `cypher_schema::file::load_from_toml_path`. Propagate any
+   `cyrs_schema::file::load_from_toml_path`. Propagate any
    `SchemaLoadError` as `ProjectLoadError::Schema`.
 5. **Lint level resolution.** Validate every rule name against the
    registered lint set (§6). Unknown names produce
@@ -209,7 +209,7 @@ format can validate lint config end-to-end before the real lints exist:
 - `wildcard-return` — a `RETURN *` in a position where explicit projection
   would aid readability.
 
-These are **placeholders**. The real rules will land in `cypher-sema`
+These are **placeholders**. The real rules will land in `cyrs-sema`
 alongside the cross-file analysis work under cy-o8c; the registry here
 exists solely so a manifest that misspells a rule name fails fast at load
 time. A successor spec (or a bead under cy-o8c) will move the registry to
@@ -240,7 +240,7 @@ The variant set is closed at v0.
 
 ## 12. Public API surface
 
-Three functions plus the manifest type live in `cypher_project`:
+Three functions plus the manifest type live in `cyrs_project`:
 
 ```rust
 pub fn load_from_toml_str(input: &str) -> Result<ProjectManifest, ProjectLoadError>;
@@ -258,7 +258,7 @@ pub struct ProjectManifest {
     pub dialect: DialectConfig,
     pub members: Vec<PathBuf>,        // resolved, absolute paths
     pub exclude: Vec<String>,         // raw glob strings (diagnostics)
-    pub schema: Option<cypher_schema::InMemorySchema>,
+    pub schema: Option<cyrs_schema::InMemorySchema>,
     pub lint_levels: BTreeMap<String, LintLevel>,
     pub manifest_dir: PathBuf,
 }
@@ -286,14 +286,14 @@ v0.
   from an outer project.
 - **Workspace output overrides.** Project-local overrides for the
   agent / LSP output format (e.g., JSON vs text rendering).
-- **Lint rule registry in `cypher-sema`.** The v0 placeholder registry
-  moves to `cypher-sema` once the real rules exist.
+- **Lint rule registry in `cyrs-sema`.** The v0 placeholder registry
+  moves to `cyrs-sema` once the real rules exist.
 
 ## 21. Open questions
 
 1. **Cargo.toml interop.** Should a `cypher-project.toml` beside a
    `Cargo.toml` optionally consume `[package.metadata.cypher]` from the
-   Cargo manifest, so Rust consumers of `cypher-lsp` / `cypher-agent`
+   Cargo manifest, so Rust consumers of `cyrs-lsp` / `cyrs-agent`
    can pin their project config from `Cargo.toml` alone? Pros: one
    manifest for Rust users. Cons: couples the project format to
    Cargo's evolution, and non-Rust consumers (web, editor

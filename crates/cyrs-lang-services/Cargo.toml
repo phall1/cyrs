@@ -1,0 +1,36 @@
+[package]
+name         = "cyrs-lang-services"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Shared language-service engines (completion, hover, rewrite) used by cyrs-lsp and cyrs-agent (spec 0001 §14 / §15)."
+
+[lib]
+name = "cyrs_lang_services"
+
+[dependencies]
+cyrs-ast     = { workspace = true }
+cyrs-db      = { workspace = true }
+cyrs-diag    = { workspace = true }
+cyrs-hir     = { workspace = true }
+cyrs-project = { workspace = true }
+cyrs-schema  = { workspace = true }
+cyrs-sema    = { workspace = true }
+cyrs-syntax  = { workspace = true }
+cyrs-fmt     = { workspace = true }
+rowan          = { workspace = true }
+smol_str       = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

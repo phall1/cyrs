@@ -1,10 +1,10 @@
 //! bench_agent_throughput — 10 k sequential agent ops against the
-//! `cypher-agent` JSON-over-stdio protocol; reports ops/sec and
+//! `cyrs-agent` JSON-over-stdio protocol; reports ops/sec and
 //! p99 latency (spec §17.10, §15; bead cy-y6a).
 //!
 //! # What this measures
 //!
-//! A long-running `cypher-agent` subprocess driven over stdio with
+//! A long-running `cyrs-agent` subprocess driven over stdio with
 //! one request per line, one response per line (the real wire
 //! format per spec §15).  The bench measures round-trip latency —
 //! JSON encode → write stdin → server handle → read stdout → JSON
@@ -26,7 +26,7 @@
 //!
 //! # Build step
 //!
-//! On first run the bench builds `cypher-agent` in release mode from
+//! On first run the bench builds `cyrs-agent` in release mode from
 //! the parent workspace (benches/ is its own `[workspace]` table per
 //! spec §17.10 — see `benches/Cargo.toml` — so we have to reach
 //! explicitly at `../Cargo.toml`).  The compiled binary is reused
@@ -81,7 +81,7 @@ const SAMPLE_QUERY: &str =
 // Build + spawn the agent subprocess
 // ---------------------------------------------------------------------------
 
-/// Build `cypher-agent` in release mode against the parent workspace
+/// Build `cyrs-agent` in release mode against the parent workspace
 /// manifest and return the path to the compiled binary.  Rebuild is a
 /// no-op if the binary is already up to date.
 fn build_agent_binary() -> PathBuf {
@@ -100,15 +100,15 @@ fn build_agent_binary() -> PathBuf {
             "build",
             "--release",
             "-p",
-            "cypher-agent",
+            "cyrs-agent",
             "--manifest-path",
         ])
         .arg(&workspace_manifest)
         .status()
-        .expect("spawn `cargo build -p cypher-agent`");
+        .expect("spawn `cargo build -p cyrs-agent`");
     assert!(
         status.success(),
-        "cargo build -p cypher-agent failed (exit {status})"
+        "cargo build -p cyrs-agent failed (exit {status})"
     );
 
     let bin = workspace_root
@@ -144,7 +144,7 @@ impl AgentHarness {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .expect("spawn cypher-agent");
+            .expect("spawn cyrs-agent");
         let stdin = child.stdin.take().expect("stdin piped");
         let stdout = BufReader::new(child.stdout.take().expect("stdout piped"));
         Self {

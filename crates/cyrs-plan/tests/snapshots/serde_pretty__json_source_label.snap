@@ -1,0 +1,17 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: "serde_json::to_value(&plan).unwrap()"
+---
+{
+  "ops": [
+    {
+      "bind": 0,
+      "label": [
+        "Person"
+      ],
+      "op": "source"
+    }
+  ],
+  "var_map": [],
+  "write_ops": []
+}

@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-hir/src/desugar.rs
+expression: render_expr(&expr)
+---
+ListComp(var=1, iterable=Var(0), filter=Prop(Var(1).active), map=BinOp(Concat, Prop(Var(1).name), String("_suffix")))

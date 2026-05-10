@@ -1,0 +1,22 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 349
+expression: "format_with_errors(\"RETURN a IS NOT NULL\")"
+---
+SOURCE_FILE@0..20
+  STATEMENT@0..20
+    RETURN_CLAUSE@0..20
+      RETURN_KW@0..6 "RETURN"
+      RETURN_BODY@6..20
+        RETURN_ITEMS@6..20
+          RETURN_ITEM@6..20
+            IS_NULL_EXPR@6..20
+              VAR_EXPR@6..8
+                WHITESPACE@6..7 " "
+                IDENT@7..8 "a"
+              WHITESPACE@8..9 " "
+              IS_KW@9..11 "IS"
+              WHITESPACE@11..12 " "
+              NOT_KW@12..15 "NOT"
+              WHITESPACE@15..16 " "
+              NULL_KW@16..20 "NULL"

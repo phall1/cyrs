@@ -1,0 +1,12 @@
+---
+source: crates/cyrs-sema/src/resolve.rs
+expression: "render_result(&stmt, false)"
+---
+scopes: 6
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=Match parent=Some(0) bindings=["a"]
+  scope[2] kind=Match parent=Some(1) bindings=["b"]
+  scope[3] kind=WithBarrier[a] parent=Some(2) bindings=[]
+  scope[4] kind=Root parent=Some(3) bindings=["a"]
+  scope[5] kind=Return parent=Some(4) bindings=[]
+diagnostics: 0

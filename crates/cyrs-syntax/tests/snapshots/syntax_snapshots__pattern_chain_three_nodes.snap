@@ -1,0 +1,64 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+assertion_line: 212
+expression: "format_with_errors(\"MATCH (a)-[:R1]->(b)-[:R2]->(c) RETURN a, b, c\")"
+---
+SOURCE_FILE@0..46
+  STATEMENT@0..46
+    MATCH_CLAUSE@0..31
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..31
+        PATTERN_PART@5..31
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+          REL_PATTERN@9..17
+            MINUS@9..10 "-"
+            REL_DETAIL@10..15
+              L_BRACK@10..11 "["
+              REL_TYPE_EXPR@11..14
+                COLON@11..12 ":"
+                IDENT@12..14 "R1"
+              R_BRACK@14..15 "]"
+            ARROW_R@15..17 "->"
+          NODE_PATTERN@17..20
+            L_PAREN@17..18 "("
+            NAME@18..19
+              IDENT@18..19 "b"
+            R_PAREN@19..20 ")"
+          REL_PATTERN@20..28
+            MINUS@20..21 "-"
+            REL_DETAIL@21..26
+              L_BRACK@21..22 "["
+              REL_TYPE_EXPR@22..25
+                COLON@22..23 ":"
+                IDENT@23..25 "R2"
+              R_BRACK@25..26 "]"
+            ARROW_R@26..28 "->"
+          NODE_PATTERN@28..31
+            L_PAREN@28..29 "("
+            NAME@29..30
+              IDENT@29..30 "c"
+            R_PAREN@30..31 ")"
+    RETURN_CLAUSE@31..46
+      WHITESPACE@31..32 " "
+      RETURN_KW@32..38 "RETURN"
+      RETURN_BODY@38..46
+        RETURN_ITEMS@38..46
+          RETURN_ITEM@38..40
+            VAR_EXPR@38..40
+              WHITESPACE@38..39 " "
+              IDENT@39..40 "a"
+          COMMA@40..41 ","
+          RETURN_ITEM@41..43
+            VAR_EXPR@41..43
+              WHITESPACE@41..42 " "
+              IDENT@42..43 "b"
+          COMMA@43..44 ","
+          RETURN_ITEM@44..46
+            VAR_EXPR@44..46
+              WHITESPACE@44..45 " "
+              IDENT@45..46 "c"

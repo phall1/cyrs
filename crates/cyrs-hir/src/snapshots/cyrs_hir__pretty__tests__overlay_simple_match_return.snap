@@ -1,0 +1,22 @@
+---
+source: crates/cyrs-hir/src/pretty.rs
+expression: "print_overlay(&stmt, &resolved)"
+---
+Statement {
+  span: 0..18
+  bindings: [
+    Var(0) 0: n (Node) @0..9
+  ]
+  clauses: [
+    Match @0..9 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@0..9]) @6..9
+        ]
+      }
+    }
+    Return(distinct=false) @10..18 {
+      proj[0]: Var(0)[n←Node@0..9]
+    }
+  ]
+}

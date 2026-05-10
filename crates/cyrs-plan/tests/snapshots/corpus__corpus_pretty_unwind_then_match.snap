@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/corpus.rs
+expression: pretty(&plan)
+---
+Project [$1 AS n]
+  Filter (($1.id = $0))
+    Source (AS $1)

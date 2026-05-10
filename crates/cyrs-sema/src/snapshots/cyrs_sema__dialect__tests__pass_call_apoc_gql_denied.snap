@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-sema/src/dialect.rs
+expression: "run_gate(&call_stmt(\"apoc.util.sleep\"), DialectMode::GqlAligned)"
+---
+diagnostics: 1
+  E4016: construct `apoc_functions` is not allowed in dialect `GqlAligned`; allowed in: no v1 dialect (deferred construct, see spec §9.3)

@@ -1,0 +1,31 @@
+[package]
+name         = "cyrs-ast"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+authors      = { workspace = true }
+repository   = { workspace = true }
+homepage     = { workspace = true }
+readme       = "README.md"
+categories   = { workspace = true }
+keywords     = { workspace = true }
+description  = "Typed AST for Cypher / GQL, codegen'd from cyrs-syntax (spec 0001 §5)."
+
+[lib]
+name = "cyrs_ast"
+
+[dependencies]
+cyrs-syntax = { workspace = true }
+smol_str      = { workspace = true }
+
+[dev-dependencies]
+insta  = { workspace = true }
+rowan  = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

@@ -3,7 +3,7 @@
 //!
 //! # What this measures
 //!
-//! Wire-level completion round-trip.  We spin up `cypher-lsp` in a
+//! Wire-level completion round-trip.  We spin up `cyrs-lsp` in a
 //! worker thread via `lsp_server::Connection::memory()`, send
 //! `initialize` + `didOpen` for a 1000-line synthetic workspace,
 //! then benchmark the latency of a single `textDocument/completion`
@@ -71,7 +71,7 @@ fn synth_workspace() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Harness — spin up cypher-lsp once per invocation and share across benches
+// Harness — spin up cyrs-lsp once per invocation and share across benches
 // ---------------------------------------------------------------------------
 
 struct LspHarness {
@@ -87,9 +87,9 @@ impl LspHarness {
     fn new() -> Self {
         let (server, client) = Connection::memory();
         let thread = thread::Builder::new()
-            .name("cypher-lsp-bench".into())
+            .name("cyrs-lsp-bench".into())
             .spawn(move || {
-                let _ = cypher_lsp::serve(&server);
+                let _ = cyrs_lsp::serve(&server);
             })
             .expect("spawn server");
         let mut h = Self {

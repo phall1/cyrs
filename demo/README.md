@@ -1,11 +1,11 @@
 # `cypher` demo — Neovim LSP
 
-A 5-minute walkthrough that wires the `cypher-lsp` binary into Neovim
+A 5-minute walkthrough that wires the `cyrs-lsp` binary into Neovim
 so you can watch the frontend produce live diagnostics, formatting,
 hover, goto-definition, rename, completion, and more. No plugins
 required.
 
-![cypher-lsp demo: diagnostics + format-on-save](demo.gif)
+![cyrs-lsp demo: diagnostics + format-on-save](demo.gif)
 
 The recording above is regenerated from [`demo.tape`](demo.tape) with
 [charmbracelet/vhs](https://github.com/charmbracelet/vhs):
@@ -14,7 +14,7 @@ The recording above is regenerated from [`demo.tape`](demo.tape) with
 vhs demo/demo.tape     # produces demo/demo.gif
 ```
 
-Run from the workspace root; the tape builds `cypher-lsp` first and
+Run from the workspace root; the tape builds `cyrs-lsp` first and
 then drives Neovim through the parser-recovery diagnostic on
 `unclosed_paren.cyp` and the format-on-save hook on `needs_fmt.cyp`.
 
@@ -23,7 +23,7 @@ then drives Neovim through the parser-recovery diagnostic on
 - **Diagnostics** — syntax errors (`E0xxx`) from the recovering
   parser and name-resolution errors (`E1xxx`) from the sema
   pipeline.
-- **Format-on-save** via `cypher-fmt`, same formatter `cypher fmt`
+- **Format-on-save** via `cyrs-fmt`, same formatter `cypher fmt`
   uses.
 - **Hover** — keyword descriptions + bound-variable kind lookups.
 - **Goto-definition** — jump from `RETURN n` to the `MATCH (n)`
@@ -50,7 +50,7 @@ language server uses in production — not a scripted demo.
 From the workspace root:
 
 ```sh
-cargo build --release -p cypher-lsp
+cargo build --release -p cyrs-lsp
 ```
 
 That produces `target/release/cypher-lsp`. The demo's `init.lua`
@@ -72,7 +72,7 @@ etc. and watch the diagnostic set change.
 
 ## Features to try
 
-Once a `.cyp` file is open and `cypher-lsp` has attached:
+Once a `.cyp` file is open and `cyrs-lsp` has attached:
 
 | Action | Keybinding (nvim 0.11 default) | What it hits |
 |---|---|---|
@@ -114,14 +114,14 @@ nvim -u demo/nvim/init.lua demo/samples/needs_fmt.cyp
 
 The file opens unformatted. Hit `:w`. The `BufWritePre` autocommand
 runs `vim.lsp.buf.format()`, which sends a
-`textDocument/formatting` request to `cypher-lsp`, which returns a
-`TextEdit` produced by `cypher-fmt`. The buffer is rewritten in
+`textDocument/formatting` request to `cyrs-lsp`, which returns a
+`TextEdit` produced by `cyrs-fmt`. The buffer is rewritten in
 place before the save completes.
 
 To compare against the CLI:
 
 ```sh
-cargo run -p cypher-cli -- fmt demo/samples/needs_fmt.cyp
+cargo run -p cyrs-cli -- fmt demo/samples/needs_fmt.cyp
 ```
 
 Same bytes out.
@@ -191,16 +191,16 @@ shows no popup.
 ## What's inside
 
 ```
-parser (cypher-syntax)  ──►  AST (cypher-ast)  ──►  HIR + resolver (cypher-hir)
+parser (cyrs-syntax)  ──►  AST (cyrs-ast)  ──►  HIR + resolver (cyrs-hir)
                                                             │
                                                             ▼
-                                                        sema (cypher-sema)
+                                                        sema (cyrs-sema)
                                                             │
                                                             ▼
-                                                   diagnostics (cypher-diag)
+                                                   diagnostics (cyrs-diag)
 ```
 
-The formatter (`cypher-fmt`) rides on top of the CST directly.
-`cypher-lsp` exposes the whole stack through the LSP protocol.
-`cypher-agent` exposes the same pipeline over a JSON-per-line
+The formatter (`cyrs-fmt`) rides on top of the CST directly.
+`cyrs-lsp` exposes the whole stack through the LSP protocol.
+`cyrs-agent` exposes the same pipeline over a JSON-per-line
 stdio protocol for sandboxed tool-using agents (spec §15).

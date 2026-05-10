@@ -5,10 +5,10 @@
 //!
 //! # What this measures
 //!
-//! Mirrors exactly what `cypher check <dir>` does in `cypher-cli`
-//! (see [`crates/cypher-cli/src/main.rs::check_project`]): walk a
+//! Mirrors exactly what `cypher check <dir>` does in `cyrs-cli`
+//! (see [`crates/cyrs-cli/src/main.rs::check_project`]): walk a
 //! `cypher-project.toml` manifest, open every member into a single
-//! `cypher_db::Database`, then run `all_diagnostics` on each.  The
+//! `cyrs_db::Database`, then run `all_diagnostics` on each.  The
 //! bench drives the same library path rather than spawning the CLI
 //! binary so we can measure end-to-end wall-clock and RSS without
 //! subprocess overhead.
@@ -54,7 +54,7 @@ use std::time::{Duration, Instant};
 
 use criterion::{Criterion, black_box};
 
-use cypher_db::{Database, DialectMode};
+use cyrs_db::{Database, DialectMode};
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -142,7 +142,7 @@ fn build_fixture() -> (tempfile::TempDir, PathBuf) {
 }
 
 // ---------------------------------------------------------------------------
-// Driver — mirrors cypher-cli::check_project (cy-o8c)
+// Driver — mirrors cyrs-cli::check_project (cy-o8c)
 // ---------------------------------------------------------------------------
 
 /// State retained across steady-state sweeps: the manifest-declared
@@ -151,14 +151,14 @@ fn build_fixture() -> (tempfile::TempDir, PathBuf) {
 /// `open_file` to prove the workspace DB does not require churn
 /// through fresh `FileId`s.
 struct WorkspaceState {
-    ids: Vec<cypher_db::FileId>,
+    ids: Vec<cyrs_db::FileId>,
 }
 
 /// Cold sweep: load manifest, mint one `FileId` per member, then run
 /// `all_diagnostics` on each.  Returns the retained state plus the
 /// diagnostic count (used as a black-box sink).
 fn cold_sweep(db: &mut Database, manifest_path: &Path) -> (WorkspaceState, usize) {
-    let manifest = cypher_project::load_from_toml_path(manifest_path)
+    let manifest = cyrs_project::load_from_toml_path(manifest_path)
         .expect("fixture manifest must load cleanly");
 
     let mut ids = Vec::with_capacity(manifest.members.len());
@@ -182,7 +182,7 @@ fn cold_sweep(db: &mut Database, manifest_path: &Path) -> (WorkspaceState, usize
 /// subsequent warm sweeps hit the cache; this is the steady-state
 /// RSS-growth path the gate asserts on.
 fn warm_sweep(db: &mut Database, manifest_path: &Path, state: &WorkspaceState) -> usize {
-    let manifest = cypher_project::load_from_toml_path(manifest_path)
+    let manifest = cyrs_project::load_from_toml_path(manifest_path)
         .expect("fixture manifest must load cleanly");
     for (id, member) in state.ids.iter().zip(&manifest.members) {
         let source = fs::read_to_string(member).expect("read member");

@@ -1,0 +1,47 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (a) WHERE EXISTS { MATCH (a) RETURN a } RETURN a\")"
+---
+SOURCE_FILE@0..54
+  STATEMENT@0..54
+    MATCH_CLAUSE@0..45
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..45
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        ERROR@15..45
+          WHITESPACE@15..16 " "
+          EXISTS_KW@16..22 "EXISTS"
+          WHITESPACE@22..23 " "
+          L_BRACE@23..24 "{"
+          WHITESPACE@24..25 " "
+          MATCH_KW@25..30 "MATCH"
+          WHITESPACE@30..31 " "
+          L_PAREN@31..32 "("
+          IDENT@32..33 "a"
+          R_PAREN@33..34 ")"
+          WHITESPACE@34..35 " "
+          RETURN_KW@35..41 "RETURN"
+          WHITESPACE@41..42 " "
+          IDENT@42..43 "a"
+          WHITESPACE@43..44 " "
+          R_BRACE@44..45 "}"
+    RETURN_CLAUSE@45..54
+      WHITESPACE@45..46 " "
+      RETURN_KW@46..52 "RETURN"
+      RETURN_BODY@52..54
+        RETURN_ITEMS@52..54
+          RETURN_ITEM@52..54
+            VAR_EXPR@52..54
+              WHITESPACE@52..53 " "
+              IDENT@53..54 "a"
+---errors---
+@16: EXISTS { ... } block subqueries are deferred per spec §19 / §20 D1
