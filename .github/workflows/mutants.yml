@@ -5,10 +5,10 @@
 # below the §17.8 threshold.
 #
 # Thresholds (spec §17.8):
-#   cypher-sema   ≥ 90%
-#   cypher-hir    ≥ 90%
-#   cypher-syntax ≥ 85%
-#   cypher-plan   ≥ 80%
+#   cyrs-sema   ≥ 90%
+#   cyrs-hir    ≥ 90%
+#   cyrs-syntax ≥ 85%
+#   cyrs-plan   ≥ 80%
 #
 # Survivors must be triaged: converted into a test or annotated with
 # #[mutants::skip] and an "equivalent mutant" justification.
@@ -39,13 +39,13 @@ jobs:
         include:
           # crate: package name passed to --package
           # threshold: minimum kill-rate percentage (integer) from §17.8
-          - crate: cypher-sema
+          - crate: cyrs-sema
             threshold: 90
-          - crate: cypher-hir
+          - crate: cyrs-hir
             threshold: 90
-          - crate: cypher-syntax
+          - crate: cyrs-syntax
             threshold: 85
-          - crate: cypher-plan
+          - crate: cyrs-plan
             threshold: 80
 
     steps:
