@@ -50,17 +50,29 @@ jobs:
 
       # ── 1. Collect JSON report (per-crate line data) ──────────────
       #
-      # The COV_IGNORE regex excludes four files that are catalogs of
-      # grammar productions or Salsa input macros, not hand-written code
-      # under test (AGENTS.md §3 — same set of files that carry the
-      # `#![allow(missing_docs)]` allowlist for the same reason). The
-      # §17.9 floors target the testable correctness surface; excluding
-      # generated / macro-expanded code lines is standard llvm-cov practice.
+      # The COV_IGNORE regex excludes two files that are pure catalogs of
+      # grammar productions, not hand-written code under test:
+      #
+      #   - cypher-ast/src/generated.rs — `cargo xtask codegen` output
+      #     (1212 lines of cast/accessor methods; AGENTS.md §3).
+      #   - cypher-syntax/src/kind.rs — exhaustive SyntaxKind variant
+      #     catalog (549 enum variants).
+      #
+      # Both carry a file-level `#![allow(missing_docs)]` for the same
+      # reason: per-item docs/tests would duplicate §4–§5 of the spec
+      # and rot with the grammar.  The §17.9 floors target the testable
+      # correctness surface; excluding generated / catalog files is
+      # standard llvm-cov practice.
+      #
+      # NOT excluded (despite earlier consideration):
+      #   - cypher-hir/src/lib.rs   — has real reachable code beyond the catalog.
+      #   - cypher-db/src/inputs.rs — Salsa #[input] macro-expanded
+      #     methods are exercised by tests.
       #
       # When this list grows, mirror the change in step 2 below.
       - name: cargo llvm-cov (JSON)
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
@@ -98,7 +110,7 @@ jobs:
       - name: check per-crate coverage floors
         shell: bash
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           set -euo pipefail
 
@@ -171,7 +183,7 @@ jobs:
       - name: cargo llvm-cov (lcov)
         if: always()
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind|hir/src/lib|db/src/inputs)\.rs'
+          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
