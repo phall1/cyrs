@@ -947,6 +947,11 @@ enum PostfixKind {
     /// `(arg, arg, ...)` — function call. Only allowed when the lhs is
     /// an IDENT — the Pratt loop checks this via `postfix_op`.
     Call,
+    /// `n { .key, key: expr, .*, * }` — map projection (cy-01q).
+    /// Distinguishes from a standalone `{ k: v }` map literal by
+    /// requiring the `{` to follow an atom expression (i.e. it appears
+    /// as a postfix trailer, not in atom position).
+    MapProjection,
     /// `IS NULL` / `IS NOT NULL`. `IS` is also handled as a binary op
     /// above because openCypher uses `IS NULL` with the lhs as operand —
     /// the infix path handles all well-formed cases.
@@ -969,6 +974,10 @@ fn postfix_op(p: &mut Parser<'_>) -> Option<PostfixOp> {
         SyntaxKind::L_PAREN => PostfixOp {
             bp,
             kind: PostfixKind::Call,
+        },
+        SyntaxKind::L_BRACE => PostfixOp {
+            bp,
+            kind: PostfixKind::MapProjection,
         },
         _ => return None,
     })
@@ -994,6 +1003,7 @@ fn apply_postfix(
         }
         PostfixKind::Index => index_or_slice_postfix(p, lhs, depth),
         PostfixKind::Call => call_postfix(p, lhs, depth),
+        PostfixKind::MapProjection => map_projection_postfix(p, lhs, depth),
         PostfixKind::IsNull => {
             let m = lhs.precede(p);
             // Unused currently; reserved for non-infix IS paths.
@@ -1030,6 +1040,89 @@ fn call_arg(p: &mut Parser<'_>, depth: u32) {
     if expr_bp_depth(p, 0, depth + 1).is_none() {
         p.error_code(sc::EXPECTED_CALL_ARG, "expected function argument");
     }
+}
+
+/// Map projection postfix — `<expr> { .key, key: expr, .*, * }` (cy-01q).
+///
+/// Spec §7.3 / §19 row "Map projection". The subject expression is the
+/// lhs (already parsed); we consume the trailing `{ ... }` and emit a
+/// `MAP_PROJECTION` node containing the subject + zero-or-more
+/// `MAP_PROJECTION_ITEM` children.
+///
+/// Item shapes:
+///   - `.NAME`        — property selector (key=name, value=subject.name)
+///   - `.*`           — all-properties spread
+///   - `*`            — all-bindings spread
+///   - `IDENT ':' Expr` — literal item (key=ident, value=expr)
+fn map_projection_postfix(
+    p: &mut Parser<'_>,
+    lhs: CompletedMarker,
+    depth: u32,
+) -> CompletedMarker {
+    let m = lhs.precede(p);
+    p.bump(SyntaxKind::L_BRACE);
+    if !p.at(SyntaxKind::R_BRACE) {
+        map_projection_item(p, depth);
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            if p.at(SyntaxKind::R_BRACE) {
+                break;
+            }
+            map_projection_item(p, depth);
+        }
+    }
+    if !p.eat(SyntaxKind::R_BRACE) {
+        p.error_code(
+            sc::EXPECTED_RBRACE_MAP_PROJ,
+            "expected `}` to close map projection",
+        );
+    }
+    m.complete(p, SyntaxKind::MAP_PROJECTION)
+}
+
+fn map_projection_item(p: &mut Parser<'_>, depth: u32) {
+    let m = p.start();
+    if p.eat(SyntaxKind::STAR) {
+        // `*` — all-bindings spread.
+        m.complete(p, SyntaxKind::MAP_PROJECTION_ITEM);
+        return;
+    }
+    if p.eat(SyntaxKind::DOT) {
+        // `.IDENT` (property selector) or `.*` (all-properties spread).
+        if !(p.eat(SyntaxKind::STAR)
+            || p.eat(SyntaxKind::IDENT)
+            || p.eat(SyntaxKind::QUOTED_IDENT))
+        {
+            p.error_code(
+                sc::EXPECTED_MAP_PROJ_ITEM,
+                "expected identifier or `*` after `.` in map projection",
+            );
+        }
+        m.complete(p, SyntaxKind::MAP_PROJECTION_ITEM);
+        return;
+    }
+    // `IDENT ':' Expr` — literal item.
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(
+            sc::EXPECTED_MAP_PROJ_ITEM,
+            "expected map projection item",
+        );
+        m.complete(p, SyntaxKind::MAP_PROJECTION_ITEM);
+        return;
+    }
+    if !p.eat(SyntaxKind::COLON) {
+        p.error_code(
+            sc::EXPECTED_COLON_MAP_PROJ,
+            "expected `:` in map projection literal item",
+        );
+    }
+    if expr_bp_depth(p, 0, depth + 1).is_none() {
+        p.error_code(
+            sc::EXPECTED_MAP_PROJ_VALUE,
+            "expected expression for map projection value",
+        );
+    }
+    m.complete(p, SyntaxKind::MAP_PROJECTION_ITEM);
 }
 
 /// Parse the `[...]` postfix form and classify it as either

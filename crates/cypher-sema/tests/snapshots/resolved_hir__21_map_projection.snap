@@ -1,9 +1,10 @@
 ---
 source: crates/cypher-sema/tests/resolved_hir.rs
+assertion_line: 827
 expression: "pipeline(\"MATCH (a) RETURN a { .name, .age }\")"
 ---
 Statement {
-  span: 0..18
+  span: 0..34
   bindings: [
     Var(0) 0: a (Node) @7..8
   ]
@@ -15,8 +16,8 @@ Statement {
         ]
       }
     }
-    Return(distinct=false) @9..18 {
-      proj[0]: Var(0)[a←Node@7..8]
+    Return(distinct=false) @9..34 {
+      proj[0]: Var(0)[a←Node@7..8] {.name, .age}
     }
   ]
 }

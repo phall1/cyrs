@@ -621,6 +621,17 @@ pub(crate) mod syntax_codes {
     /// §19 row "shortest-path"). E0076 reserved for `CALL { ... }`
     /// block subquery (cy-4mg follow-up — block form deferred per §20 D1).
     pub(crate) const EXPECTED_RPAREN_SHORTEST_PATH: u16 = 77;
+    /// E0078 — expected `}` to close a map projection (cy-01q, spec §7.3).
+    pub(crate) const EXPECTED_RBRACE_MAP_PROJ: u16 = 78;
+    /// E0079 — expected map projection item (cy-01q, spec §7.3). Items
+    /// are `.IDENT`, `IDENT: Expr`, `.*`, or `*`.
+    pub(crate) const EXPECTED_MAP_PROJ_ITEM: u16 = 79;
+    /// E0080 — expected `:` in a map projection literal item
+    /// `IDENT: Expr` (cy-01q).
+    pub(crate) const EXPECTED_COLON_MAP_PROJ: u16 = 80;
+    /// E0081 — expected expression for a map projection literal item's
+    /// value (cy-01q).
+    pub(crate) const EXPECTED_MAP_PROJ_VALUE: u16 = 81;
 
     // ---- dialect gates (E4xxx, shared with cypher-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`
