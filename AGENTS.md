@@ -108,6 +108,17 @@ cypher               → all non-binary crates above
   call inside a binary crate, move it into the relevant library crate.
 - **`cypher-testkit` is dev-only.** Never re-exported from `cypher`.
 
+**Pointing embedders at the right layer.** The crate graph above is
+who-may-depend-on-whom *inside* the workspace. For an external
+consumer asking which layer to depend on (CST? AST? HIR? Plan? agent
+JSON?), the normative answer lives in
+[`docs/integration-depth.md`](docs/integration-depth.md): a decision
+table by embedder kind, per-layer entry-point snippets, and a
+stability-promise matrix per surface. When a bead, a PR review, or an
+issue triages a question of the form *"which layer should X consume?"*,
+link that doc rather than restating the spec — it is the single
+source of truth on integration depth.
+
 ---
 
 ## 4. Development workflow

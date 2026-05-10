@@ -64,6 +64,15 @@ The authoritative crate graph and allowed-edges list lives in
 - [`0004-interop-surfaces.md`](./docs/specs/0004-interop-surfaces.md) —
   WASM, C FFI, PyO3, LSP-Web, tree-sitter parity.
 
+### Embedders: choosing your integration depth
+
+cyrs has six plausible consumption layers (CST, AST, HIR, sema, Plan,
+agent JSON). Which one *you* should consume depends on what you're
+building (graph database vs. IDE vs. rewriter vs. parser-bench).
+[`docs/integration-depth.md`](./docs/integration-depth.md) is the
+decision table + per-layer reference that answers that question
+before you `cargo add` anything.
+
 ---
 
 ## Quickstart
