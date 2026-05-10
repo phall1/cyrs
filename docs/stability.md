@@ -98,6 +98,15 @@ not.
 
 ## `non_exhaustive` coverage
 
+A downstream-consumer canary at `tests/canary/` (crate `cyrs-canary`,
+bead cy-e3h) exhaustively matches every attributed enum below with a
+trailing wildcard arm under `#![deny(unreachable_patterns)]`. The
+canary builds today; it will refuse to compile if any of these enums
+loses its `#[non_exhaustive]` attribute (the wildcard would become
+unreachable). It also keeps building when new variants are added — the
+wildcard absorbs them — which is the consumer-facing contract this
+section documents.
+
 cy-2i9.1 applied `#[non_exhaustive]` to the following public surface
 to soften future variant / field additions:
 

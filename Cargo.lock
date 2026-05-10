@@ -381,6 +381,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyrs-canary"
+version = "0.0.1"
+dependencies = [
+ "cyrs-db",
+ "cyrs-diag",
+ "cyrs-hir",
+ "cyrs-lang-services",
+ "cyrs-plan",
+ "cyrs-schema",
+]
+
+[[package]]
 name = "cyrs-cli"
 version = "0.0.1"
 dependencies = [
