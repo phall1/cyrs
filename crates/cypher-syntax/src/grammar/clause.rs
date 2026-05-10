@@ -7,7 +7,7 @@
 //! tagged with `cy-nom: v1 scope` at its stub site in the grammar module.
 
 use crate::SyntaxKind;
-use crate::parser::{Parser, TokenSet, syntax_codes as sc};
+use crate::parser::{Parser, syntax_codes as sc};
 
 use super::{expression, pattern};
 
@@ -31,20 +31,6 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
     }
 }
 
-/// Consume the deferred clause's keyword, emit a diagnostic, and skip to
-/// the next clause-start / `;` / EOF. Used while only MATCH/WHERE/RETURN
-/// are implemented — keeps downstream tests interpretable.
-fn deferred_clause_stub(p: &mut Parser<'_>) {
-    let m = p.start();
-    let kw = p.current();
-    p.error_code(
-        sc::UNIMPLEMENTED_CLAUSE,
-        format!("{kw:?} clause is not implemented in cy-nom"),
-    );
-    p.bump_any();
-    p.recover_until(TokenSet::EMPTY);
-    m.complete(p, SyntaxKind::ERROR);
-}
 
 /// `MatchClause = 'MATCH' Pattern (',' Pattern)* WhereClause?`
 fn match_clause(p: &mut Parser<'_>) {
@@ -489,4 +475,95 @@ fn limit_subclause(p: &mut Parser<'_>) {
         p.error_code(sc::EXPECTED_LIMIT_EXPR, "expected expression after LIMIT");
     }
     m.complete(p, SyntaxKind::LIMIT_SUBCLAUSE);
+}
+
+/// `CallClause = 'CALL' ProcedureName ArgList? YieldSubclause?` (cy-4mg)
+///
+/// Spec §14 / §19 row "CALL <proc> YIELD ...". Parses the standalone
+/// form only — the block form `CALL { <subquery> }` is a separate
+/// follow-up bead.
+fn call_clause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::CALL_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::CALL_KW);
+    procedure_name(p);
+    if p.at(SyntaxKind::L_PAREN) {
+        call_arg_list(p);
+    }
+    if p.at(SyntaxKind::YIELD_KW) {
+        yield_subclause(p);
+    }
+    m.complete(p, SyntaxKind::CALL_CLAUSE);
+}
+
+/// `IDENT ('.' IDENT)*` wrapped in a single `PROCEDURE_NAME` node.
+fn procedure_name(p: &mut Parser<'_>) {
+    let m = p.start();
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(
+            sc::EXPECTED_PROCEDURE_NAME,
+            "expected procedure name after CALL",
+        );
+        m.complete(p, SyntaxKind::PROCEDURE_NAME);
+        return;
+    }
+    while p.at(SyntaxKind::DOT) {
+        p.bump(SyntaxKind::DOT);
+        if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+            p.error_code(
+                sc::EXPECTED_PROCEDURE_NAME,
+                "expected identifier after `.` in procedure name",
+            );
+            break;
+        }
+    }
+    m.complete(p, SyntaxKind::PROCEDURE_NAME);
+}
+
+/// `'(' Expr (',' Expr)* ')'?` — argument list including the empty
+/// `()` form. Reuses the expression parser for each argument.
+fn call_arg_list(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_PAREN));
+    p.bump(SyntaxKind::L_PAREN);
+    if !p.at(SyntaxKind::R_PAREN) && expression::expr(p).is_some() {
+        while p.at(SyntaxKind::COMMA) {
+            p.bump(SyntaxKind::COMMA);
+            if expression::expr(p).is_none() {
+                break;
+            }
+        }
+    }
+    if !p.eat(SyntaxKind::R_PAREN) {
+        p.error_code(
+            sc::EXPECTED_RPAREN_CALL_ARGS,
+            "expected `)` to close CALL argument list",
+        );
+    }
+}
+
+/// `'YIELD' YieldItem (',' YieldItem)*`
+fn yield_subclause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::YIELD_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::YIELD_KW);
+    yield_item(p);
+    while p.at(SyntaxKind::COMMA) {
+        p.bump(SyntaxKind::COMMA);
+        yield_item(p);
+    }
+    m.complete(p, SyntaxKind::YIELD_SUBCLAUSE);
+}
+
+/// `YieldItem = IDENT ('AS' IDENT)?`
+fn yield_item(p: &mut Parser<'_>) {
+    let m = p.start();
+    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_YIELD_ITEM, "expected identifier in YIELD item");
+        m.complete(p, SyntaxKind::YIELD_ITEM);
+        return;
+    }
+    if p.eat(SyntaxKind::AS_KW) && !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        p.error_code(sc::EXPECTED_IDENT_AFTER_AS, "expected identifier after AS");
+    }
+    m.complete(p, SyntaxKind::YIELD_ITEM);
 }

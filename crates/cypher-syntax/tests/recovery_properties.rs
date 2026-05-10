@@ -44,6 +44,7 @@
 //! Exercised: E0065..=E0067 — list-predicate recovery (cy-8x5), covered by existing UI fixture for list predicates.
 //! Exercised: E0068..=E0069 — list-comprehension recovery (cy-5gh), covered by random prefixes of SOURCES.
 //! Exercised: E0072 — EXISTS(<pattern>) missing ')' (cy-lve), UI fixture `exists_pattern_missing_rparen`.
+//! Exercised: E0073..=E0075 — CALL <proc> YIELD recovery (cy-4mg), covered by random prefixes of `CALL ns.proc(1, 2) YIELD x AS xx, y` and the unit tests in `crates/cypher-syntax/tests/call_yield.rs`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!
@@ -125,6 +126,8 @@ const SOURCES: &[&str] = &[
     "MATCH (n:Person) SET n.active = true",
     // Variable-length path
     "MATCH (a)-[:KNOWS*1..3]->(b) RETURN a, b",
+    // CALL <proc> YIELD ... (cy-4mg)
+    "CALL ns.proc(1, 2) YIELD x AS xx, y RETURN xx, y",
 ];
 
 // ---------------------------------------------------------------------------
