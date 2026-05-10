@@ -55,12 +55,14 @@ pub mod kind;
 pub mod lexer;
 pub mod line_index;
 pub mod parser;
+pub mod range_ext;
 
 pub use edit::{TextEdit, incremental_reparse};
 pub use kind::SyntaxKind;
 pub use lexer::{LexError, LexToken, lex, validate_tokens};
 pub use line_index::{LineCol, LineIndex, WideLineCol};
 pub use parser::{Parse, SyntaxError, parse};
+pub use range_ext::TextRangeExt;
 
 use rowan::Language;
 

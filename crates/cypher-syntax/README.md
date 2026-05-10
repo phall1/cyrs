@@ -17,6 +17,19 @@ code. See spec 0001 §4.
 For the full story — architecture, dependency graph, and testing bar — see
 the [repo-root README](https://github.com/phall1/cyrs#readme).
 
+## Span convention
+
+cyrs uses **byte offsets** for every span — `TextRange` is the canonical
+type and embedders should treat its endpoints as half-open byte indices
+into the original source. Line/column conversion is owned by
+[`LineIndex`](https://docs.rs/cyrs-syntax/latest/cyrs_syntax/struct.LineIndex.html)
+and only happens at LSP and diagnostic-render boundaries; everything
+inside the analysis pipeline (parser, HIR, diagnostics, formatter) stays
+in byte-offset land. The [`TextRangeExt`] trait in
+[`range_ext`](src/range_ext.rs) provides the canonical sugar
+(`as_byte_range`, `as_u32_range`, `intersects`) so consumers don't roll
+their own one-line conversions.
+
 ## License
 
 Licensed under either of

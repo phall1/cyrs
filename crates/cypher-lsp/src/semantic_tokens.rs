@@ -17,7 +17,7 @@
 //! position-mapping work lands.
 
 use cypher_db::{Database, FileId};
-use cypher_syntax::{LineIndex, SyntaxKind, TextRange, TextSize};
+use cypher_syntax::{LineIndex, SyntaxKind, TextRange, TextRangeExt, TextSize};
 use lsp_types::{
     Range, SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens,
     SemanticTokensLegend,
@@ -127,7 +127,7 @@ fn compute(db: &Database, file_id: FileId, filter: Option<TextRange>) -> Semanti
         }
 
         if let Some(filter_range) = filter
-            && !ranges_intersect(range, filter_range)
+            && !range.intersects(filter_range)
         {
             continue;
         }
@@ -199,10 +199,6 @@ fn encode(
         token_type,
         token_modifiers_bitset: 0,
     })
-}
-
-fn ranges_intersect(a: TextRange, b: TextRange) -> bool {
-    a.start() <= b.end() && b.start() <= a.end()
 }
 
 fn position_to_offset(line_index: &LineIndex, pos: lsp_types::Position) -> Option<TextSize> {

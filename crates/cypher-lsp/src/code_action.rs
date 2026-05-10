@@ -26,7 +26,7 @@ use std::collections::HashMap;
 
 use cypher_db::{Database, FileId};
 use cypher_diag::Diagnostic;
-use cypher_syntax::{LineIndex, TextRange, TextSize};
+use cypher_syntax::{LineIndex, TextRange, TextRangeExt, TextSize};
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionResponse, Position, Range, TextEdit,
     Uri, WorkspaceEdit,
@@ -50,7 +50,7 @@ pub(crate) fn compute(
     let diagnostics = db.all_diagnostics(file_id).ok()?;
     let mut out: Vec<CodeActionOrCommand> = Vec::new();
     for diag in diagnostics.diagnostics() {
-        if !ranges_intersect(requested_byte_range, diag.primary.range) {
+        if !requested_byte_range.intersects(diag.primary.range) {
             continue;
         }
         out.extend(fix_actions_for(diag, uri, &line_index));
@@ -101,13 +101,6 @@ fn fix_actions_for(
             CodeActionOrCommand::CodeAction(action)
         })
         .collect()
-}
-
-/// Two `TextRange`s intersect iff neither ends before the other
-/// starts.  Zero-width ranges are handled correctly — a caret at
-/// `10..10` intersects `10..15` but not `5..9`.
-fn ranges_intersect(a: TextRange, b: TextRange) -> bool {
-    a.start() <= b.end() && b.start() <= a.end()
 }
 
 fn lsp_range_to_bytes(line_index: &LineIndex, r: Range) -> TextRange {
