@@ -2091,13 +2091,6 @@ mod tests {
     /// `debug_assert!` panic; now it must surface as a clean `Err` (or
     /// `Ok` if upstream lowering happens to bind the name some other
     /// way — the oracle is "no panic", same as the fuzz target).
-    //
-    // Skipped under miri: parsing pulls in rowan-0.15's NodeCache, which
-    // has a known SB violation in ThinArc::deref that is exposed when
-    // the test binary's allocation pattern shifts (cy-eu2 hit the same
-    // pattern). The synthetic-HIR sibling test above gives us miri
-    // coverage of the precheck logic itself.
-    #[cfg(not(miri))]
     #[test]
     fn lower_statement_no_panic_on_unresolved_inside_patternpredicate_text() {
         let s = "MATCH (n) WHERE (n {k: vaext})-->() RETURN n\n";

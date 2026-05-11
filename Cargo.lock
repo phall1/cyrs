@@ -875,12 +875,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.14.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-
-[[package]]
-name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
@@ -1535,22 +1529,14 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "rowan"
-version = "0.15.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62f509095fc8cc0c8c8564016771d458079c11a8d857e65861f045145c0d3208"
+version = "0.16.2"
+source = "git+https://github.com/phall1/rowan?branch=fix%2Fsb-node-cache-rehash#48a1b5e3718d3bc4b0dd20d83945d851f9dad6b7"
 dependencies = [
  "countme",
- "hashbrown 0.14.5",
- "memoffset",
- "rustc-hash 1.1.0",
+ "hashbrown 0.15.5",
+ "rustc-hash",
  "text-size",
 ]
-
-[[package]]
-name = "rustc-hash"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"
@@ -1606,7 +1592,7 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "rayon",
- "rustc-hash 2.1.2",
+ "rustc-hash",
  "salsa-macro-rules",
  "salsa-macros",
  "smallvec",

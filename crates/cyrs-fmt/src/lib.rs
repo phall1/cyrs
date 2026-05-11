@@ -395,13 +395,6 @@ mod tests {
     /// blank line, and the parser then re-tokenised that boundary as a
     /// blank line that the printer's blank-line normaliser added on top of
     /// the pre-existing buffered blank.
-    //
-    // Skipped under miri: adding these tests changes the test binary's
-    // allocation order enough to expose a latent SB violation in
-    // rowan-0.15's NodeCache rehash (an upstream issue, unrelated to
-    // formatter correctness — clippy + non-miri test passes are the
-    // source of truth for this fix).
-    #[cfg(not(miri))]
     #[test]
     fn idempotent_around_fmt_off_directive() {
         // Minimal repro distilled from CI run 25634957583.
@@ -413,7 +406,6 @@ mod tests {
 
     /// Generic fixpoint property — a small handful of fixtures that should
     /// all be fmt-idempotent on the first re-format.
-    #[cfg(not(miri))]
     #[test]
     fn fixpoint_on_assorted_fixtures() {
         let fixtures: &[&str] = &[
