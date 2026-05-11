@@ -7,9 +7,20 @@
 > **Pre-reads:** spec 0001 §17.17 (release gating), §18 (versioning,
 > MSRV), `docs/stability.md` (surface-by-surface stability contract).
 
-Cyrs ships as sixteen crates (`cypher-*` layers + the `cypher`
+Cyrs ships as nineteen crates (the `cyrs-*` layers + the `cyrs-lang`
 meta-crate) from a single workspace.  Versions are bumped together:
 every release is a coordinated roll across all publishable crates.
+`cyrs-testkit`, `xtask`, and `tests/canary` carry `publish = false`
+and are skipped.
+
+The publishable set (19 crates):
+
+```
+cyrs-syntax  cyrs-ast       cyrs-hir      cyrs-sema      cyrs-schema
+cyrs-project cyrs-diag      cyrs-plan     cyrs-fmt       cyrs-db
+cyrs-lang-services           cyrs-tck     cyrs-lsp       cyrs-agent
+cyrs-cli     cyrs-ffi       cyrs-py       cyrs-wasm      cyrs-lang
+```
 
 This document covers the three things the automated workflows
 deliberately leave to the operator:
@@ -119,8 +130,9 @@ call.  From the repo's **Releases → Draft a new release**:
 - **Target:** the merge commit.
 - **Release notes:** auto-generate from the commit log, then prepend
   the combined crates' changelog entries for readability.
-- **Attach binaries:** upload `cypher`, `cyrs-lsp`, and
-  `cyrs-agent` binaries for at least `x86_64-linux`, `x86_64-macos`,
+- **Attach binaries:** upload `cypher` (built from `cyrs-cli`),
+  `cypher-lsp` (built from `cyrs-lsp`), and `cypher-agent` (built
+  from `cyrs-agent`) for at least `x86_64-linux`, `x86_64-macos`,
   `aarch64-macos`, `x86_64-windows`.  Build them with
   `cargo build --release -p cyrs-cli` (etc.) on a matching runner
   or use `cross` for the cross-platform legs.
@@ -128,6 +140,41 @@ call.  From the repo's **Releases → Draft a new release**:
 
 The `release:published` event triggers `sign-release.yml`
 automatically — see §2.
+
+### 1.4b Local dry-run validation (recommended)
+
+Before flipping the publish workflow live, package the whole
+workspace locally to confirm tarballs build and embed sane metadata:
+
+```sh
+cargo package --workspace --allow-dirty \
+  --exclude cyrs-canary --exclude xtask \
+  --exclude cyrs-testkit --exclude cyrs-py
+```
+
+`cyrs-py` is excluded from the verify pass because the `pyo3`
+`extension-module` feature unresolves CPython symbols at link time
+unless a libpython is on the link line; the wheel is built by
+`maturin` in CI, not by bare `cargo publish`.  To confirm cyrs-py's
+*manifest* is publish-clean, run:
+
+```sh
+cargo package -p cyrs-py --no-verify --allow-dirty
+```
+
+For the actual publish, use `--no-verify` for cyrs-py only:
+
+```sh
+cargo publish -p cyrs-py --no-verify
+```
+
+Note: `cargo publish --dry-run -p <crate>` for non-leaf crates
+fails locally with "no matching package named `cyrs-syntax` found"
+because dry-run still resolves dependencies against the live
+crates.io index.  Use `cargo package --workspace` (above) instead;
+it walks the workspace using path deps as published-version
+substitutes.  The first real `cargo publish` of each crate populates
+crates.io and unblocks subsequent dependents.
 
 ### 1.5 Publish to crates.io
 
@@ -170,7 +217,7 @@ cargo publish -p cyrs-db
 cargo publish -p cyrs-lang-services
 cargo publish -p cyrs-wasm
 cargo publish -p cyrs-ffi
-cargo publish -p cyrs-py
+cargo publish -p cyrs-py --no-verify   # PyO3 extension; libpython unresolved at verify
 cargo publish -p cyrs-tck
 cargo publish -p cyrs-lsp
 cargo publish -p cyrs-agent

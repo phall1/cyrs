@@ -35,7 +35,7 @@ exclude = ["fuzz", "benches"]
 default-members = ["crates/cyrs-cli"]
 
 [workspace.package]
-version      = "0.0.1"
+version      = "0.1.0"
 edition      = "2024"
 rust-version = "1.94"
 license      = "Apache-2.0 OR MIT"
@@ -95,22 +95,22 @@ toml           = "0.8"
 salsa = "0.26"
 
 # internal — version is set for cargo publish; local development still uses path.
-cyrs-syntax        = { version = "0.0.1", path = "crates/cyrs-syntax" }
-cyrs-ast           = { version = "0.0.1", path = "crates/cyrs-ast" }
-cyrs-hir           = { version = "0.0.1", path = "crates/cyrs-hir" }
-cyrs-sema          = { version = "0.0.1", path = "crates/cyrs-sema" }
-cyrs-schema        = { version = "0.0.1", path = "crates/cyrs-schema" }
-cyrs-project       = { version = "0.0.1", path = "crates/cyrs-project" }
-cyrs-diag          = { version = "0.0.1", path = "crates/cyrs-diag" }
-cyrs-plan          = { version = "0.0.1", path = "crates/cyrs-plan" }
-cyrs-fmt           = { version = "0.0.1", path = "crates/cyrs-fmt" }
-cyrs-db            = { version = "0.0.1", path = "crates/cyrs-db" }
-cyrs-lang-services = { version = "0.0.1", path = "crates/cyrs-lang-services" }
-cyrs-tck           = { version = "0.0.1", path = "crates/cyrs-tck" }
+cyrs-syntax        = { version = "0.1.0", path = "crates/cyrs-syntax" }
+cyrs-ast           = { version = "0.1.0", path = "crates/cyrs-ast" }
+cyrs-hir           = { version = "0.1.0", path = "crates/cyrs-hir" }
+cyrs-sema          = { version = "0.1.0", path = "crates/cyrs-sema" }
+cyrs-schema        = { version = "0.1.0", path = "crates/cyrs-schema" }
+cyrs-project       = { version = "0.1.0", path = "crates/cyrs-project" }
+cyrs-diag          = { version = "0.1.0", path = "crates/cyrs-diag" }
+cyrs-plan          = { version = "0.1.0", path = "crates/cyrs-plan" }
+cyrs-fmt           = { version = "0.1.0", path = "crates/cyrs-fmt" }
+cyrs-db            = { version = "0.1.0", path = "crates/cyrs-db" }
+cyrs-lang-services = { version = "0.1.0", path = "crates/cyrs-lang-services" }
+cyrs-tck           = { version = "0.1.0", path = "crates/cyrs-tck" }
 # cyrs-testkit is dev-only (publish = false) — no version so `cargo
 # publish` strips it cleanly from published dev-dependencies.
 cyrs-testkit       = { path = "crates/cyrs-testkit" }
-cyrs-lang          = { version = "0.0.1", path = "crates/cyrs-lang" }
+cyrs-lang          = { version = "0.1.0", path = "crates/cyrs-lang" }
 
 # ---------------------------------------------------------------------------
 # Lints. Spec §17.13 forbids unsafe workspace-wide.
