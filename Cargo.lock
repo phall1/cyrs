@@ -1530,7 +1530,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 [[package]]
 name = "rowan"
 version = "0.16.2"
-source = "git+https://github.com/phall1/rowan?branch=fix%2Fsb-node-cache-rehash#48a1b5e3718d3bc4b0dd20d83945d851f9dad6b7"
+source = "git+https://github.com/phall1/rowan?branch=fix%2Fsb-node-cache-rehash#9e7abd1161634377d278cde0c504c101ac003941"
 dependencies = [
  "countme",
  "hashbrown 0.15.5",
