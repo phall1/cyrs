@@ -79,7 +79,6 @@ jobs:
           cargo cyclonedx \
             --format json \
             --target-in-filename \
-            --output-pattern filename \
             --all \
             --output-cdx
           # Collate per-crate SBOMs into a single workspace manifest.
