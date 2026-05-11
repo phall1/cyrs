@@ -79,11 +79,12 @@ jobs:
           cargo cyclonedx \
             --format json \
             --target-in-filename \
-            --all \
-            --output-cdx
+            --all
           # Collate per-crate SBOMs into a single workspace manifest.
+          # cargo-cyclonedx writes <crate>.<target>.cdx.json files next to
+          # each Cargo.toml when --target-in-filename is set.
           mkdir -p sbom-out
-          cp ./**/*.cdx.json sbom-out/ 2>/dev/null || true
+          find . -name "*.cdx.json" -not -path "./target/*" -exec cp {} sbom-out/ \;
           ls -la sbom-out/
 
       - name: Upload SBOM artifact
