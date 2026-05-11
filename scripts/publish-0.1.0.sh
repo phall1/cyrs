@@ -73,7 +73,7 @@ publish_one() {
   if cargo publish -p "$crate" "${extra[@]}" 2>&1 | tee /tmp/cyrs-publish-"$crate".log; then
     echo "  ✓ $crate published"
   else
-    if grep -q "is already uploaded" /tmp/cyrs-publish-"$crate".log; then
+    if grep -qE "already (uploaded|exists on crates.io)" /tmp/cyrs-publish-"$crate".log; then
       echo "  · $crate already at 0.1.0 (skipping)"
     else
       echo
