@@ -7,7 +7,6 @@
   "license": "Apache-2.0 OR MIT",
   "private": true,
   "preview": true,
-  "icon": "icon.png",
   "categories": ["Programming Languages", "Linters", "Formatters"],
   "keywords": ["cypher", "gql", "neo4j", "graph", "language-server"],
   "repository": {
