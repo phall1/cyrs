@@ -2092,11 +2092,11 @@ mod tests {
     /// `Ok` if upstream lowering happens to bind the name some other
     /// way — the oracle is "no panic", same as the fuzz target).
     //
-    // Skipped under miri: parsing pulls in rowan-0.15's NodeCache, which
-    // has a known SB violation in ThinArc::deref that is exposed when
-    // the test binary's allocation pattern shifts (cy-eu2 hit the same
-    // pattern). The synthetic-HIR sibling test above gives us miri
-    // coverage of the precheck logic itself.
+    // Skipped under miri: hits a third upstream rowan SB violation
+    // (cy-208) in `cursor::free` — `Box::from_raw(NodeData)` races a
+    // sibling `SyntaxNodeChildren` iterator's SharedReadOnly retag.
+    // Distinct from the rehash bug we already patched via #211 + #212;
+    // unblocks once cy-208's upstream fix lands.
     #[cfg(not(miri))]
     #[test]
     fn lower_statement_no_panic_on_unresolved_inside_patternpredicate_text() {

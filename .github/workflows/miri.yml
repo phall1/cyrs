@@ -38,7 +38,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  MIRIFLAGS: "-Zmiri-strict-provenance"
+  # `-Zmiri-disable-isolation` lets snapshot tests (insta) read their .snap
+  # files at runtime; without it miri rejects `open` and the suites that use
+  # insta corpora abort before any of our actual checks run.
+  MIRIFLAGS: "-Zmiri-strict-provenance -Zmiri-disable-isolation"
 
 jobs:
   miri:

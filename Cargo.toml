@@ -54,7 +54,7 @@ categories   = ["database", "parser-implementations", "development-tools::debugg
 
 [workspace.dependencies]
 # syntax layer
-rowan     = "0.15"
+rowan     = "0.16"
 logos     = "0.14"
 smol_str  = "0.3"
 text-size = "1.1"
@@ -150,6 +150,19 @@ unimplemented           = "warn"
 dbg_macro               = "deny"
 print_stdout            = "allow"  # CLI/agent binaries legitimately print
 print_stderr            = "allow"
+
+# ---------------------------------------------------------------------------
+# Patched dependencies. Tracks upstream PRs that aren't in a release yet.
+# ---------------------------------------------------------------------------
+#
+# rowan: pulls in rust-analyzer/rowan#211 (avrabe — promote GreenNodeData
+# to a DST + Arc/ThinArc raw-ptr refcounts) stacked with our own #212
+# (same treatment for GreenTokenData). Together these fix a 5-year-old
+# Stacked Borrows UB in NodeCache rehash that miri caught on cyrs CI
+# (cy-pom + cy-934). When upstream merges + cuts a release, drop this
+# patch and consume crates.io rowan directly.
+[patch.crates-io]
+rowan = { git = "https://github.com/phall1/rowan", branch = "fix/sb-node-cache-rehash" }
 
 [profile.release]
 lto           = "thin"
