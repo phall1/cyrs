@@ -87,8 +87,8 @@ for crate in "${CRATES[@]}"; do
   publish_one "$crate"
   # Skip the sleep after the last crate.
   if [[ "$crate" != "${CRATES[-1]}" ]]; then
-    echo "  (waiting 120s — crates.io rate-limits new packages aggressively)"
-    sleep 120
+    echo "  (waiting 600s — crates.io new-package refill rate is ~1 per 10min)"
+    sleep 600
   fi
 done
 
