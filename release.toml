@@ -1,0 +1,14 @@
+# cargo-release config (consumed by .github/workflows/publish-crates.yml).
+#
+# The `rate-limit` block raises cargo-release's own client-side guardrail
+# from the default of 5 new packages per workspace publish; this matters
+# only at the very first 0.1.0 publish where all 19 crates are "new" to
+# crates.io. Subsequent releases are updates and stay well under the
+# default. See https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
+# for the full schema.
+
+[workspace]
+
+[rate-limit]
+new-packages = 25
+existing-packages = 25
