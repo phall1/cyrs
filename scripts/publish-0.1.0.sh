@@ -58,6 +58,8 @@ if ! grep -q '^token = ' "${CARGO_HOME:-$HOME/.cargo}/credentials.toml" 2>/dev/n
   exit 1
 fi
 
+PUBLISH_RESULT=""    # set by publish_one to "published" or "skipped"
+
 publish_one() {
   local crate=$1
   local extra=()
@@ -72,9 +74,11 @@ publish_one() {
 
   if cargo publish -p "$crate" "${extra[@]}" 2>&1 | tee /tmp/cyrs-publish-"$crate".log; then
     echo "  ✓ $crate published"
+    PUBLISH_RESULT="published"
   else
     if grep -qE "already (uploaded|exists on crates.io)" /tmp/cyrs-publish-"$crate".log; then
       echo "  · $crate already at 0.1.0 (skipping)"
+      PUBLISH_RESULT="skipped"
     else
       echo
       echo "error: cargo publish -p $crate failed. log at /tmp/cyrs-publish-$crate.log" >&2
@@ -85,8 +89,9 @@ publish_one() {
 
 for crate in "${CRATES[@]}"; do
   publish_one "$crate"
-  # Skip the sleep after the last crate.
-  if [[ "$crate" != "${CRATES[-1]}" ]]; then
+  # Only sleep after an ACTUAL publish — skipped crates don't consume rate-limit
+  # budget, so no need to back off. Also skip the sleep after the last crate.
+  if [[ "$PUBLISH_RESULT" == "published" && "$crate" != "${CRATES[-1]}" ]]; then
     echo "  (waiting 600s — crates.io new-package refill rate is ~1 per 10min)"
     sleep 600
   fi
