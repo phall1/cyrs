@@ -2091,6 +2091,13 @@ mod tests {
     /// `debug_assert!` panic; now it must surface as a clean `Err` (or
     /// `Ok` if upstream lowering happens to bind the name some other
     /// way — the oracle is "no panic", same as the fuzz target).
+    //
+    // Skipped under miri: hits a third upstream rowan SB violation
+    // (cy-208) in `cursor::free` — `Box::from_raw(NodeData)` races a
+    // sibling `SyntaxNodeChildren` iterator's SharedReadOnly retag.
+    // Distinct from the rehash bug we already patched via #211 + #212;
+    // unblocks once cy-208's upstream fix lands.
+    #[cfg(not(miri))]
     #[test]
     fn lower_statement_no_panic_on_unresolved_inside_patternpredicate_text() {
         let s = "MATCH (n) WHERE (n {k: vaext})-->() RETURN n\n";
