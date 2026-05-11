@@ -10,7 +10,7 @@
 #
 # Deliberately no push / PR trigger: wheels are expensive to build
 # across the matrix, so the regular CI leg only runs `cargo
-# check`/`cargo clippy`/`cargo test` on cypher-py (see `ci.yml`).
+# check`/`cargo clippy`/`cargo test` on cyrs-py (see `ci.yml`).
 #
 # ---
 # PUBLISH POLICY
@@ -82,7 +82,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          shared-key: "cypher-py-${{ matrix.platform.os }}-${{ matrix.platform.arch }}"
+          shared-key: "cyrs-py-${{ matrix.platform.os }}-${{ matrix.platform.arch }}"
 
       - name: Set up Python (3.10 — abi3 floor)
         uses: actions/setup-python@v5
@@ -96,7 +96,7 @@ jobs:
           args: >-
             --release
             --strip
-            --manifest-path crates/cypher-py/Cargo.toml
+            --manifest-path crates/cyrs-py/Cargo.toml
             --out dist
           # Linux builds use manylinux2014 for broad compat; the action
           # ignores this setting on macOS / Windows.
@@ -187,7 +187,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pytest crates/cypher-py/tests/ -v
+          python -m pytest crates/cyrs-py/tests/ -v
 
       # mypy --strict catches stub drift against the built wheel — the
       # type-stub gate called out in spec 0004 §6.3.
@@ -196,7 +196,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install mypy
-          python -m mypy --strict crates/cypher-py/python/cypher/__init__.pyi
+          python -m mypy --strict crates/cyrs-py/python/cypher/__init__.pyi
 
   # -----------------------------------------------------------------
   # Optional upload to the GitHub Release on `release: published`.
