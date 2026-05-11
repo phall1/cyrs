@@ -19,20 +19,20 @@ set -euo pipefail
 
 CRATES=(
   cyrs-syntax
+  cyrs-schema
   cyrs-diag
   cyrs-ast
-  cyrs-schema
+  cyrs-fmt           # must precede cyrs-hir (hir depends on fmt)
   cyrs-project
   cyrs-hir
   cyrs-sema
   cyrs-plan
-  cyrs-fmt
   cyrs-db
+  cyrs-tck
   cyrs-lang-services
   cyrs-wasm
   cyrs-ffi
-  cyrs-py          # --no-verify
-  cyrs-tck
+  cyrs-py            # --no-verify (PyO3 extension-module)
   cyrs-lsp
   cyrs-agent
   cyrs-cli
