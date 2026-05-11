@@ -868,11 +868,20 @@ impl LowerCtx {
 
     fn lower_function_call(&mut self, node: SyntaxNode) -> Expr {
         // FUNCTION_CALL: lhs VAR_EXPR holds the name, ARG_LIST holds args.
+        // `count` is a reserved keyword (COUNT_KW) so it doesn't tokenise as
+        // IDENT — treat it as a function name when it appears in head
+        // position. Other aggregates (sum/avg/min/max/collect) are plain
+        // identifiers and round-trip via IDENT.
         let name = node
             .children_with_tokens()
             .filter_map(SyntaxElement::into_token)
-            .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
-            .map(|t| SmolStr::new(t.text()))
+            .find(|t| {
+                matches!(
+                    t.kind(),
+                    SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT | SyntaxKind::COUNT_KW
+                )
+            })
+            .map(|t| SmolStr::new(t.text().to_ascii_lowercase()))
             .or_else(|| {
                 node.children()
                     .find(|n| n.kind() == SyntaxKind::VAR_EXPR)
@@ -1345,12 +1354,27 @@ fn has_token(node: &SyntaxNode, kind: SyntaxKind) -> bool {
 /// Extract the text of the first `IDENT` or `QUOTED_IDENT` token that is a
 /// direct token descendant of `node`, or inside a `NAME` child.
 fn ident_text(node: &SyntaxNode) -> Option<String> {
-    // Walk tokens shallowly (direct children_with_tokens).
+    // Walk tokens shallowly (direct children_with_tokens). `COUNT_KW` is a
+    // reserved keyword token but can stand in for an identifier in expression
+    // position (`count(n)`); the parser wraps it in a `VAR_EXPR` so it shows
+    // up here when we're chasing a function name. Lowercase so the rest of
+    // the pipeline sees the canonical aggregate-catalog form.
     let direct = node
         .children_with_tokens()
         .filter_map(SyntaxElement::into_token)
-        .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
-        .map(|t| t.text().to_string());
+        .find(|t| {
+            matches!(
+                t.kind(),
+                SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT | SyntaxKind::COUNT_KW
+            )
+        })
+        .map(|t| {
+            if t.kind() == SyntaxKind::COUNT_KW {
+                t.text().to_ascii_lowercase()
+            } else {
+                t.text().to_string()
+            }
+        });
     if direct.is_some() {
         return direct;
     }
