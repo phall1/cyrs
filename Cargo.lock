@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-agent"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "cyrs-db",
@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-ast"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-syntax",
  "insta",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-canary"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-db",
  "cyrs-diag",
@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-cli"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-db"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-ast",
  "cyrs-diag",
@@ -435,7 +435,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-diag"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "codespan-reporting",
  "cyrs-syntax",
@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-ffi"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-db",
  "cyrs-diag",
@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-fmt"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-syntax",
  "cyrs-testkit",
@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-hir"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-ast",
  "cyrs-fmt",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-lang"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-ast",
  "cyrs-db",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-lang-services"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-ast",
  "cyrs-db",
@@ -520,7 +520,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-lsp"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-plan"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-hir",
  "cyrs-plan",
@@ -566,7 +566,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-project"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-schema",
  "globset",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-py"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-db",
  "cyrs-diag",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-schema"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "indexmap",
  "serde",
@@ -605,7 +605,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-sema"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-diag",
  "cyrs-hir",
@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-syntax"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-testkit",
  "drop_bomb",
@@ -640,7 +640,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-tck"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-db",
  "insta",
@@ -650,7 +650,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-testkit"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-ast",
  "cyrs-db",
@@ -671,7 +671,7 @@ dependencies = [
 
 [[package]]
 name = "cyrs-wasm"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "cyrs-db",
  "cyrs-diag",
@@ -2381,7 +2381,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
