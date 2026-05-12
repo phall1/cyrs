@@ -1044,6 +1044,18 @@ fn call_postfix(p: &mut Parser<'_>, lhs: CompletedMarker, depth: u32) -> Complet
 }
 
 fn call_arg(p: &mut Parser<'_>, depth: u32) {
+    // `count(*)` is the canonical wildcard aggregate shape. Accept `*` as a
+    // standalone call arg when it is immediately followed by `)` — i.e. the
+    // single-arg wildcard form. We deliberately don't allow `*` mixed with
+    // other args (e.g. `count(*, x)`); the executor only honours the bare
+    // form. The bumped STAR token sits inside ARG_LIST as a trivia-adjacent
+    // token (no node), so HIR lowering's `try_lower_expr` filter naturally
+    // produces an empty args vec — exactly the shape `lg-query-cyrs`'s
+    // `AggAccumulator` detects via `args.is_empty()` for `count_star`.
+    if p.at(SyntaxKind::STAR) && p.nth(1) == SyntaxKind::R_PAREN {
+        p.bump(SyntaxKind::STAR);
+        return;
+    }
     if expr_bp_depth(p, 0, depth + 1).is_none() {
         p.error_code(sc::EXPECTED_CALL_ARG, "expected function argument");
     }

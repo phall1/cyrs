@@ -545,6 +545,15 @@ fn expr_function_call_distinct() {
 }
 
 #[test]
+fn expr_function_call_count_star() {
+    // `count(*)` parses as a FUNCTION_CALL whose ARG_LIST holds a single
+    // STAR token (no expr node) — never as `count * NULL`. See the comment
+    // on `call_arg` in `grammar/expression.rs` for why we special-case the
+    // wildcard arg here.
+    insta::assert_snapshot!(format_with_errors("RETURN count(*)"));
+}
+
+#[test]
 fn expr_paren() {
     insta::assert_snapshot!(format_with_errors("RETURN (1 + 2) * 3"));
 }

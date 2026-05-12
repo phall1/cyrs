@@ -1769,6 +1769,31 @@ mod tests {
         insta::assert_snapshot!("expr_function_call_distinct", render(&stmt));
     }
 
+    /// `count(*)` lowers to `Expr::Call { name: "count", args: [], .. }`.
+    /// `lg-query-cyrs`'s `AggAccumulator::new` detects `count_star` from
+    /// `func == "count" && args.is_empty()`, so the empty-args lowering is
+    /// the executor-side contract.
+    #[test]
+    fn lower_count_star_has_empty_args() {
+        let stmt = lower_statement("RETURN count(*)");
+        let Clause::Return { projections, .. } = &stmt.clauses[0] else {
+            panic!("expected Return clause, got {:?}", stmt.clauses[0]);
+        };
+        assert_eq!(projections.len(), 1);
+        match &projections[0].expr {
+            Expr::Call {
+                name,
+                args,
+                distinct,
+            } => {
+                assert_eq!(name.as_str(), "count");
+                assert!(args.is_empty(), "count(*) should lower to empty args");
+                assert!(!*distinct);
+            }
+            other => panic!("expected Expr::Call, got {other:?}"),
+        }
+    }
+
     #[test]
     fn snap_expr_starts_with() {
         let stmt = lower_statement("RETURN a STARTS WITH 'foo'");
