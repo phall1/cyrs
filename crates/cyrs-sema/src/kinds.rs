@@ -655,6 +655,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_node_in_node_pattern_ok", run(&stmt));
     }
@@ -717,6 +720,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_rel_in_rel_pattern_ok", run(&stmt));
     }
@@ -745,6 +751,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_value_in_return_ok", run(&stmt));
     }
@@ -791,6 +800,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_node_in_arithmetic_mismatch", run(&stmt));
     }
@@ -856,6 +868,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_rel_in_arithmetic_mismatch", run(&stmt));
     }
@@ -898,6 +913,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_value_in_node_pattern_mismatch", run(&stmt));
     }
@@ -924,6 +942,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_path_in_prop_access_mismatch", run(&stmt));
     }
@@ -986,6 +1007,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("kinds_node_in_rel_pattern_mismatch", run(&stmt));
     }

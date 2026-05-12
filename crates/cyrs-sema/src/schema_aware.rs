@@ -1146,6 +1146,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_unknown_function_error", run(&stmt, &schema));
@@ -1172,6 +1175,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_known_stdlib_function_ok", run(&stmt, &schema));
@@ -1198,6 +1204,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_function_arity_mismatch_error", run(&stmt, &schema));
@@ -1265,6 +1274,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_custom_fn_correct_arity_ok", run(&stmt, &schema));
@@ -1291,6 +1303,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_custom_fn_wrong_arity_error", run(&stmt, &schema));

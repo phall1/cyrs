@@ -301,6 +301,9 @@ fn snap_09_multi_binding_all_kinds() {
         ],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("09_multi_binding_all_kinds", pipeline_stmt(stmt, false));
@@ -355,6 +358,9 @@ fn snap_11_with_barrier_projected() {
         }],
         filter: None,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
     // RETURN a
     let rid = alloc(&mut stmt);
@@ -367,6 +373,9 @@ fn snap_11_with_barrier_projected() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("11_with_barrier_projected", pipeline_stmt(stmt, false));
@@ -413,6 +422,9 @@ fn snap_12_with_barrier_dropped() {
         }],
         filter: None,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
     // RETURN b — unresolved → E1001
     let rid = alloc(&mut stmt);
@@ -425,6 +437,9 @@ fn snap_12_with_barrier_dropped() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("12_with_barrier_dropped", pipeline_stmt(stmt, false));
@@ -470,6 +485,9 @@ fn snap_13_with_alias() {
         }],
         filter: None,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
     // RETURN b
     let rid = alloc(&mut stmt);
@@ -482,6 +500,9 @@ fn snap_13_with_alias() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("13_with_alias", pipeline_stmt(stmt, false));
@@ -512,6 +533,9 @@ fn snap_14_unwind_value() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("14_unwind_value", pipeline_stmt(stmt, false));
@@ -559,6 +583,9 @@ fn snap_15_shadowing_warn() {
             }],
             filter: None,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
     }
     // MATCH (a) again — rebind in post-WITH scope → shadow warning E1002
@@ -595,6 +622,9 @@ fn snap_15_shadowing_warn() {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
     }
 
@@ -644,6 +674,9 @@ fn snap_16_double_with_barrier() {
             }],
             filter: None,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
     }
     // MATCH (c)
@@ -687,6 +720,9 @@ fn snap_16_double_with_barrier() {
             ],
             filter: None,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
     }
     // RETURN a, c
@@ -708,6 +744,9 @@ fn snap_16_double_with_barrier() {
             ],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
     }
 
@@ -756,6 +795,9 @@ fn snap_17_kind_mismatch_node_in_arithmetic() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!(
@@ -786,6 +828,9 @@ fn snap_18_kind_mismatch_path_prop_access() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!(
@@ -866,6 +911,9 @@ fn snap_22_create_binds() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("22_create_binds", pipeline_stmt(stmt, false));
@@ -901,6 +949,9 @@ fn snap_23_call_yield() {
         }],
         distinct: false,
         span: zero_range(),
+        order_by: Vec::new(),
+        skip: None,
+        limit: None,
     });
 
     insta::assert_snapshot!("23_call_yield", pipeline_stmt(stmt, false));

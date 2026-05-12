@@ -907,6 +907,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // RETURN a
@@ -921,6 +924,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -960,6 +966,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // RETURN b — b not visible → E1001
@@ -974,6 +983,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1017,6 +1029,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // RETURN b
@@ -1031,6 +1046,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1066,6 +1084,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1106,6 +1127,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // MATCH (c)
@@ -1138,6 +1162,9 @@ mod tests {
                 ],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // RETURN a, c
@@ -1159,6 +1186,9 @@ mod tests {
                 ],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1197,6 +1227,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // MATCH (a) again — rebind in post-WITH scope → shadowing
@@ -1222,6 +1255,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1268,6 +1304,9 @@ mod tests {
                 }],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1306,6 +1345,9 @@ mod tests {
                 }],
                 filter: None,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
         // RETURN a, b — b should be unresolved → E1001
@@ -1327,6 +1369,9 @@ mod tests {
                 ],
                 distinct: false,
                 span: zero_range(),
+                order_by: Vec::new(),
+                skip: None,
+                limit: None,
             });
         }
 
@@ -1356,6 +1401,9 @@ mod tests {
             projections: vec![],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("scope_empty_return", render_result(&stmt, false));
     }

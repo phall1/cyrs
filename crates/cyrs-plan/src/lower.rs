@@ -1658,6 +1658,9 @@ mod tests {
             }],
             distinct: false,
             span,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         let plan = lower_statement(&stmt).expect("manually-built HIR must be resolved");
         insta::assert_snapshot!("plan_unwind", render(&plan));
@@ -2004,6 +2007,9 @@ mod tests {
             }],
             distinct: false,
             span,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         stmt
     }

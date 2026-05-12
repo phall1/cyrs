@@ -451,6 +451,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         stmt
     }

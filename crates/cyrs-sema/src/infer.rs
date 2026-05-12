@@ -761,6 +761,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         stmt
     }
@@ -1045,6 +1048,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_node_var_in_return_ok", run(&stmt));
     }
@@ -1093,6 +1099,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_any_add_int_ok", run(&stmt));
     }
@@ -1142,6 +1151,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_id_of_node_ok_returns_int", run(&stmt));
 
@@ -1210,6 +1222,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_id_of_rel_ok", run(&stmt));
     }
@@ -1358,6 +1373,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_values_of_node_errors_e5012", run(&stmt));
     }
@@ -1382,6 +1400,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_keys_of_path_errors_e5012", run(&stmt));
     }
@@ -1444,6 +1465,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!("infer_rel_var_in_return_ok", run(&stmt));
     }
@@ -1543,6 +1567,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!(
             "infer_case_null_check_on_optional_prop",
@@ -1603,6 +1630,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!(
             "infer_case_default_int_else_prop",
@@ -1654,6 +1684,9 @@ mod tests {
             }],
             distinct: false,
             span: zero_range(),
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
         });
         insta::assert_snapshot!(
             "infer_optional_prop_read_is_any",
