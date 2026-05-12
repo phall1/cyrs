@@ -40,14 +40,14 @@ use smol_str::SmolStr;
 
 use cyrs_hir::{
     Clause, Direction as HirDir, Expr as HirExpr, HirSpan, ListPredKind as HirListPredKind,
-    Pattern, PatternElement, PatternPart, Projection, RelLength as HirRelLen, RemoveItem, SetItem,
-    Statement, VarId as HirVarId,
+    OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength as HirRelLen,
+    RemoveItem, SetItem, Statement, VarId as HirVarId,
 };
 
 use crate::{
     AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey,
-    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, UnaryOp, UnionKind, VarId,
-    WriteOp,
+    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, SortDir, UnaryOp,
+    UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -446,6 +446,9 @@ impl<'s> LowerCtx<'s> {
                 Clause::With {
                     projections,
                     filter,
+                    order_by,
+                    skip,
+                    limit,
                     ..
                 } => {
                     let input = current_op.unwrap_or_else(|| self.push_source_all());
@@ -456,11 +459,15 @@ impl<'s> LowerCtx<'s> {
                         items,
                         filter: filter_expr,
                     });
-                    current_op = Some(op);
+                    current_op =
+                        Some(self.lower_trailers(op, order_by, skip.as_ref(), limit.as_ref()));
                 }
                 Clause::Return {
                     projections,
                     distinct,
+                    order_by,
+                    skip,
+                    limit,
                     ..
                 } => {
                     let input = current_op.unwrap_or_else(|| self.push_source_all());
@@ -493,7 +500,8 @@ impl<'s> LowerCtx<'s> {
                     } else {
                         op
                     };
-                    current_op = Some(op);
+                    current_op =
+                        Some(self.lower_trailers(op, order_by, skip.as_ref(), limit.as_ref()));
                 }
                 Clause::Unwind { list, bind, .. } => {
                     let input = current_op.unwrap_or_else(|| self.push_source_all());
@@ -782,6 +790,44 @@ impl<'s> LowerCtx<'s> {
                 PlanProj { expr, alias }
             })
             .collect()
+    }
+
+    /// Materialise the `ORDER BY` / `SKIP` / `LIMIT` trailers carried on a
+    /// `RETURN` (or `WITH`) clause as a chain of `OrderBy` → `Skip` → `Limit`
+    /// operators on top of `input`. Returns the new root op (or `input` if no
+    /// trailers are present). Mirrors [`apply_order_skip_limit`] for callers
+    /// that drive the plan via `lower_statement` directly. Spec §12.1.
+    fn lower_trailers(
+        &mut self,
+        input: OpId,
+        order_by: &[OrderItem],
+        skip: Option<&HirExpr>,
+        limit: Option<&HirExpr>,
+    ) -> OpId {
+        let mut root = input;
+        if !order_by.is_empty() {
+            let keys = order_by
+                .iter()
+                .map(|item| OrderKey {
+                    expr: self.lower_expr(&item.expr),
+                    dir: if item.descending {
+                        SortDir::Desc
+                    } else {
+                        SortDir::Asc
+                    },
+                })
+                .collect();
+            root = self.plan.push(ReadOp::OrderBy { input: root, keys });
+        }
+        if let Some(expr) = skip {
+            let count = self.lower_expr(expr);
+            root = self.plan.push(ReadOp::Skip { input: root, count });
+        }
+        if let Some(expr) = limit {
+            let count = self.lower_expr(expr);
+            root = self.plan.push(ReadOp::Limit { input: root, count });
+        }
+        root
     }
 
     /// Split projections into non-aggregate and aggregate groups.
@@ -1777,6 +1823,42 @@ mod tests {
             Some(Expr::Int(5)),
         );
         insta::assert_snapshot!("plan_order_skip_limit", render(&plan));
+    }
+
+    // 22. RETURN trailers via lower_statement: source-string RETURN ... LIMIT 1
+    // should already carry the Limit op without `apply_order_skip_limit` —
+    // cyrs-hir lowers the trailer fields onto Clause::Return, and we consume
+    // them via `lower_trailers` from `lower`. This is the contract that
+    // unblocks pipeline::compile in lg-query-cyrs.
+    #[test]
+    fn return_limit_in_lowered_plan() {
+        let plan = plan_from("MATCH (n) RETURN n LIMIT 1");
+        assert!(
+            plan.ops.iter().any(|op| matches!(op, ReadOp::Limit { .. })),
+            "expected a Limit op in the lowered plan: {:?}",
+            plan.ops
+        );
+    }
+
+    #[test]
+    fn return_order_skip_limit_chain_in_lowered_plan() {
+        let plan = plan_from("MATCH (n) RETURN n ORDER BY n DESC SKIP 2 LIMIT 3");
+        let kinds: Vec<&'static str> = plan
+            .ops
+            .iter()
+            .map(|op| match op {
+                ReadOp::Source { .. } => "Source",
+                ReadOp::Project { .. } => "Project",
+                ReadOp::OrderBy { .. } => "OrderBy",
+                ReadOp::Skip { .. } => "Skip",
+                ReadOp::Limit { .. } => "Limit",
+                _ => "Other",
+            })
+            .collect();
+        assert!(
+            kinds.ends_with(&["OrderBy", "Skip", "Limit"]),
+            "expected trailers in OrderBy → Skip → Limit order, got {kinds:?}"
+        );
     }
 
     // ── Determinism check ────────────────────────────────────────────────────
