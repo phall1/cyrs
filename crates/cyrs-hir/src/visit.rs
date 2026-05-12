@@ -423,6 +423,9 @@ mod tests {
                 span: root.text_range(),
             }],
             distinct: false,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
             span: root.text_range(),
         });
 

@@ -871,6 +871,9 @@ mod tests {
                 span: small_range(17, 18),
             }],
             distinct: false,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
             span: small_range(10, 18),
         });
 

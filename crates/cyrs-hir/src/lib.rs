@@ -225,12 +225,24 @@ pub enum Clause {
         id: HirId,
         projections: Vec<Projection>,
         filter: Option<Expr>,
+        /// `ORDER BY` trailer items, in source order. Empty when absent.
+        order_by: Vec<OrderItem>,
+        /// `SKIP` expression, or `None` when the trailer is absent.
+        skip: Option<Expr>,
+        /// `LIMIT` expression, or `None` when the trailer is absent.
+        limit: Option<Expr>,
         span: TextRange,
     },
     Return {
         id: HirId,
         projections: Vec<Projection>,
         distinct: bool,
+        /// `ORDER BY` trailer items, in source order. Empty when absent.
+        order_by: Vec<OrderItem>,
+        /// `SKIP` expression, or `None` when the trailer is absent.
+        skip: Option<Expr>,
+        /// `LIMIT` expression, or `None` when the trailer is absent.
+        limit: Option<Expr>,
         span: TextRange,
     },
     Unwind {
@@ -388,6 +400,19 @@ pub enum RelLength {
 pub struct Projection {
     pub expr: Expr,
     pub alias: Option<SmolStr>,
+    pub span: TextRange,
+}
+
+/// A single `ORDER BY` item — sort key plus direction.
+///
+/// Lowered from `ORDER_ITEM` syntax nodes attached to `RETURN_BODY` /
+/// `WITH_CLAUSE` (spec §6.1 trailer). `descending` is `true` for `DESC`
+/// or `DESCENDING`; ascending is the default and applies when no
+/// direction keyword is present (or `ASC` / `ASCENDING` is given).
+#[derive(Debug, Clone)]
+pub struct OrderItem {
+    pub expr: Expr,
+    pub descending: bool,
     pub span: TextRange,
 }
 
@@ -692,6 +717,9 @@ mod tests {
                 span: root.text_range(),
             }],
             distinct: false,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
             span: root.text_range(),
         });
 

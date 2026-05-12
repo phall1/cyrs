@@ -666,6 +666,9 @@ mod tests {
                 span,
             }],
             distinct: false,
+            order_by: Vec::new(),
+            skip: None,
+            limit: None,
             span,
         });
         stmt

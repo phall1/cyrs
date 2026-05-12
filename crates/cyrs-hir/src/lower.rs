@@ -29,9 +29,9 @@ use smol_str::SmolStr;
 use cyrs_syntax::{Parse, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
-    BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, Pattern,
-    PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement, UnaryOp,
-    VarId, VarKind,
+    BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, OrderItem,
+    Pattern, PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement,
+    UnaryOp, VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -246,10 +246,14 @@ impl LowerCtx {
                 let id = self.alloc_hir(node.clone());
                 let distinct = has_token(&node, SyntaxKind::DISTINCT_KW);
                 let projections = self.lower_return_body(&node);
+                let (order_by, skip, limit) = self.lower_return_trailers(&node);
                 Some(Clause::Return {
                     id,
                     projections,
                     distinct,
+                    order_by,
+                    skip,
+                    limit,
                     span,
                 })
             }
@@ -347,10 +351,14 @@ impl LowerCtx {
                     .descendants()
                     .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
                     .and_then(|w| w.children().find_map(|n| self.try_lower_expr(n)));
+                let (order_by, skip, limit) = self.lower_return_trailers(&node);
                 Some(Clause::With {
                     id,
                     projections,
                     filter,
+                    order_by,
+                    skip,
+                    limit,
                     span,
                 })
             }
@@ -726,6 +734,61 @@ impl LowerCtx {
         };
 
         Projection { expr, alias, span }
+    }
+
+    /// Lower the `ORDER BY` / `SKIP` / `LIMIT` trailer subclauses of a
+    /// RETURN / WITH clause (spec §6.1 trailer).
+    ///
+    /// The parser nests these as children of the clause's `RETURN_BODY`
+    /// (for RETURN) or directly under the WITH clause node — both shapes
+    /// are matched by walking `descendants()` here. Each trailer is
+    /// optional; absent trailers yield empty vec / `None`.
+    fn lower_return_trailers(
+        &mut self,
+        clause: &SyntaxNode,
+    ) -> (Vec<OrderItem>, Option<Expr>, Option<Expr>) {
+        let mut order_by = Vec::new();
+        let mut skip = None;
+        let mut limit = None;
+
+        // Trailers live inside RETURN_BODY (for RETURN_CLAUSE) and as
+        // descendants for WITH_CLAUSE (same nesting). Iterate descendants
+        // and dispatch by kind.
+        for n in clause.descendants() {
+            match n.kind() {
+                SyntaxKind::ORDER_BY if order_by.is_empty() => {
+                    for item in n.children().filter(|c| c.kind() == SyntaxKind::ORDER_ITEM) {
+                        order_by.push(self.lower_order_item(item));
+                    }
+                }
+                SyntaxKind::SKIP_SUBCLAUSE if skip.is_none() => {
+                    skip = n.children().find_map(|c| self.try_lower_expr(c));
+                }
+                SyntaxKind::LIMIT_SUBCLAUSE if limit.is_none() => {
+                    limit = n.children().find_map(|c| self.try_lower_expr(c));
+                }
+                _ => {}
+            }
+        }
+
+        (order_by, skip, limit)
+    }
+
+    fn lower_order_item(&mut self, node: SyntaxNode) -> OrderItem {
+        let span = node.text_range();
+        let expr = node
+            .children()
+            .find_map(|c| self.try_lower_expr(c))
+            .unwrap_or(Expr::Null);
+        // Direction: DESC / DESCENDING ⇒ descending; ASC / ASCENDING /
+        // absent ⇒ ascending. Tokens live directly on ORDER_ITEM.
+        let descending =
+            has_token(&node, SyntaxKind::DESC_KW) || has_token(&node, SyntaxKind::DESCENDING_KW);
+        OrderItem {
+            expr,
+            descending,
+            span,
+        }
     }
 
     // --- expressions --------------------------------------------------------
@@ -1888,5 +1951,106 @@ mod tests {
         let kinds: Vec<VarKind> = stmt.bindings.values().map(|b| b.kind).collect();
         assert!(kinds.contains(&VarKind::Relationship));
         assert!(kinds.contains(&VarKind::Node));
+    }
+
+    // --- ORDER BY / SKIP / LIMIT trailer tests (lg-q9m) ---
+
+    fn last_return_trailers(stmt: &Statement) -> (&[OrderItem], Option<&Expr>, Option<&Expr>) {
+        let ret = stmt
+            .clauses
+            .iter()
+            .rev()
+            .find(|c| matches!(c, Clause::Return { .. }))
+            .expect("expected at least one RETURN clause");
+        match ret {
+            Clause::Return {
+                order_by,
+                skip,
+                limit,
+                ..
+            } => (order_by.as_slice(), skip.as_ref(), limit.as_ref()),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn return_with_limit_lowers_limit_field() {
+        let stmt = lower_statement("MATCH (n) RETURN n LIMIT 1");
+        let (order_by, skip, limit) = last_return_trailers(&stmt);
+        assert!(order_by.is_empty(), "no ORDER BY expected");
+        assert!(skip.is_none(), "no SKIP expected");
+        assert!(
+            matches!(limit, Some(Expr::Int(1))),
+            "LIMIT 1 should lower to Expr::Int(1), got {limit:?}",
+        );
+    }
+
+    #[test]
+    fn return_with_order_skip_limit_lowers_all_three() {
+        let stmt = lower_statement("MATCH (n) RETURN n ORDER BY n.age DESC SKIP 2 LIMIT 3");
+        let (order_by, skip, limit) = last_return_trailers(&stmt);
+
+        assert_eq!(order_by.len(), 1, "one ORDER BY item expected");
+        assert!(
+            order_by[0].descending,
+            "DESC keyword should set descending=true",
+        );
+        match &order_by[0].expr {
+            Expr::Prop { prop, .. } => assert_eq!(prop.as_str(), "age"),
+            other => panic!("expected Expr::Prop for n.age, got {other:?}"),
+        }
+
+        assert!(
+            matches!(skip, Some(Expr::Int(2))),
+            "SKIP 2 should lower to Expr::Int(2), got {skip:?}",
+        );
+        assert!(
+            matches!(limit, Some(Expr::Int(3))),
+            "LIMIT 3 should lower to Expr::Int(3), got {limit:?}",
+        );
+    }
+
+    #[test]
+    fn return_without_trailers_has_empty_modifiers() {
+        let stmt = lower_statement("MATCH (n) RETURN n");
+        let (order_by, skip, limit) = last_return_trailers(&stmt);
+        assert!(order_by.is_empty());
+        assert!(skip.is_none());
+        assert!(limit.is_none());
+    }
+
+    #[test]
+    fn return_order_by_default_direction_is_ascending() {
+        let stmt = lower_statement("MATCH (n) RETURN n ORDER BY n.age");
+        let (order_by, _, _) = last_return_trailers(&stmt);
+        assert_eq!(order_by.len(), 1);
+        assert!(
+            !order_by[0].descending,
+            "absent direction keyword should default to ascending",
+        );
+    }
+
+    #[test]
+    fn with_clause_carries_trailers() {
+        // WITH supports the same ORDER BY / SKIP / LIMIT trailer.
+        let stmt = lower_statement("MATCH (n) WITH n ORDER BY n.name SKIP 5 LIMIT 10 RETURN n");
+        let with = stmt
+            .clauses
+            .iter()
+            .find(|c| matches!(c, Clause::With { .. }))
+            .expect("expected a WITH clause");
+        let Clause::With {
+            order_by,
+            skip,
+            limit,
+            ..
+        } = with
+        else {
+            unreachable!();
+        };
+        assert_eq!(order_by.len(), 1);
+        assert!(!order_by[0].descending);
+        assert!(matches!(skip, Some(Expr::Int(5))));
+        assert!(matches!(limit, Some(Expr::Int(10))));
     }
 }
