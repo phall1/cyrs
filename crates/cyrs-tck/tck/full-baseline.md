@@ -23,37 +23,37 @@ acceptance is not yet equivalent to pass-rate.
 |---|---|
 | Feature files scanned | **220** |
 | Scenario cases (outline rows expanded) | **3897** |
-| Accepted by parser | **3632** (93.2 %) |
-| Rejected by parser | **265** (6.8 %) |
+| Accepted by parser | **3754** (96.3 %) |
+| Rejected by parser | **143** (3.7 %) |
 
 ## Per-area pass counts
 
 | Area | Accepted | Total | % |
 |---|---|---|---|
-| `clauses/call` | 49 | 52 | 94.2 % |
+| `clauses/call` | 50 | 52 | 96.2 % |
 | `clauses/create` | 76 | 78 | 97.4 % |
-| `clauses/delete` | 37 | 41 | 90.2 % |
-| `clauses/match` | 367 | 381 | 96.3 % |
+| `clauses/delete` | 39 | 41 | 95.1 % |
+| `clauses/match` | 371 | 381 | 97.4 % |
 | `clauses/match-where` | 29 | 34 | 85.3 % |
-| `clauses/merge` | 62 | 75 | 82.7 % |
+| `clauses/merge` | 68 | 75 | 90.7 % |
 | `clauses/remove` | 33 | 33 | 100.0 % |
-| `clauses/return` | 47 | 63 | 74.6 % |
-| `clauses/return-orderby` | 31 | 35 | 88.6 % |
-| `clauses/return-skip-limit` | 24 | 31 | 77.4 % |
+| `clauses/return` | 57 | 63 | 90.5 % |
+| `clauses/return-orderby` | 35 | 35 | 100.0 % |
+| `clauses/return-skip-limit` | 25 | 31 | 80.6 % |
 | `clauses/set` | 46 | 53 | 86.8 % |
 | `clauses/union` | 12 | 12 | 100.0 % |
 | `clauses/unwind` | 14 | 14 | 100.0 % |
-| `clauses/with` | 21 | 29 | 72.4 % |
-| `clauses/with-orderBy` | 277 | 292 | 94.9 % |
+| `clauses/with` | 28 | 29 | 96.6 % |
+| `clauses/with-orderBy` | 283 | 292 | 96.9 % |
 | `clauses/with-skip-limit` | 8 | 9 | 88.9 % |
-| `clauses/with-where` | 17 | 19 | 89.5 % |
+| `clauses/with-where` | 18 | 19 | 94.7 % |
 | `expressions/aggregation` | 34 | 35 | 97.1 % |
 | `expressions/boolean` | 148 | 150 | 98.7 % |
 | `expressions/comparison` | 72 | 72 | 100.0 % |
 | `expressions/conditional` | 13 | 13 | 100.0 % |
 | `expressions/existentialSubqueries` | 0 | 10 | 0.0 % |
 | `expressions/graph` | 52 | 61 | 85.2 % |
-| `expressions/list` | 179 | 185 | 96.8 % |
+| `expressions/list` | 180 | 185 | 97.3 % |
 | `expressions/literals` | 101 | 131 | 77.1 % |
 | `expressions/map` | 39 | 44 | 88.6 % |
 | `expressions/mathematical` | 5 | 6 | 83.3 % |
@@ -61,11 +61,11 @@ acceptance is not yet equivalent to pass-rate.
 | `expressions/path` | 7 | 7 | 100.0 % |
 | `expressions/pattern` | 38 | 50 | 76.0 % |
 | `expressions/precedence` | 121 | 121 | 100.0 % |
-| `expressions/quantifier` | 536 | 604 | 88.7 % |
-| `expressions/string` | 29 | 32 | 90.6 % |
+| `expressions/quantifier` | 604 | 604 | 100.0 % |
+| `expressions/string` | 32 | 32 | 100.0 % |
 | `expressions/temporal` | 1001 | 1004 | 99.7 % |
 | `expressions/typeConversion` | 47 | 47 | 100.0 % |
-| `useCases/countingSubgraphMatches` | 3 | 11 | 27.3 % |
+| `useCases/countingSubgraphMatches` | 11 | 11 | 100.0 % |
 | `useCases/triadicSelection` | 17 | 19 | 89.5 % |
 
 ## Next steps
