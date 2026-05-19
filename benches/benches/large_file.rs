@@ -15,17 +15,24 @@
 //! 3. **bench_diagnose_10k** — `Database::new()` → `open_file` → full
 //!    `all_diagnostics` round-trip (parse + HIR lower + sema).
 //!
-//! # Measured p95 (local MacBook, 2026-04-21) and committed budgets
+//! # Measured p95 and committed budgets
 //!
 //! The three p95 budgets live in `benches/large_file.budget.toml` and
 //! are re-read at runtime; update both the TOML and this doc-comment
 //! when re-baselining.
 //!
-//! | Bench                | measured p95 | budget (×1.2) |
-//! |----------------------|--------------|---------------|
-//! | bench_parse_10k      |   28.56 ms   |    35 ms      |
-//! | bench_hir_lower_10k  |   57.10 ms   |    70 ms      |
-//! | bench_diagnose_10k   |   54.00 ms   |    65 ms      |
+//! | Bench                | local p95 (MacBook 2026-04-21) | CI p95 (ubuntu-latest 2026-05-19) | budget (CI × 1.2) |
+//! |----------------------|--------------------------------|-----------------------------------|-------------------|
+//! | bench_parse_10k      |   28.56 ms                     |   46.54 ms                        |    56 ms          |
+//! | bench_hir_lower_10k  |   57.10 ms                     |   87.12 ms                        |   105 ms          |
+//! | bench_diagnose_10k   |   54.00 ms                     |   88.08 ms                        |   106 ms          |
+//!
+//! The CI p95s are persistently 1.5–1.6× local on the GitHub Actions
+//! ubuntu-latest runners (noisy shared VMs); the committed budgets are
+//! sized off CI numbers so the nightly gate reflects the surface the
+//! gate actually sees. The local row is kept for developer reference
+//! and to flag investigation if it diverges from CI by more than ~2×.
+//! See cy-usy for follow-up on the local-vs-CI gap.
 //!
 //! These are *nightly-only* gates: the large-file workload is too slow
 //! for the PR-blocking bench job.

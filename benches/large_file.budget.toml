@@ -11,10 +11,13 @@
 #   4. Document the re-baseline in docs/stability.md § "Performance
 #      budgets" if the change is policy-driven (not just noise).
 #
-# Measured p95 (local dev — MacBook, release profile, 2026-04-21):
-#   parse_10k     = 28.56 ms
-#   hir_lower_10k = 57.10 ms
-#   diagnose_10k  = 54.00 ms
-parse_ms = 35
-hir_lower_ms = 70
-diagnose_ms = 65
+# Measured p95:
+#   Local (MacBook, release, 2026-04-21):  parse=28.56  hir=57.10  diag=54.00
+#   CI    (ubuntu-latest,    2026-05-19):  parse=46.54  hir=87.12  diag=88.08
+#
+# Budgets below are sized against CI p95 × 1.2 because the gate runs in
+# CI; CI p95s are persistently ~1.5-1.6× local on shared GitHub-Actions
+# VMs.  See cy-usy for follow-up investigation of the local-vs-CI gap.
+parse_ms     = 56
+hir_lower_ms = 105
+diagnose_ms  = 106

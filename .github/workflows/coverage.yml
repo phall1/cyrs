@@ -58,9 +58,9 @@ jobs:
       # The COV_IGNORE regex excludes two files that are pure catalogs of
       # grammar productions, not hand-written code under test:
       #
-      #   - cypher-ast/src/generated.rs — `cargo xtask codegen` output
-      #     (1212 lines of cast/accessor methods; AGENTS.md §3).
-      #   - cypher-syntax/src/kind.rs — exhaustive SyntaxKind variant
+      #   - cyrs-ast/src/generated.rs — `cargo xtask codegen` output
+      #     (1265 lines of cast/accessor methods; AGENTS.md §3).
+      #   - cyrs-syntax/src/kind.rs — exhaustive SyntaxKind variant
       #     catalog (549 enum variants).
       #
       # Both carry a file-level `#![allow(missing_docs)]` for the same
@@ -70,14 +70,14 @@ jobs:
       # standard llvm-cov practice.
       #
       # NOT excluded (despite earlier consideration):
-      #   - cypher-hir/src/lib.rs   — has real reachable code beyond the catalog.
-      #   - cypher-db/src/inputs.rs — Salsa #[input] macro-expanded
+      #   - cyrs-hir/src/lib.rs   — has real reachable code beyond the catalog.
+      #   - cyrs-db/src/inputs.rs — Salsa #[input] macro-expanded
       #     methods are exercised by tests.
       #
       # When this list grows, mirror the change in step 2 below.
       - name: cargo llvm-cov (JSON)
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
+          COV_IGNORE: 'crates/cyrs-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
@@ -115,7 +115,7 @@ jobs:
       - name: check per-crate coverage floors
         shell: bash
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
+          COV_IGNORE: 'crates/cyrs-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           set -euo pipefail
 
@@ -214,7 +214,7 @@ jobs:
       - name: cargo llvm-cov (lcov)
         if: always()
         env:
-          COV_IGNORE: 'crates/cypher-(ast/src/generated|syntax/src/kind)\.rs'
+          COV_IGNORE: 'crates/cyrs-(ast/src/generated|syntax/src/kind)\.rs'
         run: |
           cargo llvm-cov \
             --workspace \
