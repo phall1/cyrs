@@ -28,6 +28,9 @@
 // and `cyrs-ast/src/generated.rs`.
 #![allow(missing_docs)]
 
+// --- cy-v5u6 catalog HIR ---
+pub mod catalog;
+// --- end cy-v5u6 ---
 pub mod desugar;
 pub mod lower;
 pub mod pretty;
@@ -37,6 +40,11 @@ pub mod session;
 // --- end cy-lp3y ---
 pub mod visit;
 
+// --- cy-v5u6 catalog HIR ---
+pub use catalog::{
+    CatalogHir, CatalogStatement, GraphSourceHir, GraphTypeHir, lower_catalog_from_parse,
+};
+// --- end cy-v5u6 ---
 pub use lower::{lower_parse, lower_statement};
 pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,

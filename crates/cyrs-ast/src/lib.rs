@@ -352,6 +352,413 @@ impl AstNode for SessionSetValueVariant {
 }
 // --- end cy-9kzx ---
 
+// --- cy-v5u6 catalog DDL AST ---
+//
+// GQL catalog-DDL statements (ISO/IEC 39075:2024 §14.14) — see
+// `cyrs_syntax::grammar::catalog` for the parser shape. Codegen (cy-pbx)
+// does not yet emit wrappers for these alternation-shaped nodes, so the
+// typed AST wrappers are hand-written here (cy-rgqg deferred the AST
+// layer; this bead lights them up).
+
+/// Typed wrapper for the top-level `CREATE GRAPH …` statement
+/// (ISO/IEC 39075:2024 §14.14; cy-rgqg, cy-v5u6).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CatalogCreateGraphStmt {
+    syntax: SyntaxNode,
+}
+
+impl CatalogCreateGraphStmt {
+    /// Try to cast a raw `SyntaxNode` to a `CatalogCreateGraphStmt`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::CATALOG_CREATE_GRAPH_STMT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// The bound graph name (the `GRAPH_NAME` child immediately following
+    /// the `CREATE GRAPH` keywords). `None` only for recovery shapes.
+    pub fn graph_name(&self) -> Option<GraphName> {
+        self.syntax.children().find_map(GraphName::cast)
+    }
+
+    /// The optional graph-type reference (`::name`, `TYPED name`, `ANY`,
+    /// inline `{…}`, `::{…}`, or a bare-ident form).
+    pub fn graph_type_ref(&self) -> Option<GraphTypeRef> {
+        self.syntax.children().find_map(GraphTypeRef::cast)
+    }
+
+    /// The optional source qualifier (`LIKE <name>` or `AS COPY OF <name>`).
+    pub fn graph_source(&self) -> Option<GraphSource> {
+        self.syntax.children().find_map(GraphSource::cast)
+    }
+}
+
+impl AstNode for CatalogCreateGraphStmt {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::CATALOG_CREATE_GRAPH_STMT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for the top-level `CREATE SCHEMA /path` statement
+/// (ISO/IEC 39075:2024 §14.14; cy-rgqg, cy-v5u6).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CatalogCreateSchemaStmt {
+    syntax: SyntaxNode,
+}
+
+impl CatalogCreateSchemaStmt {
+    /// Try to cast a raw `SyntaxNode` to a `CatalogCreateSchemaStmt`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::CATALOG_CREATE_SCHEMA_STMT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// The leading `PATH_IDENT` child (`/seg1/seg2/…`). Recovery shapes
+    /// may instead expose a [`GraphName`] when a bare identifier was
+    /// supplied; see [`Self::graph_name_fallback`].
+    pub fn path_ident(&self) -> Option<PathIdent> {
+        self.syntax.children().find_map(PathIdent::cast)
+    }
+
+    /// Recovery fallback: when the parser saw a bare IDENT instead of a
+    /// `/…` path, the catalog grammar wraps it in `GRAPH_NAME` so the
+    /// statement still completes. Returns `None` for the well-formed
+    /// path-prefixed shape.
+    pub fn graph_name_fallback(&self) -> Option<GraphName> {
+        self.syntax.children().find_map(GraphName::cast)
+    }
+}
+
+impl AstNode for CatalogCreateSchemaStmt {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::CATALOG_CREATE_SCHEMA_STMT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for a `GRAPH_NAME` node — either a `PATH_IDENT` child
+/// (`/foo/bar`) or a single `IDENT` / `QUOTED_IDENT` token.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GraphName {
+    syntax: SyntaxNode,
+}
+
+impl GraphName {
+    /// Try to cast a raw `SyntaxNode` to a `GraphName`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::GRAPH_NAME).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// The `PATH_IDENT` child, when this name was spelled as `/foo/bar`.
+    pub fn path(&self) -> Option<PathIdent> {
+        self.syntax.children().find_map(PathIdent::cast)
+    }
+
+    /// The lone `IDENT` / `QUOTED_IDENT` token, when this name was
+    /// spelled as a bare identifier. Returns `None` for the path form
+    /// (use [`Self::path`]) and for malformed recovery shapes.
+    pub fn ident_token(&self) -> Option<SyntaxToken> {
+        if self.path().is_some() {
+            return None;
+        }
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| matches!(t.kind(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT))
+    }
+
+    /// The textual spelling of the name — concatenation of every IDENT /
+    /// `/` token in source order. Returns the empty string for malformed
+    /// recovery shapes where no name token was emitted.
+    pub fn text(&self) -> String {
+        let mut out = String::new();
+        for t in self
+            .syntax
+            .descendants_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+        {
+            match t.kind() {
+                SyntaxKind::SLASH | SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+                    out.push_str(t.text());
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
+impl AstNode for GraphName {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::GRAPH_NAME
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for a `PATH_IDENT` node — `('/' IDENT)+`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PathIdent {
+    syntax: SyntaxNode,
+}
+
+impl PathIdent {
+    /// Try to cast a raw `SyntaxNode` to a `PathIdent`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::PATH_IDENT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// Iterate the segment `IDENT` / `QUOTED_IDENT` tokens in source order.
+    pub fn segment_tokens(&self) -> impl Iterator<Item = SyntaxToken> + '_ {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|t| matches!(t.kind(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT))
+    }
+
+    /// Collect the segments as owned strings. `["foo", "bar"]` for
+    /// `/foo/bar`. May be empty on a malformed recovery shape.
+    pub fn segments(&self) -> Vec<String> {
+        self.segment_tokens().map(|t| t.text().to_owned()).collect()
+    }
+}
+
+impl AstNode for PathIdent {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::PATH_IDENT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// The five surface shapes a [`GraphTypeRef`] can take.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GraphTypeRefKind {
+    /// `ANY` — open graph type.
+    Any,
+    /// `::name` or `::QUOTED_IDENT` — double-colon named ref. Holds the
+    /// referenced name token text.
+    DoubleColonNamed(String),
+    /// `::{…}` — inline literal under a double-colon prefix.
+    DoubleColonInline,
+    /// `TYPED name` — lexical named ref.
+    TypedNamed(String),
+    /// Bare `{…}` inline literal.
+    Inline,
+    /// Bare `name` ref (the ambiguous fifth surface form).
+    BareNamed(String),
+}
+
+/// Typed wrapper for the `GRAPH_TYPE_REF` node — five surface shapes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GraphTypeRef {
+    syntax: SyntaxNode,
+}
+
+impl GraphTypeRef {
+    /// Try to cast a raw `SyntaxNode` to a `GraphTypeRef`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::GRAPH_TYPE_REF).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// Classify by inspecting the leading non-trivia tokens, mirroring
+    /// the parser's `graph_type_ref` dispatch. The bare-`{…}` inline
+    /// form has no direct token children (everything lives under the
+    /// `INLINE_GRAPH_TYPE` child); detect it by checking for an inline
+    /// child when there is no leading token.
+    pub fn kind(&self) -> Option<GraphTypeRefKind> {
+        let leading = self
+            .syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| !t.kind().is_trivia());
+        let Some(leading) = leading else {
+            // No direct token children — this is the bare `{ … }` inline
+            // shape; everything lives under the INLINE_GRAPH_TYPE child.
+            return self.inline().map(|_| GraphTypeRefKind::Inline);
+        };
+        match leading.kind() {
+            SyntaxKind::ANY_KW => Some(GraphTypeRefKind::Any),
+            SyntaxKind::DOUBLE_COLON => {
+                if self.inline().is_some() {
+                    Some(GraphTypeRefKind::DoubleColonInline)
+                } else {
+                    let name = self.named_token_text();
+                    Some(GraphTypeRefKind::DoubleColonNamed(name))
+                }
+            }
+            SyntaxKind::TYPED_KW => Some(GraphTypeRefKind::TypedNamed(self.named_token_text())),
+            SyntaxKind::L_BRACE => Some(GraphTypeRefKind::Inline),
+            SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+                Some(GraphTypeRefKind::BareNamed(leading.text().to_owned()))
+            }
+            _ => None,
+        }
+    }
+
+    /// The inline `INLINE_GRAPH_TYPE` child, when this ref carries one.
+    pub fn inline(&self) -> Option<InlineGraphType> {
+        self.syntax.children().find_map(InlineGraphType::cast)
+    }
+
+    /// Helper: extract the named-ref ident text (skipping the leading
+    /// `::` / `TYPED` keyword).
+    fn named_token_text(&self) -> String {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|t| matches!(t.kind(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT))
+            .map(|t| t.text().to_owned())
+            .next()
+            .unwrap_or_default()
+    }
+}
+
+impl AstNode for GraphTypeRef {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::GRAPH_TYPE_REF
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for the `INLINE_GRAPH_TYPE` node — `{ Elem, Elem … }`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InlineGraphType {
+    syntax: SyntaxNode,
+}
+
+impl InlineGraphType {
+    /// Try to cast a raw `SyntaxNode` to an `InlineGraphType`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::INLINE_GRAPH_TYPE).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+impl AstNode for InlineGraphType {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::INLINE_GRAPH_TYPE
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// The two source qualifier shapes a [`GraphSource`] can take.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GraphSourceKind {
+    /// `LIKE <name>` — clone a structural reference.
+    Like(GraphName),
+    /// `AS COPY OF <name>` — clone with data.
+    AsCopyOf(GraphName),
+}
+
+/// Typed wrapper for the `GRAPH_SOURCE` node — `LIKE …` or `AS COPY OF …`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GraphSource {
+    syntax: SyntaxNode,
+}
+
+impl GraphSource {
+    /// Try to cast a raw `SyntaxNode` to a `GraphSource`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::GRAPH_SOURCE).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// Classify by inspecting the leading non-trivia token.
+    pub fn kind(&self) -> Option<GraphSourceKind> {
+        let name = self.source_name()?;
+        let leading = self
+            .syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| !t.kind().is_trivia())?;
+        match leading.kind() {
+            SyntaxKind::AS_KW => Some(GraphSourceKind::AsCopyOf(name)),
+            SyntaxKind::IDENT if leading.text().eq_ignore_ascii_case("LIKE") => {
+                Some(GraphSourceKind::Like(name))
+            }
+            _ => None,
+        }
+    }
+
+    /// The source graph reference (`GRAPH_NAME` child).
+    pub fn source_name(&self) -> Option<GraphName> {
+        self.syntax.children().find_map(GraphName::cast)
+    }
+}
+
+impl AstNode for GraphSource {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::GRAPH_SOURCE
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+// --- end cy-v5u6 ---
+
 /// Hand-written accessor: iterate the [`MapProjectionItem`] children of a
 /// [`MapProjection`]. Lives outside `generated.rs` so codegen runs do not
 /// clobber it.
@@ -454,6 +861,126 @@ mod tests {
         assert_eq!(param.text(), "$foo");
         assert!(val.value_expr().is_some());
     }
+
+    // --- cy-v5u6 catalog DDL AST coverage ---
+    fn first_create_graph(src: &str) -> super::CatalogCreateGraphStmt {
+        let parse = parse(src);
+        parse
+            .syntax()
+            .children()
+            .find_map(super::CatalogCreateGraphStmt::cast)
+            .expect("CATALOG_CREATE_GRAPH_STMT child of SOURCE_FILE")
+    }
+
+    fn first_create_schema(src: &str) -> super::CatalogCreateSchemaStmt {
+        let parse = parse(src);
+        parse
+            .syntax()
+            .children()
+            .find_map(super::CatalogCreateSchemaStmt::cast)
+            .expect("CATALOG_CREATE_SCHEMA_STMT child of SOURCE_FILE")
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_any() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph ANY");
+        let name = stmt.graph_name().expect("graph name");
+        assert_eq!(name.text(), "mygraph");
+        let ty = stmt.graph_type_ref().expect("graph type ref");
+        assert!(matches!(ty.kind(), Some(super::GraphTypeRefKind::Any)));
+        assert!(stmt.graph_source().is_none());
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_double_colon_named() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph ::mytype");
+        let ty = stmt.graph_type_ref().unwrap();
+        let super::GraphTypeRefKind::DoubleColonNamed(name) = ty.kind().unwrap() else {
+            panic!("expected DoubleColonNamed");
+        };
+        assert_eq!(name, "mytype");
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_typed_named() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph TYPED mytype");
+        let ty = stmt.graph_type_ref().unwrap();
+        let super::GraphTypeRefKind::TypedNamed(name) = ty.kind().unwrap() else {
+            panic!("expected TypedNamed");
+        };
+        assert_eq!(name, "mytype");
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_inline_double_colon() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph ::{(Person :Person {name STRING})}");
+        let ty = stmt.graph_type_ref().unwrap();
+        assert!(matches!(
+            ty.kind(),
+            Some(super::GraphTypeRefKind::DoubleColonInline)
+        ));
+        assert!(ty.inline().is_some());
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_inline_literal() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph {(Person :Person {name STRING})}");
+        let ty = stmt.graph_type_ref().unwrap();
+        assert!(matches!(ty.kind(), Some(super::GraphTypeRefKind::Inline)));
+        assert!(ty.inline().is_some());
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_bare_named() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph mygraphtype");
+        let ty = stmt.graph_type_ref().unwrap();
+        let super::GraphTypeRefKind::BareNamed(name) = ty.kind().unwrap() else {
+            panic!("expected BareNamed");
+        };
+        assert_eq!(name, "mygraphtype");
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_path_like_source() {
+        let stmt = first_create_graph("CREATE GRAPH /mygraph LIKE /mysrc");
+        let name = stmt.graph_name().unwrap();
+        assert_eq!(name.text(), "/mygraph");
+        assert!(name.path().is_some());
+        let src = stmt.graph_source().expect("graph source");
+        let super::GraphSourceKind::Like(srcname) = src.kind().unwrap() else {
+            panic!("expected Like");
+        };
+        assert_eq!(srcname.text(), "/mysrc");
+    }
+
+    #[test]
+    fn ast_catalog_create_graph_as_copy_of() {
+        let stmt = first_create_graph("CREATE GRAPH mygraph ANY AS COPY OF mysrc");
+        let src = stmt.graph_source().unwrap();
+        let super::GraphSourceKind::AsCopyOf(srcname) = src.kind().unwrap() else {
+            panic!("expected AsCopyOf");
+        };
+        assert_eq!(srcname.text(), "mysrc");
+    }
+
+    #[test]
+    fn ast_catalog_create_schema_single_segment() {
+        let stmt = first_create_schema("CREATE SCHEMA /myschema");
+        let path = stmt.path_ident().expect("path ident");
+        assert_eq!(path.segments(), vec!["myschema".to_owned()]);
+        assert!(stmt.graph_name_fallback().is_none());
+    }
+
+    #[test]
+    fn ast_catalog_create_schema_multi_segment() {
+        let stmt = first_create_schema("CREATE SCHEMA /foo/myschema");
+        let path = stmt.path_ident().unwrap();
+        assert_eq!(
+            path.segments(),
+            vec!["foo".to_owned(), "myschema".to_owned()]
+        );
+    }
+    // --- end cy-v5u6 ---
 
     #[test]
     fn ast_session_set_value_variant_without_if_not_exists() {

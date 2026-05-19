@@ -71,7 +71,7 @@ fn all_count_pinned() {
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //    9  schema-aware   (E3001–E3004, E3006–E3008, E3010, E3011, cy-36u + cy-0ek)
-    //   11  dialect        (E4001 + E4010–E4019, cy-z49)
+    //   13  dialect        (E4001 + E4010–E4021, cy-z49 + cy-v5u6)
     //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
     //    8  style          (W6001–W6007, W6010, cy-0ek)
     //    4  perf           (W7001–W7004)
@@ -126,6 +126,11 @@ fn all_count_pinned() {
     // cy-lp3y: added E4020 (`session_set` dialect gate) for the
     //          `SESSION SET` HIR + sema follow-up (spec §0 amendment
     //          2026-05-19 cy-5e3f).
-    const EXPECTED: usize = 140;
+    // cy-v5u6: added E4021 (GQL catalog DDL used in OpenCypherV9
+    //          dialect) and E4022 (catalog op malformed) for HIR
+    //          lowering + sema of `CREATE GRAPH` / `CREATE SCHEMA`
+    //          (ISO/IEC 39075:2024 §14.14; rebased E4020/E4021 →
+    //          E4021/E4022, ceded E4020 to cy-lp3y).
+    const EXPECTED: usize = 142;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

@@ -499,6 +499,23 @@ pub enum DiagCode {
     E4020 = 4020,
     // --- end cy-lp3y ---
 
+    // --- cy-v5u6 catalog DDL dialect + well-formedness ---
+    // Slots 4021/4022 (rebased from 4020/4021 to cede E4020 to cy-lp3y,
+    // which landed first).
+    /// `catalog_ddl` — GQL `CREATE GRAPH` / `CREATE SCHEMA` used in
+    /// `OpenCypherV9` dialect. Catalog DDL is GQL-only (ISO/IEC
+    /// 39075:2024 §14.14; spec §0 amendment 2026-05-19 cy-5e3f).
+    ///
+    /// Docs: `docs/errors/E4021.md`
+    E4021 = 4021,
+    /// `catalog_ddl_malformed` — well-formedness failure in a parsed
+    /// catalog op (empty graph name, empty schema path, missing
+    /// graph-type kind). Emitted by `cyrs-sema::dialect::check_catalog`.
+    ///
+    /// Docs: `docs/errors/E4022.md`
+    E4022 = 4022,
+    // --- end cy-v5u6 ---
+
     // --- type system (E5000–E5999) ------------------------------------
     /// Type mismatch in unification — two incompatible concrete types cannot
     /// be unified (spec §7.2, §7.3).
@@ -840,6 +857,10 @@ impl DiagCode {
             // --- cy-lp3y SESSION SET HIR ---
             Self::E4020 => "E4020",
             // --- end cy-lp3y ---
+            // --- cy-v5u6 catalog DDL ---
+            Self::E4021 => "E4021",
+            Self::E4022 => "E4022",
+            // --- end cy-v5u6 ---
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
             Self::E5011 => "E5011",
@@ -1006,6 +1027,10 @@ impl DiagCode {
         // --- cy-lp3y SESSION SET HIR ---
         Self::E4020,
         // --- end cy-lp3y ---
+        // --- cy-v5u6 catalog DDL ---
+        Self::E4021,
+        Self::E4022,
+        // --- end cy-v5u6 ---
         Self::E5003,
         Self::E5010,
         Self::E5011,
