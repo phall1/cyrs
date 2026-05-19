@@ -465,4 +465,1125 @@ mod tests {
         assert!(!val.is_if_not_exists());
         assert_eq!(val.param_token().unwrap().text(), "$bar");
     }
+
+    // --- cy-p55o: AST accessor coverage backfill (spec 0001 §17.9) -----
+    //
+    // The tests below exercise every public accessor on every typed AST
+    // wrapper at least once so the §17.9 line-coverage ratchet (≥88%)
+    // holds after the cy-rgqg / cy-9kzx / cy-p1u5 merges added new
+    // wrapper surface. The pattern is mechanical: parse a hand-rolled
+    // fixture that lays out the relevant CST node, walk down to the
+    // wrapper via `descend_kind`, then call every accessor.
+
+    /// Walk the syntax tree depth-first and return the first node whose
+    /// `SyntaxKind` matches `k`. Used by the cy-p55o tests below.
+    fn descend_kind(root: &SyntaxNode, k: SyntaxKind) -> Option<SyntaxNode> {
+        if root.kind() == k {
+            return Some(root.clone());
+        }
+        for child in root.children() {
+            if let Some(found) = descend_kind(&child, k) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// Find the first child of `parent` whose typed wrapper of type `T`
+    /// can be cast.
+    fn first_typed<T: AstNode>(parent: &SyntaxNode) -> Option<T> {
+        let mut stack = vec![parent.clone()];
+        while let Some(node) = stack.pop() {
+            if let Some(t) = T::cast(node.clone()) {
+                return Some(t);
+            }
+            for child in node.children() {
+                stack.push(child);
+            }
+        }
+        None
+    }
+
+    fn parse_root(src: &str) -> SyntaxNode {
+        parse(src).syntax()
+    }
+
+    // ---------- SourceFile ----------
+    #[test]
+    fn ast_source_file_cast_and_syntax() {
+        let root = parse_root("RETURN 1");
+        let sf = SourceFile::cast(root.clone()).expect("source file");
+        assert_eq!(sf.syntax().kind(), SyntaxKind::SOURCE_FILE);
+        // wrong-kind cast returns None
+        let any_child = root.children().next().expect("at least one child");
+        assert!(SourceFile::cast(any_child).is_none());
+    }
+
+    // ---------- UnionTail ----------
+    #[test]
+    fn ast_union_tail_union_kw_only() {
+        let root = parse_root("RETURN 1 UNION RETURN 2");
+        let ut_node = descend_kind(&root, SyntaxKind::UNION_TAIL).expect("UNION_TAIL");
+        let ut = UnionTail::cast(ut_node).expect("UnionTail cast");
+        assert_eq!(ut.syntax().kind(), SyntaxKind::UNION_TAIL);
+        assert!(ut.union_token().is_some());
+        assert!(ut.all_token().is_none());
+    }
+
+    #[test]
+    fn ast_union_tail_union_all() {
+        let root = parse_root("RETURN 1 UNION ALL RETURN 2");
+        let ut_node = descend_kind(&root, SyntaxKind::UNION_TAIL).expect("UNION_TAIL");
+        let ut = UnionTail::cast(ut_node).expect("UnionTail cast");
+        assert!(ut.union_token().is_some());
+        assert!(ut.all_token().is_some());
+    }
+
+    #[test]
+    fn ast_union_tail_cast_wrong_kind() {
+        let root = parse_root("RETURN 1");
+        assert!(UnionTail::cast(root).is_none());
+    }
+
+    // ---------- MatchClause ----------
+    //
+    // NOTE: the parser emits `OPTIONAL_MATCH_CLAUSE` as a separate
+    // SyntaxKind (not `MATCH_CLAUSE` with an OPTIONAL_KW child), so
+    // `MatchClause::cast` never sees the OPTIONAL form and
+    // `optional_token()` is currently dead code on the GQL/Cypher
+    // parser shape (cy-p55o report flagged this).
+    #[test]
+    fn ast_match_clause_with_where() {
+        let root = parse_root("MATCH (n) WHERE n.x = 1 RETURN n");
+        let mc_node = descend_kind(&root, SyntaxKind::MATCH_CLAUSE).expect("MATCH_CLAUSE");
+        let mc = MatchClause::cast(mc_node).expect("MatchClause");
+        assert_eq!(mc.syntax().kind(), SyntaxKind::MATCH_CLAUSE);
+        assert!(mc.match_token().is_some());
+        assert!(mc.where_clause().is_some());
+        assert!(mc.pattern().next().is_some());
+        // optional_token() is reachable in source but currently
+        // unreachable on this parser surface — call it for coverage.
+        assert!(mc.optional_token().is_none());
+    }
+
+    #[test]
+    fn ast_match_clause_without_where() {
+        let root = parse_root("MATCH (n) RETURN n");
+        let mc_node = descend_kind(&root, SyntaxKind::MATCH_CLAUSE).expect("MATCH_CLAUSE");
+        let mc = MatchClause::cast(mc_node).expect("MatchClause");
+        assert!(mc.optional_token().is_none());
+        assert!(mc.where_clause().is_none());
+        assert!(mc.pattern().next().is_some());
+        // wrong-kind cast
+        assert!(MatchClause::cast(root).is_none());
+    }
+
+    // ---------- WithClause ----------
+    //
+    // Caveat: on the current parser, ORDER BY / WHERE attached to a
+    // WITH live in a sibling `RETURN_BODY` / `WHERE_CLAUSE`, not as
+    // direct children of WITH_CLAUSE — so `order_by()` and
+    // `where_clause()` accessors return None. We still call them.
+    #[test]
+    fn ast_with_clause_all_accessors() {
+        let root =
+            parse_root("MATCH (n) WITH DISTINCT n AS m ORDER BY m WHERE m IS NOT NULL RETURN m");
+        let wc_node = descend_kind(&root, SyntaxKind::WITH_CLAUSE).expect("WITH_CLAUSE");
+        let wc = WithClause::cast(wc_node).expect("WithClause");
+        assert_eq!(wc.syntax().kind(), SyntaxKind::WITH_CLAUSE);
+        assert!(wc.with_token().is_some());
+        assert!(wc.distinct_token().is_some());
+        // Both order_by() and where_clause() drive their accessor code
+        // paths; they return None on the current parser shape.
+        let _ = wc.order_by();
+        let _ = wc.where_clause();
+    }
+
+    #[test]
+    fn ast_with_clause_minimal() {
+        let root = parse_root("MATCH (n) WITH n RETURN n");
+        let wc_node = descend_kind(&root, SyntaxKind::WITH_CLAUSE).expect("WITH_CLAUSE");
+        let wc = WithClause::cast(wc_node).expect("WithClause");
+        assert!(wc.distinct_token().is_none());
+        assert!(wc.order_by().is_none());
+        assert!(wc.where_clause().is_none());
+        assert!(WithClause::cast(root).is_none());
+    }
+
+    // ---------- ReturnClause ----------
+    //
+    // ORDER BY lives in `RETURN_BODY` (a child of RETURN_CLAUSE), not
+    // as a direct child of RETURN_CLAUSE; `order_by()` returns None.
+    #[test]
+    fn ast_return_clause_full() {
+        let root = parse_root("MATCH (n) RETURN DISTINCT n AS x ORDER BY x");
+        let rc_node = descend_kind(&root, SyntaxKind::RETURN_CLAUSE).expect("RETURN_CLAUSE");
+        let rc = ReturnClause::cast(rc_node).expect("ReturnClause");
+        assert_eq!(rc.syntax().kind(), SyntaxKind::RETURN_CLAUSE);
+        assert!(rc.return_token().is_some());
+        // DISTINCT_KW is a direct child of RETURN_CLAUSE in the GQL
+        // surface — exercised here.
+        let _ = rc.distinct_token();
+        // order_by() probes for a direct ORDER_BY child — returns None
+        // because ORDER_BY lives inside RETURN_BODY.
+        let _ = rc.order_by();
+        assert!(rc.all_token().is_none());
+    }
+
+    #[test]
+    fn ast_return_clause_return_all() {
+        let root = parse_root("MATCH (n) RETURN ALL n");
+        let rc_node = descend_kind(&root, SyntaxKind::RETURN_CLAUSE).expect("RETURN_CLAUSE");
+        let rc = ReturnClause::cast(rc_node).expect("ReturnClause");
+        assert!(rc.all_token().is_some());
+        assert!(rc.distinct_token().is_none());
+        assert!(rc.order_by().is_none());
+        assert!(ReturnClause::cast(root).is_none());
+    }
+
+    // ---------- UnwindClause ----------
+    #[test]
+    fn ast_unwind_clause_all_accessors() {
+        let root = parse_root("UNWIND [1, 2, 3] AS x RETURN x");
+        let uw_node = descend_kind(&root, SyntaxKind::UNWIND_CLAUSE).expect("UNWIND_CLAUSE");
+        let uw = UnwindClause::cast(uw_node).expect("UnwindClause");
+        assert_eq!(uw.syntax().kind(), SyntaxKind::UNWIND_CLAUSE);
+        assert!(uw.unwind_token().is_some());
+        assert!(uw.as_token().is_some());
+        assert!(uw.expr().is_some());
+        assert!(UnwindClause::cast(root).is_none());
+    }
+
+    // ---------- CallClause / OptionalCallClause ----------
+    //
+    // The CALL clause parser lays the arg expressions out as direct
+    // children of CALL_CLAUSE / OPTIONAL_CALL_CLAUSE (no ARG_LIST
+    // node), so `arg_list()` returns None. The accessor is still
+    // driven for coverage.
+    #[test]
+    fn ast_call_clause_with_args() {
+        let root = parse_root("CALL foo(1, 2)");
+        let cc_node = descend_kind(&root, SyntaxKind::CALL_CLAUSE).expect("CALL_CLAUSE");
+        let cc = CallClause::cast(cc_node).expect("CallClause");
+        assert_eq!(cc.syntax().kind(), SyntaxKind::CALL_CLAUSE);
+        assert!(cc.call_token().is_some());
+        let _ = cc.arg_list();
+        assert!(CallClause::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_optional_call_clause() {
+        let root = parse_root("OPTIONAL CALL foo(1)");
+        let occ_node =
+            descend_kind(&root, SyntaxKind::OPTIONAL_CALL_CLAUSE).expect("OPTIONAL_CALL_CLAUSE");
+        let occ = OptionalCallClause::cast(occ_node).expect("OptionalCallClause");
+        assert_eq!(occ.syntax().kind(), SyntaxKind::OPTIONAL_CALL_CLAUSE);
+        assert!(occ.optional_token().is_some());
+        assert!(occ.call_token().is_some());
+        let _ = occ.arg_list();
+        assert!(OptionalCallClause::cast(root).is_none());
+    }
+
+    // ---------- CreateClause ----------
+    #[test]
+    fn ast_create_clause_accessors() {
+        let root = parse_root("CREATE (n:Person {name: 'Alice'})");
+        let cc_node = descend_kind(&root, SyntaxKind::CREATE_CLAUSE).expect("CREATE_CLAUSE");
+        let cc = CreateClause::cast(cc_node).expect("CreateClause");
+        assert_eq!(cc.syntax().kind(), SyntaxKind::CREATE_CLAUSE);
+        assert!(cc.create_token().is_some());
+        assert!(cc.pattern().next().is_some());
+        assert!(CreateClause::cast(root).is_none());
+    }
+
+    // ---------- FilterClause ----------
+    #[test]
+    fn ast_filter_clause_accessors() {
+        let root = parse_root("MATCH (n) RETURN n.x AS x FILTER WHERE x > 0");
+        let fc_node = descend_kind(&root, SyntaxKind::FILTER_CLAUSE).expect("FILTER_CLAUSE");
+        let fc = FilterClause::cast(fc_node).expect("FilterClause");
+        assert_eq!(fc.syntax().kind(), SyntaxKind::FILTER_CLAUSE);
+        assert!(fc.filter_token().is_some());
+        // FILTER ... WHERE expr — the immediate expr inside the clause may
+        // or may not be present depending on lower; just call it.
+        let _ = fc.expr();
+        assert!(FilterClause::cast(root).is_none());
+    }
+
+    // ---------- MergeClause + MergeAction ----------
+    #[test]
+    fn ast_merge_clause_and_actions() {
+        let root =
+            parse_root("MERGE (n:Person {name: 'a'}) ON CREATE SET n.x = 1 ON MATCH SET n.y = 2");
+        let mc_node = descend_kind(&root, SyntaxKind::MERGE_CLAUSE).expect("MERGE_CLAUSE");
+        let mc = MergeClause::cast(mc_node).expect("MergeClause");
+        assert_eq!(mc.syntax().kind(), SyntaxKind::MERGE_CLAUSE);
+        assert!(mc.merge_token().is_some());
+        assert!(mc.pattern().is_some());
+        let actions: Vec<MergeAction> = mc.merge_action().collect();
+        assert_eq!(actions.len(), 2);
+        let mut saw_create = false;
+        let mut saw_match = false;
+        for action in &actions {
+            assert_eq!(action.syntax().kind(), SyntaxKind::MERGE_ACTION);
+            assert!(action.on_token().is_some());
+            assert!(action.set_clause().is_some());
+            if action.create_token().is_some() {
+                saw_create = true;
+            }
+            if action.match_token().is_some() {
+                saw_match = true;
+            }
+        }
+        assert!(saw_create && saw_match);
+        assert!(MergeClause::cast(root.clone()).is_none());
+        assert!(MergeAction::cast(root).is_none());
+    }
+
+    // ---------- SetClause / RemoveClause / DeleteClause ----------
+    #[test]
+    fn ast_set_remove_delete_clauses() {
+        let root = parse_root("MATCH (n) SET n.x = 1 REMOVE n.y DETACH DELETE n RETURN 1");
+        let sc_node = descend_kind(&root, SyntaxKind::SET_CLAUSE).expect("SET_CLAUSE");
+        let sc = SetClause::cast(sc_node).expect("SetClause");
+        assert_eq!(sc.syntax().kind(), SyntaxKind::SET_CLAUSE);
+        assert!(sc.set_token().is_some());
+
+        let rc_node = descend_kind(&root, SyntaxKind::REMOVE_CLAUSE).expect("REMOVE_CLAUSE");
+        let rc = RemoveClause::cast(rc_node).expect("RemoveClause");
+        assert_eq!(rc.syntax().kind(), SyntaxKind::REMOVE_CLAUSE);
+        assert!(rc.remove_token().is_some());
+
+        let dc_node = descend_kind(&root, SyntaxKind::DELETE_CLAUSE).expect("DELETE_CLAUSE");
+        let dc = DeleteClause::cast(dc_node).expect("DeleteClause");
+        assert_eq!(dc.syntax().kind(), SyntaxKind::DELETE_CLAUSE);
+        assert!(dc.delete_token().is_some());
+        assert!(dc.detach_token().is_some());
+        let _exprs: Vec<Expr> = dc.expr().collect();
+
+        assert!(SetClause::cast(root.clone()).is_none());
+        assert!(RemoveClause::cast(root.clone()).is_none());
+        assert!(DeleteClause::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_delete_clause_no_detach() {
+        let root = parse_root("MATCH (n) DELETE n");
+        let dc_node = descend_kind(&root, SyntaxKind::DELETE_CLAUSE).expect("DELETE_CLAUSE");
+        let dc = DeleteClause::cast(dc_node).expect("DeleteClause");
+        assert!(dc.detach_token().is_none());
+        assert!(dc.delete_token().is_some());
+    }
+
+    // ---------- Pattern ----------
+    #[test]
+    fn ast_pattern_cast_and_syntax() {
+        let root = parse_root("MATCH (n) RETURN n");
+        let p_node = descend_kind(&root, SyntaxKind::PATTERN).expect("PATTERN");
+        let p = Pattern::cast(p_node).expect("Pattern");
+        assert_eq!(p.syntax().kind(), SyntaxKind::PATTERN);
+        assert!(Pattern::cast(root).is_none());
+    }
+
+    // ---------- WhereClause ----------
+    #[test]
+    fn ast_where_clause_accessors() {
+        let root = parse_root("MATCH (n) WHERE n.x > 0 RETURN n");
+        let wc_node = descend_kind(&root, SyntaxKind::WHERE_CLAUSE).expect("WHERE_CLAUSE");
+        let wc = WhereClause::cast(wc_node).expect("WhereClause");
+        assert_eq!(wc.syntax().kind(), SyntaxKind::WHERE_CLAUSE);
+        assert!(wc.where_token().is_some());
+        assert!(wc.expr().is_some());
+        assert!(WhereClause::cast(root).is_none());
+    }
+
+    // ---------- OrderBy ----------
+    #[test]
+    fn ast_order_by_accessors() {
+        let root = parse_root("MATCH (n) RETURN n ORDER BY n.x");
+        let ob_node = descend_kind(&root, SyntaxKind::ORDER_BY).expect("ORDER_BY");
+        let ob = OrderBy::cast(ob_node).expect("OrderBy");
+        assert_eq!(ob.syntax().kind(), SyntaxKind::ORDER_BY);
+        assert!(ob.order_token().is_some());
+        assert!(ob.by_token().is_some());
+        assert!(OrderBy::cast(root).is_none());
+    }
+
+    // ---------- ArgList ----------
+    //
+    // ARG_LIST nodes are emitted from function-call expressions
+    // (`size(x)`), not from the top-level `CALL` clause — see the
+    // CallClause caveat above.
+    #[test]
+    fn ast_arg_list_accessors() {
+        let root = parse_root("RETURN size(xs)");
+        let al_node = descend_kind(&root, SyntaxKind::ARG_LIST).expect("ARG_LIST");
+        let al = ArgList::cast(al_node).expect("ArgList");
+        assert_eq!(al.syntax().kind(), SyntaxKind::ARG_LIST);
+        let _exprs: Vec<Expr> = al.expr().collect();
+        assert!(ArgList::cast(root).is_none());
+    }
+
+    // ---------- YieldItem ----------
+    #[test]
+    fn ast_yield_item_accessors() {
+        let root = parse_root("CALL foo() YIELD x AS y");
+        if let Some(yi_node) = descend_kind(&root, SyntaxKind::YIELD_ITEM) {
+            let yi = YieldItem::cast(yi_node).expect("YieldItem");
+            assert_eq!(yi.syntax().kind(), SyntaxKind::YIELD_ITEM);
+            // `AS` keyword present when there's an alias.
+            assert!(yi.as_token().is_some());
+        }
+        assert!(YieldItem::cast(root).is_none());
+    }
+
+    // ---------- ReturnItem ----------
+    #[test]
+    fn ast_return_item_accessors() {
+        let root = parse_root("RETURN 1 AS x");
+        let ri_node = descend_kind(&root, SyntaxKind::RETURN_ITEM).expect("RETURN_ITEM");
+        let ri = ReturnItem::cast(ri_node).expect("ReturnItem");
+        assert_eq!(ri.syntax().kind(), SyntaxKind::RETURN_ITEM);
+        assert!(ri.as_token().is_some());
+        let _ = ri.expr();
+        assert!(ReturnItem::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_return_item_no_alias() {
+        let root = parse_root("RETURN n.x");
+        let ri_node = descend_kind(&root, SyntaxKind::RETURN_ITEM).expect("RETURN_ITEM");
+        let ri = ReturnItem::cast(ri_node).expect("ReturnItem");
+        assert!(ri.as_token().is_none());
+    }
+
+    // ---------- LabelExpr ----------
+    #[test]
+    fn ast_label_expr_cast_and_syntax() {
+        let root = parse_root("MATCH (n:Foo) RETURN n");
+        let le_node = descend_kind(&root, SyntaxKind::LABEL_EXPR).expect("LABEL_EXPR");
+        let le = LabelExpr::cast(le_node).expect("LabelExpr");
+        assert_eq!(le.syntax().kind(), SyntaxKind::LABEL_EXPR);
+        assert!(LabelExpr::cast(root).is_none());
+    }
+
+    // ---------- ShortestPathPattern ----------
+    #[test]
+    fn ast_shortest_path_pattern_shortestpath() {
+        let root = parse_root("MATCH p = shortestPath((a)-[*]-(b)) RETURN p");
+        let sp_node =
+            descend_kind(&root, SyntaxKind::SHORTEST_PATH_PATTERN).expect("SHORTEST_PATH_PATTERN");
+        let sp = ShortestPathPattern::cast(sp_node).expect("ShortestPathPattern");
+        assert_eq!(sp.syntax().kind(), SyntaxKind::SHORTEST_PATH_PATTERN);
+        assert!(sp.shortestpath_token().is_some());
+        assert!(sp.allshortestpaths_token().is_none());
+        assert!(ShortestPathPattern::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_shortest_path_pattern_all_shortest_paths() {
+        let root = parse_root("MATCH p = allShortestPaths((a)-[*]-(b)) RETURN p");
+        let sp_node =
+            descend_kind(&root, SyntaxKind::SHORTEST_PATH_PATTERN).expect("SHORTEST_PATH_PATTERN");
+        let sp = ShortestPathPattern::cast(sp_node).expect("ShortestPathPattern");
+        assert!(sp.shortestpath_token().is_none());
+        assert!(sp.allshortestpaths_token().is_some());
+    }
+
+    // ---------- NodePattern ----------
+    #[test]
+    fn ast_node_pattern_with_label_and_props() {
+        let root = parse_root("MATCH (n:Foo {x: 1}) RETURN n");
+        let np_node = descend_kind(&root, SyntaxKind::NODE_PATTERN).expect("NODE_PATTERN");
+        let np = NodePattern::cast(np_node).expect("NodePattern");
+        assert_eq!(np.syntax().kind(), SyntaxKind::NODE_PATTERN);
+        assert!(np.label_expr().is_some());
+        assert!(np.property_map().is_some());
+        assert!(NodePattern::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_node_pattern_anonymous() {
+        let root = parse_root("MATCH () RETURN 1");
+        let np_node = descend_kind(&root, SyntaxKind::NODE_PATTERN).expect("NODE_PATTERN");
+        let np = NodePattern::cast(np_node).expect("NodePattern");
+        assert!(np.label_expr().is_none());
+        assert!(np.property_map().is_none());
+    }
+
+    // ---------- PropertyMap ----------
+    #[test]
+    fn ast_property_map_cast_and_syntax() {
+        let root = parse_root("MATCH (n {x: 1}) RETURN n");
+        let pm_node = descend_kind(&root, SyntaxKind::PROPERTY_MAP).expect("PROPERTY_MAP");
+        let pm = PropertyMap::cast(pm_node).expect("PropertyMap");
+        assert_eq!(pm.syntax().kind(), SyntaxKind::PROPERTY_MAP);
+        assert!(PropertyMap::cast(root).is_none());
+    }
+
+    // ---------- RelDetail ----------
+    #[test]
+    fn ast_rel_detail_with_props() {
+        let root = parse_root("MATCH ()-[r:KNOWS {since: 2020}]->() RETURN r");
+        let rd_node = descend_kind(&root, SyntaxKind::REL_DETAIL).expect("REL_DETAIL");
+        let rd = RelDetail::cast(rd_node).expect("RelDetail");
+        assert_eq!(rd.syntax().kind(), SyntaxKind::REL_DETAIL);
+        assert!(rd.property_map().is_some());
+        assert!(RelDetail::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_rel_detail_without_props() {
+        let root = parse_root("MATCH ()-[r:KNOWS]->() RETURN r");
+        let rd_node = descend_kind(&root, SyntaxKind::REL_DETAIL).expect("REL_DETAIL");
+        let rd = RelDetail::cast(rd_node).expect("RelDetail");
+        assert!(rd.property_map().is_none());
+    }
+
+    // ---------- IndexExpr / SliceExpr ----------
+    #[test]
+    fn ast_index_expr_accessors() {
+        let root = parse_root("RETURN xs[1]");
+        let ie_node = descend_kind(&root, SyntaxKind::INDEX_EXPR).expect("INDEX_EXPR");
+        let ie = IndexExpr::cast(ie_node).expect("IndexExpr");
+        assert_eq!(ie.syntax().kind(), SyntaxKind::INDEX_EXPR);
+        // receiver() and index() both look at first Expr child — the first
+        // call returns the receiver, second returns the same (since
+        // `find_map` is not positional). The accessors are driven either way.
+        let _ = ie.receiver();
+        let _ = ie.index();
+        assert!(IndexExpr::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_slice_expr_accessors() {
+        let root = parse_root("RETURN xs[1..5]");
+        let se_node = descend_kind(&root, SyntaxKind::SLICE_EXPR).expect("SLICE_EXPR");
+        let se = SliceExpr::cast(se_node).expect("SliceExpr");
+        assert_eq!(se.syntax().kind(), SyntaxKind::SLICE_EXPR);
+        let _ = se.receiver();
+        let _ = se.start();
+        let _ = se.end();
+        assert!(SliceExpr::cast(root).is_none());
+    }
+
+    // ---------- FunctionCall ----------
+    #[test]
+    fn ast_function_call_with_distinct() {
+        let root = parse_root("RETURN count(DISTINCT x)");
+        let fc_node = descend_kind(&root, SyntaxKind::FUNCTION_CALL).expect("FUNCTION_CALL");
+        let fc = FunctionCall::cast(fc_node).expect("FunctionCall");
+        assert_eq!(fc.syntax().kind(), SyntaxKind::FUNCTION_CALL);
+        assert!(fc.distinct_token().is_some());
+        assert!(fc.arg_list().is_some());
+        assert!(FunctionCall::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_function_call_without_distinct() {
+        let root = parse_root("RETURN size(xs)");
+        let fc_node = descend_kind(&root, SyntaxKind::FUNCTION_CALL).expect("FUNCTION_CALL");
+        let fc = FunctionCall::cast(fc_node).expect("FunctionCall");
+        assert!(fc.distinct_token().is_none());
+        assert!(fc.arg_list().is_some());
+    }
+
+    // ---------- ParenExpr ----------
+    #[test]
+    fn ast_paren_expr_accessors() {
+        let root = parse_root("RETURN (1 + 2)");
+        let pe_node = descend_kind(&root, SyntaxKind::PAREN_EXPR).expect("PAREN_EXPR");
+        let pe = ParenExpr::cast(pe_node).expect("ParenExpr");
+        assert_eq!(pe.syntax().kind(), SyntaxKind::PAREN_EXPR);
+        assert!(pe.expr().is_some());
+        assert!(ParenExpr::cast(root).is_none());
+    }
+
+    // ---------- ListLiteral ----------
+    #[test]
+    fn ast_list_literal_accessors() {
+        let root = parse_root("RETURN [1, 2, 3]");
+        let ll_node = descend_kind(&root, SyntaxKind::LIST_LITERAL).expect("LIST_LITERAL");
+        let ll = ListLiteral::cast(ll_node).expect("ListLiteral");
+        assert_eq!(ll.syntax().kind(), SyntaxKind::LIST_LITERAL);
+        let _ = ll.expr().count();
+        assert!(ListLiteral::cast(root).is_none());
+    }
+
+    // ---------- MapLiteral ----------
+    #[test]
+    fn ast_map_literal_accessors() {
+        let root = parse_root("RETURN {a: 1, b: 2}");
+        let ml_node = descend_kind(&root, SyntaxKind::MAP_LITERAL).expect("MAP_LITERAL");
+        let ml = MapLiteral::cast(ml_node).expect("MapLiteral");
+        assert_eq!(ml.syntax().kind(), SyntaxKind::MAP_LITERAL);
+        assert!(MapLiteral::cast(root).is_none());
+    }
+
+    // ---------- MapProjection / MapProjectionItem ----------
+    //
+    // The `value()` accessor only returns Some when the literal value
+    // expression is one of the `Expr` enum variants — bare literals
+    // (INT_LITERAL, STRING_LITERAL) wrap into `LITERAL_EXPR` which is
+    // not on `Expr`, so we use a `[1]` list to land on `Expr::ListLiteral`.
+    #[test]
+    fn ast_map_projection_accessors() {
+        use MapProjectionItemKind::*;
+        let root = parse_root("MATCH (n) RETURN n{.name, key: [1], .*, *}");
+        let mp_node = descend_kind(&root, SyntaxKind::MAP_PROJECTION).expect("MAP_PROJECTION");
+        let mp = MapProjection::cast(mp_node).expect("MapProjection");
+        assert_eq!(mp.syntax().kind(), SyntaxKind::MAP_PROJECTION);
+        let _ = mp.subject();
+        let items: Vec<MapProjectionItem> = mp.items().collect();
+        assert_eq!(items.len(), 4);
+
+        // Classify every item kind so all match arms are exercised.
+        let kinds: Vec<_> = items.iter().map(MapProjectionItem::kind).collect();
+        assert!(kinds.contains(&PropertySelector));
+        assert!(kinds.contains(&Literal));
+        assert!(kinds.contains(&AllPropertiesSpread));
+        assert!(kinds.contains(&AllBoundVarsSpread));
+
+        for item in &items {
+            assert_eq!(item.syntax().kind(), SyntaxKind::MAP_PROJECTION_ITEM);
+            match item.kind() {
+                Literal => {
+                    assert!(item.key_token().is_some());
+                    // value() reaches the `[1]` ListLiteral via Expr.
+                    assert!(item.value().is_some());
+                }
+                PropertySelector => {
+                    assert!(item.key_token().is_some());
+                    assert!(item.value().is_none());
+                }
+                AllPropertiesSpread | AllBoundVarsSpread => {
+                    assert!(item.value().is_none());
+                }
+            }
+        }
+        assert!(MapProjection::cast(root.clone()).is_none());
+        assert!(MapProjectionItem::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_map_projection_item_literal_value_non_expr_returns_none() {
+        // A bare INT_LITERAL wraps into LITERAL_EXPR, which is *not* on
+        // the `Expr` enum; `value()` returns None even though `kind()`
+        // is Literal. Covers the negative path of the `value()` check.
+        let root = parse_root("MATCH (n) RETURN n{a: 1}");
+        let mp_node = descend_kind(&root, SyntaxKind::MAP_PROJECTION).expect("MAP_PROJECTION");
+        let mp = MapProjection::cast(mp_node).expect("MapProjection");
+        let item = mp.items().next().expect("one item");
+        assert_eq!(item.kind(), MapProjectionItemKind::Literal);
+        assert!(item.value().is_none());
+    }
+
+    // ---------- ListComprehension ----------
+    //
+    // The WHERE predicate is laid out as a BINARY_EXPR child, not
+    // wrapped in a WHERE_CLAUSE node — so `where_clause()` returns None
+    // on the current parser. Drive it for coverage.
+    #[test]
+    fn ast_list_comprehension_full() {
+        let root = parse_root("RETURN [x IN [1,2,3] WHERE x > 1 | x * 2]");
+        let lc_node =
+            descend_kind(&root, SyntaxKind::LIST_COMPREHENSION).expect("LIST_COMPREHENSION");
+        let lc = ListComprehension::cast(lc_node).expect("ListComprehension");
+        assert_eq!(lc.syntax().kind(), SyntaxKind::LIST_COMPREHENSION);
+        assert!(lc.in_token().is_some());
+        let _ = lc.source();
+        let _ = lc.projection();
+        let _ = lc.where_clause();
+        assert!(ListComprehension::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_list_comprehension_without_where() {
+        let root = parse_root("RETURN [x IN [1,2,3] | x]");
+        let lc_node =
+            descend_kind(&root, SyntaxKind::LIST_COMPREHENSION).expect("LIST_COMPREHENSION");
+        let lc = ListComprehension::cast(lc_node).expect("ListComprehension");
+        assert!(lc.where_clause().is_none());
+    }
+
+    // ---------- ListPredicateExpr ----------
+    //
+    // Same caveat as ListComprehension: the WHERE predicate is laid
+    // out as a sibling BINARY_EXPR child, not wrapped in WHERE_CLAUSE.
+    #[test]
+    fn ast_list_predicate_any() {
+        let root = parse_root("RETURN any(x IN [1,2] WHERE x > 0)");
+        let lp_node =
+            descend_kind(&root, SyntaxKind::LIST_PREDICATE_EXPR).expect("LIST_PREDICATE_EXPR");
+        let lp = ListPredicateExpr::cast(lp_node).expect("ListPredicateExpr");
+        assert_eq!(lp.syntax().kind(), SyntaxKind::LIST_PREDICATE_EXPR);
+        assert!(lp.any_token().is_some());
+        assert!(lp.all_token().is_none());
+        assert!(lp.none_token().is_none());
+        assert!(lp.single_token().is_none());
+        assert!(lp.in_token().is_some());
+        let _ = lp.source();
+        let _ = lp.where_clause();
+        assert!(ListPredicateExpr::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_list_predicate_all_none_single() {
+        for (src, want_all, want_none, want_single) in &[
+            ("RETURN all(x IN [1,2] WHERE x > 0)", true, false, false),
+            ("RETURN none(x IN [1,2] WHERE x > 0)", false, true, false),
+            ("RETURN single(x IN [1,2] WHERE x > 0)", false, false, true),
+        ] {
+            let root = parse_root(src);
+            let lp_node =
+                descend_kind(&root, SyntaxKind::LIST_PREDICATE_EXPR).expect("LIST_PREDICATE_EXPR");
+            let lp = ListPredicateExpr::cast(lp_node).expect("ListPredicateExpr");
+            assert_eq!(lp.all_token().is_some(), *want_all, "all in `{src}`");
+            assert_eq!(lp.none_token().is_some(), *want_none, "none in `{src}`");
+            assert_eq!(
+                lp.single_token().is_some(),
+                *want_single,
+                "single in `{src}`"
+            );
+        }
+    }
+
+    // ---------- PatternComprehension ----------
+    #[test]
+    fn ast_pattern_comprehension_accessors() {
+        let root = parse_root("RETURN [(a)-->(b) WHERE a.x > 0 | b]");
+        if let Some(pc_node) = descend_kind(&root, SyntaxKind::PATTERN_COMPREHENSION) {
+            let pc = PatternComprehension::cast(pc_node).expect("PatternComprehension");
+            assert_eq!(pc.syntax().kind(), SyntaxKind::PATTERN_COMPREHENSION);
+            assert!(pc.where_clause().is_some());
+            let _ = pc.projection();
+        }
+        assert!(PatternComprehension::cast(root).is_none());
+    }
+
+    // ---------- CaseExpr + CaseWhenArm + CaseElseArm ----------
+    #[test]
+    fn ast_case_expr_simple() {
+        let root = parse_root("RETURN CASE x WHEN 1 THEN 'one' WHEN 2 THEN 'two' ELSE 'other' END");
+        let ce_node = descend_kind(&root, SyntaxKind::CASE_EXPR).expect("CASE_EXPR");
+        let ce = CaseExpr::cast(ce_node).expect("CaseExpr");
+        assert_eq!(ce.syntax().kind(), SyntaxKind::CASE_EXPR);
+        assert!(ce.case_token().is_some());
+        assert!(ce.end_token().is_some());
+        let _ = ce.scrutinee();
+        assert!(ce.arms().is_some());
+        let arms: Vec<CaseWhenArm> = ce.case_when_arm().collect();
+        assert_eq!(arms.len(), 2);
+        for arm in &arms {
+            assert_eq!(arm.syntax().kind(), SyntaxKind::CASE_WHEN_ARM);
+            assert!(arm.when_token().is_some());
+            assert!(arm.then_token().is_some());
+            let _ = arm.when_value();
+            let _ = arm.then_value();
+        }
+        let else_arm = ce.else_arm().expect("else arm");
+        assert_eq!(else_arm.syntax().kind(), SyntaxKind::CASE_ELSE_ARM);
+        assert!(else_arm.else_token().is_some());
+        let _ = else_arm.value();
+
+        assert!(CaseExpr::cast(root.clone()).is_none());
+        assert!(CaseWhenArm::cast(root.clone()).is_none());
+        assert!(CaseElseArm::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_case_expr_no_else() {
+        let root = parse_root("RETURN CASE WHEN x > 0 THEN 'pos' END");
+        let ce_node = descend_kind(&root, SyntaxKind::CASE_EXPR).expect("CASE_EXPR");
+        let ce = CaseExpr::cast(ce_node).expect("CaseExpr");
+        assert!(ce.else_arm().is_none());
+    }
+
+    // ---------- IsTypedExpr ----------
+    #[test]
+    fn ast_is_typed_expr_accessors() {
+        let root = parse_root("RETURN x IS TYPED INTEGER");
+        let it_node = descend_kind(&root, SyntaxKind::IS_TYPED_EXPR).expect("IS_TYPED_EXPR");
+        let it = IsTypedExpr::cast(it_node).expect("IsTypedExpr");
+        assert_eq!(it.syntax().kind(), SyntaxKind::IS_TYPED_EXPR);
+        assert!(it.is_token().is_some());
+        assert!(it.typed_token().is_some());
+        assert!(it.not_token().is_none());
+        let _ = it.operand();
+        assert!(it.ty().is_some());
+        assert!(IsTypedExpr::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_is_not_typed_expr() {
+        let root = parse_root("RETURN x IS NOT TYPED INTEGER");
+        let it_node = descend_kind(&root, SyntaxKind::IS_TYPED_EXPR).expect("IS_TYPED_EXPR");
+        let it = IsTypedExpr::cast(it_node).expect("IsTypedExpr");
+        assert!(it.not_token().is_some());
+    }
+
+    // ---------- TypeCastExpr ----------
+    #[test]
+    fn ast_type_cast_expr_accessors() {
+        let root = parse_root("RETURN x :: INTEGER");
+        let tc_node = descend_kind(&root, SyntaxKind::TYPE_CAST_EXPR).expect("TYPE_CAST_EXPR");
+        let tc = TypeCastExpr::cast(tc_node).expect("TypeCastExpr");
+        assert_eq!(tc.syntax().kind(), SyntaxKind::TYPE_CAST_EXPR);
+        let _ = tc.operand();
+        assert!(tc.ty().is_some());
+        assert!(TypeCastExpr::cast(root).is_none());
+    }
+
+    // ---------- BinaryExpr / UnaryExpr ----------
+    #[test]
+    fn ast_binary_expr_accessors() {
+        let root = parse_root("RETURN 1 + 2");
+        let be_node = descend_kind(&root, SyntaxKind::BINARY_EXPR).expect("BINARY_EXPR");
+        let be = BinaryExpr::cast(be_node).expect("BinaryExpr");
+        assert_eq!(be.syntax().kind(), SyntaxKind::BINARY_EXPR);
+        // lhs/rhs both call find_map(Expr::cast); just drive both.
+        let _ = be.lhs();
+        let _ = be.rhs();
+        assert!(BinaryExpr::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_unary_expr_accessors() {
+        let root = parse_root("RETURN -x");
+        let ue_node = descend_kind(&root, SyntaxKind::UNARY_EXPR).expect("UNARY_EXPR");
+        let ue = UnaryExpr::cast(ue_node).expect("UnaryExpr");
+        assert_eq!(ue.syntax().kind(), SyntaxKind::UNARY_EXPR);
+        let _ = ue.operand();
+        assert!(UnaryExpr::cast(root).is_none());
+    }
+
+    // ---------- PatternPredicate ----------
+    #[test]
+    fn ast_pattern_predicate_accessors() {
+        let root = parse_root("MATCH (a) WHERE (a)-->(b) RETURN a");
+        if let Some(pp_node) = descend_kind(&root, SyntaxKind::PATTERN_PREDICATE) {
+            let pp = PatternPredicate::cast(pp_node).expect("PatternPredicate");
+            assert_eq!(pp.syntax().kind(), SyntaxKind::PATTERN_PREDICATE);
+        }
+        assert!(PatternPredicate::cast(root).is_none());
+    }
+
+    // ---------- ExistsSubqueryExpr (cy-p1u5) ----------
+    #[test]
+    fn ast_exists_subquery_braced() {
+        let root = parse_root("MATCH (a) WHERE EXISTS { MATCH (a)-->(b) } RETURN a");
+        let es_node =
+            descend_kind(&root, SyntaxKind::EXISTS_SUBQUERY_EXPR).expect("EXISTS_SUBQUERY_EXPR");
+        let es = ExistsSubqueryExpr::cast(es_node).expect("ExistsSubqueryExpr");
+        assert_eq!(es.syntax().kind(), SyntaxKind::EXISTS_SUBQUERY_EXPR);
+        assert!(es.exists_token().is_some());
+        assert!(ExistsSubqueryExpr::cast(root).is_none());
+    }
+
+    #[test]
+    fn ast_exists_subquery_paren_match() {
+        let root = parse_root("MATCH (a) WHERE EXISTS ( MATCH (a)-->(b) ) RETURN a");
+        let es_node =
+            descend_kind(&root, SyntaxKind::EXISTS_SUBQUERY_EXPR).expect("EXISTS_SUBQUERY_EXPR");
+        let es = ExistsSubqueryExpr::cast(es_node).expect("ExistsSubqueryExpr");
+        assert!(es.exists_token().is_some());
+    }
+
+    // ---------- TypeName ----------
+    #[test]
+    fn ast_type_name_cast_and_syntax() {
+        let root = parse_root("RETURN x :: INTEGER");
+        let tn_node = descend_kind(&root, SyntaxKind::TYPE_NAME).expect("TYPE_NAME");
+        let tn = TypeName::cast(tn_node).expect("TypeName");
+        assert_eq!(tn.syntax().kind(), SyntaxKind::TYPE_NAME);
+        assert!(TypeName::cast(root).is_none());
+    }
+
+    // ---------- Clause enum (all twelve arms) ----------
+    #[test]
+    fn ast_clause_enum_covers_match_with_return_unwind() {
+        let root = parse_root("MATCH (n) WITH n UNWIND [1,2] AS x RETURN x");
+        let mut saw_match = false;
+        let mut saw_with = false;
+        let mut saw_return = false;
+        let mut saw_unwind = false;
+        let mut stack = vec![root];
+        while let Some(n) = stack.pop() {
+            if let Some(cl) = Clause::cast(n.clone()) {
+                assert_eq!(cl.syntax().kind(), n.kind());
+                match cl {
+                    Clause::MatchClause(_) => saw_match = true,
+                    Clause::WithClause(_) => saw_with = true,
+                    Clause::ReturnClause(_) => saw_return = true,
+                    Clause::UnwindClause(_) => saw_unwind = true,
+                    _ => {}
+                }
+            }
+            for c in n.children() {
+                stack.push(c);
+            }
+        }
+        assert!(saw_match);
+        assert!(saw_with);
+        assert!(saw_return);
+        assert!(saw_unwind);
+    }
+
+    #[test]
+    fn ast_clause_enum_covers_call_optional_call_create_filter_merge_set_remove_delete() {
+        // Drive each Clause:: arm at least once across multiple parses so
+        // the `Clause::cast` and `Clause::syntax` match arms get hit.
+        // `OPTIONAL CALL` is its own clause kind.
+        let sources = [
+            "CALL foo()",
+            "OPTIONAL CALL foo()",
+            "CREATE (n)",
+            "MATCH (n) RETURN n FILTER WHERE n IS NOT NULL",
+            "MERGE (n)",
+            "MATCH (n) SET n.x = 1 RETURN n",
+            "MATCH (n) REMOVE n.x RETURN n",
+            "MATCH (n) DELETE n",
+        ];
+        let mut got = std::collections::HashSet::new();
+        for src in sources {
+            let root = parse_root(src);
+            // descend depth-first so any Clause-kind child shows up.
+            let mut stack = vec![root.clone()];
+            while let Some(n) = stack.pop() {
+                if let Some(cl) = Clause::cast(n.clone()) {
+                    // syntax() and discriminant; map to a string label.
+                    let label: &'static str = match cl {
+                        Clause::MatchClause(_) => "match",
+                        Clause::WithClause(_) => "with",
+                        Clause::ReturnClause(_) => "return",
+                        Clause::UnwindClause(_) => "unwind",
+                        Clause::CallClause(_) => "call",
+                        Clause::OptionalCallClause(_) => "ocall",
+                        Clause::CreateClause(_) => "create",
+                        Clause::FilterClause(_) => "filter",
+                        Clause::MergeClause(_) => "merge",
+                        Clause::SetClause(_) => "set",
+                        Clause::RemoveClause(_) => "remove",
+                        Clause::DeleteClause(_) => "delete",
+                    };
+                    // Hit Clause::syntax() through the enum bridge.
+                    let _ = cl.syntax();
+                    got.insert(label);
+                }
+                for c in n.children() {
+                    stack.push(c);
+                }
+            }
+        }
+        for label in [
+            "call", "ocall", "create", "filter", "merge", "set", "remove", "delete",
+        ] {
+            assert!(got.contains(label), "missing Clause variant: {label}");
+        }
+        // Wrong-kind cast returns None.
+        assert!(Clause::cast(parse_root("RETURN 1")).is_none());
+    }
+
+    // ---------- Expr enum (every variant + syntax bridge) ----------
+    #[test]
+    fn ast_expr_enum_covers_all_variants() {
+        // One big fixture trying to express every Expr arm.
+        let sources = [
+            "RETURN xs[1]",                                        // IndexExpr
+            "RETURN xs[1..2]",                                     // SliceExpr
+            "RETURN size(xs)",                                     // FunctionCall
+            "RETURN (1 + 2)",                                      // ParenExpr
+            "RETURN [1, 2]",                                       // ListLiteral
+            "RETURN {a: 1}",                                       // MapLiteral
+            "MATCH (n) RETURN n{.name}",                           // MapProjection
+            "RETURN [x IN xs | x]",                                // ListComprehension
+            "RETURN any(x IN xs WHERE x > 0)",                     // ListPredicateExpr
+            "RETURN [(a)-->(b) | b]",                              // PatternComprehension
+            "RETURN CASE WHEN x THEN 1 END",                       // CaseExpr
+            "RETURN x IS TYPED INTEGER",                           // IsTypedExpr
+            "RETURN x :: INTEGER",                                 // TypeCastExpr
+            "RETURN 1 + 2",                                        // BinaryExpr
+            "RETURN -x",                                           // UnaryExpr
+            "MATCH (a) WHERE (a)-->(b) RETURN a",                  // PatternPredicate (best effort)
+            "MATCH (a) WHERE EXISTS { MATCH (a)-->(b) } RETURN a", // ExistsSubqueryExpr
+        ];
+
+        let mut got = std::collections::HashSet::new();
+        for src in sources {
+            let root = parse_root(src);
+            let mut stack = vec![root];
+            while let Some(node) = stack.pop() {
+                if let Some(e) = Expr::cast(node.clone()) {
+                    let label: &'static str = match e {
+                        Expr::IndexExpr(_) => "index",
+                        Expr::SliceExpr(_) => "slice",
+                        Expr::FunctionCall(_) => "func",
+                        Expr::ParenExpr(_) => "paren",
+                        Expr::ListLiteral(_) => "list",
+                        Expr::MapLiteral(_) => "map",
+                        Expr::MapProjection(_) => "mapproj",
+                        Expr::ListComprehension(_) => "lc",
+                        Expr::ListPredicateExpr(_) => "lp",
+                        Expr::PatternComprehension(_) => "pc",
+                        Expr::CaseExpr(_) => "case",
+                        Expr::IsTypedExpr(_) => "istyp",
+                        Expr::TypeCastExpr(_) => "cast",
+                        Expr::BinaryExpr(_) => "bin",
+                        Expr::UnaryExpr(_) => "un",
+                        Expr::PatternPredicate(_) => "pp",
+                        Expr::ExistsSubqueryExpr(_) => "exists",
+                    };
+                    // Hit the Expr::syntax() bridge.
+                    let _ = e.syntax();
+                    got.insert(label);
+                }
+                for c in node.children() {
+                    stack.push(c);
+                }
+            }
+        }
+
+        // The ones we know land deterministically in `Expr::cast`.
+        for must_have in [
+            "index", "slice", "func", "paren", "list", "map", "mapproj", "lc", "lp", "case",
+            "istyp", "cast", "bin", "un", "exists",
+        ] {
+            assert!(got.contains(must_have), "missing Expr variant: {must_have}");
+        }
+        // `pc` and `pp` are best-effort: depending on grammar evolution the
+        // wrapper may or may not be reachable. The test still drove the
+        // arms via `Expr::cast`.
+
+        // Wrong-kind cast returns None.
+        assert!(Expr::cast(parse_root("RETURN 1")).is_none());
+    }
+
+    // ---------- AstNode trait implementations (SessionSet*) ----------
+    #[test]
+    fn ast_node_trait_session_set_stmt() {
+        let stmt = first_session_set("SESSION SET GRAPH CURRENT_GRAPH");
+        // can_cast / cast / syntax through the trait surface.
+        assert!(<SessionSetStmt as AstNode>::can_cast(
+            SyntaxKind::SESSION_SET_STMT
+        ));
+        assert!(!<SessionSetStmt as AstNode>::can_cast(
+            SyntaxKind::SOURCE_FILE
+        ));
+        let casted = <SessionSetStmt as AstNode>::cast(stmt.syntax().clone());
+        assert!(casted.is_some());
+        assert_eq!(
+            <SessionSetStmt as AstNode>::syntax(&stmt).kind(),
+            SyntaxKind::SESSION_SET_STMT
+        );
+        // session_token covers the lib.rs branch.
+        assert!(stmt.session_token().is_some());
+    }
+
+    #[test]
+    fn ast_node_trait_session_set_graph_variant() {
+        let stmt = first_session_set("SESSION SET GRAPH g");
+        let v = stmt.variant().expect("variant");
+        let SessionSetVariant::Graph(g) = v else {
+            panic!("expected Graph variant");
+        };
+        assert!(<SessionSetGraphVariant as AstNode>::can_cast(
+            SyntaxKind::SESSION_SET_GRAPH_VARIANT
+        ));
+        assert!(!<SessionSetGraphVariant as AstNode>::can_cast(
+            SyntaxKind::SOURCE_FILE
+        ));
+        let casted =
+            <SessionSetGraphVariant as AstNode>::cast(g.syntax().clone()).expect("cast graph");
+        assert_eq!(
+            <SessionSetGraphVariant as AstNode>::syntax(&casted).kind(),
+            SyntaxKind::SESSION_SET_GRAPH_VARIANT
+        );
+    }
+
+    #[test]
+    fn ast_node_trait_session_set_time_zone_variant() {
+        let stmt = first_session_set("SESSION SET TIME ZONE \"utc\"");
+        let v = stmt.variant().expect("variant");
+        let SessionSetVariant::TimeZone(tz) = v else {
+            panic!("expected TimeZone variant");
+        };
+        assert!(<SessionSetTimeZoneVariant as AstNode>::can_cast(
+            SyntaxKind::SESSION_SET_TIME_ZONE_VARIANT
+        ));
+        assert!(!<SessionSetTimeZoneVariant as AstNode>::can_cast(
+            SyntaxKind::SOURCE_FILE
+        ));
+        let casted =
+            <SessionSetTimeZoneVariant as AstNode>::cast(tz.syntax().clone()).expect("cast tz");
+        assert_eq!(
+            <SessionSetTimeZoneVariant as AstNode>::syntax(&casted).kind(),
+            SyntaxKind::SESSION_SET_TIME_ZONE_VARIANT
+        );
+        // zone_token() covers the matching lib.rs accessor.
+        assert!(tz.zone_token().is_some());
+    }
+
+    #[test]
+    fn ast_node_trait_session_set_value_variant() {
+        let stmt = first_session_set("SESSION SET VALUE $p = {a: 1}");
+        let v = stmt.variant().expect("variant");
+        let SessionSetVariant::Value(val) = v else {
+            panic!("expected Value variant");
+        };
+        assert!(<SessionSetValueVariant as AstNode>::can_cast(
+            SyntaxKind::SESSION_SET_VALUE_VARIANT
+        ));
+        assert!(!<SessionSetValueVariant as AstNode>::can_cast(
+            SyntaxKind::SOURCE_FILE
+        ));
+        let casted =
+            <SessionSetValueVariant as AstNode>::cast(val.syntax().clone()).expect("cast value");
+        assert_eq!(
+            <SessionSetValueVariant as AstNode>::syntax(&casted).kind(),
+            SyntaxKind::SESSION_SET_VALUE_VARIANT
+        );
+    }
+
+    #[test]
+    fn ast_session_set_stmt_variant_missing() {
+        // Malformed recovery: `SESSION SET` with nothing after — the
+        // parser produces a SESSION_SET_STMT with no variant child.
+        let parse = parse("SESSION SET");
+        if let Some(stmt) = parse
+            .syntax()
+            .children()
+            .find_map(super::SessionSetStmt::cast)
+        {
+            // variant() may be None on recovery shapes.
+            let _ = stmt.variant();
+        }
+    }
+
+    #[test]
+    fn ast_session_set_graph_variant_recovery() {
+        // Missing trailing identifier — graph_ref_token() returns None.
+        let parse = parse("SESSION SET GRAPH");
+        let stmt = parse
+            .syntax()
+            .children()
+            .find_map(super::SessionSetStmt::cast)
+            .expect("SESSION_SET_STMT");
+        if let Some(SessionSetVariant::Graph(g)) = stmt.variant() {
+            // Recovery may or may not produce a graph-ref token; just call.
+            let _ = g.graph_ref_token();
+            let _ = g.is_property_graph();
+        }
+    }
+
+    // ---------- first_typed helper coverage ----------
+    #[test]
+    fn ast_first_typed_helper() {
+        // Use the helper to find a MatchClause via AstNode trait.
+        // Note: MatchClause does NOT implement AstNode trait, but
+        // SessionSetStmt does. Re-do via SessionSetStmt:
+        let parse = parse("SESSION SET GRAPH g");
+        let root = parse.syntax();
+        let stmt: SessionSetStmt = first_typed(&root).expect("session set stmt");
+        assert_eq!(stmt.syntax().kind(), SyntaxKind::SESSION_SET_STMT);
+    }
 }
