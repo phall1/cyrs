@@ -1,0 +1,3 @@
+error[E0011]: graph-type element may have at most one binder identifier
+ --> catalog_element_two_binders.cypher:151
+
