@@ -29,6 +29,38 @@ otherwise verbatim as of the last-locked date above.
   those crates already exist under `crates/`, were documented in AGENTS.md §3,
   and are now mirrored here so the spec is authoritative.
 
+- **2026-05-19 — cy-5e3f** (operator-approved in session, 2026-05-19).
+  GQL ISO/IEC 39075:2024 parser-surface expansion, triggered by the
+  OpenGQL upstream samples baseline (cy-qsze) landing at 1/14 and
+  exposing concrete gaps:
+
+  1. **Catalog DDL (in scope, parser + AST + sema).** Add `CREATE GRAPH`,
+     `CREATE SCHEMA`, and `CREATE … GRAPH TYPE` (ISO §14.14) as
+     top-level statement categories, including path identifiers
+     (`/foo/bar`), the `NEXT` statement separator, and graph-type
+     literals (`{(Label :Label {prop TYPE, ...})}`) with property type
+     names (`STRING`, `DATE`, `INT`, etc.). These are not enumerated
+     in N5's exclusion list and were never explicitly deferred; they
+     are pulled in now because the upstream samples make their absence
+     a visible parser gap.
+  2. **`SESSION SET` statements (in scope, parser + AST + sema).** Add
+     `SESSION SET GRAPH`, `SESSION SET PROPERTY GRAPH`,
+     `SESSION SET <param> AS <value>`, and `SESSION SET TIME ZONE`
+     (ISO §14.15) as a top-level statement category.
+  3. **`EXISTS { … }` / `EXISTS ( MATCH … )` subqueries — parser-only
+     widening, no D1 override.** N4 + D1 remain in force for the
+     semantic surface: HIR lowering and sema continue to emit the
+     deferred-feature diagnostic. This amendment only authorises the
+     CST/AST grammar to accept the syntax so the OpenGQL samples flip
+     to `Parser accepts? yes`. Full scope-graph + existential
+     semantics still require a separate spec lifting D1.
+
+  No N-rule is rescinded. N4 stands as a *semantic* exclusion; the
+  parser-only widening above is a documentation-of-existing-discipline
+  move (the parser already accepts shapes sema rejects, e.g. v1's
+  full openCypher TCK at 93.2 % acceptance vs deferred runtime
+  semantics).
+
 ---
 
 ## 0. TL;DR
