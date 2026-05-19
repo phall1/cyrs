@@ -1,0 +1,8 @@
+error[E4021]: construct `catalog_ddl` is not allowed in dialect `OpenCypherV9`; allowed in: GqlAligned
+  ┌─ e4021_catalog_create_graph_opencypher.cypher:1:1
+  │  
+1 │ ╭ // E4021: GQL catalog DDL (CREATE GRAPH) is not allowed under OpenCypherV9.
+2 │ │ // dialect: OpenCypherV9
+3 │ │ CREATE GRAPH mygraph ANY
+  │ ╰────────────────────────^
+

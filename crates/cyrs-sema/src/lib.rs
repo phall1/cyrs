@@ -46,7 +46,7 @@ pub mod schema_aware;
 pub mod ty;
 pub mod unify;
 
-pub use dialect::{DialectMode, check_dialect, reject_neo4j_current};
+pub use dialect::{DialectMode, check_catalog, check_dialect, reject_neo4j_current};
 pub use infer::infer_types;
 pub use kinds::check_kinds;
 pub use resolve::{ResolveResult, resolve};
@@ -58,6 +58,10 @@ use cyrs_diag::DiagnosticsSink;
 use cyrs_hir::Statement;
 use cyrs_schema::SchemaProvider;
 use smol_str::SmolStr;
+
+// --- cy-v5u6 catalog HIR ---
+pub use cyrs_hir::CatalogHir;
+// --- end cy-v5u6 ---
 
 /// Knobs exposed to consumers. Added rather than changed; never breaks.
 #[derive(Debug, Default, Clone)]
@@ -103,6 +107,23 @@ pub fn analyse(
         schema_aware::check_schema_aware(stmt, s, sink);
     }
 }
+
+// --- cy-v5u6 catalog HIR ---
+/// Run sema passes over a slice of catalog HIR ops (bead cy-v5u6).
+///
+/// Companion to [`analyse`]: where [`analyse`] runs the query-side
+/// passes against a [`Statement`], this entry-point runs the catalog
+/// dialect gate (`E4021`) and well-formedness checks (`E4022`) against
+/// the catalog ops produced by [`cyrs_hir::lower_catalog_from_parse`].
+///
+/// Catalog ops have no scope graph, no variable bindings, and no type
+/// inference; the pass surface is intentionally narrow. Resolving the
+/// named graph / schema against an external catalog state is downstream
+/// (cy-plan-catalog-session) and not run here.
+pub fn analyse_catalog(ops: &[CatalogHir], options: &SemaOptions, sink: &mut DiagnosticsSink) {
+    dialect::check_catalog(ops, options.dialect, sink);
+}
+// --- end cy-v5u6 ---
 
 #[cfg(test)]
 mod tests {

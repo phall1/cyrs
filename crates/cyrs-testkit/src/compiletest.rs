@@ -301,6 +301,17 @@ pub fn run_sema_case(case: &TestCase, bless: bool) -> std::io::Result<Outcome> {
         analyse(&stmt, None, &opts, &mut sink);
     }
 
+    // --- cy-v5u6 catalog HIR ---
+    // Run catalog-side sema for any `CREATE GRAPH` / `CREATE SCHEMA`
+    // ops in the same source file. Query and catalog ops are siblings
+    // in `SOURCE_FILE`, so a single corpus case can exercise both.
+    let parse = cyrs_syntax::parse(&source);
+    let catalog_ops = cyrs_hir::lower_catalog_from_parse(&parse);
+    if !catalog_ops.is_empty() {
+        cyrs_sema::analyse_catalog(&catalog_ops, &opts, &mut sink);
+    }
+    // --- end cy-v5u6 ---
+
     let diags = sink.into_sorted();
 
     let actual: String = if diags.is_empty() {

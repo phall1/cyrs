@@ -209,6 +209,20 @@ pub const GATE_SESSION_SET: DialectGate = DialectGate {
 };
 // --- end cy-lp3y ---
 
+// --- cy-v5u6 catalog HIR ---
+/// GQL catalog DDL (`CREATE GRAPH` / `CREATE SCHEMA`).
+///
+/// Catalog DDL is a GQL-only construct (ISO/IEC 39075:2024 §14.14;
+/// spec §0 amendment 2026-05-19 cy-5e3f). `OpenCypherV9` has no
+/// catalog-DDL equivalent, so every occurrence under that dialect
+/// fires this gate. Slot E4021 (rebased from E4020, ceded to cy-lp3y).
+pub const GATE_CATALOG_DDL: DialectGate = DialectGate {
+    name: "catalog_ddl",
+    code: DiagCode::E4021,
+    allowed_in: &[DialectMode::GqlAligned],
+};
+// --- end cy-v5u6 ---
+
 // ---------------------------------------------------------------------------
 // Gate check helper
 // ---------------------------------------------------------------------------
@@ -373,6 +387,92 @@ impl cyrs_hir::visit::Visitor for ExistsSubqueryGateVisitor<'_> {
     }
 }
 // --- end cy-p1u5 ---
+
+// --- cy-v5u6 catalog HIR ---
+/// Run dialect + well-formedness checks on a slice of catalog HIR ops
+/// (bead cy-v5u6).
+///
+/// Two passes:
+///
+/// 1. **Dialect gate.** Every op fires [`GATE_CATALOG_DDL`]
+///    (`DiagCode::E4022`) when `dialect` is not GQL-aligned.
+/// 2. **Well-formedness.** Each op is checked for the minimum
+///    structural shape required for embedders to act on it
+///    (`DiagCode::E4022`):
+///    - `CreateGraph` — the bound `name` must be non-empty; an attached
+///      graph-type ref must classify (parser-recovery shapes can fail
+///      classification).
+///    - `CreateSchema` — the path must have at least one segment.
+///
+/// Validation explicitly does **not** resolve the named graph / schema
+/// against any external catalog state — that is downstream
+/// (cy-plan-catalog-session).
+pub fn check_catalog(
+    ops: &[cyrs_hir::CatalogHir],
+    dialect: DialectMode,
+    sink: &mut DiagnosticsSink,
+) {
+    use cyrs_hir::CatalogHir;
+    for op in ops {
+        // Dialect gate first — fires regardless of well-formedness.
+        if let Err(d) = check(&GATE_CATALOG_DDL, dialect, op.span()) {
+            sink.push(d);
+        }
+        // Well-formedness checks.
+        match op {
+            CatalogHir::CreateGraph {
+                name,
+                graph_type,
+                span,
+                ..
+            } => {
+                if name.is_empty() {
+                    sink.push(Diagnostic::error(
+                        DiagCode::E4022,
+                        *span,
+                        "`CREATE GRAPH` is missing its bound graph name",
+                    ));
+                }
+                if let Some(ty) = graph_type {
+                    // Named graph-type refs must carry a non-empty
+                    // name. `Any` / `Inline` / `DoubleColonInline`
+                    // carry no name and are unconditionally
+                    // well-formed; other variants (including future
+                    // `#[non_exhaustive]` additions) are accepted
+                    // until a paired well-formedness rule lands.
+                    let named = match ty {
+                        cyrs_hir::GraphTypeHir::DoubleColonNamed(n)
+                        | cyrs_hir::GraphTypeHir::TypedNamed(n)
+                        | cyrs_hir::GraphTypeHir::BareNamed(n) => Some(n),
+                        _ => None,
+                    };
+                    if let Some(n) = named
+                        && n.is_empty()
+                    {
+                        sink.push(Diagnostic::error(
+                            DiagCode::E4022,
+                            *span,
+                            "`CREATE GRAPH` graph-type reference is missing its name",
+                        ));
+                    }
+                }
+            }
+            CatalogHir::CreateSchema { segments, span, .. } => {
+                if segments.is_empty() {
+                    sink.push(Diagnostic::error(
+                        DiagCode::E4022,
+                        *span,
+                        "`CREATE SCHEMA` is missing its path identifier",
+                    ));
+                }
+            }
+            // `CatalogHir` is `#[non_exhaustive]`; future variants land
+            // here and get a follow-up well-formedness rule.
+            _ => {}
+        }
+    }
+}
+// --- end cy-v5u6 ---
 
 /// A zero-width span at offset zero; used when a check is not tied to a
 /// specific source range (e.g. the pass-entry `Neo4jCurrent` rejection).
@@ -757,5 +857,102 @@ mod tests {
     #[test]
     fn snap_reject_neo4j_current() {
         insta::assert_snapshot!("reject_neo4j_current", run_reject_neo4j());
+    }
+
+    // -----------------------------------------------------------------------
+    // cy-v5u6 catalog HIR — dialect + well-formedness
+    // -----------------------------------------------------------------------
+
+    fn run_catalog(src: &str, dialect: DialectMode) -> String {
+        let parse = cyrs_syntax::parse(src);
+        let ops = cyrs_hir::lower_catalog_from_parse(&parse);
+        let mut sink = DiagnosticsSink::new();
+        check_catalog(&ops, dialect, &mut sink);
+        let diags = sink.into_sorted();
+        let mut out = String::new();
+        writeln!(out, "diagnostics: {}", diags.len()).unwrap();
+        for d in &diags {
+            writeln!(out, "  {}: {}", d.code, d.message).unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn catalog_create_graph_clean_under_gql() {
+        let out = run_catalog("CREATE GRAPH mygraph ANY", DialectMode::GqlAligned);
+        assert!(out.contains("diagnostics: 0"), "got: {out}");
+    }
+
+    #[test]
+    fn catalog_create_schema_clean_under_gql() {
+        let out = run_catalog("CREATE SCHEMA /foo/bar", DialectMode::GqlAligned);
+        assert!(out.contains("diagnostics: 0"), "got: {out}");
+    }
+
+    #[test]
+    fn catalog_create_graph_denied_under_opencypher_v9() {
+        let out = run_catalog("CREATE GRAPH mygraph ANY", DialectMode::OpenCypherV9);
+        assert!(out.contains("E4021"), "got: {out}");
+        assert!(out.contains("catalog_ddl"), "got: {out}");
+    }
+
+    #[test]
+    fn catalog_create_schema_denied_under_opencypher_v9() {
+        let out = run_catalog("CREATE SCHEMA /foo", DialectMode::OpenCypherV9);
+        assert!(out.contains("E4021"), "got: {out}");
+    }
+
+    #[test]
+    fn catalog_multiple_ops_each_gated() {
+        // Two ops, both should fire E4021 under OpenCypherV9.
+        let out = run_catalog(
+            "CREATE SCHEMA /foo\nNEXT CREATE SCHEMA /bar",
+            DialectMode::OpenCypherV9,
+        );
+        let count = out.matches("E4021").count();
+        assert_eq!(count, 2, "expected two E4021 diagnostics, got: {out}");
+    }
+
+    #[test]
+    fn catalog_no_catalog_ops_no_diagnostics() {
+        // Query-only source produces zero catalog ops and zero diagnostics.
+        let out = run_catalog("MATCH (n) RETURN n", DialectMode::OpenCypherV9);
+        assert!(out.contains("diagnostics: 0"), "got: {out}");
+    }
+
+    #[test]
+    fn catalog_empty_schema_path_flagged_as_malformed() {
+        use cyrs_hir::CatalogHir;
+        // Construct a malformed CreateSchema manually to exercise the
+        // well-formedness branch — recovery shapes can leave segments
+        // empty in pathological cases.
+        let op = CatalogHir::CreateSchema {
+            id: cyrs_hir::HirId(1),
+            segments: Vec::new(),
+            span: zero_range(),
+        };
+        let mut sink = DiagnosticsSink::new();
+        check_catalog(&[op], DialectMode::GqlAligned, &mut sink);
+        let diags = sink.into_sorted();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, DiagCode::E4022);
+    }
+
+    #[test]
+    fn catalog_empty_graph_name_flagged_as_malformed() {
+        use cyrs_hir::CatalogHir;
+        let op = CatalogHir::CreateGraph {
+            id: cyrs_hir::HirId(1),
+            name: SmolStr::default(),
+            name_is_path: false,
+            graph_type: Some(cyrs_hir::GraphTypeHir::Any),
+            source: None,
+            span: zero_range(),
+        };
+        let mut sink = DiagnosticsSink::new();
+        check_catalog(&[op], DialectMode::GqlAligned, &mut sink);
+        let diags = sink.into_sorted();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, DiagCode::E4022);
     }
 }
