@@ -11,18 +11,18 @@ the vendored OpenGQL upstream sample corpus under
 
 ## Summary
 
-- Accepted: **2/14** (14.3 %)
+- Accepted: **7/14** (50.0 %)
 
 
 ## Per-file results
 
 | File | Parser accepts? |
 | ---- | --------------- |
-| `create_closed_graph_from_graph_type_(double_colon).gql` | no |
-| `create_closed_graph_from_graph_type_(lexical).gql` | no |
-| `create_closed_graph_from_nested_graph_type_(double_colon).gql` | no |
-| `create_graph.gql` | no |
-| `create_schema.gql` | no |
+| `create_closed_graph_from_graph_type_(double_colon).gql` | yes |
+| `create_closed_graph_from_graph_type_(lexical).gql` | yes |
+| `create_closed_graph_from_nested_graph_type_(double_colon).gql` | yes |
+| `create_graph.gql` | yes |
+| `create_schema.gql` | yes |
 | `insert_statement.gql` | yes |
 | `match_and_insert_example.gql` | yes |
 | `match_with_exists_predicate_(match_block_statement_in_braces).gql` | no |

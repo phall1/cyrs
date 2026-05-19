@@ -383,6 +383,31 @@ enum RawToken {
     #[token("EDGES", ignore(case))]
     Edges,
 
+    // --- cy-rgqg catalog DDL ---
+    //
+    // GQL catalog-DDL keywords (cy-rgqg, ISO/IEC 39075:2024 §14.14 /
+    // §14.15). `GRAPH`, `SCHEMA`, `COPY`, `OF`, `NEXT` are reserved
+    // unconditionally — `grep -riEw 'GRAPH|SCHEMA|COPY|OF|NEXT'
+    // crates/cyrs-tck/tck/full/features/` returns only license-comment
+    // and Gherkin-scaffolding hits, never query syntax, so promotion
+    // does not regress the openCypher pass-rate. `LIKE` is *not*
+    // promoted: it appears as a relationship type in openCypher TCK
+    // queries (`-[:LIKE …]->`). The catalog grammar recognises `LIKE`
+    // contextually via `at_contextual("LIKE")` instead. Constituent
+    // property-type names (`STRING`, `DATE`, `INT`, …) likewise stay
+    // IDENTs and are consumed by `property_type_decl` directly.
+    #[token("GRAPH", ignore(case))]
+    Graph,
+    #[token("SCHEMA", ignore(case))]
+    Schema,
+    #[token("COPY", ignore(case))]
+    Copy,
+    #[token("OF", ignore(case))]
+    Of,
+    #[token("NEXT", ignore(case))]
+    Next,
+    // --- end cy-rgqg ---
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
@@ -543,6 +568,11 @@ impl RawToken {
             Self::Elements => SyntaxKind::ELEMENTS_KW,
             Self::Different => SyntaxKind::DIFFERENT_KW,
             Self::Edges => SyntaxKind::EDGES_KW,
+            Self::Graph => SyntaxKind::GRAPH_KW,
+            Self::Schema => SyntaxKind::SCHEMA_KW,
+            Self::Copy => SyntaxKind::COPY_KW,
+            Self::Of => SyntaxKind::OF_KW,
+            Self::Next => SyntaxKind::NEXT_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

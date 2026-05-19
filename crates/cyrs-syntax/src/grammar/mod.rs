@@ -28,6 +28,7 @@
 use crate::SyntaxKind;
 use crate::parser::{Parser, TokenSet, syntax_codes as sc};
 
+pub(crate) mod catalog;
 pub(crate) mod clause;
 pub(crate) mod expression;
 pub(crate) mod pattern;
@@ -53,7 +54,9 @@ pub(crate) const CLAUSE_START: TokenSet = TokenSet::new(&[
     SyntaxKind::CALL_KW,
 ]);
 
-/// Entry point. `SourceFile = (Statement (';' Statement)* ';'?)?`.
+/// Entry point. `SourceFile = (Statement (Separator Statement)* Separator?)?`
+/// where `Separator` is `;` or the GQL-distinct `NEXT` keyword (ISO/IEC
+/// 39075:2024 §14.14; cy-rgqg).
 ///
 /// Empty input produces a single empty `SOURCE_FILE` node with no
 /// children and no errors (spec §4.6: "An empty file parses to an empty
@@ -62,12 +65,15 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
     let m = p.start();
 
     // Leading-junk recovery: if we start with something that is not a
-    // clause keyword or `;`, skip until we see one (or EOF). This gives
-    // the `garbage MATCH ...` case a usable tree.
+    // clause keyword, a catalog-DDL opener, `;`, or `NEXT`, skip until we
+    // see one (or EOF). This gives the `garbage MATCH ...` case a usable
+    // tree.
     if p.current() != SyntaxKind::EOF
         && !p.at_ts(CLAUSE_START)
         && !p.at(SyntaxKind::SEMI)
+        && !p.at(SyntaxKind::NEXT_KW)
         && !p.at(SyntaxKind::UNION_KW)
+        && !catalog::at_catalog_create(p)
     {
         p.error_code(sc::EXPECTED_STATEMENT, "expected statement");
         p.recover_until(TokenSet::EMPTY);
@@ -85,13 +91,29 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
             p.bump(SyntaxKind::SEMI);
             continue;
         }
-        statement::statement(p);
+        if p.at(SyntaxKind::NEXT_KW) {
+            // GQL `NEXT` separator (cy-rgqg, ISO/IEC 39075:2024 §14.14):
+            // peer to `;`, consumed at the same shape so multiple
+            // catalog-DDL statements chain naturally.
+            p.bump(SyntaxKind::NEXT_KW);
+            continue;
+        }
+        if catalog::at_catalog_create(p) {
+            catalog::catalog_statement(p);
+        } else {
+            statement::statement(p);
+        }
         if p.at(SyntaxKind::SEMI) {
             p.bump(SyntaxKind::SEMI);
+        } else if p.at(SyntaxKind::NEXT_KW) {
+            p.bump(SyntaxKind::NEXT_KW);
         } else if p.current() != SyntaxKind::EOF {
             // No separator and more input: recover to the next clause or
             // semicolon so we don't loop forever.
-            if !p.at_ts(CLAUSE_START) && !p.at(SyntaxKind::UNION_KW) {
+            if !p.at_ts(CLAUSE_START)
+                && !p.at(SyntaxKind::UNION_KW)
+                && !catalog::at_catalog_create(p)
+            {
                 p.error_code(
                     sc::EXPECTED_SEMICOLON_OR_EOF,
                     "expected ';' or end of input",

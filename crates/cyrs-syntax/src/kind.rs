@@ -203,6 +203,27 @@ pub enum SyntaxKind {
     DIFFERENT_KW = 188,
     EDGES_KW = 189,
 
+    // --- cy-rgqg catalog DDL ---
+    //
+    // GQL catalog-DDL keywords (cy-rgqg, ISO/IEC 39075:2024 §14.14 / §14.15).
+    // `GRAPH`, `SCHEMA`, `COPY`, `OF`, `NEXT` are reserved unconditionally
+    // — verified empty in the openCypher TCK query bodies (`grep -riEw
+    // 'GRAPH|SCHEMA|COPY|OF|NEXT' crates/cyrs-tck/tck/full/features/`
+    // returns only license comments and Gherkin scaffolding, never query
+    // syntax). `LIKE` is *not* reserved: it appears as a relationship
+    // type in the openCypher TCK (`-[:LIKE ...]->`), so the catalog
+    // grammar recognises it contextually as an IDENT after `CREATE
+    // GRAPH … <name>` instead. Slots 190..=194 pinned for parallel-bead
+    // determinism. `ANY` and `TYPED` already live earlier in this enum
+    // (`ANY_KW` = 178, `TYPED_KW` = 185) and are reused here without
+    // duplication.
+    GRAPH_KW = 190,
+    SCHEMA_KW = 191,
+    COPY_KW = 192,
+    OF_KW = 193,
+    NEXT_KW = 194,
+    // --- end cy-rgqg ---
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -377,6 +398,41 @@ pub enum SyntaxKind {
     TYPED_TEMPORAL_LITERAL = 398,
     // --- end cy-51we ---
 
+    // --- cy-rgqg catalog DDL ---
+    //
+    // GQL catalog-DDL statement and helper nodes (cy-rgqg, ISO/IEC
+    // 39075:2024 §14.14 / §14.15). `CREATE GRAPH` / `CREATE SCHEMA` sit
+    // at top-level statement scope (alongside `STATEMENT`), so the
+    // `SOURCE_FILE` walks them in the same loop. Slots 399..=408 pinned
+    // (rebased onto cy-51we's 398, original allocation was 398..=407).
+    //
+    //   CATALOG_CREATE_GRAPH_STMT  — `CREATE GRAPH …` (5 surface forms)
+    //   CATALOG_CREATE_SCHEMA_STMT — `CREATE SCHEMA /path`
+    //   GRAPH_NAME                 — wrapper for the bound graph name
+    //                                 (IDENT or PATH_IDENT)
+    //   PATH_IDENT                 — slash-prefixed catalog path
+    //                                 (`/foo`, `/foo/bar`)
+    //   GRAPH_TYPE_REF             — `::name`, `TYPED name`, `name`,
+    //                                 `ANY`, or `:: { … }` / `{ … }`
+    //   INLINE_GRAPH_TYPE          — `{ (Label :Label { prop TYPE, … }) }`
+    //   GRAPH_TYPE_ELEMENT         — one `(...)` element inside the
+    //                                 inline graph-type literal
+    //   PROPERTY_TYPE_MAP          — `{ prop TYPE, prop TYPE, … }`
+    //                                 (inside a `GRAPH_TYPE_ELEMENT`)
+    //   PROPERTY_TYPE_DECL         — `prop TYPE` (one map entry)
+    //   GRAPH_SOURCE               — trailing `LIKE …` or `AS COPY OF …`
+    CATALOG_CREATE_GRAPH_STMT = 399,
+    CATALOG_CREATE_SCHEMA_STMT = 400,
+    GRAPH_NAME = 401,
+    PATH_IDENT = 402,
+    GRAPH_TYPE_REF = 403,
+    INLINE_GRAPH_TYPE = 404,
+    GRAPH_TYPE_ELEMENT = 405,
+    PROPERTY_TYPE_MAP = 406,
+    PROPERTY_TYPE_DECL = 407,
+    GRAPH_SOURCE = 408,
+    // --- end cy-rgqg ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -503,6 +559,11 @@ impl SyntaxKind {
             187 => Self::ELEMENTS_KW,
             188 => Self::DIFFERENT_KW,
             189 => Self::EDGES_KW,
+            190 => Self::GRAPH_KW,
+            191 => Self::SCHEMA_KW,
+            192 => Self::COPY_KW,
+            193 => Self::OF_KW,
+            194 => Self::NEXT_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -583,6 +644,16 @@ impl SyntaxKind {
             396 => Self::TYPE_NAME,
             397 => Self::PATH_MODE,
             398 => Self::TYPED_TEMPORAL_LITERAL,
+            399 => Self::CATALOG_CREATE_GRAPH_STMT,
+            400 => Self::CATALOG_CREATE_SCHEMA_STMT,
+            401 => Self::GRAPH_NAME,
+            402 => Self::PATH_IDENT,
+            403 => Self::GRAPH_TYPE_REF,
+            404 => Self::INLINE_GRAPH_TYPE,
+            405 => Self::GRAPH_TYPE_ELEMENT,
+            406 => Self::PROPERTY_TYPE_MAP,
+            407 => Self::PROPERTY_TYPE_DECL,
+            408 => Self::GRAPH_SOURCE,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -613,15 +684,15 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=EDGES_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=NEXT_KW`).
     ///
-    /// `EDGES_KW` is the current upper bound (cy-q2g path-mode).
+    /// `NEXT_KW` is the current upper bound (cy-rgqg catalog DDL).
     /// Internal slots may be unassigned — `from_u16` returns `None`
     /// for those gaps, so they never round-trip into a keyword.
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::EDGES_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::NEXT_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -687,6 +758,13 @@ mod tests {
             SyntaxKind::DIFFERENT_KW,
             SyntaxKind::EDGES_KW,
             SyntaxKind::PATH_MODE,
+            // cy-rgqg catalog DDL spot-checks.
+            SyntaxKind::GRAPH_KW,
+            SyntaxKind::SCHEMA_KW,
+            SyntaxKind::NEXT_KW,
+            SyntaxKind::CATALOG_CREATE_GRAPH_STMT,
+            SyntaxKind::CATALOG_CREATE_SCHEMA_STMT,
+            SyntaxKind::GRAPH_TYPE_REF,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];
@@ -714,5 +792,12 @@ mod tests {
         assert!(SyntaxKind::DIFFERENT_KW.is_keyword());
         assert!(SyntaxKind::EDGES_KW.is_keyword());
         assert!(SyntaxKind::PATH_MODE.is_node());
+        // cy-rgqg: catalog DDL keywords / nodes.
+        assert!(SyntaxKind::GRAPH_KW.is_keyword());
+        assert!(SyntaxKind::SCHEMA_KW.is_keyword());
+        assert!(SyntaxKind::NEXT_KW.is_keyword());
+        assert!(SyntaxKind::CATALOG_CREATE_GRAPH_STMT.is_node());
+        assert!(SyntaxKind::CATALOG_CREATE_SCHEMA_STMT.is_node());
+        assert!(SyntaxKind::GRAPH_SOURCE.is_node());
     }
 }
