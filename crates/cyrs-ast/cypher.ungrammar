@@ -65,7 +65,17 @@ Clause =
 //------------------------------------------------------------------------
 
 MatchClause =
-  'OPTIONAL'? 'MATCH' Pattern (',' Pattern)* WhereClause?
+  'OPTIONAL'? 'MATCH' PathMode? Pattern (',' Pattern)* WhereClause?
+
+// GQL-distinct MATCH path-mode prefix (ISO/IEC 39075:2024 §10.6.3;
+// cyrs cy-q2g). The two two-keyword forms select the element-uniqueness
+// semantics of the path patterns to the right of MATCH. The parser
+// wraps the two keyword tokens in a single `PATH_MODE` child of the
+// MATCH clause; the discriminant between the two forms is the leading
+// keyword (REPEATABLE vs DIFFERENT).
+PathMode =
+  'REPEATABLE' 'ELEMENTS'
+| 'DIFFERENT' 'EDGES'
 
 WithClause =
   'WITH' 'DISTINCT'? ReturnItems WhereClause? OrderBy? Skip? Limit?

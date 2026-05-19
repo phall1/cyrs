@@ -358,6 +358,23 @@ enum RawToken {
     #[token("TYPED", ignore(case))]
     Typed,
 
+    // GQL-distinct MATCH path-mode keywords (cy-q2g, ISO/IEC 39075:2024
+    // §10.6.3). Reserved at the lexer level because the openCypher TCK
+    // never spells these four words as identifiers / labels / property
+    // keys (verified empty: `grep -ri '\bREPEATABLE\b|\bELEMENTS\b|\bDIFFERENT\b|\bEDGES\b'
+    // crates/cyrs-tck/tck/full/features/` returns zero hits in query
+    // bodies). Promoting them to keywords therefore does not regress the
+    // openCypher pass-rate. The parser-side dispatch on the two-token
+    // pair lives in `grammar::clause::match_clause` / `path_mode`.
+    #[token("REPEATABLE", ignore(case))]
+    Repeatable,
+    #[token("ELEMENTS", ignore(case))]
+    Elements,
+    #[token("DIFFERENT", ignore(case))]
+    Different,
+    #[token("EDGES", ignore(case))]
+    Edges,
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
@@ -512,6 +529,10 @@ impl RawToken {
             Self::None => SyntaxKind::NONE_KW,
             Self::Single => SyntaxKind::SINGLE_KW,
             Self::Typed => SyntaxKind::TYPED_KW,
+            Self::Repeatable => SyntaxKind::REPEATABLE_KW,
+            Self::Elements => SyntaxKind::ELEMENTS_KW,
+            Self::Different => SyntaxKind::DIFFERENT_KW,
+            Self::Edges => SyntaxKind::EDGES_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

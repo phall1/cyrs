@@ -671,14 +671,15 @@ pub(crate) mod syntax_codes {
     /// E0085 are owned by parallel GQL beads (FILTER / OPTIONAL CALL).
     pub(crate) const EXPECTED_EXCLUDE_ITEM: u16 = 86;
     /// E0088 — expected a type name after `IS [NOT] TYPED` (cy-pnp,
-    /// ISO/IEC 39075:2024 §6.5.2). Distinct from the `IS NULL` recovery
-    /// path (E0025) so dialect-aware tooling can tell the two shapes
-    /// apart. The numeric slot skips 83..=87 reserved for parallel
-    /// GQL-bootstrap beads (cy-8z3 INSERT, etc.).
+    /// ISO/IEC 39075:2024 §6.5.2).
     pub(crate) const EXPECTED_TYPE_AFTER_TYPED: u16 = 88;
     /// E0089 — expected a type name after `::` (cy-pnp, the GQL
     /// typed-value shorthand for `IS TYPED`).
     pub(crate) const EXPECTED_TYPE_AFTER_DOUBLE_COLON: u16 = 89;
+    /// E0090 — expected `ELEMENTS` after `REPEATABLE` (or `EDGES` after
+    /// `DIFFERENT`) in a MATCH path-mode prefix (cy-q2g; ISO/IEC
+    /// 39075:2024 §10.6.3).
+    pub(crate) const EXPECTED_ELEMENTS_OR_EDGES: u16 = 90;
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`

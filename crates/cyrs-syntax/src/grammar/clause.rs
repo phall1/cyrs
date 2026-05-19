@@ -32,16 +32,66 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
     }
 }
 
-/// `MatchClause = 'MATCH' Pattern (',' Pattern)* WhereClause?`
+/// `MatchClause = 'MATCH' PathMode? Pattern (',' Pattern)* WhereClause?`
+///
+/// `PathMode` is the GQL-distinct two-keyword prefix `REPEATABLE
+/// ELEMENTS` or `DIFFERENT EDGES` (ISO/IEC 39075:2024 §10.6.3; cy-q2g)
+/// that selects the element-uniqueness semantics of the patterns that
+/// follow. Both shapes are accepted in both dialect modes — the
+/// dialect gate for the GQL-only construct lives in cyrs-sema
+/// (follow-up bead). The path-mode wraps its two keyword tokens in a
+/// `PATH_MODE` child of the MATCH clause.
 fn match_clause(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::MATCH_KW));
     let m = p.start();
     p.bump(SyntaxKind::MATCH_KW);
+    if p.at(SyntaxKind::REPEATABLE_KW) || p.at(SyntaxKind::DIFFERENT_KW) {
+        path_mode(p);
+    }
     pattern::pattern_list(p);
     if p.at(SyntaxKind::WHERE_KW) {
         where_clause(p);
     }
     m.complete(p, SyntaxKind::MATCH_CLAUSE);
+}
+
+/// `PathMode = 'REPEATABLE' 'ELEMENTS' | 'DIFFERENT' 'EDGES'`
+/// — ISO/IEC 39075:2024 §10.6.3 (cy-q2g).
+///
+/// The two two-token pairs are mutually exclusive; the leading keyword
+/// (`REPEATABLE` vs `DIFFERENT`) discriminates between them, mirroring
+/// the `LIST_PREDICATE_EXPR` / `SHORTEST_PATH_PATTERN` convention. If
+/// the trailing keyword does not match (`REPEATABLE EDGES`, `DIFFERENT
+/// ELEMENTS`, or anything else), we emit `E0090`
+/// (`EXPECTED_ELEMENTS_OR_EDGES`) at the trailing position and
+/// tolerate the swap so the pattern-list still parses — the MATCH
+/// clause stays well-formed for downstream consumers.
+fn path_mode(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::REPEATABLE_KW) || p.at(SyntaxKind::DIFFERENT_KW));
+    let m = p.start();
+    if p.at(SyntaxKind::REPEATABLE_KW) {
+        p.bump(SyntaxKind::REPEATABLE_KW);
+        if !p.eat(SyntaxKind::ELEMENTS_KW) {
+            p.error_code(
+                sc::EXPECTED_ELEMENTS_OR_EDGES,
+                "expected ELEMENTS after REPEATABLE",
+            );
+            // Tolerate a swap with the wrong path-mode word so the
+            // pattern-list still parses (recovery per spec §4.3). The
+            // diagnostic above is the load-bearing surface signal.
+            let _ = p.eat(SyntaxKind::EDGES_KW);
+        }
+    } else {
+        p.bump(SyntaxKind::DIFFERENT_KW);
+        if !p.eat(SyntaxKind::EDGES_KW) {
+            p.error_code(
+                sc::EXPECTED_ELEMENTS_OR_EDGES,
+                "expected EDGES after DIFFERENT",
+            );
+            let _ = p.eat(SyntaxKind::ELEMENTS_KW);
+        }
+    }
+    m.complete(p, SyntaxKind::PATH_MODE);
 }
 
 /// `OPTIONAL MATCH ...` or `OPTIONAL CALL ...` — covers both GQL/Cypher

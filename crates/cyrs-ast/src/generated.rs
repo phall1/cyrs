@@ -12,6 +12,7 @@
 //   - SingleQuery: no `SyntaxKind::SINGLE_QUERY` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - Union: no `SyntaxKind::UNION` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - InsertClause: no `SyntaxKind::INSERT_CLAUSE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - PathMode: alternation contains a sequence arm (not a single-node shape)
 //   - ReturnItems: alternation contains a sequence arm (not a single-node shape)
 //   - Skip: no `SyntaxKind::SKIP` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - Limit: no `SyntaxKind::LIMIT` variant in cyrs-syntax::kind (see cy-nom follow-ups)

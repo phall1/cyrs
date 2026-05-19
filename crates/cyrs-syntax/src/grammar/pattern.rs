@@ -216,7 +216,46 @@ fn rel_pattern(p: &mut Parser<'_>) {
         );
     }
 
+    // GQL-distinct post-arrow variable-length quantifier `->{m,n}`
+    // (ISO/IEC 39075:2024 §10.6; cy-q2g). The classical openCypher form
+    // is `-[*m..n]->` (quantifier inside the bracketed detail, parsed
+    // via `rel_length`). The GQL brace-form puts the quantifier after
+    // the closing arrow as `->{m,n}` or `-{m,n}-` style; we accept the
+    // brace-block in this trailing position and wrap it as a
+    // `REL_LENGTH` child of the same `REL_PATTERN`, so HIR /
+    // downstream sees a single uniform quantifier shape regardless of
+    // which surface spelling was used. The brace pair `{m,n}` is
+    // unambiguous here — no other production places `{` directly
+    // against the end of a relationship pattern (the property-map `{`
+    // sits inside `REL_DETAIL`, which is already closed by `]`).
+    if p.at(SyntaxKind::L_BRACE) {
+        rel_brace_length(p);
+    }
+
     m.complete(p, SyntaxKind::REL_PATTERN);
+}
+
+/// `RelBraceLength = '{' IntLiteral (',' IntLiteral)? '}'` — GQL
+/// postfix variable-length quantifier on a relationship pattern
+/// (cy-q2g; ISO/IEC 39075:2024 §10.6).
+///
+/// Emits a `REL_LENGTH` node identical in shape to the classical
+/// `*m..n` quantifier produced by `rel_length`, so HIR lowering does
+/// not branch on the surface spelling. The parser is permissive (no
+/// dedicated diagnostics) — a malformed brace-block leaves downstream
+/// recovery to flag the trailing tokens, mirroring how `rel_length`
+/// itself only consumes what matches. The recovery-budget gate stays
+/// honest because we emit no codes here.
+fn rel_brace_length(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::L_BRACE));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACE);
+    let _ = p.eat(SyntaxKind::INT_LITERAL);
+    if p.eat(SyntaxKind::COMMA) {
+        let _ = p.eat(SyntaxKind::INT_LITERAL);
+    }
+    let _ = p.eat(SyntaxKind::R_BRACE);
+    m.complete(p, SyntaxKind::REL_LENGTH);
 }
 
 /// `'[' RelDetail? ']'` — contents mirror `NodePattern`'s inner trio but

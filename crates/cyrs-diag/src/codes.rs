@@ -628,6 +628,10 @@ pub enum DiagCode {
     /// recovery is separate from E0088 so the renderer can describe the
     /// shorthand spelling in its hint.
     E0089 = 89,
+    /// Expected `ELEMENTS` after `REPEATABLE` (or `EDGES` after
+    /// `DIFFERENT`) in a `MATCH` path-mode prefix (cy-q2g; ISO/IEC
+    /// 39075:2024 §10.6.3).
+    E0090 = 90,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -761,6 +765,7 @@ impl DiagCode {
             Self::E0086 => "E0086",
             Self::E0088 => "E0088",
             Self::E0089 => "E0089",
+            Self::E0090 => "E0090",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -914,6 +919,7 @@ impl DiagCode {
         Self::E0086,
         Self::E0088,
         Self::E0089,
+        Self::E0090,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1125,6 +1131,7 @@ mod tests {
             DiagCode::E0086,
             DiagCode::E0088,
             DiagCode::E0089,
+            DiagCode::E0090,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1205,16 +1212,16 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps inside ranges (E0073..=E0077, E0084, E0085, E0087, E0090+).
-        // E0083 (cy-8z3 INSERT), E0086 (cy-auh EXCLUDE), and E0088/E0089
-        // (cy-pnp TYPED forms) are claimed.
+        // Gaps: E0073..=E0077, E0084, E0085, E0087, E0091+.
+        // E0083 INSERT, E0086 EXCLUDE, E0088/E0089 TYPED, E0090 path-mode
+        // are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(84), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
-        assert_eq!(DiagCode::try_from_u16(90), None);
+        assert_eq!(DiagCode::try_from_u16(91), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

@@ -177,6 +177,18 @@ pub enum SyntaxKind {
     // reserved for parallel work; this variant pins to raw 185.
     TYPED_KW = 185,
 
+    // GQL-distinct MATCH path-mode keywords (cy-q2g / cy-0hj). `REPEATABLE
+    // ELEMENTS` and `DIFFERENT EDGES` (ISO/IEC 39075:2024 §10.6.3) sit
+    // between `MATCH` and the first pattern and select the element-
+    // uniqueness semantics of a variable-length path. All four words are
+    // promoted to lexer-level keywords (verified empty in openCypher TCK
+    // query bodies). The discriminator between the two surface forms is
+    // the leading keyword child of the `PATH_MODE` node.
+    REPEATABLE_KW = 186,
+    ELEMENTS_KW = 187,
+    DIFFERENT_KW = 188,
+    EDGES_KW = 189,
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -313,11 +325,16 @@ pub enum SyntaxKind {
     // wraps `<expr> :: <TypeName>` — the typed-value shorthand. Both
     // carry a `TYPE_NAME` child whose first IDENT is the head type name
     // (`INTEGER`, `STRING`, `ZONED`, …) followed by zero or more
-    // continuation IDENTs (e.g. `ZONED DATETIME`). Slot 393 reserved
-    // for parallel work.
+    // continuation IDENTs (e.g. `ZONED DATETIME`).
     IS_TYPED_EXPR = 394,
     TYPE_CAST_EXPR,
     TYPE_NAME,
+
+    // GQL-distinct MATCH path-mode (cy-q2g / cy-0hj). Wraps the two-token
+    // pair `REPEATABLE ELEMENTS` or `DIFFERENT EDGES` (ISO/IEC 39075:2024
+    // §10.6.3) that follows `MATCH` and selects the element-uniqueness
+    // semantics of the patterns to its right.
+    PATH_MODE = 397,
 
     // =====================================================================
     // Errors & EOF (768..1024)
@@ -439,6 +456,10 @@ impl SyntaxKind {
             181 => Self::INSERT_KW,
             183 => Self::EXCLUDE_KW,
             185 => Self::TYPED_KW,
+            186 => Self::REPEATABLE_KW,
+            187 => Self::ELEMENTS_KW,
+            188 => Self::DIFFERENT_KW,
+            189 => Self::EDGES_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -515,6 +536,7 @@ impl SyntaxKind {
             394 => Self::IS_TYPED_EXPR,
             395 => Self::TYPE_CAST_EXPR,
             396 => Self::TYPE_NAME,
+            397 => Self::PATH_MODE,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -545,11 +567,15 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=TYPED_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=EDGES_KW`).
+    ///
+    /// `EDGES_KW` is the current upper bound (cy-q2g path-mode).
+    /// Internal slots may be unassigned — `from_u16` returns `None`
+    /// for those gaps, so they never round-trip into a keyword.
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::TYPED_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::EDGES_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -610,6 +636,11 @@ mod tests {
             SyntaxKind::LIST_PREDICATE_EXPR,
             SyntaxKind::SHORTEST_PATH_PATTERN,
             SyntaxKind::OPTIONAL_CALL_CLAUSE,
+            SyntaxKind::REPEATABLE_KW,
+            SyntaxKind::ELEMENTS_KW,
+            SyntaxKind::DIFFERENT_KW,
+            SyntaxKind::EDGES_KW,
+            SyntaxKind::PATH_MODE,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];
@@ -628,5 +659,14 @@ mod tests {
         assert!(SyntaxKind::L_PAREN.is_punct());
         assert!(SyntaxKind::SOURCE_FILE.is_node());
         assert!(!SyntaxKind::SOURCE_FILE.is_token());
+        // cy-q2g: the four GQL path-mode keywords land inside the
+        // keyword zone even with slots 184..=185 reserved for parallel
+        // beads (`is_keyword` is a range check; the gap slots have no
+        // enum variant so they cannot exist as values).
+        assert!(SyntaxKind::REPEATABLE_KW.is_keyword());
+        assert!(SyntaxKind::ELEMENTS_KW.is_keyword());
+        assert!(SyntaxKind::DIFFERENT_KW.is_keyword());
+        assert!(SyntaxKind::EDGES_KW.is_keyword());
+        assert!(SyntaxKind::PATH_MODE.is_node());
     }
 }

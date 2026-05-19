@@ -116,6 +116,9 @@ fn all_count_pinned() {
     // cy-pnp: added E0088 / E0089 for GQL type-assertion recovery — the
     //         `IS [NOT] TYPED <Type>` predicate and the `<expr> :: <Type>`
     //         typed-value shorthand (ISO/IEC 39075:2024 §6.5.2).
-    const EXPECTED: usize = 129;
+    // cy-q2g: added E0090 for the `MATCH` path-mode prefix
+    //         (`REPEATABLE ELEMENTS` / `DIFFERENT EDGES`, ISO/IEC
+    //         39075:2024 §10.6.3).
+    const EXPECTED: usize = 130;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
