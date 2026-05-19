@@ -62,8 +62,7 @@ fn at_path_selector(p: &mut Parser<'_>) -> bool {
     if p.at(SyntaxKind::SHORTEST_KW) {
         return true;
     }
-    if (p.at(SyntaxKind::ANY_KW) || p.at(SyntaxKind::ALL_KW))
-        && p.nth(1) == SyntaxKind::SHORTEST_KW
+    if (p.at(SyntaxKind::ANY_KW) || p.at(SyntaxKind::ALL_KW)) && p.nth(1) == SyntaxKind::SHORTEST_KW
     {
         return true;
     }
