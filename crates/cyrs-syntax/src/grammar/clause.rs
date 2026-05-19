@@ -16,7 +16,7 @@ use super::{expression, pattern};
 pub(crate) fn clause(p: &mut Parser<'_>) {
     match p.current() {
         SyntaxKind::MATCH_KW => match_clause(p),
-        SyntaxKind::OPTIONAL_KW => optional_match_clause(p),
+        SyntaxKind::OPTIONAL_KW => optional_clause(p),
         SyntaxKind::WHERE_KW => where_clause(p),
         SyntaxKind::RETURN_KW => return_clause(p),
         SyntaxKind::WITH_KW => with_clause(p),
@@ -44,16 +44,41 @@ fn match_clause(p: &mut Parser<'_>) {
     m.complete(p, SyntaxKind::MATCH_CLAUSE);
 }
 
-/// `OPTIONAL MATCH Pattern (...)` — spec §19, cypher.ungrammar
-/// `'OPTIONAL'? 'MATCH' ...`. We emit it under `OPTIONAL_MATCH_CLAUSE`.
-fn optional_match_clause(p: &mut Parser<'_>) {
+/// `OPTIONAL MATCH ...` or `OPTIONAL CALL ...` — covers both GQL/Cypher
+/// shapes that begin with the `OPTIONAL` qualifier:
+///
+/// - `OPTIONAL MATCH Pattern (...)` — spec §19, cypher.ungrammar
+///   `'OPTIONAL'? 'MATCH' ...`. Emitted as `OPTIONAL_MATCH_CLAUSE`.
+/// - `OPTIONAL CALL Procedure (...) [YIELD ...]` — ISO/IEC 39075:2024
+///   §14.11.3 (cy-tdl). Emitted as `OPTIONAL_CALL_CLAUSE`. Reuses the
+///   exact body shape of `call_clause` so HIR lowering can share the
+///   procedure-call path; the discriminant between the two is the wrap
+///   kind plus the leading `OPTIONAL_KW` child token.
+///
+/// On any other token after `OPTIONAL`, emits `E0042` and falls through
+/// to the MATCH path so downstream recovery is unaffected.
+fn optional_clause(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::OPTIONAL_KW));
     let m = p.start();
     p.bump(SyntaxKind::OPTIONAL_KW);
+    if p.at(SyntaxKind::CALL_KW) {
+        // OPTIONAL CALL — GQL-distinct. Body shape mirrors call_clause:
+        // CALL kw + procedure name + optional arg list + optional YIELD.
+        p.bump(SyntaxKind::CALL_KW);
+        procedure_name(p);
+        if p.at(SyntaxKind::L_PAREN) {
+            call_arg_list(p);
+        }
+        if p.at(SyntaxKind::YIELD_KW) {
+            yield_subclause(p);
+        }
+        m.complete(p, SyntaxKind::OPTIONAL_CALL_CLAUSE);
+        return;
+    }
     if !p.eat(SyntaxKind::MATCH_KW) {
         p.error_code(
-            sc::EXPECTED_MATCH_AFTER_OPTIONAL,
-            "expected MATCH after OPTIONAL",
+            sc::EXPECTED_MATCH_OR_CALL_AFTER_OPTIONAL,
+            "expected MATCH or CALL after OPTIONAL",
         );
     }
     pattern::pattern_list(p);

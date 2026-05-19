@@ -274,6 +274,15 @@ pub enum SyntaxKind {
     // is the textual identifier under the `INSERT_KW`.
     INSERT_CLAUSE,
 
+    // GQL `OPTIONAL CALL` qualifier (cy-tdl, ISO/IEC 39075:2024 §14.11.3).
+    // Wraps the same body shape as `CALL_CLAUSE` but signals that the
+    // procedure invocation is optional: the GQL semantics return the
+    // empty multiset on failure rather than propagating an error. The
+    // discriminant is the leading `OPTIONAL_KW` child token; the rest of
+    // the node mirrors `CALL_CLAUSE`. Raw value 391: slot 390 is reserved
+    // for `FILTER_CLAUSE` (parallel bead).
+    OPTIONAL_CALL_CLAUSE = 391,
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -463,6 +472,7 @@ impl SyntaxKind {
             387 => Self::LIST_PREDICATE_EXPR,
             388 => Self::SHORTEST_PATH_PATTERN,
             389 => Self::INSERT_CLAUSE,
+            391 => Self::OPTIONAL_CALL_CLAUSE,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -557,6 +567,7 @@ mod tests {
             SyntaxKind::SOURCE_FILE,
             SyntaxKind::LIST_PREDICATE_EXPR,
             SyntaxKind::SHORTEST_PATH_PATTERN,
+            SyntaxKind::OPTIONAL_CALL_CLAUSE,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

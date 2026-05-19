@@ -277,6 +277,39 @@ impl CallClause {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OptionalCallClause {
+    syntax: SyntaxNode,
+}
+
+impl OptionalCallClause {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::OPTIONAL_CALL_CLAUSE).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn arg_list(&self) -> Option<ArgList> {
+        self.syntax.children().find_map(ArgList::cast)
+    }
+
+    pub fn optional_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::OPTIONAL_KW)
+    }
+
+    pub fn call_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::CALL_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CreateClause {
     syntax: SyntaxNode,
 }
@@ -1122,6 +1155,7 @@ pub enum Clause {
     ReturnClause(ReturnClause),
     UnwindClause(UnwindClause),
     CallClause(CallClause),
+    OptionalCallClause(OptionalCallClause),
     CreateClause(CreateClause),
     MergeClause(MergeClause),
     SetClause(SetClause),
@@ -1145,6 +1179,9 @@ impl Clause {
         }
         if let Some(inner) = CallClause::cast(syntax.clone()) {
             return Some(Self::CallClause(inner));
+        }
+        if let Some(inner) = OptionalCallClause::cast(syntax.clone()) {
+            return Some(Self::OptionalCallClause(inner));
         }
         if let Some(inner) = CreateClause::cast(syntax.clone()) {
             return Some(Self::CreateClause(inner));
@@ -1171,6 +1208,7 @@ impl Clause {
             Self::ReturnClause(inner) => inner.syntax(),
             Self::UnwindClause(inner) => inner.syntax(),
             Self::CallClause(inner) => inner.syntax(),
+            Self::OptionalCallClause(inner) => inner.syntax(),
             Self::CreateClause(inner) => inner.syntax(),
             Self::MergeClause(inner) => inner.syntax(),
             Self::SetClause(inner) => inner.syntax(),

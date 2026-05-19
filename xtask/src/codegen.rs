@@ -971,6 +971,7 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "DELETE_CLAUSE",
         "UNWIND_CLAUSE",
         "CALL_CLAUSE",
+        "OPTIONAL_CALL_CLAUSE",
         "UNION_TAIL",
         "MERGE_ACTION",
         "RETURN_BODY",

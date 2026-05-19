@@ -113,6 +113,21 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: default per spec §4.3.
 - Virtual insertion: none planned until production lands.
 
+### OptionalCallClause
+
+- Status: **IMPLEMENTED** (cy-tdl, ISO/IEC 39075:2024 §14.11.3).
+- Synchronisation set: shared with `CallClause` — clause-level keywords +
+  `;` + EOF (default), plus `YIELD` as the optional trailer keyword.
+- Skip-and-recover: dispatched from the shared `optional_clause` body,
+  which branches on the token after `OPTIONAL`. The CALL branch reuses
+  the exact recovery shape of `CallClause`; the MATCH branch is
+  unchanged. A token after `OPTIONAL` that is neither `MATCH` nor `CALL`
+  emits `E0042` (`expected MATCH or CALL after OPTIONAL`) and falls
+  through to the MATCH path so the surrounding statement still recovers.
+- Virtual insertion: none dedicated to this node — the embedded procedure
+  name, argument list, and `YIELD` sub-clause carry their own diagnostics
+  (`E0073`, `E0074`, etc.) via the `call_clause` helpers.
+
 ### YieldClause
 
 - Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).

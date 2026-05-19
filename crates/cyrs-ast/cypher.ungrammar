@@ -52,6 +52,7 @@ Clause =
 | ReturnClause
 | UnwindClause
 | CallClause
+| OptionalCallClause
 | CreateClause
 | InsertClause
 | MergeClause
@@ -78,6 +79,13 @@ UnwindClause =
 CallClause =
   'CALL' name:QualifiedName ( '(' ArgList? ')' )? YieldClause?
 // DEFERRED: `CALL { <subquery> }` form — spec §19 / §20 D1.
+
+// `OPTIONAL CALL` — GQL ISO/IEC 39075:2024 §14.11.3 (cy-tdl). Same body
+// shape as `CallClause`, but signals optional invocation (empty multiset
+// on failure rather than error propagation). Emitted as a distinct node
+// so HIR can model the optional semantics without touching `CallClause`.
+OptionalCallClause =
+  'OPTIONAL' 'CALL' name:QualifiedName ( '(' ArgList? ')' )? YieldClause?
 
 YieldClause =
   'YIELD' ( '*' | YieldItem (',' YieldItem)* ) WhereClause?

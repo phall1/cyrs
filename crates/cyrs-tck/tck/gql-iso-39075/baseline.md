@@ -28,14 +28,14 @@ is therefore expected to be low — most GQL-only constructs
 |---|---|
 | Feature files scanned | **7** |
 | Scenario cases (outline rows expanded) | **18** |
-| Accepted by parser | **5** (27.8 %) |
-| Rejected by parser | **13** (72.2 %) |
+| Accepted by parser | **6** (33.3 %) |
+| Rejected by parser | **12** (66.7 %) |
 
 ## Per-area pass counts
 
 | Area | Accepted | Total | % |
 |---|---|---|---|
-| `clauses` | 5 | 10 | 50.0 % |
+| `clauses` | 6 | 10 | 60.0 % |
 | `paths` | 0 | 3 | 0.0 % |
 | `types` | 0 | 3 | 0.0 % |
 | `values` | 0 | 2 | 0.0 % |

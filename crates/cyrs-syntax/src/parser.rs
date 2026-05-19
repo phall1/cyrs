@@ -525,8 +525,13 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_SKIP_EXPR: u16 = 40;
     /// E0041 — expected expression after `LIMIT`.
     pub(crate) const EXPECTED_LIMIT_EXPR: u16 = 41;
-    /// E0042 — expected `MATCH` after `OPTIONAL`.
-    pub(crate) const EXPECTED_MATCH_AFTER_OPTIONAL: u16 = 42;
+    /// E0042 — expected `MATCH` or `CALL` after `OPTIONAL`.
+    ///
+    /// Previously named `EXPECTED_MATCH_AFTER_OPTIONAL` (cy-nom era);
+    /// renamed for GQL `OPTIONAL CALL` (cy-tdl, ISO/IEC 39075:2024 §14.11.3).
+    /// The numeric code is unchanged — the diagnostic registry entry
+    /// retains its slot.
+    pub(crate) const EXPECTED_MATCH_OR_CALL_AFTER_OPTIONAL: u16 = 42;
     /// E0043 — expected expression after `WHERE`.
     pub(crate) const EXPECTED_WHERE_EXPR: u16 = 43;
     /// E0044 — clause not yet implemented (deferred construct).

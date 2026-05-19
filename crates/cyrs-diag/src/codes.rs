@@ -190,7 +190,7 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E0041.md`
     E0041 = 41,
-    /// Expected `MATCH` after `OPTIONAL`.
+    /// Expected `MATCH` or `CALL` after `OPTIONAL`.
     ///
     /// Docs: `docs/errors/E0042.md`
     E0042 = 42,
