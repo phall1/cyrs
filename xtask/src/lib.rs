@@ -14,5 +14,6 @@ pub mod check_diag_codes;
 pub mod check_recovery;
 pub mod check_recovery_budget;
 pub mod codegen;
+pub mod gql_rules;
 pub mod tree_sitter_parity;
 pub mod wasm;

@@ -67,6 +67,14 @@ enum Cmd {
     CheckRecoveryBudget,
     /// Build rustdoc with `-D warnings` (spec §17.15, bead cy-93c).
     Doc,
+    /// Extract a rule manifest from the vendored opengql `GQL.g4`
+    /// ANTLR4 grammar (bead cy-7hn0).
+    ///
+    /// Writes `crates/cyrs-tck/tck/opengql-grammar/rules.json` and
+    /// `…/rules.md` deterministically. Pure Rust — no JVM, no ANTLR
+    /// runtime.
+    #[command(name = "gql-rules")]
+    GqlRules,
     /// Tree-sitter grammar ↔ cyrs TCK v1 parity gate (bead cy-od5.1).
     ///
     /// Regenerates the grammar, runs `tree-sitter test`, and then diffs
@@ -127,6 +135,7 @@ fn main() -> Result<()> {
         Cmd::CheckDiagCodes => xtask::check_diag_codes::run(),
         Cmd::CheckRecoveryBudget => xtask::check_recovery_budget::run(),
         Cmd::Doc => doc(),
+        Cmd::GqlRules => xtask::gql_rules::run(),
         Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
         Cmd::WasmBuild => xtask::wasm::build(),
         Cmd::WasmSize => xtask::wasm::size(),
