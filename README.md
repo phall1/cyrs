@@ -9,9 +9,9 @@
 Lexer, recovering parser, lossless CST, typed AST, HIR with name
 resolution, schema-aware semantic analysis, diagnostics engine,
 formatter, incremental analysis database, language server, agent-facing
-JSON API, CLI. openCypher v9 front-end (93.2 % TCK acceptance) with
-in-progress GQL ISO/IEC 39075:2024 support (parser bootstrap landed —
-11.1 % on a 7-feature seed corpus; see [coverage](#coverage)).
+JSON API, CLI. openCypher v9 front-end (93.2 % TCK acceptance) and
+GQL ISO/IEC 39075:2024 parser-acceptance bootstrap (**18 / 18 = 100 %**
+on the hand-authored §-cited corpus; see [coverage](#coverage)).
 
 > Rust-compiler-grade. No execution. No domain coupling.
 
@@ -117,49 +117,77 @@ available as the [`cyrs-lang`](https://crates.io/crates/cyrs-lang) meta-crate.
 
 ## Coverage
 
-cyrs is a **Cypher front-end** first; GQL ISO/IEC 39075:2024 support is a
-deliberate, in-progress second track. The numbers below are rolling
-measurements written by the TCK harness (spec §17.5), not aspirations.
+cyrs is a **Cypher front-end** with first-class GQL ISO/IEC 39075:2024
+parser support. The numbers below are rolling measurements written by
+the TCK harness (spec §17.5), not aspirations.
 
 | Surface | Corpus | Result | Source |
 | ------- | ------ | ------ | ------ |
 | openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cyrs-tck/tck/full-baseline.md`](./crates/cyrs-tck/tck/full-baseline.md) |
-| GQL ISO/IEC 39075:2024 | hand-authored bootstrap (7 feature files, 18 expanded scenarios) | **2 / 18 accepted (11.1 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](./crates/cyrs-tck/tck/gql-iso-39075/baseline.md) |
+| GQL ISO/IEC 39075:2024 | hand-authored §-cited bootstrap (7 feature files, 18 expanded scenarios) | **18 / 18 accepted (100 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](./crates/cyrs-tck/tck/gql-iso-39075/baseline.md) |
 
-**Caveat on the openCypher number.** "Accepted" means the parser emits
-zero syntax errors for the scenario's `When executing query:` step. It
-is **not** an end-to-end pass-rate: the front-end does no execution
-(spec §1.3 N1), and `Expected::Error` scenarios are still untriaged
-(`Expected::Ignored`) — see the baseline file's preamble. Treat 93.2 %
-as parser acceptance, not semantic conformance.
+**Read both numbers carefully — they mean different things.** Both
+report **parser acceptance** ("the parser emits zero syntax errors
+for the `When executing query:` step"), not end-to-end conformance.
+The front-end does no execution (spec §1.3 N1), so neither number
+asserts runtime semantics. Concretely:
 
-**State of GQL.** The GQL track is a parser bootstrap (bead cy-0hj):
-the corpus pins the GQL-distinct surface so future beads can land
-parser changes against a stable set of scenarios. The following
-GQL-only constructs are explicitly **not yet implemented**:
+- **openCypher 93.2 %.** Measured against the full 3 897-scenario
+  upstream TCK. `Expected::Error` scenarios are still untriaged
+  (`Expected::Ignored`); see the baseline file's preamble.
+- **GQL 100 %.** Measured against a *hand-authored bootstrap* of
+  18 scenarios that pin the GQL-distinct surface (one feature file
+  per area, each scenario citing its ISO/IEC 39075:2024 §). ISO does
+  not publish a public conformance test corpus for GQL, so the
+  bootstrap is the corpus. Going beyond 18 scenarios is corpus
+  growth, not parser work.
 
-- `INSERT NODE` (GQL insert syntax distinct from Cypher `CREATE`)
-- `FILTER` clause
-- `REPEATABLE ELEMENTS`
-- `IS TYPED` predicate
-- `ANY SHORTEST` path selector
+### What the GQL bootstrap covers (all green)
 
-If you need GQL parity today, this is not it. If you want a
-production-track Cypher front-end with a credible path to GQL
-alignment, read on.
+Each row maps a GQL-distinct construct to the ISO § it derives from
+and the bead that landed it. See the per-feature files under
+[`crates/cyrs-tck/tck/gql-iso-39075/features/`](./crates/cyrs-tck/tck/gql-iso-39075/features/)
+for the literal scenarios.
+
+| Construct | ISO § | Feature file | Bead |
+| --------- | ----- | ------------ | ---- |
+| `INSERT NODE` / `INSERT EDGE` (vs Cypher `CREATE`) | §13.4 | `clauses/Insert1.feature` | cy-8z3 |
+| `OPTIONAL CALL` (empty-multiset on failure) | §14.11.3 | `clauses/Optional1.feature` | cy-tdl |
+| `RETURN ALL` / `RETURN ... EXCLUDE <field>` | §14.13 | `clauses/Return1.feature` | cy-auh |
+| `FILTER` (post-projection row filter) | §14.10 | `clauses/Filter1.feature` | cy-r50 |
+| `IS TYPED <T>` predicate + `::` cast | §6.5.2 / §6.2 | `types/SchemaTypes1.feature` | cy-pnp |
+| `ANY SHORTEST` / `ALL SHORTEST` / `SHORTEST k` + `->+` quantifier | §10.4.2 / §10.5 | `paths/PathSelector1.feature` | cy-3mq |
+| `REPEATABLE ELEMENTS` / `DIFFERENT EDGES` + `->{m,n}` quantifier | §10.6.3 | `values/Repeatable1.feature` | cy-q2g |
+
+**Out of scope for the bootstrap** (parser acceptance only — these
+are corpus-growth follow-ups, not parser bugs): full ISO 39075
+surface coverage, schema DDL (`CREATE GRAPH TYPE` etc.),
+transaction-control statements, catalog / authorisation statements
+(§14.14, §14.15), procedure-result-set introspection, and anything
+`Neo4jCurrent`-only (spec 0001 §9.3).
+
+**Dialect routing.** The parser emits the same CST for both dialects;
+the [`DialectMode`](./crates/cyrs-db/src/lib.rs) selector lives at the
+analysis layer and gates GQL-only / Cypher-only constructs via the
+`E4xxx` diagnostic codes (see [`crates/cyrs-sema/src/dialect.rs`](./crates/cyrs-sema/src/dialect.rs)).
 
 ---
 
 ## Status
 
-Pre-0.1. The spec is accepted and locked; implementation is in progress.
-Expect breakage. Do not use in production yet.
+**0.1.0 on crates.io.** All workspace crates (`cyrs-syntax`, `cyrs-ast`,
+`cyrs-hir`, `cyrs-sema`, `cyrs-schema`, `cyrs-plan`, `cyrs-fmt`,
+`cyrs-diag`, `cyrs-db`, `cyrs-lang-services`, `cyrs-lsp`, `cyrs-agent`,
+`cyrs-cli`, `cyrs-tck`, `cyrs-lang`, `cyrs-wasm`, `cyrs-ffi`, `cyrs-py`,
+`cyrs-project`) are published. 0.1.0 is an initial release — the API
+surface is stable enough to depend on but expect minor breakage on the
+path to 1.0.
 
-Start with the spec:
+The spec is accepted and locked. Start there:
 [`docs/specs/0001-cypher-frontend.md`](./docs/specs/0001-cypher-frontend.md).
-Twenty-three numbered sections from scope through testing. Before adding
-features, touching architecture, or filing issues, open the spec and
-reference section numbers.
+Twenty-three numbered sections from scope through testing. Before
+adding features, touching architecture, or filing issues, open the
+spec and reference section numbers.
 
 ---
 

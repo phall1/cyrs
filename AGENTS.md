@@ -163,6 +163,75 @@ source of truth on integration depth.
   Advisory, not rigid — a stale reservation after 1h is auto-expired.
   See Flywheel AGENTS.md guidance for the macro shape.
 
+#### 4.2.1 Worktree isolation rules (load-bearing — read before fanning out)
+
+Parallel-agent fan-out has destroyed work before. The post-mortem of
+the cy-0hj GQL bootstrap (2026-05-19) lost three of six agents'
+commits to cross-contamination. The rules below codify the fix.
+
+**Where worktrees live.** Always under `/tmp/cyrs-<bead-id>/`. **Never**
+under `.claude/worktrees/`, `crates/.../.claude/`, or anywhere inside
+the main checkout. The Claude Code Agent tool's `isolation: "worktree"`
+flag puts worktrees at `.claude/worktrees/<id>/` by default — that is
+the wrong path. Either:
+
+- Pre-create the worktree yourself before invoking the agent:
+  ```sh
+  git worktree add -b cy-<bead> /tmp/cyrs-cy-<bead> main
+  ```
+  and pass `/tmp/cyrs-cy-<bead>` to the agent as its working directory; **or**
+- Use `isolation: "worktree"` only for single-agent tasks where you
+  control the entire run.
+
+**Why `.claude/worktrees/` fails.** Git worktrees share `.git/`. When
+two worktrees live under the same parent (the main checkout in our
+case), agents tend to `cd /Users/<you>/workspace/cyrs` thinking that
+is "their" tree — and silently start writing to `main`'s working
+copy. The shared index also turns one agent's `git stash` into every
+agent's `git stash`, which is how unrelated stashes land in main mid-
+session.
+
+**Hard rules for every implementing agent prompt.** Include all five
+verbatim when fanning out:
+
+1. "Stay in `$worktree_path`. Do not `cd` anywhere else. Do not touch
+   `/Users/<you>/workspace/cyrs/` or any other worktree's path."
+2. "Do not run `git stash`, `git stash pop`, `git stash drop`, or
+   `git checkout <branch>`. These operations touch the shared `.git/`
+   and corrupt parallel agents' state."
+3. "If a flaky test blocks your commit, re-run the single test in
+   isolation; do not stash + retry. If still flaky, report it as a
+   blocker rather than papering over it."
+4. "Use `git commit --no-verify` only when the orchestrator has told
+   you the pre-commit gate is broken for an unrelated reason
+   (typically a `cargo deny` lockfile issue). Otherwise `--no-verify`
+   is forbidden."
+5. "Operate only on the files listed in your prompt. If you discover
+   you need to edit a shared file (`crates/cyrs-syntax/src/kind.rs`,
+   `lexer.rs`, `parser.rs`, `cypher.ungrammar`, `diag/codes.rs`,
+   `diag/tests/registry.rs`) that another in-flight bead also touches,
+   stop and report. The orchestrator pre-allocates SyntaxKind raw u16
+   values and `DiagCode` slots; respect those reservations exactly."
+
+**Pre-allocation discipline for shared-file work.** When fanning out
+beads that all add to `kind.rs` / `lexer.rs` / `cypher.ungrammar`, the
+orchestrator MUST pre-allocate in the dispatch prompt:
+
+- `SyntaxKind` raw `u16` values (e.g. `INSERT_KW = 181`, `FILTER_KW =
+  182` — leave explicit gaps for reservations).
+- `DiagCode` slots (`E0083`, `E0084`, …) — also with explicit gaps.
+
+Agents declare their kinds with `= <pinned>` discriminants, never bare
+appends. This lets parallel branches merge with deterministic ordering
+and zero numeric drift.
+
+**Honesty rule for parallel fan-out.** Six agents all touching the
+same five files is integration hell regardless of isolation. If the
+work shape is "every bead edits kind.rs + lexer.rs + parser.rs",
+sequential is faster than parallel-plus-merge. Reserve parallel
+fan-out for genuinely disjoint surfaces (one bead per crate, one bead
+per parser subsystem with no shared SyntaxKind additions).
+
 ### 4.3 Pre-commit gate (§17)
 
 Before every commit, run — or let the hook run:
