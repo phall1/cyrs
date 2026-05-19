@@ -1,0 +1,10 @@
+error[E4020]: construct `session_set` is not allowed in dialect `OpenCypherV9`; allowed in: GqlAligned
+  ┌─ e4020_session_set_time_zone_oc_denied.cypher:1:1
+  │  
+1 │ ╭ // dialect: OpenCypherV9
+2 │ │ //
+3 │ │ // E4020: `SESSION SET TIME ZONE …` is the temporal-zone form of the
+4 │ │ // GQL-only `SESSION SET …` statement (ISO §14.15). Bead cy-lp3y.
+5 │ │ SESSION SET TIME ZONE "utc"
+  │ ╰───────────────────────────^
+

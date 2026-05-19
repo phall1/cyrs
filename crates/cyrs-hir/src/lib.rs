@@ -32,6 +32,9 @@ pub mod desugar;
 pub mod lower;
 pub mod pretty;
 pub mod scope;
+// --- cy-lp3y SESSION SET HIR ---
+pub mod session;
+// --- end cy-lp3y ---
 pub mod visit;
 
 pub use lower::{lower_parse, lower_statement};
@@ -39,6 +42,9 @@ pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
     ScopeNode,
 };
+// --- cy-lp3y SESSION SET HIR ---
+pub use session::{SessionSetHir, SessionSetVariantHir};
+// --- end cy-lp3y ---
 pub use visit::{Visitor, walk_clause, walk_expr, walk_statement};
 
 use cyrs_syntax::{Parse, SyntaxError, SyntaxNode, TextRange};
@@ -162,6 +168,13 @@ pub struct Statement {
     /// originating concrete syntax node. Determinism is preserved by
     /// [`IndexMap`]'s insertion order.
     pub node_map: IndexMap<HirId, SyntaxNode>,
+    // --- cy-lp3y SESSION SET HIR ---
+    /// GQL `SESSION SET …` top-level statement (ISO §14.15), when the
+    /// source statement was of that form. Mutually exclusive with
+    /// `clauses`: when `session_set.is_some()`, `clauses` is empty.
+    /// See [`session`] for the variant shape.
+    pub session_set: Option<SessionSetHir>,
+    // --- end cy-lp3y ---
     /// Monotonic counter for [`Self::alloc_id`]. Starts at 1 so that
     /// [`HirId::DUMMY`] remains a distinguishable sentinel.
     next_id: u32,
@@ -175,6 +188,9 @@ impl Statement {
             bindings: IndexMap::new(),
             span,
             node_map: IndexMap::new(),
+            // --- cy-lp3y SESSION SET HIR ---
+            session_set: None,
+            // --- end cy-lp3y ---
             next_id: 1,
         }
     }
