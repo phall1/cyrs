@@ -224,6 +224,24 @@ pub enum SyntaxKind {
     NEXT_KW = 194,
     // --- end cy-rgqg ---
 
+    // --- cy-9kzx SESSION SET ---
+    // GQL SESSION SET statements (ISO/IEC 39075:2024 §14.15; cy-9kzx).
+    // `SESSION` introduces a top-level session-management statement
+    // category (`SESSION SET GRAPH`, `SESSION SET PROPERTY GRAPH`,
+    // `SESSION SET TIME ZONE`, `SESSION SET VALUE`). `ZONE` is reserved
+    // as a keyword because it always appears in the fixed `TIME ZONE`
+    // phrase and no openCypher query body uses it as an identifier
+    // (verified empty: `grep -rwi 'ZONE' tck/full/`). The other
+    // session-set words (`GRAPH`, `PROPERTY`, `TIME`, `VALUE`, `IF`,
+    // `CURRENT_GRAPH`, `CURRENT_PROPERTY_GRAPH`) stay as ordinary
+    // identifiers and are recognised contextually in the parser to
+    // keep the openCypher TCK pass-rate untouched. `NOT` / `EXISTS` are
+    // already reserved keywords (see above). Slots 195..=196 (rebased
+    // from 190..=191, since cy-rgqg claimed 190..=194 for catalog DDL).
+    SESSION_KW = 195,
+    ZONE_KW = 196,
+    // --- end cy-9kzx ---
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -433,6 +451,25 @@ pub enum SyntaxKind {
     GRAPH_SOURCE = 408,
     // --- end cy-rgqg ---
 
+    // --- cy-9kzx SESSION SET ---
+    // GQL SESSION SET top-level statement (ISO/IEC 39075:2024 §14.15;
+    // cy-9kzx). `SESSION_SET_STMT` sits directly under `SOURCE_FILE` —
+    // it is not a `STATEMENT` because it is not a query (no `Clause+`
+    // body, no `UNION` participation). The four sub-forms (graph
+    // selector, property-graph selector, time-zone, value/parameter)
+    // share the same outer node; the discriminant is the inner variant
+    // child (`SESSION_SET_GRAPH_VARIANT`, `SESSION_SET_TIME_ZONE_VARIANT`,
+    // `SESSION_SET_VALUE_VARIANT`). The `PROPERTY GRAPH` variation
+    // collapses into `SESSION_SET_GRAPH_VARIANT` with an optional
+    // leading `PROPERTY` IDENT child — both forms have the same
+    // semantic shape (assign-graph-ref). Slots 409..=412 (rebased from
+    // 402..=405, since cy-rgqg claimed 399..=408 for catalog DDL).
+    SESSION_SET_STMT = 409,
+    SESSION_SET_GRAPH_VARIANT = 410,
+    SESSION_SET_TIME_ZONE_VARIANT = 411,
+    SESSION_SET_VALUE_VARIANT = 412,
+    // --- end cy-9kzx ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -564,7 +601,10 @@ impl SyntaxKind {
             192 => Self::COPY_KW,
             193 => Self::OF_KW,
             194 => Self::NEXT_KW,
-
+            // --- cy-9kzx SESSION SET ---
+            195 => Self::SESSION_KW,
+            196 => Self::ZONE_KW,
+            // --- end cy-9kzx ---
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
             322 => Self::MATCH_CLAUSE,
@@ -655,6 +695,12 @@ impl SyntaxKind {
             407 => Self::PROPERTY_TYPE_DECL,
             408 => Self::GRAPH_SOURCE,
 
+            // --- cy-9kzx SESSION SET ---
+            409 => Self::SESSION_SET_STMT,
+            410 => Self::SESSION_SET_GRAPH_VARIANT,
+            411 => Self::SESSION_SET_TIME_ZONE_VARIANT,
+            412 => Self::SESSION_SET_VALUE_VARIANT,
+            // --- end cy-9kzx ---
             768 => Self::ERROR,
             769 => Self::EOF,
 
@@ -684,15 +730,16 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=NEXT_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=ZONE_KW`).
     ///
-    /// `NEXT_KW` is the current upper bound (cy-rgqg catalog DDL).
+    /// `ZONE_KW` is the current upper bound (cy-9kzx SESSION SET; sits
+    /// at slot 196, above cy-rgqg's catalog-DDL keywords at 190..=194).
     /// Internal slots may be unassigned — `from_u16` returns `None`
     /// for those gaps, so they never round-trip into a keyword.
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::NEXT_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::ZONE_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).

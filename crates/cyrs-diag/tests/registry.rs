@@ -121,6 +121,8 @@ fn all_count_pinned() {
     //         39075:2024 §10.6.3).
     // cy-r50: added E0084 for the GQL `FILTER` post-projection clause
     //         (ISO/IEC 39075:2024 §14.10).
-    const EXPECTED: usize = 131;
+    // cy-9kzx: added E0091–E0098 for the GQL `SESSION SET` top-level
+    //          statement category (ISO/IEC 39075:2024 §14.15).
+    const EXPECTED: usize = 139;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

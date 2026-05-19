@@ -103,6 +103,255 @@ impl MapProjectionItem {
     }
 }
 
+// --- cy-9kzx SESSION SET ---
+//
+// GQL `SESSION SET` statements (ISO/IEC 39075:2024 §14.15) — see
+// `cyrs_syntax::grammar::session` for the parser. The codegen path
+// (cy-pbx) does not yet emit alternation-shaped wrappers for this kind
+// of node tree, so the typed AST wrappers are hand-written here.
+
+/// Typed wrapper for a top-level `SESSION SET ...` statement (cy-9kzx;
+/// ISO/IEC 39075:2024 §14.15). The discriminant is the inner variant
+/// child; classify with [`Self::variant`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SessionSetStmt {
+    syntax: SyntaxNode,
+}
+
+/// The four sub-forms of `SESSION SET`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SessionSetVariant {
+    /// `SESSION SET GRAPH <ref>` or `SESSION SET PROPERTY GRAPH <ref>`.
+    Graph(SessionSetGraphVariant),
+    /// `SESSION SET TIME ZONE <string>`.
+    TimeZone(SessionSetTimeZoneVariant),
+    /// `SESSION SET VALUE [IF NOT EXISTS] $param = <expr>`.
+    Value(SessionSetValueVariant),
+}
+
+impl SessionSetStmt {
+    /// Try to cast a raw `SyntaxNode` to a `SessionSetStmt`. Returns
+    /// `None` unless `syntax.kind() == SESSION_SET_STMT`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SESSION_SET_STMT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// Classify this statement by inspecting its variant child.
+    /// Returns `None` only for malformed recovery shapes where no
+    /// variant child was emitted.
+    pub fn variant(&self) -> Option<SessionSetVariant> {
+        self.syntax.children().find_map(|c| match c.kind() {
+            SyntaxKind::SESSION_SET_GRAPH_VARIANT => {
+                SessionSetGraphVariant::cast(c).map(SessionSetVariant::Graph)
+            }
+            SyntaxKind::SESSION_SET_TIME_ZONE_VARIANT => {
+                SessionSetTimeZoneVariant::cast(c).map(SessionSetVariant::TimeZone)
+            }
+            SyntaxKind::SESSION_SET_VALUE_VARIANT => {
+                SessionSetValueVariant::cast(c).map(SessionSetVariant::Value)
+            }
+            _ => None,
+        })
+    }
+
+    /// The leading `SESSION` keyword token, when present.
+    pub fn session_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::SESSION_KW)
+    }
+}
+
+impl AstNode for SessionSetStmt {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::SESSION_SET_STMT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for the `SESSION SET [PROPERTY] GRAPH <ref>` variant.
+///
+/// Both `SESSION SET GRAPH` and `SESSION SET PROPERTY GRAPH` collapse
+/// into this node; the discriminant for the property-graph form is the
+/// presence of an IDENT child whose text matches `PROPERTY`
+/// (case-insensitively). [`Self::is_property_graph`] is the
+/// documentation-grade accessor.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SessionSetGraphVariant {
+    syntax: SyntaxNode,
+}
+
+impl SessionSetGraphVariant {
+    /// Try to cast a raw `SyntaxNode` to a `SessionSetGraphVariant`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SESSION_SET_GRAPH_VARIANT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// `true` iff this was spelled as `SESSION SET PROPERTY GRAPH ...`.
+    pub fn is_property_graph(&self) -> bool {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|t| !t.kind().is_trivia())
+            .any(|t| t.kind() == SyntaxKind::IDENT && t.text().eq_ignore_ascii_case("PROPERTY"))
+    }
+
+    /// The graph-reference token (`IDENT` or `QUOTED_IDENT`). `None` for
+    /// recovery shapes where the reference was missing.
+    pub fn graph_ref_token(&self) -> Option<SyntaxToken> {
+        // Skip the leading `GRAPH` (and optional `PROPERTY`) tokens and
+        // return the *last* IDENT / QUOTED_IDENT under the variant, which
+        // is the trailing graph reference.
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|t| matches!(t.kind(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT))
+            .filter(|t| {
+                !(t.kind() == SyntaxKind::IDENT
+                    && (t.text().eq_ignore_ascii_case("PROPERTY")
+                        || t.text().eq_ignore_ascii_case("GRAPH")))
+            })
+            .last()
+    }
+}
+
+impl AstNode for SessionSetGraphVariant {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::SESSION_SET_GRAPH_VARIANT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for `SESSION SET TIME ZONE <string-literal>`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SessionSetTimeZoneVariant {
+    syntax: SyntaxNode,
+}
+
+impl SessionSetTimeZoneVariant {
+    /// Try to cast a raw `SyntaxNode` to a `SessionSetTimeZoneVariant`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SESSION_SET_TIME_ZONE_VARIANT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// The trailing string-literal token carrying the time-zone name.
+    pub fn time_zone_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::STRING_LITERAL)
+    }
+
+    /// The `ZONE` keyword token, when present.
+    pub fn zone_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ZONE_KW)
+    }
+}
+
+impl AstNode for SessionSetTimeZoneVariant {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::SESSION_SET_TIME_ZONE_VARIANT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+/// Typed wrapper for `SESSION SET VALUE [IF NOT EXISTS] $param = <expr>`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SessionSetValueVariant {
+    syntax: SyntaxNode,
+}
+
+impl SessionSetValueVariant {
+    /// Try to cast a raw `SyntaxNode` to a `SessionSetValueVariant`.
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::SESSION_SET_VALUE_VARIANT).then_some(Self { syntax })
+    }
+
+    /// The underlying `SyntaxNode`.
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    /// `true` iff the optional `IF NOT EXISTS` guard was present.
+    pub fn is_if_not_exists(&self) -> bool {
+        let mut saw_if = false;
+        for t in self
+            .syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|t| !t.kind().is_trivia())
+        {
+            if t.kind() == SyntaxKind::IDENT && t.text().eq_ignore_ascii_case("IF") {
+                saw_if = true;
+            }
+            if saw_if && t.kind() == SyntaxKind::EXISTS_KW {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The `$param` token bound to the new session value.
+    pub fn param_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::PARAM)
+    }
+
+    /// The right-hand-side expression assigned to the parameter.
+    pub fn value_expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+}
+
+impl AstNode for SessionSetValueVariant {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::SESSION_SET_VALUE_VARIANT
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        Self::cast(syntax)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+// --- end cy-9kzx ---
+
 /// Hand-written accessor: iterate the [`MapProjectionItem`] children of a
 /// [`MapProjection`]. Lives outside `generated.rs` so codegen runs do not
 /// clobber it.
@@ -142,5 +391,78 @@ mod tests {
         let src = SourceFile::cast(parse.syntax()).expect("SOURCE_FILE root");
         // Trivial sanity — confirm the syntax handle round-trips.
         assert_eq!(src.syntax().kind(), SyntaxKind::SOURCE_FILE);
+    }
+
+    // --- cy-9kzx SESSION SET typed AST coverage ---
+    fn first_session_set(src: &str) -> super::SessionSetStmt {
+        let parse = parse(src);
+        let root = parse.syntax();
+        root.children()
+            .find_map(super::SessionSetStmt::cast)
+            .expect("SESSION_SET_STMT child of SOURCE_FILE")
+    }
+
+    #[test]
+    fn ast_session_set_graph_variant() {
+        let stmt = first_session_set("SESSION SET GRAPH CURRENT_GRAPH");
+        let v = stmt.variant().expect("variant child");
+        let super::SessionSetVariant::Graph(g) = v else {
+            panic!("expected Graph variant");
+        };
+        assert!(!g.is_property_graph());
+        let tok = g.graph_ref_token().expect("graph-ref token");
+        assert_eq!(tok.text(), "CURRENT_GRAPH");
+    }
+
+    #[test]
+    fn ast_session_set_property_graph_variant() {
+        let stmt = first_session_set("SESSION SET PROPERTY GRAPH CURRENT_PROPERTY_GRAPH");
+        let v = stmt.variant().expect("variant child");
+        let super::SessionSetVariant::Graph(g) = v else {
+            panic!("expected Graph variant");
+        };
+        assert!(g.is_property_graph());
+        let tok = g.graph_ref_token().expect("graph-ref token");
+        assert_eq!(tok.text(), "CURRENT_PROPERTY_GRAPH");
+    }
+
+    #[test]
+    fn ast_session_set_time_zone_variant() {
+        let stmt = first_session_set("SESSION SET TIME ZONE \"utc\"");
+        let v = stmt.variant().expect("variant child");
+        let super::SessionSetVariant::TimeZone(tz) = v else {
+            panic!("expected TimeZone variant");
+        };
+        let tok = tz.time_zone_token().expect("string literal token");
+        assert_eq!(tok.text(), "\"utc\"");
+    }
+
+    #[test]
+    fn ast_session_set_value_variant() {
+        // The RHS expression slot uses the existing GQL expression
+        // grammar; a `MapLiteral` expression survives the `Expr::cast`
+        // sum-type round-trip (the bare integer literal `42` lowers
+        // into a `LITERAL_EXPR` which is not on the `Expr` enum today
+        // — that is a separate codegen gap, not a SESSION SET concern).
+        let stmt = first_session_set("SESSION SET VALUE IF NOT EXISTS $foo = {a: 1}");
+        let v = stmt.variant().expect("variant child");
+        let super::SessionSetVariant::Value(val) = v else {
+            panic!("expected Value variant");
+        };
+        assert!(val.is_if_not_exists());
+        let param = val.param_token().expect("param token");
+        assert_eq!(param.text(), "$foo");
+        assert!(val.value_expr().is_some());
+    }
+
+    #[test]
+    fn ast_session_set_value_variant_without_if_not_exists() {
+        let stmt = first_session_set("SESSION SET VALUE $bar = {x: 'hi'}");
+        let v = stmt.variant().expect("variant child");
+        let super::SessionSetVariant::Value(val) = v else {
+            panic!("expected Value variant");
+        };
+        assert!(!val.is_if_not_exists());
+        assert_eq!(val.param_token().unwrap().text(), "$bar");
     }
 }

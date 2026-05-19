@@ -32,6 +32,7 @@ pub(crate) mod catalog;
 pub(crate) mod clause;
 pub(crate) mod expression;
 pub(crate) mod pattern;
+pub(crate) mod session;
 pub(crate) mod statement;
 
 /// Clause-starter keywords. Entering a clause means the current token is
@@ -65,15 +66,16 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
     let m = p.start();
 
     // Leading-junk recovery: if we start with something that is not a
-    // clause keyword, a catalog-DDL opener, `;`, or `NEXT`, skip until we
-    // see one (or EOF). This gives the `garbage MATCH ...` case a usable
-    // tree.
+    // clause keyword, a catalog-DDL opener, a top-level statement-category
+    // opener (`SESSION`), `;`, or `NEXT`, skip until we see one (or EOF).
+    // This gives the `garbage MATCH ...` case a usable tree.
     if p.current() != SyntaxKind::EOF
         && !p.at_ts(CLAUSE_START)
         && !p.at(SyntaxKind::SEMI)
         && !p.at(SyntaxKind::NEXT_KW)
         && !p.at(SyntaxKind::UNION_KW)
         && !catalog::at_catalog_create(p)
+        && !p.at(SyntaxKind::SESSION_KW)
     {
         p.error_code(sc::EXPECTED_STATEMENT, "expected statement");
         p.recover_until(TokenSet::EMPTY);
@@ -100,6 +102,12 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
         }
         if catalog::at_catalog_create(p) {
             catalog::catalog_statement(p);
+        } else if p.at(SyntaxKind::SESSION_KW) {
+            // cy-9kzx: GQL SESSION SET statements (ISO/IEC 39075:2024 §14.15)
+            // are a top-level statement category disjoint from the query
+            // `STATEMENT` — they have no `Clause+` body and do not
+            // participate in `UNION`.
+            session::session_set_stmt(p);
         } else {
             statement::statement(p);
         }
@@ -113,6 +121,7 @@ pub(crate) fn source_file(p: &mut Parser<'_>) {
             if !p.at_ts(CLAUSE_START)
                 && !p.at(SyntaxKind::UNION_KW)
                 && !catalog::at_catalog_create(p)
+                && !p.at(SyntaxKind::SESSION_KW)
             {
                 p.error_code(
                     sc::EXPECTED_SEMICOLON_OR_EOF,
