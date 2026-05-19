@@ -22,6 +22,7 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
         SyntaxKind::WITH_KW => with_clause(p),
         SyntaxKind::UNWIND_KW => unwind_clause(p),
         SyntaxKind::CREATE_KW => create_clause(p),
+        SyntaxKind::INSERT_KW => insert_clause(p),
         SyntaxKind::MERGE_KW => merge_clause(p),
         SyntaxKind::SET_KW => set_clause(p),
         SyntaxKind::REMOVE_KW => remove_clause(p),
@@ -117,6 +118,41 @@ fn create_clause(p: &mut Parser<'_>) {
         p.error_code(sc::EXPECTED_CREATE_PATTERN, "expected pattern after CREATE");
     }
     m.complete(p, SyntaxKind::CREATE_CLAUSE);
+}
+
+/// `InsertClause = 'INSERT' ('NODE' | 'EDGE')? Pattern (',' Pattern)*`
+/// — GQL-distinct write clause (cy-8z3; ISO/IEC 39075:2024 §13.4).
+///
+/// GQL spells data-creation as `INSERT NODE (n:Person {…})` /
+/// `INSERT EDGE (a)-[:KNOWS]->(b)`; openCypher spells the equivalent
+/// `CREATE`. Parser-side we accept both qualifier spellings and let the
+/// pattern's own shape (node vs relationship) carry the semantic
+/// distinction — the qualifier is documentation, not a discriminator.
+///
+/// The qualifier (`NODE` / `EDGE`) is recognised contextually (it stays
+/// as an `IDENT` in the lexer so that openCypher's `:NODE` / `:EDGE`
+/// label spellings continue to lex as patterns). Both qualifiers are
+/// optional: bare `INSERT (n:Person)` parses the same way, because the
+/// pattern alone determines node-vs-edge creation.
+///
+/// Dialect gating is enforced in cyrs-sema (an OpenCypherV9-mode
+/// `INSERT_CLAUSE` emits an E4xxx diagnostic; v1 scope leaves that
+/// to a follow-up bead).
+fn insert_clause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::INSERT_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::INSERT_KW);
+    // Optional `NODE` / `EDGE` qualifier — contextual IDENT, not a
+    // reserved keyword.
+    if p.at_contextual("NODE") || p.at_contextual("EDGE") {
+        p.bump_any();
+    }
+    if p.at(SyntaxKind::L_PAREN) {
+        pattern::pattern_list(p);
+    } else {
+        p.error_code(sc::EXPECTED_INSERT_PATTERN, "expected pattern after INSERT");
+    }
+    m.complete(p, SyntaxKind::INSERT_CLAUSE);
 }
 
 /// `MergeClause = 'MERGE' Pattern MergeAction*` — spec ungrammar

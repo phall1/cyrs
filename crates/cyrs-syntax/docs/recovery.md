@@ -129,6 +129,13 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: default per spec §4.3.
 - Virtual insertion: none planned until production lands.
 
+### InsertClause
+
+- Status: **IMPLEMENTED** (cy-8z3) — GQL-distinct write clause per ISO/IEC 39075:2024 §13.4.
+- Synchronisation set: clause-level keywords + `;` + EOF (default).
+- Skip-and-recover: default per spec §4.3.  A missing pattern after `INSERT` (or after the optional `NODE` / `EDGE` qualifier) emits **E0083** (`EXPECTED_INSERT_PATTERN`) and the clause node closes empty so downstream clauses still parse.
+- Virtual insertion: none.
+
 ### MergeClause
 
 - Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).

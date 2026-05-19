@@ -53,6 +53,7 @@ Clause =
 | UnwindClause
 | CallClause
 | CreateClause
+| InsertClause
 | MergeClause
 | SetClause
 | RemoveClause
@@ -87,6 +88,14 @@ YieldClause =
 
 CreateClause =
   'CREATE' Pattern (',' Pattern)*
+
+// GQL-distinct write clause (ISO/IEC 39075:2024 §13.4; cyrs cy-8z3).
+// The optional NODE / EDGE qualifier is consumed by the parser as a
+// contextual identifier (not a reserved keyword) so openCypher's
+// `:NODE` / `:EDGE` label patterns keep lexing as ordinary patterns;
+// the qualifier therefore does not appear here as a typed token.
+InsertClause =
+  'INSERT' Pattern (',' Pattern)*
 
 MergeClause =
   'MERGE' Pattern MergeAction*

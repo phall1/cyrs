@@ -239,6 +239,13 @@ enum RawToken {
     Create,
     #[token("MERGE", ignore(case))]
     Merge,
+    // GQL-distinct write-clause keyword (cy-8z3, ISO/IEC 39075:2024 §13.4).
+    // Recognised in both dialect modes — the OpenCypherV9-vs-GqlAligned
+    // gate lives in cyrs-sema. `INSERT` is rare-enough as a graph
+    // identifier that reserving it does not collide with openCypher TCK
+    // queries (verified empty: `grep -ri '\\bINSERT\\b' tck/full/`).
+    #[token("INSERT", ignore(case))]
+    Insert,
     #[token("DELETE", ignore(case))]
     Delete,
     #[token("DETACH", ignore(case))]
@@ -438,6 +445,7 @@ impl RawToken {
             Self::Return => SyntaxKind::RETURN_KW,
             Self::Create => SyntaxKind::CREATE_KW,
             Self::Merge => SyntaxKind::MERGE_KW,
+            Self::Insert => SyntaxKind::INSERT_KW,
             Self::Delete => SyntaxKind::DELETE_KW,
             Self::Detach => SyntaxKind::DETACH_KW,
             Self::Set => SyntaxKind::SET_KW,

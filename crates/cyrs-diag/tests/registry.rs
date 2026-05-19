@@ -105,6 +105,10 @@ fn all_count_pinned() {
     //         (spec §6.1 / §19 row "Map projection"). Distinct from the
     //         map-literal recovery codes (E0049–E0052) so tools can
     //         tell projection from literal apart.
-    const EXPECTED: usize = 125;
+    // cy-8z3: added E0083 for `INSERT` pattern recovery — the
+    //         GQL-distinct write-clause spelling (ISO/IEC 39075:2024
+    //         §13.4) parses analogously to CREATE but emits a separate
+    //         code so dialect-aware tools can hint accordingly.
+    const EXPECTED: usize = 126;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

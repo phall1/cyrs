@@ -610,6 +610,10 @@ pub enum DiagCode {
     /// Expected an item in map projection: `.name`, `key: expr`, `.*`,
     /// or `*` (cy-01q).
     E0082 = 82,
+    /// Expected pattern after `INSERT` (cy-8z3).  Distinct from E0055
+    /// (CREATE pattern) so a downstream renderer can hint at the
+    /// dialect-specific spelling.
+    E0083 = 83,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -739,6 +743,7 @@ impl DiagCode {
             Self::E0080 => "E0080",
             Self::E0081 => "E0081",
             Self::E0082 => "E0082",
+            Self::E0083 => "E0083",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -888,6 +893,7 @@ impl DiagCode {
         Self::E0080,
         Self::E0081,
         Self::E0082,
+        Self::E0083,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1095,6 +1101,7 @@ mod tests {
             DiagCode::E0080,
             DiagCode::E0081,
             DiagCode::E0082,
+            DiagCode::E0083,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1175,11 +1182,11 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps inside ranges (E0073..=E0077, E0083+).
+        // Gaps inside ranges (E0073..=E0077, E0084+).
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
-        assert_eq!(DiagCode::try_from_u16(83), None);
+        assert_eq!(DiagCode::try_from_u16(84), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

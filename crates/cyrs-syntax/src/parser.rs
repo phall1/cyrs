@@ -654,6 +654,13 @@ pub(crate) mod syntax_codes {
     /// E0082 — expected an item in map projection: `.name`, `key: expr`,
     /// `.*`, or `*` (cy-01q). Renumbered from E0077.
     pub(crate) const EXPECTED_MAP_PROJECTION_ITEM: u16 = 82;
+    /// E0083 — expected pattern after INSERT (cy-8z3).
+    /// Mirrors EXPECTED_CREATE_PATTERN (E0055) for the GQL-distinct
+    /// `INSERT NODE` / `INSERT EDGE` clause. Distinct code so that
+    /// diagnostics can differentiate "you wrote CREATE and missed the
+    /// pattern" from "you wrote INSERT and missed the pattern", which is
+    /// useful for hint-generation in the OpenCypherV9-dialect-gate path.
+    pub(crate) const EXPECTED_INSERT_PATTERN: u16 = 83;
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`
@@ -686,6 +693,7 @@ pub(crate) const RECOVERY_STOP: TokenSet = TokenSet::new(&[
     SyntaxKind::WITH_KW,
     SyntaxKind::RETURN_KW,
     SyntaxKind::CREATE_KW,
+    SyntaxKind::INSERT_KW,
     SyntaxKind::MERGE_KW,
     SyntaxKind::SET_KW,
     SyntaxKind::REMOVE_KW,

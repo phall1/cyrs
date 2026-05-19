@@ -151,6 +151,16 @@ pub enum SyntaxKind {
     NONE_KW,
     SINGLE_KW,
 
+    // GQL-distinct keyword (cy-8z3 / cy-0hj). `INSERT` is GQL's spelling for
+    // node / edge creation (ISO/IEC 39075:2024 §13.4); openCypher uses
+    // `CREATE`. The lexer recognises `INSERT` unconditionally — the
+    // OpenCypherV9-vs-GqlAligned dialect gate lives in cyrs-sema. The two
+    // qualifiers `NODE` / `EDGE` that follow `INSERT` stay as identifiers
+    // (not keywords) so openCypher's `:NODE` / `:EDGE` label spellings keep
+    // lexing as ordinary patterns; the parser recognises them contextually
+    // after `INSERT` via `at_contextual`.
+    INSERT_KW,
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -254,6 +264,15 @@ pub enum SyntaxKind {
     // first keyword child token (SHORTESTPATH_KW vs ALLSHORTESTPATHS_KW),
     // matching the LIST_PREDICATE_EXPR pattern above.
     SHORTEST_PATH_PATTERN,
+
+    // GQL-distinct write clause (cy-8z3 / cy-0hj). `INSERT NODE` / `INSERT
+    // EDGE` is GQL's spelling for `CREATE`-style data creation per
+    // ISO/IEC 39075:2024 §13.4. Appended at the end of the node zone to
+    // preserve the numeric stability of the prior variants. The NODE /
+    // EDGE qualifier appears as an ordinary IDENT child token (contextual
+    // recognition in the parser); the discriminant between the two forms
+    // is the textual identifier under the `INSERT_KW`.
+    INSERT_CLAUSE,
 
     // =====================================================================
     // Errors & EOF (768..1024)
@@ -372,6 +391,7 @@ impl SyntaxKind {
             178 => Self::ANY_KW,
             179 => Self::NONE_KW,
             180 => Self::SINGLE_KW,
+            181 => Self::INSERT_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -442,6 +462,7 @@ impl SyntaxKind {
             386 => Self::SLICE_EXPR,
             387 => Self::LIST_PREDICATE_EXPR,
             388 => Self::SHORTEST_PATH_PATTERN,
+            389 => Self::INSERT_CLAUSE,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -472,11 +493,11 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=SINGLE_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=INSERT_KW`).
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::SINGLE_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::INSERT_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
