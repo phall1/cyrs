@@ -1,0 +1,12 @@
+error[E4020]: construct `session_set` is not allowed in dialect `OpenCypherV9`; allowed in: GqlAligned
+   ┌─ e4020_session_set_graph_oc_denied.cypher:1:1
+   │  
+ 1 │ ╭ // dialect: OpenCypherV9
+ 2 │ │ //
+ 3 │ │ // E4020: `SESSION SET …` is a GQL-only top-level statement category
+ 4 │ │ // (ISO/IEC 39075:2024 §14.15; spec §0 amendment 2026-05-19 cy-5e3f).
+   · │
+10 │ │ // gate at the user-visible surface.
+11 │ │ SESSION SET GRAPH CURRENT_GRAPH
+   │ ╰───────────────────────────────^
+

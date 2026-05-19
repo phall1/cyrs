@@ -490,6 +490,14 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E4019.md`
     E4019 = 4019,
+    // --- cy-lp3y SESSION SET HIR ---
+    /// `session_set` — GQL `SESSION SET …` top-level statement
+    /// (ISO/IEC 39075:2024 §14.15); `GqlAligned` only (spec §0
+    /// amendment 2026-05-19 cy-5e3f).
+    ///
+    /// Docs: `docs/errors/E4020.md`
+    E4020 = 4020,
+    // --- end cy-lp3y ---
 
     // --- type system (E5000–E5999) ------------------------------------
     /// Type mismatch in unification — two incompatible concrete types cannot
@@ -829,6 +837,9 @@ impl DiagCode {
             Self::E4017 => "E4017",
             Self::E4018 => "E4018",
             Self::E4019 => "E4019",
+            // --- cy-lp3y SESSION SET HIR ---
+            Self::E4020 => "E4020",
+            // --- end cy-lp3y ---
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
             Self::E5011 => "E5011",
@@ -992,6 +1003,9 @@ impl DiagCode {
         Self::E4017,
         Self::E4018,
         Self::E4019,
+        // --- cy-lp3y SESSION SET HIR ---
+        Self::E4020,
+        // --- end cy-lp3y ---
         Self::E5003,
         Self::E5010,
         Self::E5011,

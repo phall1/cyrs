@@ -196,6 +196,19 @@ pub const GATE_CALL_IN_TRANSACTIONS: DialectGate = DialectGate {
     allowed_in: &[],
 };
 
+// --- cy-lp3y SESSION SET HIR ---
+/// `SESSION SET …` top-level statement (ISO/IEC 39075:2024 §14.15).
+///
+/// GQL-only; openCypher v9 has no equivalent. Spec §0 amendment dated
+/// 2026-05-19 (cy-5e3f) puts SESSION SET in scope for parser + AST +
+/// sema in `GqlAligned` only.
+pub const GATE_SESSION_SET: DialectGate = DialectGate {
+    name: "session_set",
+    code: DiagCode::E4020,
+    allowed_in: &[DialectMode::GqlAligned],
+};
+// --- end cy-lp3y ---
+
 // ---------------------------------------------------------------------------
 // Gate check helper
 // ---------------------------------------------------------------------------
@@ -321,6 +334,19 @@ pub fn check_dialect(stmt: &Statement, dialect: DialectMode, sink: &mut Diagnost
     };
     cyrs_hir::visit::walk_statement(&mut walker, stmt);
     // --- end cy-p1u5 ---
+
+    // --- cy-lp3y SESSION SET HIR ---
+    // `SESSION SET …` is a top-level GQL-only statement category
+    // (ISO §14.15). Fire `E4020` when it appears under `OpenCypherV9`.
+    // The HIR carries the construct on `Statement::session_set`
+    // (sibling to `clauses`), so the check is a single gate against
+    // that optional field — no visitor walk required.
+    if let Some(ss) = stmt.session_set.as_ref()
+        && let Err(d) = check(&GATE_SESSION_SET, dialect, ss.span)
+    {
+        sink.push(d);
+    }
+    // --- end cy-lp3y ---
 }
 
 // --- cy-p1u5 EXISTS parser-only ---
@@ -641,6 +667,85 @@ mod tests {
         insta::assert_snapshot!(
             "pass_call_plain_gql_clean",
             run_gate(&call_stmt("db.labels"), DialectMode::GqlAligned)
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // cy-lp3y: SESSION SET dialect-gate (GATE_SESSION_SET / E4020)
+    // -----------------------------------------------------------------------
+
+    /// `SESSION SET …` is allowed in `GqlAligned` (no diagnostic).
+    #[test]
+    fn session_set_gql_clean() {
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH");
+        assert!(stmt.session_set.is_some(), "lowered to session_set");
+        let mut sink = DiagnosticsSink::new();
+        check_dialect(&stmt, DialectMode::GqlAligned, &mut sink);
+        assert!(
+            sink.is_empty(),
+            "expected no diagnostics, got {:?}",
+            sink.into_sorted()
+        );
+    }
+
+    /// `SESSION SET GRAPH` is rejected in `OpenCypherV9` (E4020).
+    #[test]
+    fn session_set_graph_oc_denied() {
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH");
+        let mut sink = DiagnosticsSink::new();
+        check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
+        let diags = sink.into_sorted();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, DiagCode::E4020);
+    }
+
+    /// `SESSION SET TIME ZONE` is rejected in `OpenCypherV9` (E4020).
+    #[test]
+    fn session_set_time_zone_oc_denied() {
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET TIME ZONE \"utc\"");
+        let mut sink = DiagnosticsSink::new();
+        check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
+        let diags = sink.into_sorted();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, DiagCode::E4020);
+    }
+
+    /// `SESSION SET VALUE` is rejected in `OpenCypherV9` (E4020).
+    #[test]
+    fn session_set_value_oc_denied() {
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET VALUE $bar = {x: 'hi'}");
+        let mut sink = DiagnosticsSink::new();
+        check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
+        let diags = sink.into_sorted();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code, DiagCode::E4020);
+    }
+
+    /// A plain `MATCH`/`RETURN` does not trigger the SESSION SET gate.
+    #[test]
+    fn non_session_set_does_not_fire_e4020() {
+        let stmt = cyrs_hir::lower::lower_statement("MATCH (n) RETURN n");
+        let mut sink = DiagnosticsSink::new();
+        check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
+        let diags = sink.into_sorted();
+        assert!(diags.iter().all(|d| d.code != DiagCode::E4020));
+    }
+
+    /// Direct gate check: `GATE_SESSION_SET` allowed in `GqlAligned`.
+    #[test]
+    fn snap_session_set_gate_gql_ok() {
+        insta::assert_snapshot!(
+            "session_set_gate_gql_ok",
+            run_check(&GATE_SESSION_SET, DialectMode::GqlAligned)
+        );
+    }
+
+    /// Direct gate check: `GATE_SESSION_SET` denied in `OpenCypherV9`.
+    #[test]
+    fn snap_session_set_gate_oc_denied() {
+        insta::assert_snapshot!(
+            "session_set_gate_oc_denied",
+            run_check(&GATE_SESSION_SET, DialectMode::OpenCypherV9)
         );
     }
 

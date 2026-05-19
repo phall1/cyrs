@@ -123,6 +123,9 @@ fn all_count_pinned() {
     //         (ISO/IEC 39075:2024 §14.10).
     // cy-9kzx: added E0091–E0098 for the GQL `SESSION SET` top-level
     //          statement category (ISO/IEC 39075:2024 §14.15).
-    const EXPECTED: usize = 139;
+    // cy-lp3y: added E4020 (`session_set` dialect gate) for the
+    //          `SESSION SET` HIR + sema follow-up (spec §0 amendment
+    //          2026-05-19 cy-5e3f).
+    const EXPECTED: usize = 140;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

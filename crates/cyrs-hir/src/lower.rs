@@ -67,6 +67,28 @@ pub fn lower_statement(src: &str) -> Statement {
 /// so callers retain ownership.
 pub fn lower_parse(parse: &Parse) -> Statement {
     let root = parse.syntax();
+    // --- cy-lp3y SESSION SET HIR ---
+    // GQL `SESSION SET …` is a top-level statement category that sits
+    // directly under `SOURCE_FILE` — never wrapped in a `STATEMENT`
+    // node (see `cyrs_syntax::grammar` mod.rs). Prefer it when present
+    // before falling through to the query-statement path so a file like
+    // `SESSION SET GRAPH g` lowers to a `SessionSetHir`-bearing
+    // [`Statement`] instead of an empty clause list.
+    if let Some(session_node) = root
+        .children()
+        .find(|n| n.kind() == SyntaxKind::SESSION_SET_STMT)
+    {
+        let span = session_node.text_range();
+        let mut ctx = LowerCtx {
+            stmt: Statement::new(span),
+            var_names: IndexMap::new(),
+            next_var: 0,
+        };
+        ctx.lower_session_set_stmt(session_node);
+        return ctx.stmt;
+    }
+    // --- end cy-lp3y ---
+
     // Find the first STATEMENT child of SOURCE_FILE.
     let stmt_node = root
         .children()
@@ -137,6 +159,93 @@ impl LowerCtx {
             self.lower_clause_into(child);
         }
     }
+
+    // --- cy-lp3y SESSION SET HIR ---
+    /// Lower a `SESSION_SET_STMT` node into [`Statement::session_set`].
+    ///
+    /// Mirrors the discriminant in [`cyrs_ast::SessionSetVariant`].
+    /// Recovery shapes (malformed inputs the parser still produced an
+    /// outer node for) lower to whichever sub-variant survives the AST
+    /// cast; if none does, the field is left `None` and downstream
+    /// passes treat the statement as a no-op.
+    fn lower_session_set_stmt(&mut self, node: SyntaxNode) {
+        use cyrs_ast::{SessionSetStmt, SessionSetVariant};
+
+        let span = node.text_range();
+        let id = self.alloc_hir(node.clone());
+
+        let Some(stmt) = SessionSetStmt::cast(node.clone()) else {
+            // Recovery: outer node existed but the AST cast failed.
+            // Leave session_set unset; sema's syntax-error path covers
+            // the user-visible diagnostic.
+            return;
+        };
+
+        let Some(variant) = stmt.variant() else {
+            // Outer node present but no variant child survived recovery.
+            return;
+        };
+
+        let variant_hir = match variant {
+            SessionSetVariant::Graph(g) => {
+                let v_span = g.syntax().text_range();
+                let is_property_graph = g.is_property_graph();
+                let graph_ref = g
+                    .graph_ref_token()
+                    .map(|t| SmolStr::new(t.text()))
+                    .unwrap_or_default();
+                crate::SessionSetVariantHir::Graph {
+                    graph_ref,
+                    is_property_graph,
+                    span: v_span,
+                }
+            }
+            SessionSetVariant::TimeZone(tz) => {
+                let v_span = tz.syntax().text_range();
+                let time_zone = tz
+                    .time_zone_token()
+                    .map(|t| SmolStr::new(t.text()))
+                    .unwrap_or_default();
+                crate::SessionSetVariantHir::TimeZone {
+                    time_zone,
+                    span: v_span,
+                }
+            }
+            SessionSetVariant::Value(val) => {
+                let v_span = val.syntax().text_range();
+                let if_not_exists = val.is_if_not_exists();
+                let param = val
+                    .param_token()
+                    .map(|t| SmolStr::new(t.text()))
+                    .unwrap_or_default();
+                // RHS expression. The AST `value_expr()` accessor uses
+                // the typed `Expr` cast which doesn't recognise every
+                // raw expression production (`LITERAL_EXPR`, `VAR_EXPR`,
+                // `PARAM_EXPR`, …); walk the variant's child nodes
+                // directly and pick the first one `try_lower_expr`
+                // accepts, mirroring how WITH / UNWIND trailer
+                // expressions are picked up downstream.
+                let value = val
+                    .syntax()
+                    .children()
+                    .find_map(|c| self.try_lower_expr(c))
+                    .unwrap_or(Expr::Null);
+                crate::SessionSetVariantHir::Value {
+                    param,
+                    if_not_exists,
+                    value,
+                    span: v_span,
+                }
+            }
+        };
+
+        self.stmt.session_set = Some(crate::SessionSetHir {
+            id,
+            variant: variant_hir,
+            span,
+        });
+    }
+    // --- end cy-lp3y ---
 
     /// Lower a clause subtree and push the resulting HIR clause(s) onto
     /// [`Statement::clauses`] **in source order**.
