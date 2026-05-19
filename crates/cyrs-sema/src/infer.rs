@@ -203,8 +203,13 @@ impl InferCtx<'_> {
             // ---------------------------------------------------------------
             // Unresolved — already an error from name resolution; propagate
             // Unknown silently so we don't cascade.
+            //
+            // cy-p1u5: `ExistsSubqueryDeferred` is treated the same way.
+            // The dialect-gate pass owns the E4017 deferred-feature
+            // diagnostic; here we propagate `Unknown` so type inference
+            // does not cascade. The body is **not** descended into.
             // ---------------------------------------------------------------
-            Expr::Unresolved(_) => Type::Unknown,
+            Expr::Unresolved(_) | Expr::ExistsSubqueryDeferred { .. } => Type::Unknown,
 
             // ---------------------------------------------------------------
             // Property access — result type is Any in schema-free mode

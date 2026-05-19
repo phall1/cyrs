@@ -565,6 +565,30 @@ pub enum Expr {
     /// Unresolved variable reference surviving name resolution; carries
     /// the original name for diagnostic messages.
     Unresolved(SmolStr),
+    // --- cy-p1u5 EXISTS parser-only ---
+    /// `EXISTS { <Statement> }` / `EXISTS ( MATCH … )` subquery
+    /// expression (ISO/IEC 39075:2024 §10.7 / §14.10, spec amendment
+    /// 2026-05-19 cy-5e3f, bead cy-p1u5).
+    ///
+    /// **Inert marker** — the body is *not* lowered into HIR clauses;
+    /// no `VarId`s are minted for the inner pattern, and name
+    /// resolution does not descend into it. The variant exists so the
+    /// HIR is reachable from the CST shape that bead cy-p1u5 added,
+    /// and so the sema dialect-gate pass can emit
+    /// `DiagCode::E4017` (`exists_subquery` gate) on every
+    /// occurrence — keeping spec §20 D1 / N4 in force at the
+    /// semantic surface while the parser accepts the syntax.
+    ///
+    /// `span` is the [`TextRange`] covering the entire `EXISTS …`
+    /// expression on the originating CST node, so the diagnostic
+    /// points at the offending construct rather than a zero-width
+    /// span. Type, in any consumer that infers one, is treated as
+    /// `Type::Unknown` (cascading errors are suppressed in the same
+    /// way as [`Expr::Unresolved`]).
+    ExistsSubqueryDeferred {
+        span: TextRange,
+    },
+    // --- end cy-p1u5 ---
 }
 
 /// One item in a [`Expr::MapProjection`] (spec §6.1).

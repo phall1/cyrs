@@ -353,7 +353,9 @@ fn desugar_expr(expr: &mut Expr) {
         | Expr::Var(_)
         | Expr::Param(_)
         | Expr::PatternPredicate(_)
-        | Expr::Unresolved(_) => {}
+        | Expr::Unresolved(_)
+        // cy-p1u5: inert subquery marker — no rewrites to perform.
+        | Expr::ExistsSubqueryDeferred { .. } => {}
     }
 }
 
@@ -561,6 +563,9 @@ mod tests {
                 format!("MapProj({}, [{}])", render_expr(base), rendered.join(", "))
             }
             Expr::Unresolved(n) => format!("Unresolved({n})"),
+            // cy-p1u5: render as a stable marker so test diffs remain
+            // readable; the body span is intentionally omitted.
+            Expr::ExistsSubqueryDeferred { .. } => "ExistsSubqueryDeferred".to_string(),
         }
     }
 

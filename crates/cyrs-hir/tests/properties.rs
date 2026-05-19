@@ -236,6 +236,9 @@ fn sig_expr(e: &Expr, out: &mut String) {
             }
             out.push(')');
         }
+        // cy-p1u5: render as a stable marker; the span is intentionally
+        // omitted so the property test signature stays span-agnostic.
+        Expr::ExistsSubqueryDeferred { .. } => out.push_str("ExistsSubqueryDeferred"),
     }
 }
 

@@ -1188,6 +1188,28 @@ impl PatternPredicate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ExistsSubqueryExpr {
+    syntax: SyntaxNode,
+}
+
+impl ExistsSubqueryExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::EXISTS_SUBQUERY_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn exists_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::EXISTS_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CaseWhenArm {
     syntax: SyntaxNode,
 }
@@ -1358,6 +1380,7 @@ pub enum Expr {
     BinaryExpr(BinaryExpr),
     UnaryExpr(UnaryExpr),
     PatternPredicate(PatternPredicate),
+    ExistsSubqueryExpr(ExistsSubqueryExpr),
 }
 
 impl Expr {
@@ -1407,8 +1430,11 @@ impl Expr {
         if let Some(inner) = UnaryExpr::cast(syntax.clone()) {
             return Some(Self::UnaryExpr(inner));
         }
-        if let Some(inner) = PatternPredicate::cast(syntax) {
+        if let Some(inner) = PatternPredicate::cast(syntax.clone()) {
             return Some(Self::PatternPredicate(inner));
+        }
+        if let Some(inner) = ExistsSubqueryExpr::cast(syntax) {
+            return Some(Self::ExistsSubqueryExpr(inner));
         }
         None
     }
@@ -1431,6 +1457,7 @@ impl Expr {
             Self::BinaryExpr(inner) => inner.syntax(),
             Self::UnaryExpr(inner) => inner.syntax(),
             Self::PatternPredicate(inner) => inner.syntax(),
+            Self::ExistsSubqueryExpr(inner) => inner.syntax(),
         }
     }
 }

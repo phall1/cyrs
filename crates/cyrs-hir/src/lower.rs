@@ -824,6 +824,19 @@ impl LowerCtx {
             SyntaxKind::LIST_PREDICATE_EXPR => Some(self.lower_list_predicate(node)),
             SyntaxKind::MAP_PROJECTION => Some(self.lower_map_projection(node)),
             SyntaxKind::PATTERN_PREDICATE => Some(self.lower_pattern_predicate(node)),
+            // --- cy-p1u5 EXISTS parser-only ---
+            // `EXISTS { … }` / `EXISTS ( MATCH … )` (ISO §10.7 / §14.10,
+            // bead cy-p1u5). Lower to an inert `ExistsSubqueryDeferred`
+            // marker — the body is **not** descended into, no `VarId`s
+            // are minted for it, and name resolution does not enter
+            // the inner clauses. The sema dialect-gate pass (cyrs-sema
+            // `dialect::check_dialect`) emits `DiagCode::E4017`
+            // (`exists_subquery` gate) on every occurrence; spec §20
+            // D1 / N4 remain in force at the semantic surface.
+            SyntaxKind::EXISTS_SUBQUERY_EXPR => Some(Expr::ExistsSubqueryDeferred {
+                span: node.text_range(),
+            }),
+            // --- end cy-p1u5 ---
             _ => None,
         }
     }

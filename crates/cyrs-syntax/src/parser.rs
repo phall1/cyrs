@@ -682,6 +682,11 @@ pub(crate) mod syntax_codes {
     /// `DIFFERENT`) in a MATCH path-mode prefix (cy-q2g; ISO/IEC
     /// 39075:2024 §10.6.3).
     pub(crate) const EXPECTED_ELEMENTS_OR_EDGES: u16 = 90;
+    /// E0091 — expected `}` to close an `EXISTS { … }` subquery
+    /// (cy-p1u5; ISO/IEC 39075:2024 §10.7). The semantic surface for the
+    /// subquery body is deferred (spec §20 D1 / N4); this code only
+    /// reports a syntactic missing-brace, not the deferral itself.
+    pub(crate) const EXPECTED_RBRACE_EXISTS: u16 = 91;
 
     // ---- cy-9kzx SESSION SET (ISO/IEC 39075:2024 §14.15) ---------------
     /// E0091 — expected `SET` after `SESSION` (cy-9kzx).
@@ -712,11 +717,16 @@ pub(crate) mod syntax_codes {
     // and are referenced here as `u16` constants so the parser can emit
     // them without a cross-crate dependency.
 
-    /// E4017 — `EXISTS { <subquery> }` block form is deferred per spec
-    /// §9.3 / §19 / §20 D1 (cy-lve, tranche A). Registered in
-    /// `cyrs-diag::codes` (`DiagCode::E4017`, `exists_subquery`
-    /// dialect gate). Emitted by the parser when it encounters
-    /// `EXISTS {` in an atom position.
+    /// E4017 — `EXISTS { <subquery> }` and `EXISTS ( MATCH … )` are
+    /// deferred per spec §9.3 / §19 / §20 D1 (cy-lve, broadened by
+    /// cy-p1u5). Owned by `cyrs-diag::codes` (`DiagCode::E4017`,
+    /// `exists_subquery` dialect gate); now emitted by cyrs-sema
+    /// dialect-gate pass rather than the parser, so the `OpenGQL`
+    /// samples flip to `Parser accepts? yes` while the semantic
+    /// surface (scope graph, existential semantics) stays deferred.
+    /// Kept here so the numeric code is documented next to the
+    /// surrounding E0xxx parser-only codes.
+    #[allow(dead_code)]
     pub(crate) const EXISTS_BLOCK_DEFERRED: u16 = 4017;
 }
 

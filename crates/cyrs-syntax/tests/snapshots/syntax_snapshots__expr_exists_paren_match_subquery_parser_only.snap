@@ -1,0 +1,62 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (p) WHERE EXISTS ( MATCH (p)-[:R]->(:X) ) RETURN p\")"
+---
+SOURCE_FILE@0..56
+  STATEMENT@0..56
+    MATCH_CLAUSE@0..47
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "p"
+            R_PAREN@8..9 ")"
+      WHERE_CLAUSE@9..47
+        WHITESPACE@9..10 " "
+        WHERE_KW@10..15 "WHERE"
+        EXISTS_SUBQUERY_EXPR@15..47
+          WHITESPACE@15..16 " "
+          EXISTS_KW@16..22 "EXISTS"
+          WHITESPACE@22..23 " "
+          L_PAREN@23..24 "("
+          STATEMENT@24..45
+            MATCH_CLAUSE@24..45
+              WHITESPACE@24..25 " "
+              MATCH_KW@25..30 "MATCH"
+              PATTERN@30..45
+                PATTERN_PART@30..45
+                  NODE_PATTERN@30..34
+                    WHITESPACE@30..31 " "
+                    L_PAREN@31..32 "("
+                    NAME@32..33
+                      IDENT@32..33 "p"
+                    R_PAREN@33..34 ")"
+                  REL_PATTERN@34..41
+                    MINUS@34..35 "-"
+                    REL_DETAIL@35..39
+                      L_BRACK@35..36 "["
+                      REL_TYPE_EXPR@36..38
+                        COLON@36..37 ":"
+                        IDENT@37..38 "R"
+                      R_BRACK@38..39 "]"
+                    ARROW_R@39..41 "->"
+                  NODE_PATTERN@41..45
+                    L_PAREN@41..42 "("
+                    LABEL_EXPR@42..44
+                      COLON@42..43 ":"
+                      IDENT@43..44 "X"
+                    R_PAREN@44..45 ")"
+          WHITESPACE@45..46 " "
+          R_PAREN@46..47 ")"
+    RETURN_CLAUSE@47..56
+      WHITESPACE@47..48 " "
+      RETURN_KW@48..54 "RETURN"
+      RETURN_BODY@54..56
+        RETURN_ITEMS@54..56
+          RETURN_ITEM@54..56
+            VAR_EXPR@54..56
+              WHITESPACE@54..55 " "
+              IDENT@55..56 "p"

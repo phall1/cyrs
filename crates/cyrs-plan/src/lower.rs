@@ -295,6 +295,17 @@ fn check_expr(expr: &HirExpr, span: HirSpan) -> Result<(), PlanLowerError> {
             kind: "MapProjection",
             span,
         }),
+        // cy-p1u5: EXISTS subquery is parser-accepted but sema-deferred
+        // (spec §0 amendment 2026-05-19, §20 D1 / N4). It must never
+        // reach Plan lowering — sema's dialect-gate pass owns the
+        // primary E4017 diagnostic. Surfacing it as an
+        // `UndesugaredExpr` here is a hard backstop so a caller that
+        // bypasses sema cannot accidentally produce a Plan that
+        // pretends the subquery is valid.
+        HirExpr::ExistsSubqueryDeferred { .. } => Err(PlanLowerError::UndesugaredExpr {
+            kind: "ExistsSubqueryDeferred",
+            span,
+        }),
 
         // Recursive cases.
         HirExpr::Prop { target, .. } => check_expr(target, span),
@@ -1208,6 +1219,26 @@ impl<'s> LowerCtx<'s> {
                     false,
                     "MapProjection encountered in HIR→Plan lowering; \
                      run cyrs_hir::desugar::desugar_statement (cy-mla) first"
+                );
+                Expr::Null
+            }
+
+            // cy-p1u5: parser-accepted EXISTS subquery — sema-deferred
+            // per spec §0 amendment 2026-05-19 / §20 D1 / N4. Sema
+            // fires `DiagCode::E4017` before Plan lowering runs; if a
+            // caller bypasses sema and reaches us anyway,
+            // [`check_expr`] (the precondition scanner that runs at
+            // the entry point of `lower_statement`) returns
+            // [`PlanLowerError::UndesugaredExpr`]. This match arm only
+            // executes when `check_expr` was skipped (an internal
+            // bug); produce a stable `Expr::Null` and `debug_assert!`
+            // so the bug surfaces loudly in CI.
+            HirExpr::ExistsSubqueryDeferred { .. } => {
+                debug_assert!(
+                    false,
+                    "ExistsSubqueryDeferred encountered in HIR→Plan lowering; \
+                     spec §20 D1 forbids it. sema's `exists_subquery` gate \
+                     (E4017) must run before this point."
                 );
                 Expr::Null
             }

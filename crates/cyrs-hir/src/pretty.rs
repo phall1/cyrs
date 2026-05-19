@@ -715,6 +715,10 @@ impl OverlayCtx<'_> {
                 format!("{base_str} {{{}}}", item_strs.join(", "))
             }
             Expr::Unresolved(name) => format!("Unresolved({name:?})"),
+            // cy-p1u5: parser-only EXISTS subquery marker. Pretty as a
+            // stable string with no body — sema rejects this shape
+            // before it can be evaluated.
+            Expr::ExistsSubqueryDeferred { .. } => "ExistsSubqueryDeferred".to_string(),
         }
     }
 

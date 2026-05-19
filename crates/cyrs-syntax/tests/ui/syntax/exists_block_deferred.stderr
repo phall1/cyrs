@@ -1,3 +1,0 @@
-error[E4017]: EXISTS { ... } block subqueries are deferred per spec §19 / §20 D1
- --> exists_block_deferred.cypher:220
-
