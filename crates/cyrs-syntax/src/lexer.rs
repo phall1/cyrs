@@ -246,6 +246,9 @@ enum RawToken {
     // queries (verified empty: `grep -ri '\\bINSERT\\b' tck/full/`).
     #[token("INSERT", ignore(case))]
     Insert,
+    // GQL post-projection row filter (cy-r50, ISO/IEC 39075:2024 §14.10).
+    #[token("FILTER", ignore(case))]
+    Filter,
     // GQL-distinct return-projection keyword (cy-auh, ISO/IEC 39075:2024
     // §14.13.4). Recognised in both dialect modes; the OpenCypherV9-vs-
     // GqlAligned gate lives in cyrs-sema. `EXCLUDE` does not collide with
@@ -481,6 +484,7 @@ impl RawToken {
             Self::Create => SyntaxKind::CREATE_KW,
             Self::Merge => SyntaxKind::MERGE_KW,
             Self::Insert => SyntaxKind::INSERT_KW,
+            Self::Filter => SyntaxKind::FILTER_KW,
             Self::Exclude => SyntaxKind::EXCLUDE_KW,
             Self::Delete => SyntaxKind::DELETE_KW,
             Self::Detach => SyntaxKind::DETACH_KW,

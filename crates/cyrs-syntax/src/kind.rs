@@ -170,6 +170,14 @@ pub enum SyntaxKind {
     // raw 183 explicitly.
     EXCLUDE_KW = 183,
 
+    // GQL post-projection row filter (cy-r50 / cy-0hj). `FILTER <expr>`
+    // operates on the working table after projection (ISO/IEC 39075:2024
+    // §14.10); openCypher's nearest paraphrase is `WITH ... WHERE`. The
+    // lexer recognises `FILTER` unconditionally — dialect gate lives in
+    // cyrs-sema. Pinned to raw 182 (slot that was reserved by parallel
+    // EXCLUDE_KW landing).
+    FILTER_KW = 182,
+
     // GQL type-assertion keyword (cy-pnp / cy-0hj). `IS TYPED <type>` is
     // GQL's predicate form for run-time type assertions per ISO/IEC
     // 39075:2024 §6.5.2; the shorthand `::` lives at the punctuation
@@ -301,6 +309,12 @@ pub enum SyntaxKind {
     // recognition in the parser); the discriminant between the two forms
     // is the textual identifier under the `INSERT_KW`.
     INSERT_CLAUSE,
+
+    // GQL post-projection row filter (cy-r50, ISO/IEC 39075:2024 §14.10).
+    // Mirrors `WHERE_CLAUSE` shape (single Expr child) but lives at
+    // clause level so it can chain after RETURN / WITH projection. Slot
+    // 390 reserved for it by parallel work.
+    FILTER_CLAUSE = 390,
 
     // GQL `OPTIONAL CALL` qualifier (cy-tdl, ISO/IEC 39075:2024 §14.11.3).
     // Wraps the same body shape as `CALL_CLAUSE` but signals that the
@@ -454,6 +468,7 @@ impl SyntaxKind {
             179 => Self::NONE_KW,
             180 => Self::SINGLE_KW,
             181 => Self::INSERT_KW,
+            182 => Self::FILTER_KW,
             183 => Self::EXCLUDE_KW,
             185 => Self::TYPED_KW,
             186 => Self::REPEATABLE_KW,
@@ -531,6 +546,7 @@ impl SyntaxKind {
             387 => Self::LIST_PREDICATE_EXPR,
             388 => Self::SHORTEST_PATH_PATTERN,
             389 => Self::INSERT_CLAUSE,
+            390 => Self::FILTER_CLAUSE,
             391 => Self::OPTIONAL_CALL_CLAUSE,
             392 => Self::RETURN_EXCLUDE,
             394 => Self::IS_TYPED_EXPR,

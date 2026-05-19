@@ -345,6 +345,32 @@ impl CreateClause {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FilterClause {
+    syntax: SyntaxNode,
+}
+
+impl FilterClause {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::FILTER_CLAUSE).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn expr(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn filter_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::FILTER_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MergeClause {
     syntax: SyntaxNode,
 }
@@ -1248,6 +1274,7 @@ pub enum Clause {
     CallClause(CallClause),
     OptionalCallClause(OptionalCallClause),
     CreateClause(CreateClause),
+    FilterClause(FilterClause),
     MergeClause(MergeClause),
     SetClause(SetClause),
     RemoveClause(RemoveClause),
@@ -1277,6 +1304,9 @@ impl Clause {
         if let Some(inner) = CreateClause::cast(syntax.clone()) {
             return Some(Self::CreateClause(inner));
         }
+        if let Some(inner) = FilterClause::cast(syntax.clone()) {
+            return Some(Self::FilterClause(inner));
+        }
         if let Some(inner) = MergeClause::cast(syntax.clone()) {
             return Some(Self::MergeClause(inner));
         }
@@ -1301,6 +1331,7 @@ impl Clause {
             Self::CallClause(inner) => inner.syntax(),
             Self::OptionalCallClause(inner) => inner.syntax(),
             Self::CreateClause(inner) => inner.syntax(),
+            Self::FilterClause(inner) => inner.syntax(),
             Self::MergeClause(inner) => inner.syntax(),
             Self::SetClause(inner) => inner.syntax(),
             Self::RemoveClause(inner) => inner.syntax(),

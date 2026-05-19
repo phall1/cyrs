@@ -18,6 +18,7 @@ pub(crate) fn clause(p: &mut Parser<'_>) {
         SyntaxKind::MATCH_KW => match_clause(p),
         SyntaxKind::OPTIONAL_KW => optional_clause(p),
         SyntaxKind::WHERE_KW => where_clause(p),
+        SyntaxKind::FILTER_KW => filter_clause(p),
         SyntaxKind::RETURN_KW => return_clause(p),
         SyntaxKind::WITH_KW => with_clause(p),
         SyntaxKind::UNWIND_KW => unwind_clause(p),
@@ -147,6 +148,20 @@ fn where_clause(p: &mut Parser<'_>) {
         p.error_code(sc::EXPECTED_WHERE_EXPR, "expected expression after WHERE");
     }
     m.complete(p, SyntaxKind::WHERE_CLAUSE);
+}
+
+/// `FilterClause = 'FILTER' Expr` — GQL-distinct post-projection row
+/// filter (ISO/IEC 39075:2024 §14.10; cy-r50). Mirrors `WhereClause`
+/// shape but lives at clause level so it can chain after a RETURN /
+/// WITH projection. Dialect gating lives in cyrs-sema (follow-up).
+fn filter_clause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::FILTER_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::FILTER_KW);
+    if expression::expr(p).is_none() {
+        p.error_code(sc::EXPECTED_FILTER_EXPR, "expected expression after FILTER");
+    }
+    m.complete(p, SyntaxKind::FILTER_CLAUSE);
 }
 
 /// `UnwindClause = 'UNWIND' Expr 'AS' NameDef` — spec ungrammar `UnwindClause`.

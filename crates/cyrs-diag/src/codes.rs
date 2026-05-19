@@ -614,6 +614,10 @@ pub enum DiagCode {
     /// (CREATE pattern) so a downstream renderer can hint at the
     /// dialect-specific spelling.
     E0083 = 83,
+    /// Expected expression after `FILTER` (cy-r50, ISO/IEC 39075:2024
+    /// §14.10). Distinct from E0036 (WHERE) so dialect-aware tooling can
+    /// hint at the GQL post-projection form.
+    E0084 = 84,
     /// Expected identifier in a `RETURN ... EXCLUDE` field list (cy-auh,
     /// ISO/IEC 39075:2024 §14.13.4). Slots E0084 / E0085 are reserved
     /// for parallel GQL beads (FILTER / OPTIONAL CALL).
@@ -762,6 +766,7 @@ impl DiagCode {
             Self::E0081 => "E0081",
             Self::E0082 => "E0082",
             Self::E0083 => "E0083",
+            Self::E0084 => "E0084",
             Self::E0086 => "E0086",
             Self::E0088 => "E0088",
             Self::E0089 => "E0089",
@@ -916,6 +921,7 @@ impl DiagCode {
         Self::E0081,
         Self::E0082,
         Self::E0083,
+        Self::E0084,
         Self::E0086,
         Self::E0088,
         Self::E0089,
@@ -1128,6 +1134,7 @@ mod tests {
             DiagCode::E0081,
             DiagCode::E0082,
             DiagCode::E0083,
+            DiagCode::E0084,
             DiagCode::E0086,
             DiagCode::E0088,
             DiagCode::E0089,
@@ -1212,13 +1219,12 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps: E0073..=E0077, E0084, E0085, E0087, E0091+.
-        // E0083 INSERT, E0086 EXCLUDE, E0088/E0089 TYPED, E0090 path-mode
-        // are claimed.
+        // Gaps: E0073..=E0077, E0085, E0087, E0091+.
+        // E0083 INSERT, E0084 FILTER, E0086 EXCLUDE, E0088/E0089 TYPED,
+        // E0090 path-mode are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
-        assert_eq!(DiagCode::try_from_u16(84), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
         assert_eq!(DiagCode::try_from_u16(91), None);

@@ -972,6 +972,7 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "UNWIND_CLAUSE",
         "CALL_CLAUSE",
         "OPTIONAL_CALL_CLAUSE",
+        "FILTER_CLAUSE",
         "UNION_TAIL",
         "MERGE_ACTION",
         "RETURN_BODY",
@@ -1095,6 +1096,17 @@ fn known_keyword_kinds() -> BTreeSet<&'static str> {
         "SINGLE_KW",
         // GQL type-assertion keyword (cy-pnp).
         "TYPED_KW",
+        // GQL post-projection row filter (cy-r50).
+        "FILTER_KW",
+        // GQL MATCH path-mode keywords (cy-q2g).
+        "REPEATABLE_KW",
+        "ELEMENTS_KW",
+        "DIFFERENT_KW",
+        "EDGES_KW",
+        // GQL INSERT write clause (cy-8z3).
+        "INSERT_KW",
+        // GQL EXCLUDE return-projection trailer (cy-auh).
+        "EXCLUDE_KW",
     ]
     .into_iter()
     .collect()

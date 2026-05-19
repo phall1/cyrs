@@ -43,6 +43,7 @@ pub(crate) const CLAUSE_START: TokenSet = TokenSet::new(&[
     SyntaxKind::RETURN_KW,
     SyntaxKind::CREATE_KW,
     SyntaxKind::INSERT_KW,
+    SyntaxKind::FILTER_KW,
     SyntaxKind::MERGE_KW,
     SyntaxKind::SET_KW,
     SyntaxKind::REMOVE_KW,

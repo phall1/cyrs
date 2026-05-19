@@ -119,6 +119,8 @@ fn all_count_pinned() {
     // cy-q2g: added E0090 for the `MATCH` path-mode prefix
     //         (`REPEATABLE ELEMENTS` / `DIFFERENT EDGES`, ISO/IEC
     //         39075:2024 §10.6.3).
-    const EXPECTED: usize = 130;
+    // cy-r50: added E0084 for the GQL `FILTER` post-projection clause
+    //         (ISO/IEC 39075:2024 §14.10).
+    const EXPECTED: usize = 131;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

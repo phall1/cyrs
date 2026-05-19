@@ -55,6 +55,7 @@ Clause =
 | OptionalCallClause
 | CreateClause
 | InsertClause
+| FilterClause
 | MergeClause
 | SetClause
 | RemoveClause
@@ -123,6 +124,12 @@ CreateClause =
 // the qualifier therefore does not appear here as a typed token.
 InsertClause =
   'INSERT' Pattern (',' Pattern)*
+
+// GQL post-projection row filter (ISO/IEC 39075:2024 §14.10; cyrs cy-r50).
+// Same shape as WhereClause but lives at clause level so it can chain
+// after a RETURN / WITH projection.
+FilterClause =
+  'FILTER' Expr
 
 MergeClause =
   'MERGE' Pattern MergeAction*

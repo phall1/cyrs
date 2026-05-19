@@ -666,6 +666,8 @@ pub(crate) mod syntax_codes {
     /// pattern" from "you wrote `INSERT` and missed the pattern", which is
     /// useful for hint-generation in the `OpenCypherV9`-dialect-gate path.
     pub(crate) const EXPECTED_INSERT_PATTERN: u16 = 83;
+    /// E0084 — expected expression after `FILTER` (cy-r50).
+    pub(crate) const EXPECTED_FILTER_EXPR: u16 = 84;
     /// E0086 — expected identifier in a `RETURN ... EXCLUDE` field list
     /// (cy-auh, ISO/IEC 39075:2024 §14.13.4). Pre-reserved slots E0084 /
     /// E0085 are owned by parallel GQL beads (FILTER / OPTIONAL CALL).
@@ -713,6 +715,7 @@ pub(crate) const RECOVERY_STOP: TokenSet = TokenSet::new(&[
     SyntaxKind::RETURN_KW,
     SyntaxKind::CREATE_KW,
     SyntaxKind::INSERT_KW,
+    SyntaxKind::FILTER_KW,
     SyntaxKind::MERGE_KW,
     SyntaxKind::SET_KW,
     SyntaxKind::REMOVE_KW,
