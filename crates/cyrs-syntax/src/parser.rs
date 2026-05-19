@@ -725,6 +725,10 @@ pub(crate) const RECOVERY_STOP: TokenSet = TokenSet::new(&[
     SyntaxKind::CALL_KW,
     SyntaxKind::UNION_KW,
     SyntaxKind::SEMI,
+    // cy-rgqg: `NEXT` is a top-level statement separator (ISO/IEC
+    // 39075:2024 §14.14). Including it in the recovery-stop set keeps
+    // catalog-DDL chains from being consumed by an ERROR recovery run.
+    SyntaxKind::NEXT_KW,
 ]);
 
 // ========================================================================
