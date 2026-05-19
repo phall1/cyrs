@@ -178,6 +178,12 @@ pub enum SyntaxKind {
     // EXCLUDE_KW landing).
     FILTER_KW = 182,
 
+    // GQL path-selector keyword (cy-3mq / cy-0hj). `SHORTEST` introduces
+    // a path search mode in a NAMED_PATTERN_PART (`p = ANY SHORTEST
+    // (...)`, `p = SHORTEST 3 (...)`; ISO/IEC 39075:2024 §10.4.2).
+    // Pinned to raw 184 (slot reserved for it during parallel work).
+    SHORTEST_KW = 184,
+
     // GQL type-assertion keyword (cy-pnp / cy-0hj). `IS TYPED <type>` is
     // GQL's predicate form for run-time type assertions per ISO/IEC
     // 39075:2024 §6.5.2; the shorthand `::` lives at the punctuation
@@ -315,6 +321,13 @@ pub enum SyntaxKind {
     // clause level so it can chain after RETURN / WITH projection. Slot
     // 390 reserved for it by parallel work.
     FILTER_CLAUSE = 390,
+
+    // GQL path selector (cy-3mq, ISO/IEC 39075:2024 §10.4.2). Sits
+    // inside a NAMED_PATTERN_PART between the binder's `=` and the path
+    // pattern; collapses `ANY SHORTEST`, `ALL SHORTEST`, and `SHORTEST k`
+    // surface forms into one node whose discriminant is the leading
+    // keyword child. Slot 393 reserved for it.
+    PATH_SELECTOR = 393,
 
     // GQL `OPTIONAL CALL` qualifier (cy-tdl, ISO/IEC 39075:2024 §14.11.3).
     // Wraps the same body shape as `CALL_CLAUSE` but signals that the
@@ -470,6 +483,7 @@ impl SyntaxKind {
             181 => Self::INSERT_KW,
             182 => Self::FILTER_KW,
             183 => Self::EXCLUDE_KW,
+            184 => Self::SHORTEST_KW,
             185 => Self::TYPED_KW,
             186 => Self::REPEATABLE_KW,
             187 => Self::ELEMENTS_KW,
@@ -548,6 +562,7 @@ impl SyntaxKind {
             389 => Self::INSERT_CLAUSE,
             390 => Self::FILTER_CLAUSE,
             391 => Self::OPTIONAL_CALL_CLAUSE,
+            393 => Self::PATH_SELECTOR,
             392 => Self::RETURN_EXCLUDE,
             394 => Self::IS_TYPED_EXPR,
             395 => Self::TYPE_CAST_EXPR,

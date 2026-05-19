@@ -41,12 +41,53 @@ pub(crate) fn pattern(p: &mut Parser<'_>) {
         let bind = p.start();
         name_binder(p);
         p.bump(SyntaxKind::EQ);
+        // GQL path selector (cy-3mq, ISO/IEC 39075:2024 §10.4.2).
+        // After the binder's `=`, optionally consume one of:
+        //   `ANY SHORTEST` | `ALL SHORTEST` | `SHORTEST <int>`
+        // before the path pattern itself.
+        if at_path_selector(p) {
+            path_selector(p);
+        }
         path_pattern(p);
         bind.complete(p, SyntaxKind::NAMED_PATTERN_PART);
     } else {
         path_pattern(p);
     }
     m.complete(p, SyntaxKind::PATTERN);
+}
+
+/// Path-selector lookahead — true at `ANY SHORTEST`, `ALL SHORTEST`, or
+/// `SHORTEST k`.  Used by `pattern` after binder `=`.
+fn at_path_selector(p: &mut Parser<'_>) -> bool {
+    if p.at(SyntaxKind::SHORTEST_KW) {
+        return true;
+    }
+    if (p.at(SyntaxKind::ANY_KW) || p.at(SyntaxKind::ALL_KW))
+        && p.nth(1) == SyntaxKind::SHORTEST_KW
+    {
+        return true;
+    }
+    false
+}
+
+/// Parse a GQL path selector (cy-3mq, ISO/IEC 39075:2024 §10.4.2):
+///   `ANY SHORTEST` | `ALL SHORTEST` | `SHORTEST INT_LITERAL`.
+/// Wraps in a `PATH_SELECTOR` node whose first keyword child is the
+/// discriminant. No dedicated diag code: a malformed selector (e.g.
+/// `SHORTEST <non-int>`) leaves the trailing tokens to be picked up by
+/// the path-pattern parser.
+fn path_selector(p: &mut Parser<'_>) {
+    let m = p.start();
+    if p.at(SyntaxKind::ANY_KW) || p.at(SyntaxKind::ALL_KW) {
+        p.bump_any();
+        // SHORTEST_KW guaranteed by at_path_selector.
+        let _ = p.eat(SyntaxKind::SHORTEST_KW);
+    } else {
+        // SHORTEST_KW; optional INT_LITERAL for `SHORTEST k`.
+        p.bump(SyntaxKind::SHORTEST_KW);
+        let _ = p.eat(SyntaxKind::INT_LITERAL);
+    }
+    m.complete(p, SyntaxKind::PATH_SELECTOR);
 }
 
 /// A path binder is `IDENT '='` before an `L_PAREN` — the `=` disambiguates
@@ -214,6 +255,17 @@ fn rel_pattern(p: &mut Parser<'_>) {
             sc::EXPECTED_DASH_OR_ARROW,
             "expected '-' or '->' to close relationship",
         );
+    }
+
+    // GQL postfix one-or-more quantifier `->+` (cy-3mq, ISO/IEC
+    // 39075:2024 §10.5). A bare `+` immediately after the closing arrow
+    // means "one or more hops"; we wrap it in the existing REL_LENGTH
+    // node so HIR sees a uniform quantifier shape regardless of which
+    // surface spelling was used.
+    if p.at(SyntaxKind::PLUS) {
+        let q = p.start();
+        p.bump(SyntaxKind::PLUS);
+        q.complete(p, SyntaxKind::REL_LENGTH);
     }
 
     // GQL-distinct post-arrow variable-length quantifier `->{m,n}`
