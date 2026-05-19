@@ -125,6 +125,7 @@ the TCK harness (spec §17.5), not aspirations.
 | ------- | ------ | ------ | ------ |
 | openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cyrs-tck/tck/full-baseline.md`](./crates/cyrs-tck/tck/full-baseline.md) |
 | GQL ISO/IEC 39075:2024 | hand-authored §-cited bootstrap (7 feature files, 18 expanded scenarios) | **18 / 18 accepted (100 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](./crates/cyrs-tck/tck/gql-iso-39075/baseline.md) |
+| GQL ISO/IEC 39075:2024 (upstream samples) | OpenGQL `opengql/grammar` samples (14 files) | **1 / 14 accepted (7.1 %)** — DDL + session statements not yet implemented (cy-qsze) | [`crates/cyrs-tck/tck/opengql-samples/baseline.md`](./crates/cyrs-tck/tck/opengql-samples/baseline.md) |
 
 **Read both numbers carefully — they mean different things.** Both
 report **parser acceptance** ("the parser emits zero syntax errors

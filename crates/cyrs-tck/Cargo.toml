@@ -29,6 +29,12 @@ full-tck = []
 # baseline is a rolling snapshot rather than a CI gate.  See
 # `tck/gql-iso-39075/README.md`.
 gql-iso = []
+# Enable the vendored OpenGQL upstream sample corpus under
+# `tck/opengql-samples/` as an extra integration test
+# (`tests/opengql_samples.rs`).  Off by default — like `gql-iso`, this
+# is a rolling parser-acceptance snapshot, not a CI gate (cy-qsze).
+# See `tck/opengql-samples/README.md`.
+opengql-samples = []
 
 [dependencies]
 cyrs-db = { workspace = true }

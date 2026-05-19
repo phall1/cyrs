@@ -9,7 +9,7 @@
 openCypher TCK + GQL ISO 39075 conformance harness for the
 [cyrs](https://github.com/phall1/cyrs) frontend.  See spec 0001 §17.5.
 
-Four corpora feed into the harness:
+Five corpora feed into the harness:
 
 1. **`tck/v1.toml`** — a hand-written, representative slice covering
    the v1 clause + expression surface.  Every scenario is classified
@@ -29,6 +29,15 @@ Four corpora feed into the harness:
    compliance is reported separately from the openCypher badge in
    [`tck/gql-iso-39075/baseline.md`](tck/gql-iso-39075/baseline.md).
    Runs only when the `gql-iso` Cargo feature is enabled.
+5. **`tck/opengql-samples/`** — the 14 official sample queries
+   published by the OpenGQL project alongside their ANTLR4 grammar for
+   ISO/IEC 39075:2024 (bead cy-qsze).  Independent of the hand-authored
+   `gql-iso-39075` bootstrap — these come from the body publishing the
+   grammar.  Pinned upstream commit lives in
+   [`tck/opengql-samples/VENDORED.md`](tck/opengql-samples/VENDORED.md);
+   rolling acceptance is recorded in
+   [`tck/opengql-samples/baseline.md`](tck/opengql-samples/baseline.md).
+   Runs only when the `opengql-samples` Cargo feature is enabled.
 
 For the full story — architecture, dependency graph, and testing bar —
 see the [repo-root README](https://github.com/phall1/cyrs#readme).
@@ -65,6 +74,7 @@ not a CI gate.  See bead `cy-p5q` (spec §17.5) for the rationale.
 | `cargo test -p cyrs-tck`                    | v1 slice, must pass        | Yes (§17)            |
 | `cargo test -p cyrs-tck --features full-tck`| full-corpus baseline write | No                   |
 | `cargo test -p cyrs-tck --features gql-iso` | GQL-ISO bootstrap baseline | No                   |
+| `cargo test -p cyrs-tck --features opengql-samples` | OpenGQL upstream samples baseline | No |
 | `cargo xtask tck-baseline`                    | convenience wrapper        | No                   |
 
 The full corpus is intentionally kept out of the default pre-commit
