@@ -636,6 +636,27 @@ pub enum DiagCode {
     /// `DIFFERENT`) in a `MATCH` path-mode prefix (cy-q2g; ISO/IEC
     /// 39075:2024 §10.6.3).
     E0090 = 90,
+    /// Expected `SET` after `SESSION` (cy-9kzx; ISO/IEC 39075:2024
+    /// §14.15).
+    E0091 = 91,
+    /// Expected `GRAPH`, `PROPERTY`, `TIME`, or `VALUE` after `SESSION
+    /// SET` (cy-9kzx; ISO/IEC 39075:2024 §14.15).
+    E0092 = 92,
+    /// Expected a graph reference (`CURRENT_GRAPH`,
+    /// `CURRENT_PROPERTY_GRAPH`, or graph name) after `SESSION SET
+    /// [PROPERTY] GRAPH` (cy-9kzx).
+    E0093 = 93,
+    /// Expected `ZONE` after `SESSION SET TIME` (cy-9kzx).
+    E0094 = 94,
+    /// Expected string literal time-zone after `SESSION SET TIME ZONE`
+    /// (cy-9kzx).
+    E0095 = 95,
+    /// Expected `$param` in `SESSION SET VALUE` (cy-9kzx).
+    E0096 = 96,
+    /// Expected `=` in `SESSION SET VALUE $param = <expr>` (cy-9kzx).
+    E0097 = 97,
+    /// Expected expression after `=` in `SESSION SET VALUE` (cy-9kzx).
+    E0098 = 98,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -771,6 +792,14 @@ impl DiagCode {
             Self::E0088 => "E0088",
             Self::E0089 => "E0089",
             Self::E0090 => "E0090",
+            Self::E0091 => "E0091",
+            Self::E0092 => "E0092",
+            Self::E0093 => "E0093",
+            Self::E0094 => "E0094",
+            Self::E0095 => "E0095",
+            Self::E0096 => "E0096",
+            Self::E0097 => "E0097",
+            Self::E0098 => "E0098",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -926,6 +955,14 @@ impl DiagCode {
         Self::E0088,
         Self::E0089,
         Self::E0090,
+        Self::E0091,
+        Self::E0092,
+        Self::E0093,
+        Self::E0094,
+        Self::E0095,
+        Self::E0096,
+        Self::E0097,
+        Self::E0098,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1139,6 +1176,14 @@ mod tests {
             DiagCode::E0088,
             DiagCode::E0089,
             DiagCode::E0090,
+            DiagCode::E0091,
+            DiagCode::E0092,
+            DiagCode::E0093,
+            DiagCode::E0094,
+            DiagCode::E0095,
+            DiagCode::E0096,
+            DiagCode::E0097,
+            DiagCode::E0098,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1219,15 +1264,15 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps: E0073..=E0077, E0085, E0087, E0091+.
+        // Gaps: E0073..=E0077, E0085, E0087, E0099+.
         // E0083 INSERT, E0084 FILTER, E0086 EXCLUDE, E0088/E0089 TYPED,
-        // E0090 path-mode are claimed.
+        // E0090 path-mode, E0091–E0098 SESSION SET (cy-9kzx) are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
-        assert_eq!(DiagCode::try_from_u16(91), None);
+        assert_eq!(DiagCode::try_from_u16(99), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

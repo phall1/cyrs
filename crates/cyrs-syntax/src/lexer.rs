@@ -408,6 +408,23 @@ enum RawToken {
     Next,
     // --- end cy-rgqg ---
 
+    // --- cy-9kzx SESSION SET ---
+    // GQL SESSION SET statements (ISO/IEC 39075:2024 §14.15; cy-9kzx).
+    // `SESSION` introduces the top-level session-management statement
+    // category; `ZONE` is the trailer of the `TIME ZONE` fixed phrase.
+    // Both are verified empty as identifiers in the openCypher TCK
+    // (`grep -rwi 'SESSION' tck/full/` and `grep -rwi 'ZONE' tck/full/`
+    // return no query-body hits), so promoting them to keywords does
+    // not regress the pass-rate. The remaining session-set words
+    // (`GRAPH`, `PROPERTY`, `TIME`, `VALUE`, `IF`, `CURRENT_GRAPH`,
+    // `CURRENT_PROPERTY_GRAPH`) stay as ordinary identifiers and are
+    // recognised contextually in the parser.
+    #[token("SESSION", ignore(case))]
+    Session,
+    #[token("ZONE", ignore(case))]
+    Zone,
+    // --- end cy-9kzx ---
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
@@ -573,6 +590,8 @@ impl RawToken {
             Self::Copy => SyntaxKind::COPY_KW,
             Self::Of => SyntaxKind::OF_KW,
             Self::Next => SyntaxKind::NEXT_KW,
+            Self::Session => SyntaxKind::SESSION_KW,
+            Self::Zone => SyntaxKind::ZONE_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

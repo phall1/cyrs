@@ -683,6 +683,29 @@ pub(crate) mod syntax_codes {
     /// 39075:2024 §10.6.3).
     pub(crate) const EXPECTED_ELEMENTS_OR_EDGES: u16 = 90;
 
+    // ---- cy-9kzx SESSION SET (ISO/IEC 39075:2024 §14.15) ---------------
+    /// E0091 — expected `SET` after `SESSION` (cy-9kzx).
+    pub(crate) const EXPECTED_SET_AFTER_SESSION: u16 = 91;
+    /// E0092 — expected `GRAPH`, `PROPERTY`, `TIME`, or `VALUE` after
+    /// `SESSION SET` (cy-9kzx; ISO/IEC 39075:2024 §14.15).
+    pub(crate) const EXPECTED_SESSION_SET_TARGET: u16 = 92;
+    /// E0093 — expected a graph reference (`CURRENT_GRAPH`,
+    /// `CURRENT_PROPERTY_GRAPH`, or graph name) after `SESSION SET
+    /// [PROPERTY] GRAPH` (cy-9kzx).
+    pub(crate) const EXPECTED_GRAPH_REF: u16 = 93;
+    /// E0094 — expected `ZONE` after `SESSION SET TIME` (cy-9kzx).
+    pub(crate) const EXPECTED_ZONE_AFTER_TIME: u16 = 94;
+    /// E0095 — expected string literal time-zone after `SESSION SET TIME
+    /// ZONE` (cy-9kzx).
+    pub(crate) const EXPECTED_TIME_ZONE_LITERAL: u16 = 95;
+    /// E0096 — expected `$param` in `SESSION SET VALUE` (cy-9kzx).
+    pub(crate) const EXPECTED_PARAM_IN_SESSION_VALUE: u16 = 96;
+    /// E0097 — expected `=` in `SESSION SET VALUE $param = <expr>` (cy-9kzx).
+    pub(crate) const EXPECTED_EQ_IN_SESSION_VALUE: u16 = 97;
+    /// E0098 — expected expression after `=` in `SESSION SET VALUE` (cy-9kzx).
+    pub(crate) const EXPECTED_SESSION_VALUE_EXPR: u16 = 98;
+    // ---- end cy-9kzx ---------------------------------------------------
+
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`
     // variant. Dialect-gate codes live in `crates/cyrs-diag/src/codes.rs`
@@ -729,6 +752,9 @@ pub(crate) const RECOVERY_STOP: TokenSet = TokenSet::new(&[
     // 39075:2024 §14.14). Including it in the recovery-stop set keeps
     // catalog-DDL chains from being consumed by an ERROR recovery run.
     SyntaxKind::NEXT_KW,
+    // cy-9kzx: SESSION introduces a top-level statement category, so it
+    // always terminates clause-level recovery.
+    SyntaxKind::SESSION_KW,
 ]);
 
 // ========================================================================
