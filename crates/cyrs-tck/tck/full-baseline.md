@@ -23,8 +23,8 @@ acceptance is not yet equivalent to pass-rate.
 |---|---|
 | Feature files scanned | **220** |
 | Scenario cases (outline rows expanded) | **3897** |
-| Accepted by parser | **3754** (96.3 %) |
-| Rejected by parser | **143** (3.7 %) |
+| Accepted by parser | **3759** (96.5 %) |
+| Rejected by parser | **138** (3.5 %) |
 
 ## Per-area pass counts
 
@@ -51,7 +51,7 @@ acceptance is not yet equivalent to pass-rate.
 | `expressions/boolean` | 148 | 150 | 98.7 % |
 | `expressions/comparison` | 72 | 72 | 100.0 % |
 | `expressions/conditional` | 13 | 13 | 100.0 % |
-| `expressions/existentialSubqueries` | 0 | 10 | 0.0 % |
+| `expressions/existentialSubqueries` | 5 | 10 | 50.0 % |
 | `expressions/graph` | 52 | 61 | 85.2 % |
 | `expressions/list` | 180 | 185 | 97.3 % |
 | `expressions/literals` | 101 | 131 | 77.1 % |

@@ -356,7 +356,11 @@ impl KindCtx<'_> {
             | Expr::Int(_)
             | Expr::Float(_)
             | Expr::String(_)
-            | Expr::Param(_) => {}
+            | Expr::Param(_)
+            // cy-p1u5: subquery is opaque to kind checks. The body is
+            // not lowered to HIR, so there are no variables here to
+            // classify. The dialect-gate pass owns the rejection.
+            | Expr::ExistsSubqueryDeferred { .. } => {}
         }
     }
 

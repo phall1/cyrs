@@ -470,6 +470,25 @@ pub enum SyntaxKind {
     SESSION_SET_VALUE_VARIANT = 412,
     // --- end cy-9kzx ---
 
+    // --- cy-p1u5 EXISTS parser-only ---
+    // GQL-distinct EXISTS subquery shapes (ISO/IEC 39075:2024 §10.7 / §14.10):
+    //
+    //   * `EXISTS { <Statement> }` — braced subquery containing a full
+    //     SingleQuery (clauses including RETURN). ISO §10.7.
+    //   * `EXISTS ( MATCH … )` — parenthesised subquery whose body is a
+    //     single MATCH-block statement (no RETURN required). OpenGQL
+    //     samples shape.
+    //
+    // Both shapes are accepted at the CST/AST level by this bead so the
+    // OpenGQL `match_with_exists_predicate_*` samples flip to "Parser
+    // accepts? yes". Full subquery semantics (scope graph, existential
+    // semantics) remain deferred per spec §20 D1 / N4; the deferred-
+    // feature diagnostic (E4017) fires from sema, not the parser. Slot
+    // 413 (rebased from 398, since cy-51we/cy-rgqg/cy-9kzx claimed
+    // 398..=412).
+    EXISTS_SUBQUERY_EXPR = 413,
+    // --- end cy-p1u5 ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -701,6 +720,10 @@ impl SyntaxKind {
             411 => Self::SESSION_SET_TIME_ZONE_VARIANT,
             412 => Self::SESSION_SET_VALUE_VARIANT,
             // --- end cy-9kzx ---
+
+            // --- cy-p1u5 EXISTS parser-only ---
+            413 => Self::EXISTS_SUBQUERY_EXPR,
+            // --- end cy-p1u5 ---
             768 => Self::ERROR,
             769 => Self::EOF,
 
@@ -812,6 +835,7 @@ mod tests {
             SyntaxKind::CATALOG_CREATE_GRAPH_STMT,
             SyntaxKind::CATALOG_CREATE_SCHEMA_STMT,
             SyntaxKind::GRAPH_TYPE_REF,
+            SyntaxKind::EXISTS_SUBQUERY_EXPR,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

@@ -37,7 +37,7 @@
 use crate::SyntaxKind;
 use crate::parser::{CompletedMarker, Marker, Parser, TokenSet, syntax_codes as sc};
 
-use super::pattern;
+use super::{pattern, statement};
 
 /// Parse an expression and return a handle to the completed root node.
 /// Returns `None` if the current token starts nothing expression-like —
@@ -224,7 +224,8 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump_any();
             m.complete(p, SyntaxKind::VAR_EXPR)
         }
-        // `EXISTS` has three surface forms (cy-lve, spec §6.1 / §19):
+        // `EXISTS` has four surface forms (cy-lve / cy-p1u5, spec §6.1 /
+        // §19; ISO/IEC 39075:2024 §10.7 / §14.10):
         //
         //   1. `EXISTS ( <pattern> )` — pattern predicate. Accepted; lowered
         //      to `PATTERN_PREDICATE` so HIR / sema see the same shape as
@@ -232,21 +233,39 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
         //   2. `EXISTS ( <expr> )` — `exists(expr)` function call (e.g.
         //      `exists(n.prop)`). Falls through to the `VAR_EXPR` + postfix
         //      function-call path.
-        //   3. `EXISTS { … }` — block-subquery form. Deferred per spec §19 /
-        //      §20 D1; emit E4017 and swallow the braced body for recovery.
+        //   3. `EXISTS { … }` — braced block-subquery form (ISO §10.7).
+        //      Parsed into an `EXISTS_SUBQUERY_EXPR` containing a full
+        //      `STATEMENT` body (clauses including a `RETURN`). Semantic
+        //      surface (scope graph, existential semantics) remains
+        //      deferred per spec §20 D1 / N4: sema emits E4017
+        //      (`exists_subquery` gate) and HIR / plan lowering refuse
+        //      to interpret the body.
+        //   4. `EXISTS ( MATCH … )` — parenthesised subquery whose body is
+        //      a MATCH-block statement (`OpenGQL` samples shape). Wrapped
+        //      in the same `EXISTS_SUBQUERY_EXPR` as (3); same
+        //      sema-deferral discipline. Spec amendment 2026-05-19
+        //      (cy-5e3f) — parser-only widening (cy-p1u5).
         //
-        // Disambiguation between (1) and (2): openCypher patterns always
-        // begin with an `(` (the first node pattern). A `(` immediately
-        // after `EXISTS (` therefore indicates form (1); anything else
-        // falls through to form (2). This is the same shape heuristic
-        // tree-sitter-cypher uses for `exists_expression` vs.
-        // `exists_function_invocation` (spec §19 "Pattern predicates in
-        // expressions" — the ambiguity is resolved by the nested `(`).
+        // Disambiguation:
+        //   - `EXISTS {`             → form (3).
+        //   - `EXISTS ( MATCH`       → form (4).
+        //   - `EXISTS ( (`           → form (1).
+        //   - `EXISTS ( <anything else>` or `EXISTS <not-paren-or-brace>`
+        //                            → form (2) (function-call fallthrough).
+        //
+        // Forms (1) and (2) share the `EXISTS (` prefix and are split by
+        // a second `(` lookahead: a pattern always opens with a
+        // parenthesised node pattern, while `exists(expr)` never does.
+        // Form (4) is split off form (2) by checking for `MATCH_KW`
+        // immediately after the outer `(`; openCypher's `exists(expr)`
+        // can never legitimately begin with a `MATCH` keyword.
         SyntaxKind::EXISTS_KW => {
             if p.nth(1) == SyntaxKind::L_BRACE {
-                // Form (3): block subquery. Not in v1. Emit E4017 and
-                // recover by consuming the balanced braces.
-                exists_block_deferred(p)
+                // Form (3): braced subquery — cy-p1u5 parser-only widening.
+                exists_subquery_braced(p)
+            } else if p.nth(1) == SyntaxKind::L_PAREN && p.nth(2) == SyntaxKind::MATCH_KW {
+                // Form (4): parenthesised MATCH-block subquery — cy-p1u5.
+                exists_subquery_paren_match(p)
             } else if p.nth(1) == SyntaxKind::L_PAREN && p.nth(2) == SyntaxKind::L_PAREN {
                 // Form (1): pattern predicate.
                 exists_pattern_predicate(p)
@@ -735,45 +754,74 @@ fn exists_pattern_predicate(p: &mut Parser<'_>) -> CompletedMarker {
     m.complete(p, SyntaxKind::PATTERN_PREDICATE)
 }
 
-/// Reject the block-subquery form `EXISTS { ... }` with the
-/// `exists_subquery` dialect-gate code E4017 (spec §9.3 / §19 row
-/// "`EXISTS { <subquery> }`" / §20 D1).
+/// Parse the braced EXISTS-subquery form `EXISTS { <Statement> }` —
+/// ISO/IEC 39075:2024 §10.7 (cy-p1u5).
 ///
-/// The form is not part of either v1 dialect and will not be in v1. We
-/// still parse it permissively enough to recover: consume the keyword,
-/// skip the balanced braces, and emit an ERROR-marker so the rest of the
-/// statement parses.
-fn exists_block_deferred(p: &mut Parser<'_>) -> CompletedMarker {
+/// Enters on the `EXISTS` keyword with `EXISTS {` confirmed by [`atom`].
+/// Consumes the keyword, the opening `{`, a full
+/// [`statement::statement`] body (clauses including `RETURN`), and the
+/// closing `}`. Returns a [`SyntaxKind::EXISTS_SUBQUERY_EXPR`] node.
+///
+/// The parser accepts this shape so the `OpenGQL` `match_with_exists_*`
+/// samples flip to `Parser accepts? yes`; the semantic surface
+/// (scope graph, existential semantics) remains deferred per spec §20
+/// D1 / N4. HIR lowering maps the node to
+/// [`cyrs_hir::Expr::ExistsSubqueryDeferred`] without resolving names
+/// or types in the body, and sema fires the `exists_subquery` gate
+/// (E4017) on every occurrence. See the §0 amendment dated 2026-05-19
+/// (cy-5e3f) for the scope rationale.
+fn exists_subquery_braced(p: &mut Parser<'_>) -> CompletedMarker {
     debug_assert!(p.at(SyntaxKind::EXISTS_KW));
     debug_assert!(p.nth(1) == SyntaxKind::L_BRACE);
     let m = p.start();
-    p.error_code(
-        sc::EXISTS_BLOCK_DEFERRED,
-        "EXISTS { ... } block subqueries are deferred per spec §19 / §20 D1",
-    );
-    // Consume the keyword and the brace-delimited body without
-    // interpreting its contents. Track brace depth so nested maps
-    // inside the body don't prematurely end the skip.
     p.bump(SyntaxKind::EXISTS_KW);
     p.bump(SyntaxKind::L_BRACE);
-    let mut depth: u32 = 1;
-    while depth > 0 && !p.at(SyntaxKind::EOF) {
-        match p.current() {
-            SyntaxKind::L_BRACE => {
-                depth += 1;
-                p.bump(SyntaxKind::L_BRACE);
-            }
-            SyntaxKind::R_BRACE => {
-                depth -= 1;
-                p.bump(SyntaxKind::R_BRACE);
-            }
-            _ => p.bump_any(),
-        }
+    // Parse the body as a full SingleQuery / UnionQuery. The grammar
+    // for `statement` already loops until it sees `EOF`, `;`, or a
+    // token that is not a clause start — the closing `R_BRACE` falls
+    // into the "not a clause start" bucket and terminates the loop
+    // without consuming the brace.
+    statement::statement(p);
+    if !p.eat(SyntaxKind::R_BRACE) {
+        p.error_code(
+            sc::EXPECTED_RBRACE_EXISTS,
+            "expected '}' to close EXISTS { ... } subquery",
+        );
     }
-    // Tag as ERROR so downstream passes (sema/plan) do not try to
-    // interpret this as a valid expression. The primary diagnostic is
-    // already on the CST.
-    m.complete(p, SyntaxKind::ERROR)
+    m.complete(p, SyntaxKind::EXISTS_SUBQUERY_EXPR)
+}
+
+/// Parse the parenthesised EXISTS-subquery form `EXISTS ( MATCH … )` —
+/// `OpenGQL` samples shape (cy-p1u5, ISO/IEC 39075:2024 §10.7 / §14.10).
+///
+/// Enters on the `EXISTS` keyword with `EXISTS ( MATCH` confirmed by
+/// [`atom`]. Consumes the keyword, the outer `(`, a single
+/// `MATCH_CLAUSE` (with its `WHERE` tail), and the closing `)`.
+/// Returns a [`SyntaxKind::EXISTS_SUBQUERY_EXPR`] node. The body is a
+/// single MATCH block (no `RETURN` required) — distinct from the
+/// braced form, which carries a full statement.
+///
+/// Semantic surface is deferred to the same place as the braced form;
+/// see [`exists_subquery_braced`] for the discipline.
+fn exists_subquery_paren_match(p: &mut Parser<'_>) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::EXISTS_KW));
+    debug_assert!(p.nth(1) == SyntaxKind::L_PAREN);
+    debug_assert!(p.nth(2) == SyntaxKind::MATCH_KW);
+    let m = p.start();
+    p.bump(SyntaxKind::EXISTS_KW);
+    p.bump(SyntaxKind::L_PAREN);
+    // The body is a `MATCH` clause (with its optional `WHERE` tail).
+    // We reuse the regular clause parser via `statement::statement`
+    // so we accept any clauses GQL's MATCH-block grammar allows; the
+    // loop terminates at the closing `)` (not a clause-start token).
+    statement::statement(p);
+    if !p.eat(SyntaxKind::R_PAREN) {
+        p.error_code(
+            sc::EXPECTED_RPAREN_EXISTS,
+            "expected ')' to close EXISTS ( MATCH ... ) subquery",
+        );
+    }
+    m.complete(p, SyntaxKind::EXISTS_SUBQUERY_EXPR)
 }
 
 /// Two-token lookahead disambiguator for an `L_PAREN` in expression

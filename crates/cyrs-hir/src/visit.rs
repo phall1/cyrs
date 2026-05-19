@@ -251,7 +251,12 @@ pub fn walk_expr<V: Visitor>(v: &mut V, e: &Expr) {
         | Expr::String(_)
         | Expr::Var(_)
         | Expr::Param(_)
-        | Expr::Unresolved(_) => {}
+        | Expr::Unresolved(_)
+        // cy-p1u5: ExistsSubqueryDeferred is an inert marker — the body
+        // is **not** lowered into HIR so there are no sub-expressions
+        // to walk. Treated as a leaf for visitor traversal; sema picks
+        // it up via the dialect-gate pass.
+        | Expr::ExistsSubqueryDeferred { .. } => {}
 
         Expr::Prop { target, .. } => v.visit_expr(target),
         Expr::Index { target, index } => {

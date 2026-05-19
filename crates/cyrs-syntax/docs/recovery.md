@@ -714,9 +714,31 @@ invariant; the strategy will be fleshed out when the production lands.
   set — the `PATTERN_PREDICATE` node is closed at the current position
   via virtual-token insertion.
 - Virtual insertion: `E0072` — missing `)` closing `EXISTS(<pattern>)`.
-- Deferred block form: `EXISTS { <subquery> }` is not in v1 (§19 / §20
-  D1). The parser emits `E4017` (the shared `exists_subquery` dialect
-  gate) and recovers by swallowing the balanced braces.
+- Subquery forms (`EXISTS { <Statement> }` / `EXISTS ( MATCH … )`) are
+  parser-accepted but sema-deferred per spec §0 amendment 2026-05-19 —
+  see `ExistsSubqueryExpr` below for the recovery contract. The
+  parser-emit of `E4017` was retired by cy-p1u5; the diagnostic is now
+  owned by the cyrs-sema dialect-gate pass.
+
+### ExistsSubqueryExpr
+
+- Status: **IMPLEMENTED** (cy-p1u5, spec §0 amendment 2026-05-19 / ISO/IEC
+  39075:2024 §10.7 / §14.10). Parser-only widening — the CST shape is
+  accepted so the OpenGQL `match_with_exists_predicate_*` samples flip
+  to `Parser accepts? yes`; the semantic surface (scope graph,
+  existential semantics) remains deferred per spec §20 D1 / N4. Sema's
+  `exists_subquery` dialect-gate pass owns the load-bearing
+  deferred-feature diagnostic (`E4017`).
+- Synchronisation set: clause-level keywords + `;` + EOF (default). The
+  body's `statement::statement` loop terminates at the closing brace /
+  paren (not a clause-start token) without consuming it.
+- Skip-and-recover: on missing `}` (braced form) or missing `)` (paren
+  form) the parser emits a token-boundary diagnostic and closes the
+  `EXISTS_SUBQUERY_EXPR` at the current position. Braced form
+  surfaces `E0091` (`EXPECTED_RBRACE_EXISTS`); paren form reuses
+  `E0072` (`EXPECTED_RPAREN_EXISTS`).
+- Virtual insertion: `E0091` — missing `}` closing `EXISTS { … }`;
+  `E0072` — missing `)` closing `EXISTS ( MATCH … )`.
 
 ### PatternPredicate
 

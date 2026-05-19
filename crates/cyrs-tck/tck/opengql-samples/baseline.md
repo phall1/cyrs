@@ -11,7 +11,7 @@ the vendored OpenGQL upstream sample corpus under
 
 ## Summary
 
-- Accepted: **11/14** (78.6 %)
+- Accepted: **14/14** (100.0 %)
 
 
 ## Per-file results
@@ -25,9 +25,9 @@ the vendored OpenGQL upstream sample corpus under
 | `create_schema.gql` | yes |
 | `insert_statement.gql` | yes |
 | `match_and_insert_example.gql` | yes |
-| `match_with_exists_predicate_(match_block_statement_in_braces).gql` | no |
-| `match_with_exists_predicate_(match_block_statement_in_parentheses).gql` | no |
-| `match_with_exists_predicate_(nested_match_statement).gql` | no |
+| `match_with_exists_predicate_(match_block_statement_in_braces).gql` | yes |
+| `match_with_exists_predicate_(match_block_statement_in_parentheses).gql` | yes |
+| `match_with_exists_predicate_(nested_match_statement).gql` | yes |
 | `session_set_graph_to_current_graph.gql` | yes |
 | `session_set_graph_to_current_property_graph.gql` | yes |
 | `session_set_property_as_value.gql` | yes |

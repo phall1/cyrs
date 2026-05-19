@@ -302,9 +302,17 @@ Expr =
 | StringPatternExpr
 | MembershipExpr
 | PatternPredicate
+// --- cy-p1u5 EXISTS parser-only ---
+| ExistsSubqueryExpr
+// --- end cy-p1u5 ---
 
-// DEFERRED: `EXISTS { <subquery> }` and `COUNT { ... }` expression forms
-// — spec §19 / §20 D1.
+// DEFERRED: `COUNT { ... }` expression forms — spec §19 / §20 D1.
+//
+// `EXISTS { <Statement> }` / `EXISTS ( MATCH … )` are parser-accepted
+// but semantically deferred (cy-p1u5, spec §0 amendment 2026-05-19).
+// The CST shape is captured by `ExistsSubqueryExpr`; sema's
+// `exists_subquery` dialect-gate (E4017) rejects every occurrence so
+// spec §20 D1 / N4 stay in force at the semantic surface.
 
 Literal =
   IntLiteral
@@ -445,6 +453,19 @@ ExistsPredicate =
 // Desugared in HIR (spec §6.1).
 PatternPredicate =
   PathPattern
+
+// --- cy-p1u5 EXISTS parser-only ---
+// `EXISTS { <Statement> }` (ISO/IEC 39075:2024 §10.7) and
+// `EXISTS ( MATCH … )` (ISO §14.10) subquery expression — bead cy-p1u5.
+//
+// Parser-accepted, semantically deferred per spec §20 D1 / N4: HIR
+// lowering produces an inert `Expr::ExistsSubqueryDeferred` marker
+// and sema's `exists_subquery` dialect-gate (E4017) rejects every
+// occurrence. The body is captured as a generic `Statement` node so
+// a future spec lifting D1 can pick it up without re-parsing.
+ExistsSubqueryExpr =
+  'EXISTS' ('{' Statement '}' | '(' Statement ')')
+// --- end cy-p1u5 ---
 
 // Arithmetic, comparison, boolean. The parser assigns precedence; the
 // ungrammar only claims the shape.

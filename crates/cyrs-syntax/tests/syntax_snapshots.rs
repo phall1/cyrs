@@ -637,12 +637,29 @@ fn expr_exists_function_call_form() {
 }
 
 #[test]
-fn err_exists_block_deferred() {
-    // `EXISTS { ... }` block-subquery form — deferred per spec §19 /
-    // §20 D1. The parser emits E4017 via the `exists_subquery`
-    // dialect-gate slot and recovers by swallowing the braced body.
+fn expr_exists_block_subquery_parser_only() {
+    // `EXISTS { <Statement> }` — braced block-subquery form. Spec §0
+    // amendment 2026-05-19 (cy-5e3f) / bead cy-p1u5 widened the parser
+    // to accept the syntax (so the OpenGQL
+    // `match_with_exists_predicate_*` samples flip to `Parser accepts?
+    // yes`); the semantic surface (scope graph, existential
+    // semantics) remains deferred per spec §20 D1 / N4. The parser
+    // must therefore produce a clean (no-errors) tree and the
+    // `EXISTS_SUBQUERY_EXPR` wrapper must be visible on the CST so
+    // sema's dialect-gate pass can fire E4017.
     insta::assert_snapshot!(format_with_errors(
         "MATCH (a) WHERE EXISTS { MATCH (a) RETURN a } RETURN a"
+    ));
+}
+
+#[test]
+fn expr_exists_paren_match_subquery_parser_only() {
+    // `EXISTS ( MATCH … )` — parenthesised MATCH-block subquery form
+    // (cy-p1u5, ISO/IEC 39075:2024 §14.10). Same parser-only widening
+    // discipline as the braced form: parser accepts cleanly, sema
+    // emits E4017.
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (p) WHERE EXISTS ( MATCH (p)-[:R]->(:X) ) RETURN p"
     ));
 }
 

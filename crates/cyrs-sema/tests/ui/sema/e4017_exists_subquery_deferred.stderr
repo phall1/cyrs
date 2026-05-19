@@ -1,0 +1,6 @@
+error[E4017]: construct `exists_subquery` is not allowed in dialect `GqlAligned`; allowed in: no v1 dialect (deferred construct, see spec §9.3)
+   ┌─ e4017_exists_subquery_deferred.cypher:16:16
+   │
+16 │ MATCH (p) WHERE EXISTS { MATCH (p)-[:R]->(:X) RETURN p } RETURN p
+   │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

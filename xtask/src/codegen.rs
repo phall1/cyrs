@@ -1032,6 +1032,12 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "IS_TYPED_EXPR",
         "TYPE_CAST_EXPR",
         "TYPE_NAME",
+        // --- cy-p1u5 EXISTS parser-only ---
+        // `EXISTS { … }` / `EXISTS ( MATCH … )` subquery node
+        // (ISO/IEC 39075:2024 §10.7 / §14.10). Parser-accepted,
+        // sema-deferred via E4017 (spec §0 amendment 2026-05-19).
+        "EXISTS_SUBQUERY_EXPR",
+        // --- end cy-p1u5 ---
     ]
     .into_iter()
     .collect()

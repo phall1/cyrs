@@ -578,7 +578,12 @@ impl ResolveCtx<'_> {
             | Expr::Int(_)
             | Expr::Float(_)
             | Expr::String(_)
-            | Expr::Param(_) => {}
+            | Expr::Param(_)
+            // cy-p1u5: ExistsSubqueryDeferred is opaque to name
+            // resolution. The body is not lowered, so no variable
+            // references inside it need to be (or can be) resolved
+            // here. The dialect-gate pass emits E4017.
+            | Expr::ExistsSubqueryDeferred { .. } => {}
         }
     }
 

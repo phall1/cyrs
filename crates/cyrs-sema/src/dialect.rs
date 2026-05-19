@@ -271,9 +271,18 @@ pub fn check(gate: &DialectGate, dialect: DialectMode, span: TextRange) -> Resul
 /// - `CALL` clauses with APOC-prefixed procedure names → `GATE_APOC_FUNCTIONS`
 /// - `CALL` clauses in general → `GATE_CALL_PROCEDURE` (always allowed in v1)
 ///
-/// Additional gates (LOAD CSV, EXISTS {}, `CYPHER` prefix, label negation,
+/// Additional gates (LOAD CSV, `CYPHER` prefix, label negation,
 /// integer division) are syntactic and will be fired from the parser or a
 /// future lowering step; stubs are provided here for completeness.
+///
+/// `EXISTS { … }` / `EXISTS ( MATCH … )` subqueries (cy-p1u5,
+/// ISO/IEC 39075:2024 §10.7 / §14.10) reach this pass as
+/// [`cyrs_hir::Expr::ExistsSubqueryDeferred`] markers; every occurrence
+/// fires [`GATE_EXISTS_SUBQUERY`] (`DiagCode::E4017`) so the semantic
+/// surface (scope graph, existential semantics) stays deferred per spec
+/// §20 D1 / N4 even though the parser accepts the syntax. The walk
+/// uses the [`cyrs_hir::visit::Visitor`] machinery so every WHERE
+/// predicate, RETURN projection, set item, etc. is covered.
 pub fn check_dialect(stmt: &Statement, dialect: DialectMode, sink: &mut DiagnosticsSink) {
     use cyrs_hir::Clause;
 
@@ -297,7 +306,47 @@ pub fn check_dialect(stmt: &Statement, dialect: DialectMode, sink: &mut Diagnost
             }
         }
     }
+
+    // --- cy-p1u5 EXISTS parser-only ---
+    // Walk every expression in the HIR and fire E4017 on each
+    // `ExistsSubqueryDeferred` marker. This is the routing point for
+    // N4 / D1 at the semantic surface: the parser accepts the syntax,
+    // but every occurrence carries a hard deferred-feature
+    // diagnostic, so the construct cannot reach Plan lowering as a
+    // valid expression.
+    let mut walker = ExistsSubqueryGateVisitor {
+        dialect,
+        sink,
+        emitted: 0,
+    };
+    cyrs_hir::visit::walk_statement(&mut walker, stmt);
+    // --- end cy-p1u5 ---
 }
+
+// --- cy-p1u5 EXISTS parser-only ---
+/// Visitor that fires [`GATE_EXISTS_SUBQUERY`] on every
+/// [`cyrs_hir::Expr::ExistsSubqueryDeferred`] node in a HIR statement.
+///
+/// `emitted` is kept for cheap unit-test introspection — the public
+/// surface is the [`Diagnostic`]s pushed into `sink`.
+struct ExistsSubqueryGateVisitor<'a> {
+    dialect: DialectMode,
+    sink: &'a mut DiagnosticsSink,
+    emitted: usize,
+}
+
+impl cyrs_hir::visit::Visitor for ExistsSubqueryGateVisitor<'_> {
+    fn visit_expr(&mut self, expr: &cyrs_hir::Expr) {
+        if let cyrs_hir::Expr::ExistsSubqueryDeferred { span } = expr
+            && let Err(d) = check(&GATE_EXISTS_SUBQUERY, self.dialect, *span)
+        {
+            self.sink.push(d);
+            self.emitted += 1;
+        }
+        cyrs_hir::visit::walk_expr(self, expr);
+    }
+}
+// --- end cy-p1u5 ---
 
 /// A zero-width span at offset zero; used when a check is not tied to a
 /// specific source range (e.g. the pass-entry `Neo4jCurrent` rejection).

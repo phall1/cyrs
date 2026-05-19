@@ -305,7 +305,11 @@ impl SchemaCtx<'_> {
             | Expr::String(_)
             | Expr::Var(_)
             | Expr::Param(_)
-            | Expr::Unresolved(_) => {}
+            | Expr::Unresolved(_)
+            // cy-p1u5: subquery body is not lowered, so schema-aware
+            // checks have nothing to do here. The dialect-gate pass
+            // owns the rejection (E4017).
+            | Expr::ExistsSubqueryDeferred { .. } => {}
 
             // Property access: check property name is declared if binding has labels.
             Expr::Prop { target, prop } => {
