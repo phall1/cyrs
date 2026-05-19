@@ -109,6 +109,10 @@ fn all_count_pinned() {
     //         GQL-distinct write-clause spelling (ISO/IEC 39075:2024
     //         §13.4) parses analogously to CREATE but emits a separate
     //         code so dialect-aware tools can hint accordingly.
-    const EXPECTED: usize = 126;
+    // cy-auh: added E0086 for `RETURN ... EXCLUDE` field-list recovery
+    //         — the GQL-distinct return-projection trailer per ISO/IEC
+    //         39075:2024 §14.13.4. Slots E0084 / E0085 are pre-reserved
+    //         for parallel GQL beads (FILTER / OPTIONAL CALL).
+    const EXPECTED: usize = 127;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

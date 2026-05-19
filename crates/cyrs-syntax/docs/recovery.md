@@ -92,11 +92,24 @@ invariant; the strategy will be fleshed out when the production lands.
 
 ### ReturnClause
 
-- Synchronisation set: `ORDER`, `SKIP`, `LIMIT`, clause-start keywords,
-  `;`, EOF.
+- Synchronisation set: `ORDER`, `SKIP`, `LIMIT`, `EXCLUDE`, clause-start
+  keywords, `;`, EOF.
 - Skip-and-recover: tokens inside a malformed `ReturnItem` are consumed
-  into the item's `ERROR` node until `,`, `ORDER`, `SKIP`, `LIMIT`, or
-  a sync-set token is reached.
+  into the item's `ERROR` node until `,`, `ORDER`, `SKIP`, `LIMIT`,
+  `EXCLUDE`, or a sync-set token is reached.
+- Virtual insertion: none.
+
+### ReturnExclude
+
+- Status: **IMPLEMENTED** (cy-auh) — GQL-distinct return-projection
+  trailer per ISO/IEC 39075:2024 §14.13.4.
+- Synchronisation set: `ORDER`, `SKIP`, `LIMIT`, clause-start keywords,
+  `;`, EOF (the trailers that can follow EXCLUDE inside the same
+  `RETURN` clause).
+- Skip-and-recover: a missing identifier after `EXCLUDE` (or after a
+  separator `,`) emits **E0086** (`EXPECTED_EXCLUDE_ITEM`) and closes
+  the `RETURN_EXCLUDE` node so the following `ORDER BY` / `SKIP` /
+  `LIMIT` trailer still parses.
 - Virtual insertion: none.
 
 ### UnwindClause

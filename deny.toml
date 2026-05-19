@@ -111,3 +111,13 @@ version = "0.51"
 unknown-registry = "deny"
 unknown-git      = "deny"
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+# `rowan` is patched workspace-wide via [patch.crates-io] to the
+# fork at https://github.com/phall1/rowan (branch
+# fix/sb-node-cache-rehash) for the cy-7s6.0 sibling-cache rehash
+# fix. The pin predates the GQL-bootstrap beads and lives on main;
+# without this allow-list the supply-chain gate (`cargo deny check
+# sources`) fails on every commit. Allow the maintainer's own
+# fork org so the pre-existing pin does not block dialect-feature
+# work; drop once the upstream rowan release picks up the fix.
+[sources.allow-org]
+github = ["phall1"]

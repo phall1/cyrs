@@ -659,13 +659,17 @@ pub(crate) mod syntax_codes {
     /// E0082 — expected an item in map projection: `.name`, `key: expr`,
     /// `.*`, or `*` (cy-01q). Renumbered from E0077.
     pub(crate) const EXPECTED_MAP_PROJECTION_ITEM: u16 = 82;
-    /// E0083 — expected pattern after INSERT (cy-8z3).
-    /// Mirrors EXPECTED_CREATE_PATTERN (E0055) for the GQL-distinct
+    /// E0083 — expected pattern after `INSERT` (cy-8z3).
+    /// Mirrors `EXPECTED_CREATE_PATTERN` (E0055) for the GQL-distinct
     /// `INSERT NODE` / `INSERT EDGE` clause. Distinct code so that
-    /// diagnostics can differentiate "you wrote CREATE and missed the
-    /// pattern" from "you wrote INSERT and missed the pattern", which is
-    /// useful for hint-generation in the OpenCypherV9-dialect-gate path.
+    /// diagnostics can differentiate "you wrote `CREATE` and missed the
+    /// pattern" from "you wrote `INSERT` and missed the pattern", which is
+    /// useful for hint-generation in the `OpenCypherV9`-dialect-gate path.
     pub(crate) const EXPECTED_INSERT_PATTERN: u16 = 83;
+    /// E0086 — expected identifier in a `RETURN ... EXCLUDE` field list
+    /// (cy-auh, ISO/IEC 39075:2024 §14.13.4). Pre-reserved slots E0084 /
+    /// E0085 are owned by parallel GQL beads (FILTER / OPTIONAL CALL).
+    pub(crate) const EXPECTED_EXCLUDE_ITEM: u16 = 86;
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`

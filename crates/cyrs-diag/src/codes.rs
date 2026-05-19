@@ -614,6 +614,10 @@ pub enum DiagCode {
     /// (CREATE pattern) so a downstream renderer can hint at the
     /// dialect-specific spelling.
     E0083 = 83,
+    /// Expected identifier in a `RETURN ... EXCLUDE` field list (cy-auh,
+    /// ISO/IEC 39075:2024 §14.13.4). Slots E0084 / E0085 are reserved
+    /// for parallel GQL beads (FILTER / OPTIONAL CALL).
+    E0086 = 86,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -744,6 +748,7 @@ impl DiagCode {
             Self::E0081 => "E0081",
             Self::E0082 => "E0082",
             Self::E0083 => "E0083",
+            Self::E0086 => "E0086",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -894,6 +899,7 @@ impl DiagCode {
         Self::E0081,
         Self::E0082,
         Self::E0083,
+        Self::E0086,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1102,6 +1108,7 @@ mod tests {
             DiagCode::E0081,
             DiagCode::E0082,
             DiagCode::E0083,
+            DiagCode::E0086,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1182,11 +1189,13 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps inside ranges (E0073..=E0077, E0084+).
+        // Gaps inside ranges (E0073..=E0077, E0084, E0085, E0087+).
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(84), None);
+        assert_eq!(DiagCode::try_from_u16(85), None);
+        assert_eq!(DiagCode::try_from_u16(87), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

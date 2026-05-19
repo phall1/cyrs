@@ -425,17 +425,42 @@ fn with_clause(p: &mut Parser<'_>) {
     m.complete(p, SyntaxKind::WITH_CLAUSE);
 }
 
-/// `ReturnClause = 'RETURN' 'DISTINCT'? ReturnItem (',' ReturnItem)*
-///                 OrderBy? Skip? Limit?`
+/// `ReturnClause = 'RETURN' ('DISTINCT' | 'ALL')? ReturnItem (',' ReturnItem)*
+///                 ReturnExclude? OrderBy? Skip? Limit?`
 ///
 /// Spec defers the full `RETURN *` mixed-list form to cy-nom-follow-ups;
 /// we accept `RETURN *` as a standalone star and otherwise require the
 /// comma-separated `ReturnItem` list from the ungrammar.
+///
+/// GQL adds two surface variations on top of the openCypher form
+/// (ISO/IEC 39075:2024 §14.13, cy-auh):
+///
+/// * `RETURN ALL ...` — explicit multiset semantics (the default).
+///   Accepted as a leading modifier in the same slot as `DISTINCT`;
+///   the two are mutually exclusive. `ALL_KW` is also the head of the
+///   list-predicate `ALL(x IN xs WHERE p)` in expression position, but
+///   that form never appears bare immediately after `RETURN` (it would
+///   need a following `(`), so the ambiguity is resolved by context —
+///   the modifier is only eaten here at the clause level.
+/// * `RETURN <items> EXCLUDE <id> (, <id>)*` — projection minus a list
+///   of named fields (§14.13.4). Parsed as a `RETURN_EXCLUDE` node
+///   nested inside the `RETURN_CLAUSE`, after the items and before
+///   the `ORDER BY` / `SKIP` / `LIMIT` trailers.
 fn return_clause(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::RETURN_KW));
     let m = p.start();
     p.bump(SyntaxKind::RETURN_KW);
-    p.eat(SyntaxKind::DISTINCT_KW);
+    // `DISTINCT` and `ALL` occupy the same modifier slot (§14.13.2) and
+    // are mutually exclusive. `ALL` is also the head of a list predicate
+    // (`ALL(x IN xs WHERE p)`), so it is only consumed as a modifier
+    // here when *not* followed by `(` — otherwise it belongs to the
+    // first `RETURN_ITEM`'s expression.
+    if !p.eat(SyntaxKind::DISTINCT_KW)
+        && p.at(SyntaxKind::ALL_KW)
+        && p.nth(1) != SyntaxKind::L_PAREN
+    {
+        p.bump(SyntaxKind::ALL_KW);
+    }
 
     let body = p.start();
     let items = p.start();
@@ -454,6 +479,9 @@ fn return_clause(p: &mut Parser<'_>) {
     }
     items.complete(p, SyntaxKind::RETURN_ITEMS);
 
+    if p.at(SyntaxKind::EXCLUDE_KW) {
+        return_exclude(p);
+    }
     if p.at(SyntaxKind::ORDER_KW) {
         order_by(p);
     }
@@ -466,6 +494,38 @@ fn return_clause(p: &mut Parser<'_>) {
 
     body.complete(p, SyntaxKind::RETURN_BODY);
     m.complete(p, SyntaxKind::RETURN_CLAUSE);
+}
+
+/// `ReturnExclude = 'EXCLUDE' NameRef (',' NameRef)*` — GQL-distinct
+/// field-exclusion trailer on a `RETURN` clause (cy-auh; ISO/IEC
+/// 39075:2024 §14.13.4). Each excluded field name is wrapped in a
+/// `NAME` node, mirroring the existing `name_binder` helper, so the
+/// HIR can address the list as a typed accessor once lowering lands.
+fn return_exclude(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::EXCLUDE_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::EXCLUDE_KW);
+    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+        name_binder(p);
+    } else {
+        p.error_code(
+            sc::EXPECTED_EXCLUDE_ITEM,
+            "expected identifier after EXCLUDE",
+        );
+    }
+    while p.at(SyntaxKind::COMMA) {
+        p.bump(SyntaxKind::COMMA);
+        if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+            name_binder(p);
+        } else {
+            p.error_code(
+                sc::EXPECTED_EXCLUDE_ITEM,
+                "expected identifier in EXCLUDE list",
+            );
+            break;
+        }
+    }
+    m.complete(p, SyntaxKind::RETURN_EXCLUDE);
 }
 
 /// `ReturnItem = Expr ('AS' IDENT)?`

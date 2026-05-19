@@ -161,6 +161,15 @@ pub enum SyntaxKind {
     // after `INSERT` via `at_contextual`.
     INSERT_KW,
 
+    // GQL-distinct keyword (cy-auh / cy-0hj). `EXCLUDE` is GQL's spelling
+    // for projecting all bindings minus an explicit field list
+    // (ISO/IEC 39075:2024 §14.13.4); openCypher has no equivalent. The
+    // lexer recognises `EXCLUDE` unconditionally — the OpenCypherV9-vs-
+    // GqlAligned dialect gate lives in cyrs-sema. Slot 182 is left empty
+    // for the parallel `FILTER_KW` allocation; this variant pins to
+    // raw 183 explicitly.
+    EXCLUDE_KW = 183,
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -283,6 +292,13 @@ pub enum SyntaxKind {
     // for `FILTER_CLAUSE` (parallel bead).
     OPTIONAL_CALL_CLAUSE = 391,
 
+    // GQL-distinct return-projection trailer (cy-auh / cy-0hj). `RETURN n
+    // EXCLUDE password` (ISO/IEC 39075:2024 §14.13.4) projects all of `n`'s
+    // bindings minus the listed field names. Wrapped inside a `RETURN_CLAUSE`
+    // (after the `RETURN_ITEMS` and before the `ORDER_BY` / `SKIP` / `LIMIT`
+    // trailers). Slot 390 (`FILTER_CLAUSE`) reserved for parallel bead.
+    RETURN_EXCLUDE = 392,
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -401,6 +417,7 @@ impl SyntaxKind {
             179 => Self::NONE_KW,
             180 => Self::SINGLE_KW,
             181 => Self::INSERT_KW,
+            183 => Self::EXCLUDE_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -473,6 +490,7 @@ impl SyntaxKind {
             388 => Self::SHORTEST_PATH_PATTERN,
             389 => Self::INSERT_CLAUSE,
             391 => Self::OPTIONAL_CALL_CLAUSE,
+            392 => Self::RETURN_EXCLUDE,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -503,11 +521,11 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=INSERT_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=EXCLUDE_KW`).
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::INSERT_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::EXCLUDE_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).

@@ -70,8 +70,17 @@ MatchClause =
 WithClause =
   'WITH' 'DISTINCT'? ReturnItems WhereClause? OrderBy? Skip? Limit?
 
+// GQL ISO/IEC 39075:2024 §14.13:
+//   - `ALL` is an explicit synonym for the default multiset semantics
+//     (§14.13.2); accepted in the same slot as `DISTINCT`, mutually
+//     exclusive.
+//   - `ReturnExclude` is the GQL-distinct field-exclusion trailer
+//     (§14.13.4); openCypher has no analogue.
 ReturnClause =
-  'RETURN' 'DISTINCT'? ReturnItems OrderBy? Skip? Limit?
+  'RETURN' ('DISTINCT' | 'ALL')? ReturnItems ReturnExclude? OrderBy? Skip? Limit?
+
+ReturnExclude =
+  'EXCLUDE' NameRef (',' NameRef)*
 
 UnwindClause =
   'UNWIND' expr:Expr 'AS' bind:NameDef

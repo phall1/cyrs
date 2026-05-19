@@ -15,11 +15,12 @@
 //   - ReturnItems: alternation contains a sequence arm (not a single-node shape)
 //   - Skip: no `SyntaxKind::SKIP` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - Limit: no `SyntaxKind::LIMIT` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - ReturnExclude: no `SyntaxKind::RETURN_EXCLUDE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - NameRef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NameDef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - QualifiedName: no `SyntaxKind::QUALIFIED_NAME` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - YieldClause: no `SyntaxKind::YIELD_CLAUSE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - SortItem: no `SyntaxKind::SORT_ITEM` variant in cyrs-syntax::kind (see cy-nom follow-ups)
-//   - NameRef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - PropertyAssign: no `SyntaxKind::PROPERTY_ASSIGN` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - LabelAdd: no `SyntaxKind::LABEL_ADD` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - NodeReplace: no `SyntaxKind::NODE_REPLACE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
@@ -214,6 +215,13 @@ impl ReturnClause {
             .children_with_tokens()
             .filter_map(SyntaxElement::into_token)
             .find(|t| t.kind() == SyntaxKind::DISTINCT_KW)
+    }
+
+    pub fn all_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::ALL_KW)
     }
 }
 
