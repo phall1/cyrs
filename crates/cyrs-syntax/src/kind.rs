@@ -363,6 +363,20 @@ pub enum SyntaxKind {
     // semantics of the patterns to its right.
     PATH_MODE = 397,
 
+    // --- cy-51we typed literals + standalone INSERT ---
+    // GQL typed temporal literal (cy-51we, ISO/IEC 39075:2024 §10.6).
+    // Surface forms: `DATE 'YYYY-MM-DD'`, `DATETIME '…'`, `TIME '…'`,
+    // `TIMESTAMP '…'`, `DURATION '…'`. The introducer (`DATE` / `DATETIME`
+    // / `TIME` / `TIMESTAMP` / `DURATION`) is recognised CONTEXTUALLY at
+    // the parser level — it stays as an `IDENT` token so that openCypher
+    // queries can still spell `date` as a property key (e.g.
+    // `CREATE (:A {date: date({year: 1910, month: 5, day: 6})})`) or as
+    // a function-call identifier (`date(...)`). The discriminant between
+    // the five surface forms is the textual content of the leading IDENT
+    // child; downstream passes inspect the token text to classify.
+    TYPED_TEMPORAL_LITERAL = 398,
+    // --- end cy-51we ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -568,6 +582,7 @@ impl SyntaxKind {
             395 => Self::TYPE_CAST_EXPR,
             396 => Self::TYPE_NAME,
             397 => Self::PATH_MODE,
+            398 => Self::TYPED_TEMPORAL_LITERAL,
 
             768 => Self::ERROR,
             769 => Self::EOF,

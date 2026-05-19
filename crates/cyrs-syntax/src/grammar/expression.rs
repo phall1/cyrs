@@ -202,6 +202,21 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             p.bump(SyntaxKind::PARAM);
             m.complete(p, SyntaxKind::PARAM_EXPR)
         }
+        // --- cy-51we typed literals + standalone INSERT ---
+        // GQL typed temporal literal: `DATE 'YYYY-MM-DD'`, `DATETIME '…'`,
+        // `TIME '…'`, `TIMESTAMP '…'`, `DURATION '…'` (ISO/IEC 39075:2024
+        // §10.6). The five introducer words are recognised CONTEXTUALLY
+        // — they remain plain `IDENT` tokens at the lexer level so that
+        // openCypher's use of `date` / `datetime` / `time` / `duration`
+        // as property keys and function-call identifiers continues to
+        // parse unchanged. The two-token shape `IDENT STRING_LITERAL`
+        // with one of the five reserved spellings is the discriminator.
+        SyntaxKind::IDENT
+            if p.nth(1) == SyntaxKind::STRING_LITERAL && at_temporal_type_intro(p) =>
+        {
+            typed_temporal_literal(p)
+        }
+        // --- end cy-51we ---
         SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
             // Variable reference. A following `(` is handled as a postfix
             // function-call in the infix/postfix loop.
@@ -464,6 +479,43 @@ fn literal_atom(p: &mut Parser<'_>, node: SyntaxKind) -> CompletedMarker {
     p.bump_any();
     m.complete(p, node)
 }
+
+// --- cy-51we typed literals + standalone INSERT ---
+/// The five contextually-recognised GQL typed-temporal-literal introducers
+/// (ISO/IEC 39075:2024 §10.6).  Kept as `IDENT` at the lexer level — see
+/// the `TYPED_TEMPORAL_LITERAL` doc comment in `kind.rs` for the rationale
+/// (openCypher uses `date` / `datetime` / `time` / `duration` as property
+/// keys and as function-call identifiers, so reserving them at the lexer
+/// would regress the openCypher TCK).
+const TEMPORAL_TYPE_INTROS: &[&str] = &["DATE", "DATETIME", "TIME", "TIMESTAMP", "DURATION"];
+
+/// Returns `true` when the current `IDENT` token spells one of the typed
+/// temporal literal introducers (case-insensitive).  Callers should also
+/// check `p.nth(1) == STRING_LITERAL` before dispatching, so a `date(...)`
+/// function call or `date: 1` property key falls through to the ordinary
+/// `VAR_EXPR` / map-key paths.
+fn at_temporal_type_intro(p: &Parser<'_>) -> bool {
+    TEMPORAL_TYPE_INTROS
+        .iter()
+        .any(|name| p.at_contextual(name))
+}
+
+/// `TypedTemporalLiteral = ('DATE' | 'DATETIME' | 'TIME' | 'TIMESTAMP' |
+/// 'DURATION') STRING_LITERAL` — ISO/IEC 39075:2024 §10.6.  The introducer
+/// is bumped as its underlying `IDENT` token (see [`at_temporal_type_intro`]);
+/// the discriminator between the five surface forms is the text of that
+/// `IDENT` child.  The string body's lexical content (ISO date / time /
+/// duration formatting) is NOT validated at parse time — that lives in
+/// cyrs-sema as a follow-up.
+fn typed_temporal_literal(p: &mut Parser<'_>) -> CompletedMarker {
+    debug_assert!(at_temporal_type_intro(p));
+    debug_assert_eq!(p.nth(1), SyntaxKind::STRING_LITERAL);
+    let m = p.start();
+    p.bump(SyntaxKind::IDENT);
+    p.bump(SyntaxKind::STRING_LITERAL);
+    m.complete(p, SyntaxKind::TYPED_TEMPORAL_LITERAL)
+}
+// --- end cy-51we ---
 
 /// TRUE/FALSE/NULL keywords are wrapped into a literal expression so the
 /// AST sees them uniformly with the numeric/string literals above.
