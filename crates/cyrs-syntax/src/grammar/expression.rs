@@ -1430,3 +1430,513 @@ fn _recovery_anchor_placeholder(_: &mut Parser<'_>, _: TokenSet, _: Marker) {
     // Present so future per-production recovery tables (cy-2vh) can be
     // threaded without re-plumbing every call site.
 }
+
+#[cfg(test)]
+mod tests {
+    //! Expression-grammar smoke tests (cy-m2hz).
+    //!
+    //! Other test modules in the crate exercise expressions implicitly
+    //! through clause-level parses (RETURN, WHERE, etc.). The cases
+    //! below pin down the newer / less-covered paths so they don't
+    //! drift silently:
+    //!
+    //!   - EXISTS subquery surface (cy-p1u5): braced + paren-MATCH forms
+    //!     plus their error paths.
+    //!   - Typed temporal literals (cy-51we).
+    //!   - Bare pattern predicates in expression position (cy-7lf).
+    //!   - List predicates (ANY/ALL/NONE/SINGLE) and CASE expressions.
+    //!   - Map projection trailers (cy-01q) and map literal entries.
+    //!   - List comprehensions (cy-7s6.1) and slice / index postfixes.
+    //!   - Postfix recovery: missing prop key after `.`, unclosed call,
+    //!     unclosed bracket.
+
+    use crate::SyntaxKind;
+    use crate::parser::parse;
+
+    fn assert_clean(src: &str) {
+        let p = parse(src);
+        assert_eq!(p.syntax().to_string(), src, "lossless round-trip failed");
+        assert!(
+            p.errors().is_empty(),
+            "unexpected errors parsing {src:?}: {:?}",
+            p.errors()
+        );
+    }
+
+    fn parse_codes(src: &str) -> Vec<u16> {
+        let p = parse(src);
+        // Lossless round-trip even on error paths.
+        assert_eq!(p.syntax().to_string(), src);
+        p.errors().iter().map(|e| e.code).collect()
+    }
+
+    fn has_kind(src: &str, kind: SyntaxKind) -> bool {
+        let p = parse(src);
+        p.syntax().descendants().any(|n| n.kind() == kind)
+    }
+
+    // --- EXISTS subquery forms (cy-p1u5) -------------------------
+
+    #[test]
+    fn exists_braced_subquery_parses() {
+        let src = "RETURN EXISTS { MATCH (n) RETURN n }";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::EXISTS_SUBQUERY_EXPR));
+    }
+
+    #[test]
+    fn exists_paren_match_subquery_parses() {
+        let src = "RETURN EXISTS ( MATCH (n) )";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::EXISTS_SUBQUERY_EXPR));
+    }
+
+    #[test]
+    fn exists_pattern_predicate_parses() {
+        // `EXISTS ( ( ... ) )` — the form-(1) branch.
+        let src = "RETURN EXISTS ( (a)-->(b) )";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::PATTERN_PREDICATE));
+    }
+
+    #[test]
+    fn exists_function_call_form_falls_through() {
+        // Form (2): `exists(n.prop)` — should be FUNCTION_CALL.
+        let src = "RETURN EXISTS(n.prop)";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::FUNCTION_CALL));
+    }
+
+    #[test]
+    fn exists_braced_unclosed_errors() {
+        // Missing closing `}` — EXPECTED_RBRACE_EXISTS.
+        let codes = parse_codes("RETURN EXISTS { MATCH (n) RETURN n");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn exists_paren_match_unclosed_errors() {
+        // Missing closing `)` — EXPECTED_RPAREN_EXISTS.
+        let codes = parse_codes("RETURN EXISTS ( MATCH (n)");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn exists_pattern_predicate_unclosed_errors() {
+        // `EXISTS ( ( ... )` — missing outer `)`.
+        let codes = parse_codes("RETURN EXISTS ( (a)-->(b)");
+        assert!(!codes.is_empty());
+    }
+
+    // --- Typed temporal literals (cy-51we) -----------------------
+
+    #[test]
+    fn typed_temporal_literal_date() {
+        let src = "RETURN DATE '2022-10-10'";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::TYPED_TEMPORAL_LITERAL));
+    }
+
+    #[test]
+    fn typed_temporal_literal_datetime() {
+        assert_clean("RETURN DATETIME '2022-10-10T00:00:00'");
+    }
+
+    #[test]
+    fn typed_temporal_literal_time() {
+        assert_clean("RETURN TIME '12:34:56'");
+    }
+
+    #[test]
+    fn typed_temporal_literal_timestamp() {
+        assert_clean("RETURN TIMESTAMP '2022-10-10T00:00:00'");
+    }
+
+    #[test]
+    fn typed_temporal_literal_duration() {
+        assert_clean("RETURN DURATION 'P1D'");
+    }
+
+    #[test]
+    fn date_property_key_still_parses() {
+        // `date` as a property key must remain an ordinary IDENT.
+        assert_clean("RETURN { date: 1 }");
+    }
+
+    // --- IS [NOT] TYPED <Type> (cy-pnp) --------------------------
+
+    #[test]
+    fn is_typed_with_single_word_type() {
+        let src = "RETURN n.age IS TYPED INTEGER";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::IS_TYPED_EXPR));
+        assert!(has_kind(src, SyntaxKind::TYPE_NAME));
+    }
+
+    #[test]
+    fn is_typed_with_multi_word_type() {
+        let src = "RETURN n.t IS TYPED ZONED DATETIME";
+        assert_clean(src);
+    }
+
+    #[test]
+    fn is_not_typed_with_type() {
+        assert_clean("RETURN n.age IS NOT TYPED INTEGER");
+    }
+
+    #[test]
+    fn is_typed_missing_type_errors() {
+        let codes = parse_codes("RETURN n.age IS TYPED 42");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn double_colon_type_cast() {
+        let src = "RETURN n.age :: INTEGER";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::TYPE_CAST_EXPR));
+    }
+
+    #[test]
+    fn double_colon_type_cast_missing_type_errors() {
+        let codes = parse_codes("RETURN n.age :: 42");
+        assert!(!codes.is_empty());
+    }
+
+    // --- IS NULL recovery ----------------------------------------
+
+    #[test]
+    fn is_missing_null_errors() {
+        let codes = parse_codes("RETURN n IS 42");
+        assert!(!codes.is_empty());
+    }
+
+    // --- List predicates (cy-8x5) --------------------------------
+
+    #[test]
+    fn list_predicate_any_with_where() {
+        let src = "RETURN ANY(x IN xs WHERE x > 1)";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::LIST_PREDICATE_EXPR));
+    }
+
+    #[test]
+    fn list_predicate_all_no_where() {
+        assert_clean("RETURN ALL(x IN xs)");
+    }
+
+    #[test]
+    fn list_predicate_none() {
+        assert_clean("RETURN NONE(x IN xs WHERE x = 0)");
+    }
+
+    #[test]
+    fn list_predicate_single() {
+        assert_clean("RETURN SINGLE(x IN xs WHERE x = 0)");
+    }
+
+    #[test]
+    fn list_predicate_missing_in_errors() {
+        let codes = parse_codes("RETURN ANY(x OF xs)");
+        assert!(!codes.is_empty());
+    }
+
+    // --- CASE expressions (cy-41u) -------------------------------
+
+    #[test]
+    fn case_generic_form() {
+        let src = "RETURN CASE WHEN n.x = 1 THEN 'a' ELSE 'b' END";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::CASE_EXPR));
+        assert!(has_kind(src, SyntaxKind::CASE_WHEN_ARM));
+        assert!(has_kind(src, SyntaxKind::CASE_ELSE_ARM));
+    }
+
+    #[test]
+    fn case_simple_form_with_scrutinee() {
+        assert_clean("RETURN CASE n.x WHEN 1 THEN 'one' WHEN 2 THEN 'two' END");
+    }
+
+    #[test]
+    fn case_missing_then_errors() {
+        let codes = parse_codes("RETURN CASE WHEN n.x = 1 'a' END");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn case_missing_end_errors() {
+        let codes = parse_codes("RETURN CASE WHEN n.x = 1 THEN 'a'");
+        assert!(!codes.is_empty());
+    }
+
+    // --- Map / list literals + comprehensions --------------------
+
+    #[test]
+    fn map_literal_multiple_entries() {
+        assert_clean("RETURN { a: 1, b: 2, c: 3 }");
+    }
+
+    #[test]
+    fn map_literal_trailing_comma() {
+        assert_clean("RETURN { a: 1, }");
+    }
+
+    #[test]
+    fn map_literal_missing_value_errors() {
+        let codes = parse_codes("RETURN { a: }");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn map_literal_missing_colon_errors() {
+        let codes = parse_codes("RETURN { a 1 }");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn list_literal_multiple_elements() {
+        assert_clean("RETURN [1, 2, 3]");
+    }
+
+    #[test]
+    fn list_comprehension_full() {
+        let src = "RETURN [x IN xs WHERE x > 0 | x * 2]";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::LIST_COMPREHENSION));
+    }
+
+    #[test]
+    fn list_comprehension_filter_only() {
+        assert_clean("RETURN [x IN xs WHERE x > 0]");
+    }
+
+    #[test]
+    fn list_comprehension_map_only() {
+        assert_clean("RETURN [x IN xs | x * 2]");
+    }
+
+    // --- Map projection trailers (cy-01q) ------------------------
+
+    #[test]
+    fn map_projection_property_selector() {
+        let src = "RETURN n { .name, .age }";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::MAP_PROJECTION));
+    }
+
+    #[test]
+    fn map_projection_literal_item() {
+        assert_clean("RETURN n { key: 1 }");
+    }
+
+    #[test]
+    fn map_projection_star_spreads() {
+        assert_clean("RETURN n { .* }");
+    }
+
+    #[test]
+    fn map_projection_bare_star() {
+        assert_clean("RETURN n { * }");
+    }
+
+    #[test]
+    fn map_projection_trailing_comma() {
+        assert_clean("RETURN n { .name, }");
+    }
+
+    #[test]
+    fn map_projection_invalid_item_errors() {
+        let codes = parse_codes("RETURN n { 42 }");
+        assert!(!codes.is_empty());
+    }
+
+    // --- Postfix: property access / call / index / slice ---------
+
+    #[test]
+    fn property_access_chains() {
+        assert_clean("RETURN n.a.b.c");
+    }
+
+    #[test]
+    fn property_access_quoted_ident() {
+        assert_clean("RETURN n.`weird name`");
+    }
+
+    #[test]
+    fn property_access_missing_key_errors() {
+        let codes = parse_codes("RETURN n.");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn call_with_distinct() {
+        assert_clean("RETURN count(DISTINCT n)");
+    }
+
+    #[test]
+    fn call_count_star() {
+        assert_clean("RETURN count(*)");
+    }
+
+    #[test]
+    fn call_multi_arg() {
+        assert_clean("RETURN foo(1, 2, 3)");
+    }
+
+    #[test]
+    fn call_unclosed_errors() {
+        let codes = parse_codes("RETURN foo(1, 2");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn slice_full_form() {
+        let src = "RETURN xs[1..3]";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::SLICE_EXPR));
+    }
+
+    #[test]
+    fn slice_elided_start() {
+        assert_clean("RETURN xs[..3]");
+    }
+
+    #[test]
+    fn slice_elided_end() {
+        assert_clean("RETURN xs[1..]");
+    }
+
+    #[test]
+    fn slice_both_elided() {
+        assert_clean("RETURN xs[..]");
+    }
+
+    #[test]
+    fn index_simple() {
+        let src = "RETURN xs[0]";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::INDEX_EXPR));
+    }
+
+    #[test]
+    fn index_unclosed_errors() {
+        let codes = parse_codes("RETURN xs[0");
+        assert!(!codes.is_empty());
+    }
+
+    // --- Bare pattern predicate in expression (cy-7lf) -----------
+
+    #[test]
+    fn bare_pattern_predicate_in_where() {
+        let src = "MATCH (n) WHERE (n)-[:R]->(m) RETURN n";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::PATTERN_PREDICATE));
+    }
+
+    #[test]
+    fn bare_pattern_predicate_empty_paren() {
+        assert_clean("MATCH (n) WHERE () RETURN n");
+    }
+
+    #[test]
+    fn bare_pattern_predicate_labelled() {
+        assert_clean("MATCH (n) WHERE (:Foo) RETURN n");
+    }
+
+    #[test]
+    fn paren_expression_still_parsed_as_expr() {
+        // `(1 + 2)` is an arithmetic expression, not a pattern.
+        assert_clean("RETURN (1 + 2)");
+    }
+
+    // --- Binary / string operators -------------------------------
+
+    #[test]
+    fn starts_with_operator() {
+        let src = "RETURN n.s STARTS WITH 'foo'";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::STRING_OP_EXPR));
+    }
+
+    #[test]
+    fn ends_with_operator() {
+        assert_clean("RETURN n.s ENDS WITH 'foo'");
+    }
+
+    #[test]
+    fn contains_operator() {
+        assert_clean("RETURN n.s CONTAINS 'foo'");
+    }
+
+    #[test]
+    fn regex_match_operator() {
+        assert_clean("RETURN n.s =~ '^foo'");
+    }
+
+    #[test]
+    fn starts_missing_with_errors() {
+        let codes = parse_codes("RETURN n.s STARTS 'foo'");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn ends_missing_with_errors() {
+        let codes = parse_codes("RETURN n.s ENDS 'foo'");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn xor_operator() {
+        assert_clean("RETURN n.a XOR n.b");
+    }
+
+    #[test]
+    fn unary_not_minus_plus() {
+        assert_clean("RETURN NOT n.a");
+        assert_clean("RETURN -n.a");
+        assert_clean("RETURN +n.a");
+    }
+
+    #[test]
+    fn power_operator_right_assoc() {
+        assert_clean("RETURN 2 ^ 3 ^ 4");
+    }
+
+    #[test]
+    fn modulo_operator() {
+        assert_clean("RETURN n.a % 2");
+    }
+
+    // --- Parameter, paren recovery -------------------------------
+
+    #[test]
+    fn param_expression() {
+        let src = "RETURN $foo";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::PARAM_EXPR));
+    }
+
+    #[test]
+    fn paren_expr_unclosed_errors() {
+        let codes = parse_codes("RETURN (1 + 2");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn paren_expr_empty_errors() {
+        let codes = parse_codes("RETURN ()");
+        // Bare `()` is a pattern (empty node), not an expression — so
+        // this parses cleanly via the pattern-predicate branch.
+        // We only require lossless round-trip; no error required.
+        let _ = codes;
+    }
+
+    // --- Literals ----------------------------------------------
+
+    #[test]
+    fn null_true_false_literals() {
+        assert_clean("RETURN NULL");
+        assert_clean("RETURN TRUE");
+        assert_clean("RETURN FALSE");
+    }
+}

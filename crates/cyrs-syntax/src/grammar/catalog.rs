@@ -642,4 +642,207 @@ mod tests {
         // out explicitly.
         assert_ok("CREATE (a)-[:LIKE]->(b)");
     }
+
+    // ---------------------------------------------------------------
+    // Error-recovery / additional shape coverage (cy-m2hz).
+    //
+    // The smoke tests above lock the happy paths; the cases below
+    // exercise the diagnostic branches in graph_name / graph_type_ref /
+    // graph_source / inline_graph_type / property_type_decl /
+    // path_ident_inner so a future refactor doesn't silently drop
+    // error reporting.
+    // ---------------------------------------------------------------
+
+    fn parse_with_errors(src: &str) -> (SyntaxNode, Vec<u16>) {
+        let p = parse(src);
+        let codes: Vec<u16> = p.errors().iter().map(|e| e.code).collect();
+        // Lossless round-trip is mandatory even on error paths.
+        assert_eq!(p.syntax().to_string(), src);
+        (p.syntax(), codes)
+    }
+
+    #[test]
+    fn create_graph_quoted_ident_name() {
+        // QUOTED_IDENT graph name + QUOTED_IDENT type ref via TYPED.
+        let n = assert_ok("CREATE GRAPH `my graph` TYPED `my type`");
+        assert!(has_kind(&n, SyntaxKind::CATALOG_CREATE_GRAPH_STMT));
+    }
+
+    #[test]
+    fn create_graph_double_colon_quoted_type() {
+        // `::QUOTED_IDENT` branch of graph_type_ref.
+        assert_ok("CREATE GRAPH g ::`graph type`");
+    }
+
+    #[test]
+    fn create_graph_double_colon_inline() {
+        // `::{ ... }` branch — DOUBLE_COLON + L_BRACE.
+        assert_ok("CREATE GRAPH g ::{(Person {name STRING})}");
+    }
+
+    #[test]
+    fn create_graph_inline_multi_element() {
+        // Comma-separated elements inside InlineGraphType — exercises
+        // the loop after the first element.
+        assert_ok("CREATE GRAPH g {(A {x STRING}),(B {y INTEGER})}");
+    }
+
+    #[test]
+    fn create_graph_inline_trailing_comma() {
+        // Trailing comma before `}` — break-on-R_BRACE inside the loop.
+        assert_ok("CREATE GRAPH g {(A {x STRING}),}");
+    }
+
+    #[test]
+    fn create_graph_property_type_two_word() {
+        // Multi-word type name (`ZONED DATETIME`) — drives the
+        // type-name continuation loop in property_type_decl.
+        assert_ok("CREATE GRAPH g {(A {ts ZONED DATETIME})}");
+    }
+
+    #[test]
+    fn create_graph_property_type_list_of_int() {
+        // Three-token type name via `OF_KW`.
+        assert_ok("CREATE GRAPH g {(A {xs LIST OF INT})}");
+    }
+
+    #[test]
+    fn create_schema_missing_name_errors() {
+        // Schema name absent — the IDENT/SLASH branch in
+        // create_schema_stmt should fire EXPECTED_IDENT.
+        let (n, codes) = parse_with_errors("CREATE SCHEMA");
+        assert!(has_kind(&n, SyntaxKind::CATALOG_CREATE_SCHEMA_STMT));
+        assert!(!codes.is_empty(), "expected at least one error code");
+    }
+
+    #[test]
+    fn create_graph_missing_name_errors() {
+        // `CREATE GRAPH` without a following name — graph_name's
+        // error_code branch is exercised.
+        let (_, codes) = parse_with_errors("CREATE GRAPH");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_bad_type_ref_after_double_colon() {
+        // `::` followed by something other than IDENT / L_BRACE.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g ::42");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_typed_missing_name() {
+        // `TYPED` not followed by IDENT.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g TYPED 42");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_as_missing_copy() {
+        // `AS` not followed by `COPY`.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g ANY AS X Y src");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_as_copy_missing_of() {
+        // `AS COPY` not followed by `OF`.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g ANY AS COPY src");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_as_copy_of_path_source() {
+        // `AS COPY OF /path` — SLASH branch of the source-name dispatch.
+        let n = assert_ok("CREATE GRAPH g ANY AS COPY OF /src");
+        assert!(has_kind(&n, SyntaxKind::GRAPH_SOURCE));
+    }
+
+    #[test]
+    fn create_graph_as_copy_of_missing_name() {
+        // `AS COPY OF` not followed by IDENT or SLASH.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g ANY AS COPY OF 42");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_path_name_multi_segment() {
+        // Multi-segment path name (e.g. `/foo/bar/baz`) — drives the
+        // PATH_IDENT continuation loop.
+        let n = assert_ok("CREATE GRAPH /foo/bar/baz ANY");
+        assert!(has_kind(&n, SyntaxKind::PATH_IDENT));
+    }
+
+    #[test]
+    fn create_graph_path_dangling_slash() {
+        // `/` not followed by IDENT — error branch of path_ident_inner.
+        let (_, codes) = parse_with_errors("CREATE GRAPH /foo/");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_inline_unclosed() {
+        // Missing closing `}` on inline literal — error branch of
+        // inline_graph_type.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {x STRING})");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_element_missing_open_paren() {
+        // Comma-separated element NOT starting with `(` — drives the
+        // ERROR-recovery run inside graph_type_element.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {x STRING}),BAD}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_element_missing_close_paren() {
+        // Missing `)` on a graph-type element.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {x STRING}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_label_missing_after_colon() {
+        // `(A:` with nothing after — drives the EXPECTED_LABEL branch.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A: {x STRING})}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_property_missing_type() {
+        // Property key without a following type name — drives
+        // EXPECTED_IDENT in property_type_decl.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {x})}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_property_missing_key() {
+        // Property map opens with something other than IDENT —
+        // EXPECTED_PROP_KEY in property_type_decl.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {: STRING})}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_property_map_unclosed() {
+        // Property-type map missing its closing `}`.
+        let (_, codes) = parse_with_errors("CREATE GRAPH g {(A {x STRING)}");
+        assert!(!codes.is_empty());
+    }
+
+    #[test]
+    fn create_graph_inline_empty_body() {
+        // `{ }` — empty inline graph type. Exercises the
+        // `!p.at(R_BRACE)` short-circuit.
+        assert_ok("CREATE GRAPH g {}");
+    }
+
+    #[test]
+    fn create_graph_property_map_empty() {
+        // `(A {})` — empty property-type map.
+        assert_ok("CREATE GRAPH g {(A {})}");
+    }
 }

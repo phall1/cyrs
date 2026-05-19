@@ -245,4 +245,97 @@ mod tests {
         assert!(!p.errors().is_empty());
         assert_eq!(p.errors()[0].code, super::sc::EXPECTED_SET_AFTER_SESSION);
     }
+
+    // ---------------------------------------------------------------
+    // Error-recovery coverage (cy-m2hz). Exercises the diagnostic
+    // branches in dispatch_variant / graph_variant / time_zone_variant
+    // / value_variant so a future refactor can't silently drop the
+    // E-codes.
+    // ---------------------------------------------------------------
+
+    fn err_codes(src: &str) -> Vec<u16> {
+        let p = parse(src);
+        // Lossless round-trip even on error paths.
+        assert_eq!(p.syntax().to_string(), src);
+        p.errors().iter().map(|e| e.code).collect()
+    }
+
+    #[test]
+    fn session_set_quoted_ident_graph() {
+        // Drives the QUOTED_IDENT branch of graph_ref.
+        let p = parse("SESSION SET GRAPH `my graph`");
+        assert!(p.errors().is_empty(), "errs: {:?}", p.errors());
+    }
+
+    #[test]
+    fn session_set_property_missing_graph() {
+        // `SESSION SET PROPERTY` not followed by `GRAPH`. The
+        // EXPECTED_SESSION_SET_TARGET branch fires inside graph_variant.
+        let codes = err_codes("SESSION SET PROPERTY foo");
+        assert!(codes.contains(&super::sc::EXPECTED_SESSION_SET_TARGET));
+    }
+
+    #[test]
+    fn session_set_unknown_target() {
+        // None of GRAPH / PROPERTY / TIME / VALUE — the catch-all in
+        // dispatch_variant.
+        let codes = err_codes("SESSION SET FOO bar");
+        assert!(codes.contains(&super::sc::EXPECTED_SESSION_SET_TARGET));
+    }
+
+    #[test]
+    fn session_set_time_missing_zone() {
+        // `TIME` not followed by `ZONE`.
+        let codes = err_codes("SESSION SET TIME \"utc\"");
+        assert!(codes.contains(&super::sc::EXPECTED_ZONE_AFTER_TIME));
+    }
+
+    #[test]
+    fn session_set_time_zone_missing_literal() {
+        // `TIME ZONE` not followed by a string literal.
+        let codes = err_codes("SESSION SET TIME ZONE foo");
+        assert!(codes.contains(&super::sc::EXPECTED_TIME_ZONE_LITERAL));
+    }
+
+    #[test]
+    fn session_set_value_missing_not() {
+        // `IF` not followed by `NOT`.
+        let codes = err_codes("SESSION SET VALUE IF EXISTS $foo = 42");
+        assert!(codes.contains(&super::sc::EXPECTED_SESSION_SET_TARGET));
+    }
+
+    #[test]
+    fn session_set_value_missing_exists() {
+        // `IF NOT` not followed by `EXISTS`.
+        let codes = err_codes("SESSION SET VALUE IF NOT $foo = 42");
+        assert!(codes.contains(&super::sc::EXPECTED_SESSION_SET_TARGET));
+    }
+
+    #[test]
+    fn session_set_value_missing_param() {
+        // Missing `$param` token.
+        let codes = err_codes("SESSION SET VALUE = 42");
+        assert!(codes.contains(&super::sc::EXPECTED_PARAM_IN_SESSION_VALUE));
+    }
+
+    #[test]
+    fn session_set_value_missing_eq() {
+        // Missing `=` between param and value.
+        let codes = err_codes("SESSION SET VALUE $foo 42");
+        assert!(codes.contains(&super::sc::EXPECTED_EQ_IN_SESSION_VALUE));
+    }
+
+    #[test]
+    fn session_set_value_missing_expr() {
+        // Missing expression after `=`.
+        let codes = err_codes("SESSION SET VALUE $foo =");
+        assert!(codes.contains(&super::sc::EXPECTED_SESSION_VALUE_EXPR));
+    }
+
+    #[test]
+    fn session_set_graph_missing_ref() {
+        // Missing the graph reference.
+        let codes = err_codes("SESSION SET GRAPH 42");
+        assert!(codes.contains(&super::sc::EXPECTED_GRAPH_REF));
+    }
 }
