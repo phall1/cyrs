@@ -235,15 +235,42 @@ fn inline_graph_type(p: &mut Parser<'_>) {
 
 /// ```text
 /// GraphTypeElement =
-///     '(' IDENT? LabelList? PropertyTypeMap? ')'
+///     '(' Binder? LabelList? PropertyTypeMap? ')'
+///
+///   Binder         = IDENT | QUOTED_IDENT       -- at most one
+///   LabelList      = (':' IDENT)+               -- when present
+///   PropertyTypeMap = '{' (PropertyTypeDecl (',' PropertyTypeDecl)*)? '}'
 /// ```
 ///
-/// Label list is a permissive run of `':' IDENT` pairs (the `OpenGQL`
-/// shape `(City :City { … })` has both a binder *and* a single label,
-/// so we accept any sequence of binders and `:Label` tokens before
-/// the property-type map opens). Anything that does not start with
-/// `(` is consumed up to the next `,` or `}` as an ERROR run so
-/// recovery stays bounded.
+/// --- cy-dxu9 graph-type tightening ---
+///
+/// Tightened from the original cy-rgqg permissive `(IDENT? (:IDENT)* {…}?)`
+/// shape to enforce ISO/IEC 39075:2024 §14.14 / §18.2 ordering
+/// (`nodeTypePattern → LEFT_PAREN localNodeTypeAlias? nodeTypeFiller?
+/// RIGHT_PAREN`). The strict-order constraints are:
+///
+///   1. **At most one binder.** A bare IDENT may appear at most once and
+///      only before any `:Label`. A second bare IDENT (e.g.
+///      `(City Foo :Bar)`) is rejected as binder-after-label.
+///   2. **Labels must follow `:`.** Naked label tokens (e.g.
+///      `(City Person)` parsed as binder + would-be-label) are caught by
+///      rule 1; a `:` with no IDENT after it is reported as
+///      `EXPECTED_LABEL`.
+///   3. **Binder before labels.** Once any `:Label` has been consumed, a
+///      subsequent IDENT (not preceded by `:`) is binder-after-label and
+///      is rejected.
+///   4. **Property-type map is braced and well-formed.** Only `{…}` opens
+///      a property-type map — a bare `prop TYPE` outside braces is
+///      rejected.
+///
+/// Anything that does not start with `(` is consumed up to the next `,`
+/// or `}` as an ERROR run so recovery stays bounded.
+///
+/// Edge-shape elements (`-[:KNOWS]->` / endpoint-pair phrases per
+/// ISO §18.3) are **not** accepted here — the five `OpenGQL` upstream
+/// samples that use the inline graph-type literal only exercise node
+/// shapes (`(Binder :Label { … })`). Edge-element support is a
+/// follow-up (tracked under cy-rgqg's "more elaborate samples" TODO).
 fn graph_type_element(p: &mut Parser<'_>) {
     if !p.at(SyntaxKind::L_PAREN) {
         // Recovery: skip to the next comma or closing brace.
@@ -263,26 +290,60 @@ fn graph_type_element(p: &mut Parser<'_>) {
     }
     let m = p.start();
     p.bump(SyntaxKind::L_PAREN);
-    // Binder + labels — both optional, interleaved tolerantly.
-    while matches!(
-        p.current(),
-        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT | SyntaxKind::COLON
-    ) {
-        if p.at(SyntaxKind::COLON) {
-            p.bump(SyntaxKind::COLON);
-            if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+
+    // ISO §14.14: ( binder? label* propertyTypeMap? ) — strict order.
+    let mut have_binder = false;
+    let mut have_label = false;
+    loop {
+        match p.current() {
+            SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+                if have_label {
+                    // Binder after labels — reject without consuming so the
+                    // outer recovery skips to `)` / `,` / `}`.
+                    p.error_code(
+                        sc::EXPECTED_RPAREN_NODE,
+                        "binder identifier must precede any `:Label` in a graph-type element",
+                    );
+                    break;
+                }
+                if have_binder {
+                    // Second bare IDENT — only one binder is allowed.
+                    p.error_code(
+                        sc::EXPECTED_RPAREN_NODE,
+                        "graph-type element may have at most one binder identifier",
+                    );
+                    break;
+                }
                 p.bump_any();
-            } else {
-                p.error_code(sc::EXPECTED_LABEL, "expected label after `:`");
-                break;
+                have_binder = true;
             }
-        } else {
-            p.bump_any();
+            SyntaxKind::COLON => {
+                p.bump(SyntaxKind::COLON);
+                if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+                    p.bump_any();
+                    have_label = true;
+                } else {
+                    p.error_code(sc::EXPECTED_LABEL, "expected label after `:`");
+                    break;
+                }
+            }
+            _ => break,
         }
     }
+
     if p.at(SyntaxKind::L_BRACE) {
         property_type_map(p);
     }
+
+    // Bounded recovery: consume any stray tokens up to `)` / `,` / `}` /
+    // EOF so a malformed element doesn't desync the outer brace loop.
+    while !matches!(
+        p.current(),
+        SyntaxKind::R_PAREN | SyntaxKind::COMMA | SyntaxKind::R_BRACE | SyntaxKind::EOF
+    ) {
+        p.bump_any();
+    }
+
     if !p.eat(SyntaxKind::R_PAREN) {
         p.error_code(
             sc::EXPECTED_RPAREN_NODE,
@@ -291,6 +352,7 @@ fn graph_type_element(p: &mut Parser<'_>) {
     }
     m.complete(p, SyntaxKind::GRAPH_TYPE_ELEMENT);
 }
+// --- end cy-dxu9 ---
 
 /// `PropertyTypeMap = '{' PropertyTypeDecl (',' PropertyTypeDecl)* '}'`
 fn property_type_map(p: &mut Parser<'_>) {
@@ -508,6 +570,68 @@ mod tests {
             .count();
         assert_eq!(count, 2, "expected two CREATE SCHEMA stmts joined by NEXT");
     }
+
+    // --- cy-dxu9 graph-type tightening ---
+    fn assert_err_contains(src: &str, needle: &str) {
+        let p = parse(src);
+        assert!(
+            p.syntax().to_string() == src,
+            "lossless round-trip failed for {src:?}",
+        );
+        let errs = p.errors();
+        assert!(
+            !errs.is_empty(),
+            "expected at least one parse error for {src:?}",
+        );
+        assert!(
+            errs.iter().any(|e| e.message.contains(needle)),
+            "expected error containing {needle:?} for {src:?}, got {errs:?}",
+        );
+    }
+
+    #[test]
+    fn graph_type_element_rejects_binder_after_label() {
+        // `(Foo :Bar Baz)` — second IDENT is binder-after-label.
+        assert_err_contains(
+            "CREATE GRAPH g { (Foo :Bar Baz) }",
+            "binder identifier must precede any `:Label`",
+        );
+    }
+
+    #[test]
+    fn graph_type_element_rejects_two_binders() {
+        // `(Foo Bar)` — two bare IDENTs.
+        assert_err_contains(
+            "CREATE GRAPH g { (Foo Bar) }",
+            "may have at most one binder identifier",
+        );
+    }
+
+    #[test]
+    fn graph_type_element_rejects_label_without_ident() {
+        // `(Foo :)` — trailing `:` with no label IDENT.
+        assert_err_contains("CREATE GRAPH g { (Foo :) }", "expected label after `:`");
+    }
+
+    #[test]
+    fn graph_type_element_accepts_labels_only() {
+        // `(:City)` — no binder, single label. ISO permits this.
+        assert_ok("CREATE GRAPH g { (:City) }");
+    }
+
+    #[test]
+    fn graph_type_element_accepts_multiple_labels() {
+        // `(p :Person :Employee)` — multi-label is permitted by ISO.
+        assert_ok("CREATE GRAPH g { (p :Person :Employee) }");
+    }
+
+    #[test]
+    fn graph_type_element_accepts_empty_parens() {
+        // `()` — anonymous, untyped element. ISO permits via the
+        // all-optional `localNodeTypeAlias? nodeTypeFiller?` rule.
+        assert_ok("CREATE GRAPH g { () }");
+    }
+    // --- end cy-dxu9 ---
 
     #[test]
     fn match_returns_with_like_reltype_still_parses() {

@@ -1,0 +1,3 @@
+error[E0009]: expected `(` to start a graph-type element
+ --> catalog_element_missing_lparen.cypher:86
+
