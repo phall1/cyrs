@@ -618,6 +618,16 @@ pub enum DiagCode {
     /// ISO/IEC 39075:2024 §14.13.4). Slots E0084 / E0085 are reserved
     /// for parallel GQL beads (FILTER / OPTIONAL CALL).
     E0086 = 86,
+    /// Expected a type name after `IS [NOT] TYPED` (cy-pnp, ISO/IEC
+    /// 39075:2024 §6.5.2). Distinct from the `IS NULL` recovery code
+    /// (E0025) so dialect-aware tooling can hint at the GQL form
+    /// specifically.
+    E0088 = 88,
+    /// Expected a type name after `::` (cy-pnp). The `::` operator is
+    /// the GQL typed-value shorthand for `IS TYPED`; the missing-type
+    /// recovery is separate from E0088 so the renderer can describe the
+    /// shorthand spelling in its hint.
+    E0089 = 89,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -749,6 +759,8 @@ impl DiagCode {
             Self::E0082 => "E0082",
             Self::E0083 => "E0083",
             Self::E0086 => "E0086",
+            Self::E0088 => "E0088",
+            Self::E0089 => "E0089",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -900,6 +912,8 @@ impl DiagCode {
         Self::E0082,
         Self::E0083,
         Self::E0086,
+        Self::E0088,
+        Self::E0089,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1109,6 +1123,8 @@ mod tests {
             DiagCode::E0082,
             DiagCode::E0083,
             DiagCode::E0086,
+            DiagCode::E0088,
+            DiagCode::E0089,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1189,13 +1205,16 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps inside ranges (E0073..=E0077, E0084, E0085, E0087+).
+        // Gaps inside ranges (E0073..=E0077, E0084, E0085, E0087, E0090+).
+        // E0083 (cy-8z3 INSERT), E0086 (cy-auh EXCLUDE), and E0088/E0089
+        // (cy-pnp TYPED forms) are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(84), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
+        assert_eq!(DiagCode::try_from_u16(90), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

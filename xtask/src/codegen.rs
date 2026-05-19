@@ -1027,6 +1027,10 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         "STRING_OP_EXPR",
         "NAME",
         "ARG_LIST",
+        // GQL type-assertion nodes (cy-pnp, ISO/IEC 39075:2024 §6.5.2).
+        "IS_TYPED_EXPR",
+        "TYPE_CAST_EXPR",
+        "TYPE_NAME",
     ]
     .into_iter()
     .collect()
@@ -1089,6 +1093,8 @@ fn known_keyword_kinds() -> BTreeSet<&'static str> {
         "ANY_KW",
         "NONE_KW",
         "SINGLE_KW",
+        // GQL type-assertion keyword (cy-pnp).
+        "TYPED_KW",
     ]
     .into_iter()
     .collect()

@@ -346,6 +346,17 @@ enum RawToken {
     None,
     #[token("SINGLE", ignore(case))]
     Single,
+    // GQL type-assertion keyword (cy-pnp, ISO/IEC 39075:2024 §6.5.2).
+    // `IS TYPED <type>` is GQL's predicate spelling for run-time type
+    // assertions; the same expression carries the `::` shorthand which
+    // does not need a keyword. `TYPED` is reserved unconditionally — it
+    // does not appear as an identifier in the openCypher TCK (verified
+    // empty: `grep -rwi 'TYPED' tck/full/`). The constituent type names
+    // (`INTEGER`, `STRING`, `ZONED DATETIME`, …) are NOT reserved: they
+    // are consumed contextually by `TypeName` as ordinary IDENTs so
+    // queries that use them as variable / label names still parse.
+    #[token("TYPED", ignore(case))]
+    Typed,
 
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
@@ -500,6 +511,7 @@ impl RawToken {
             Self::Any => SyntaxKind::ANY_KW,
             Self::None => SyntaxKind::NONE_KW,
             Self::Single => SyntaxKind::SINGLE_KW,
+            Self::Typed => SyntaxKind::TYPED_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

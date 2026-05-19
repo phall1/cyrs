@@ -113,6 +113,9 @@ fn all_count_pinned() {
     //         — the GQL-distinct return-projection trailer per ISO/IEC
     //         39075:2024 §14.13.4. Slots E0084 / E0085 are pre-reserved
     //         for parallel GQL beads (FILTER / OPTIONAL CALL).
-    const EXPECTED: usize = 127;
+    // cy-pnp: added E0088 / E0089 for GQL type-assertion recovery — the
+    //         `IS [NOT] TYPED <Type>` predicate and the `<expr> :: <Type>`
+    //         typed-value shorthand (ISO/IEC 39075:2024 §6.5.2).
+    const EXPECTED: usize = 129;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

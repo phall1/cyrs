@@ -1037,6 +1037,73 @@ impl CaseExpr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IsTypedExpr {
+    syntax: SyntaxNode,
+}
+
+impl IsTypedExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::IS_TYPED_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn operand(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn ty(&self) -> Option<TypeName> {
+        self.syntax.children().find_map(TypeName::cast)
+    }
+
+    pub fn is_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::IS_KW)
+    }
+
+    pub fn not_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::NOT_KW)
+    }
+
+    pub fn typed_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::TYPED_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeCastExpr {
+    syntax: SyntaxNode,
+}
+
+impl TypeCastExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::TYPE_CAST_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn operand(&self) -> Option<Expr> {
+        self.syntax.children().find_map(Expr::cast)
+    }
+
+    pub fn ty(&self) -> Option<TypeName> {
+        self.syntax.children().find_map(TypeName::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BinaryExpr {
     syntax: SyntaxNode,
 }
@@ -1157,6 +1224,21 @@ impl CaseElseArm {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeName {
+    syntax: SyntaxNode,
+}
+
+impl TypeName {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::TYPE_NAME).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Clause {
     MatchClause(MatchClause),
     WithClause(WithClause),
@@ -1239,6 +1321,8 @@ pub enum Expr {
     ListPredicateExpr(ListPredicateExpr),
     PatternComprehension(PatternComprehension),
     CaseExpr(CaseExpr),
+    IsTypedExpr(IsTypedExpr),
+    TypeCastExpr(TypeCastExpr),
     BinaryExpr(BinaryExpr),
     UnaryExpr(UnaryExpr),
     PatternPredicate(PatternPredicate),
@@ -1279,6 +1363,12 @@ impl Expr {
         if let Some(inner) = CaseExpr::cast(syntax.clone()) {
             return Some(Self::CaseExpr(inner));
         }
+        if let Some(inner) = IsTypedExpr::cast(syntax.clone()) {
+            return Some(Self::IsTypedExpr(inner));
+        }
+        if let Some(inner) = TypeCastExpr::cast(syntax.clone()) {
+            return Some(Self::TypeCastExpr(inner));
+        }
         if let Some(inner) = BinaryExpr::cast(syntax.clone()) {
             return Some(Self::BinaryExpr(inner));
         }
@@ -1304,6 +1394,8 @@ impl Expr {
             Self::ListPredicateExpr(inner) => inner.syntax(),
             Self::PatternComprehension(inner) => inner.syntax(),
             Self::CaseExpr(inner) => inner.syntax(),
+            Self::IsTypedExpr(inner) => inner.syntax(),
+            Self::TypeCastExpr(inner) => inner.syntax(),
             Self::BinaryExpr(inner) => inner.syntax(),
             Self::UnaryExpr(inner) => inner.syntax(),
             Self::PatternPredicate(inner) => inner.syntax(),

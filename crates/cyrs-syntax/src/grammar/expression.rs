@@ -94,7 +94,14 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
             continue;
         }
 
-        // `IS [NOT] NULL` — postfix, priority 5 (comparison-level).
+        // `IS [NOT] NULL` and `IS [NOT] TYPED <TypeName>` — postfix at
+        // priority 5 (comparison-level). The two forms share the leading
+        // `IS [NOT]` prefix and split on the next token:
+        //   `IS NULL`            → IS_NULL_EXPR  (existing path, cy-nom)
+        //   `IS TYPED <Type>`    → IS_TYPED_EXPR (cy-pnp, ISO 39075 §6.5.2)
+        // Anything else after `IS [NOT]` is treated as a missing-NULL
+        // recovery so the legacy diagnostic surface (E0025) does not
+        // change for queries that simply forgot to spell `NULL`.
         if p.at(SyntaxKind::IS_KW) {
             let null_check_bp = 10;
             if null_check_bp < min_bp {
@@ -103,10 +110,51 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
             let m = lhs.precede(p);
             p.bump(SyntaxKind::IS_KW);
             p.eat(SyntaxKind::NOT_KW);
-            if !p.eat(SyntaxKind::NULL_KW) {
-                p.error_code(sc::EXPECTED_NULL_AFTER_IS, "expected NULL after IS");
+            if p.at(SyntaxKind::TYPED_KW) {
+                p.bump(SyntaxKind::TYPED_KW);
+                if at_type_name_start(p) {
+                    type_name(p);
+                } else {
+                    p.error_code(
+                        sc::EXPECTED_TYPE_AFTER_TYPED,
+                        "expected type name after `IS [NOT] TYPED`",
+                    );
+                }
+                lhs = m.complete(p, SyntaxKind::IS_TYPED_EXPR);
+            } else {
+                if !p.eat(SyntaxKind::NULL_KW) {
+                    p.error_code(sc::EXPECTED_NULL_AFTER_IS, "expected NULL after IS");
+                }
+                lhs = m.complete(p, SyntaxKind::IS_NULL_EXPR);
             }
-            lhs = m.complete(p, SyntaxKind::IS_NULL_EXPR);
+            continue;
+        }
+
+        // `<expr> :: <TypeName>` — GQL typed-value shorthand (cy-pnp,
+        // ISO/IEC 39075:2024 §6.5.2). Sits at the comparison-level
+        // priority so `n.age :: INTEGER > 18` parses as
+        // `(n.age :: INTEGER) > 18` — the cast binds tighter than every
+        // comparison operator. We deliberately keep `::` BELOW the
+        // primary postfix priority (20) used by `.` / `[]` / `()` so a
+        // following property access on the cast result still chains
+        // naturally (`(x :: T).f`); the bp of 10 matches IS_NULL above
+        // and is strictly above the additive / multiplicative families.
+        if p.at(SyntaxKind::DOUBLE_COLON) {
+            let cast_bp = 10;
+            if cast_bp < min_bp {
+                break;
+            }
+            let m = lhs.precede(p);
+            p.bump(SyntaxKind::DOUBLE_COLON);
+            if at_type_name_start(p) {
+                type_name(p);
+            } else {
+                p.error_code(
+                    sc::EXPECTED_TYPE_AFTER_DOUBLE_COLON,
+                    "expected type name after `::`",
+                );
+            }
+            lhs = m.complete(p, SyntaxKind::TYPE_CAST_EXPR);
             continue;
         }
 
@@ -773,6 +821,51 @@ fn paren_expr(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
         p.error_code(sc::EXPECTED_RPAREN_EXPR, "expected ')' to close expression");
     }
     m.complete(p, SyntaxKind::PAREN_EXPR)
+}
+
+// --------------------------------------------------------------------------
+// GQL type-assertion helpers (cy-pnp, ISO/IEC 39075:2024 §6.5.2 / §6.2)
+// --------------------------------------------------------------------------
+
+/// Maximum number of IDENT tokens consumed into a single `TypeName` (cy-pnp).
+///
+/// GQL type names range from one word (`INTEGER`, `STRING`, `BOOLEAN`) to
+/// multi-word phrases (`ZONED DATETIME`, `LOCAL DATETIME`, `LOCAL TIME`).
+/// The longest names in §6.2 are three tokens (e.g. `LOCAL ZONED DATETIME`
+/// in dialect extensions). Capping the greedy loop at three keeps a stray
+/// identifier later in the expression from being absorbed (e.g. in
+/// `n.age :: INTEGER > 18`, only `INTEGER` is consumed because `>` is not
+/// an IDENT) and bounds the worst-case lookahead.
+const MAX_TYPE_NAME_IDENTS: u32 = 3;
+
+/// Returns `true` if the current token can start a `TypeName` — i.e. is an
+/// identifier-shaped token. Type names are spelled as ordinary identifiers
+/// (`INTEGER`, `STRING`, `ZONED`, …) and are NOT reserved at the lexer
+/// level so they keep working as variable / label names elsewhere.
+fn at_type_name_start(p: &Parser<'_>) -> bool {
+    matches!(p.current(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT)
+}
+
+/// Parse `TypeName = NameRef NameRef*` — one or more identifier tokens
+/// (cy-pnp). The leading IDENT is required; the caller has already
+/// confirmed it via [`at_type_name_start`]. Continuation IDENTs are
+/// consumed greedily but capped at [`MAX_TYPE_NAME_IDENTS`] so a stray
+/// identifier later in the expression (e.g. an `AS` alias would not be
+/// an IDENT, but a stray `FOO` after `INTEGER` could be) is not silently
+/// absorbed. The emitted node is `TYPE_NAME` with its IDENT children as
+/// direct child tokens.
+fn type_name(p: &mut Parser<'_>) {
+    debug_assert!(at_type_name_start(p));
+    let m = p.start();
+    // First IDENT — required.
+    p.bump_any();
+    // Up to (MAX_TYPE_NAME_IDENTS - 1) continuation IDENTs.
+    let mut consumed: u32 = 1;
+    while consumed < MAX_TYPE_NAME_IDENTS && at_type_name_start(p) {
+        p.bump_any();
+        consumed += 1;
+    }
+    m.complete(p, SyntaxKind::TYPE_NAME);
 }
 
 // --------------------------------------------------------------------------

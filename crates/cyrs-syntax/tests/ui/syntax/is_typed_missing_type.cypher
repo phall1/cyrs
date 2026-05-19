@@ -1,0 +1,1 @@
+MATCH (n) WHERE n.age IS TYPED RETURN n

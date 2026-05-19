@@ -670,6 +670,15 @@ pub(crate) mod syntax_codes {
     /// (cy-auh, ISO/IEC 39075:2024 §14.13.4). Pre-reserved slots E0084 /
     /// E0085 are owned by parallel GQL beads (FILTER / OPTIONAL CALL).
     pub(crate) const EXPECTED_EXCLUDE_ITEM: u16 = 86;
+    /// E0088 — expected a type name after `IS [NOT] TYPED` (cy-pnp,
+    /// ISO/IEC 39075:2024 §6.5.2). Distinct from the `IS NULL` recovery
+    /// path (E0025) so dialect-aware tooling can tell the two shapes
+    /// apart. The numeric slot skips 83..=87 reserved for parallel
+    /// GQL-bootstrap beads (cy-8z3 INSERT, etc.).
+    pub(crate) const EXPECTED_TYPE_AFTER_TYPED: u16 = 88;
+    /// E0089 — expected a type name after `::` (cy-pnp, the GQL
+    /// typed-value shorthand for `IS TYPED`).
+    pub(crate) const EXPECTED_TYPE_AFTER_DOUBLE_COLON: u16 = 89;
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------
     // The `error_code` payload is the numeric part of a `DiagCode`

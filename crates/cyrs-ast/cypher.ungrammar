@@ -277,6 +277,8 @@ Expr =
 | PatternComprehension
 | CaseExpr
 | NullCheck
+| IsTypedExpr
+| TypeCastExpr
 | ExistsPredicate
 | BinaryExpr
 | UnaryExpr
@@ -395,6 +397,28 @@ CaseElseArm =
 
 NullCheck =
   operand:Expr 'IS' 'NOT'? 'NULL'
+
+// GQL type-assertion productions (cy-pnp, ISO/IEC 39075:2024 §6.5.2).
+// `IS TYPED <Type>` is GQL's predicate form; `<expr> :: <Type>` is the
+// typed-value shorthand. Both carry a `TypeName` child that names the
+// asserted type (one or more identifier tokens, see `TypeName`). The
+// parser places these at comparison-level precedence so a following
+// comparison continues to parse — `n.age :: INTEGER > 18` yields
+// `((n.age) :: INTEGER) > 18`.
+IsTypedExpr =
+  operand:Expr 'IS' 'NOT'? 'TYPED' ty:TypeName
+
+TypeCastExpr =
+  operand:Expr '::' ty:TypeName
+
+// GQL named type — one or more identifier tokens (`INTEGER`, `STRING`,
+// `ZONED DATETIME`, …). The constituent tokens are ordinary IDENTs at
+// the lexer level so the names remain available as variable / label
+// identifiers elsewhere; the parser collects them greedily, capped at
+// three tokens (see `MAX_TYPE_NAME_IDENTS`) so a stray identifier later
+// in the expression is not silently absorbed.
+TypeName =
+  NameRef NameRef*
 
 // Predicate form only. The `EXISTS { <subquery> }` form is deferred.
 ExistsPredicate =

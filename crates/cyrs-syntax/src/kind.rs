@@ -170,6 +170,13 @@ pub enum SyntaxKind {
     // raw 183 explicitly.
     EXCLUDE_KW = 183,
 
+    // GQL type-assertion keyword (cy-pnp / cy-0hj). `IS TYPED <type>` is
+    // GQL's predicate form for run-time type assertions per ISO/IEC
+    // 39075:2024 §6.5.2; the shorthand `::` lives at the punctuation
+    // level (DOUBLE_COLON, already in the punctuation zone). Slot 184
+    // reserved for parallel work; this variant pins to raw 185.
+    TYPED_KW = 185,
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -299,6 +306,19 @@ pub enum SyntaxKind {
     // trailers). Slot 390 (`FILTER_CLAUSE`) reserved for parallel bead.
     RETURN_EXCLUDE = 392,
 
+    // GQL type-assertion nodes (cy-pnp, ISO/IEC 39075:2024 §6.5.2 / §6.2).
+    // `IS_TYPED_EXPR` wraps `<expr> IS [NOT] TYPED <TypeName>`; the
+    // `IS NULL` path stays on `IS_NULL_EXPR` (no merger so HIR / sema can
+    // discriminate without inspecting child tokens). `TYPE_CAST_EXPR`
+    // wraps `<expr> :: <TypeName>` — the typed-value shorthand. Both
+    // carry a `TYPE_NAME` child whose first IDENT is the head type name
+    // (`INTEGER`, `STRING`, `ZONED`, …) followed by zero or more
+    // continuation IDENTs (e.g. `ZONED DATETIME`). Slot 393 reserved
+    // for parallel work.
+    IS_TYPED_EXPR = 394,
+    TYPE_CAST_EXPR,
+    TYPE_NAME,
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -418,6 +438,7 @@ impl SyntaxKind {
             180 => Self::SINGLE_KW,
             181 => Self::INSERT_KW,
             183 => Self::EXCLUDE_KW,
+            185 => Self::TYPED_KW,
 
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -491,6 +512,9 @@ impl SyntaxKind {
             389 => Self::INSERT_CLAUSE,
             391 => Self::OPTIONAL_CALL_CLAUSE,
             392 => Self::RETURN_EXCLUDE,
+            394 => Self::IS_TYPED_EXPR,
+            395 => Self::TYPE_CAST_EXPR,
+            396 => Self::TYPE_NAME,
 
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -521,11 +545,11 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=EXCLUDE_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=TYPED_KW`).
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::EXCLUDE_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::TYPED_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).

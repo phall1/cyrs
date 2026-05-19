@@ -651,6 +651,44 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: default per spec §4.3.
 - Virtual insertion: none planned until production lands.
 
+### IsTypedExpr
+
+- Status: **IMPLEMENTED** (cy-pnp, ISO/IEC 39075:2024 §6.5.2). Postfix
+  shape `<expr> IS [NOT] TYPED <TypeName>` at comparison-level
+  precedence; emitted as `IS_TYPED_EXPR`. Coexists with the `IS NULL`
+  path (`IS_NULL_EXPR`) — the parser splits on the token following
+  `IS [NOT]` (`NULL_KW` vs `TYPED_KW`).
+- Synchronisation set: clause-level keywords + `;` + EOF (default).
+- Skip-and-recover: a missing type name after `TYPED` emits `E0088`
+  (`EXPECTED_TYPE_AFTER_TYPED`) and closes the `IS_TYPED_EXPR` node at
+  the current position so the outer Pratt loop can recover on the next
+  comparison / clause boundary.
+- Virtual insertion: `E0088` — missing type name after `IS [NOT] TYPED`.
+
+### TypeCastExpr
+
+- Status: **IMPLEMENTED** (cy-pnp). Postfix shape `<expr> :: <TypeName>`
+  at comparison-level precedence — strictly tighter than `>` / `<` /
+  `=` so `n.age :: INTEGER > 18` parses as `(n.age :: INTEGER) > 18`,
+  matching ISO/IEC 39075:2024 §6.5.2 typed-value precedence.
+- Synchronisation set: clause-level keywords + `;` + EOF (default).
+- Skip-and-recover: a missing type name after `::` emits `E0089`
+  (`EXPECTED_TYPE_AFTER_DOUBLE_COLON`) and closes the `TYPE_CAST_EXPR`
+  node at the current position.
+- Virtual insertion: `E0089` — missing type name after `::`.
+
+### TypeName
+
+- Status: **IMPLEMENTED** (cy-pnp). `NameRef NameRef*` — one or more
+  identifier tokens. Greedy continuation is capped at three IDENTs so a
+  stray identifier later in the expression is not silently absorbed.
+- Synchronisation set: any non-IDENT token terminates the production.
+- Skip-and-recover: none dedicated — the enclosing `IsTypedExpr` /
+  `TypeCastExpr` own the missing-type diagnostics. A bare `TypeName`
+  position with no IDENT is unreachable because the callers guard with
+  `at_type_name_start` before invoking the production.
+- Virtual insertion: none.
+
 ### ExistsPredicate
 
 - Status: **IMPLEMENTED** (cy-lve, spec §6.1 / §19 row "Pattern predicates

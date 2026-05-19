@@ -1,0 +1,3 @@
+error[E0089]: expected type name after `::`
+ --> type_cast_missing_type.cypher:12
+
