@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/schema_aware.rs
+expression: "run(&stmt, &schema)"
+---
+diagnostics: 2
+  E3003: property `weight` is not declared on relationship type(s) :KNOWS
+  E3009: MERGE key {weight} on relationship type(s) :KNOWS is not backed by a declared uniqueness constraint

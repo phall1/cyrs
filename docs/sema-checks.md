@@ -101,6 +101,7 @@ the provider; an embedder's catalog is the source of truth.
 | E3002 | Unknown relationship type — referenced rel-type not present in `schema.relationship_types()`.        |
 | E3003 | Unknown property — key in inline pattern map not declared on any of the entity's labels/types.       |
 | E3004 | Property type mismatch — literal cannot be stored in the declared `PropertyType` (e.g. `String → Int`). |
+| E3009 | `MERGE` key not backed by a uniqueness constraint — the inline key set on a `MERGE` pattern matches no tuple from `schema.label_unique_props()` / `schema.rel_type_unique_props()`. |
 | E3006 | Unknown function — call references a name not present in `schema.function(name)`.                    |
 | E3007 | Function or procedure arity mismatch — wrong number of arguments vs. signature.                      |
 | E3008 | Unknown procedure — `CALL` clause references a procedure not present in `schema.procedure(name)`.    |
@@ -154,9 +155,13 @@ hand-rolled `semantic.rs` should keep its own rules for them.
 - **Aggregation correctness when grouping keys are dynamic.** Sema
   validates aggregation *scope* (spec §7.3) — where aggregates may
   legally appear — not the value semantics.
-- **`MERGE` deterministic-pattern rule beyond endpoint typing.** The
-  schema-aware check confirms endpoints are typed sufficiently;
-  uniqueness / write-visibility decisions stay with the runtime.
+- **`MERGE` write-visibility and runtime constraint enforcement.** The
+  schema-aware check confirms endpoints are typed sufficiently and that
+  a `MERGE` key set is backed by a *declared* uniqueness tuple (`E3009`);
+  whether the constraint is actually enforced, indexed, or visible to a
+  concurrent writer stays with the runtime. A schema that declares no
+  uniqueness for a label simply yields no `E3009` — absence of a
+  constraint is not itself an error.
 
 ### Anything outside the front-end's stated scope
 

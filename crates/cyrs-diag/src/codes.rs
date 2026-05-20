@@ -417,6 +417,19 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E3008.md`
     E3008 = 3008,
+    /// `MERGE` key not backed by a declared uniqueness constraint
+    /// (spec §7.5).
+    ///
+    /// Emitted by the `cyrs-sema` schema-aware pass when a `MERGE` node or
+    /// relationship pattern carries an inline property map whose key set
+    /// does not match any uniqueness tuple declared via
+    /// `SchemaProvider::label_unique_props` /
+    /// `SchemaProvider::rel_type_unique_props`. Without a backing
+    /// constraint, `MERGE`'s match-or-create semantics are not provably
+    /// deterministic.
+    ///
+    /// Docs: `docs/errors/E3009.md`
+    E3009 = 3009,
     /// Schema-file property type is unresolved (spec 0002 §9).
     ///
     /// Emitted by `cypher schema check` when a property or parameter
@@ -841,6 +854,7 @@ impl DiagCode {
             Self::E3006 => "E3006",
             Self::E3007 => "E3007",
             Self::E3008 => "E3008",
+            Self::E3009 => "E3009",
             Self::E3010 => "E3010",
             Self::E3011 => "E3011",
             Self::E4001 => "E4001",
@@ -1011,6 +1025,7 @@ impl DiagCode {
         Self::E3006,
         Self::E3007,
         Self::E3008,
+        Self::E3009,
         Self::E3010,
         Self::E3011,
         Self::E4001,

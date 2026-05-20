@@ -1,0 +1,6 @@
+---
+source: crates/cyrs-sema/src/schema_aware.rs
+expression: "run(&stmt, &schema)"
+---
+diagnostics: 1
+  E3009: MERGE key {age} on label(s) :Person is not backed by a declared uniqueness constraint

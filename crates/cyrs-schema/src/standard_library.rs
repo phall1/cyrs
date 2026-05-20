@@ -726,6 +726,14 @@ impl<S: SchemaProvider> SchemaProvider for StandardLibrary<S> {
         self.inner.inverse_of(rel_type)
     }
 
+    fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+        self.inner.label_unique_props(label)
+    }
+
+    fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+        self.inner.rel_type_unique_props(rel_type)
+    }
+
     fn function(&self, name: &str) -> Option<FunctionSignature> {
         if let Some(b) = find_builtin(name) {
             return Some(b.to_signature());

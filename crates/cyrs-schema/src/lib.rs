@@ -81,6 +81,42 @@ pub trait SchemaProvider: Send + Sync + 'static {
     /// typed inverses return them here; others return `None`.
     fn inverse_of(&self, rel_type: &str) -> Option<SmolStr>;
 
+    /// Ordered property tuples that are guaranteed unique for this label.
+    ///
+    /// Each inner `Vec<SmolStr>` is one declared uniqueness constraint — an
+    /// ordered tuple of property names whose combined values are unique
+    /// across every node carrying `label`. A single-property constraint is
+    /// a one-element tuple. An empty outer `Vec` means the schema declares
+    /// no uniqueness for the label.
+    ///
+    /// The `cyrs-sema` schema-aware pass consults this to *prove* that a
+    /// `MERGE` node pattern keys on a declared uniqueness constraint rather
+    /// than guessing from pattern syntax (spec §7.5). Tuple order is not
+    /// semantic for that check — the property *set* is compared.
+    ///
+    /// Defaults to empty so existing [`SchemaProvider`] implementations
+    /// compile unchanged.
+    fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+        let _ = label;
+        Vec::new()
+    }
+
+    /// Ordered property tuples that are guaranteed unique for this
+    /// relationship type.
+    ///
+    /// The relationship-type analogue of [`label_unique_props`]. Used by
+    /// the `cyrs-sema` schema-aware pass to validate `MERGE` relationship
+    /// patterns.
+    ///
+    /// Defaults to empty so existing [`SchemaProvider`] implementations
+    /// compile unchanged.
+    ///
+    /// [`label_unique_props`]: SchemaProvider::label_unique_props
+    fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+        let _ = rel_type;
+        Vec::new()
+    }
+
     /// Look up a function signature. Used by typecheck and by completion.
     fn function(&self, name: &str) -> Option<FunctionSignature>;
 
