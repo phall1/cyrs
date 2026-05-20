@@ -497,7 +497,11 @@ fn collect_file(db: &Database, file_id: FileId, builder: &mut IndexBuilder) {
     }
 
     // Named path aliases: harvest from the file's HIR bindings.
-    let stmt = cyrs_hir::lower::lower_statement(&source);
+    // Lower from the parsed tree directly (cy-cfi): editor buffers may
+    // contain syntax errors, so this keeps the best-effort contract that
+    // `lower_statement`'s typed `Err` channel would otherwise reject.
+    let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+        .expect("lower_parse is infallible");
     for b in stmt.bindings.values() {
         if b.kind != VarKind::Path {
             continue;
@@ -606,9 +610,11 @@ fn classify_cursor(db: &Database, file_id: FileId, offset: TextSize) -> Option<C
             });
         }
         // Named-path cursor: check if the token text matches any
-        // `VarKind::Path` binding in this file's HIR.
+        // `VarKind::Path` binding in this file's HIR. Lower best-effort
+        // from the parsed tree (cy-cfi) — the buffer may not parse cleanly.
         let source = db.source_of(file_id).ok()?;
-        let stmt = cyrs_hir::lower::lower_statement(&source);
+        let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+            .expect("lower_parse is infallible");
         let name = token.text();
         for b in stmt.bindings.values() {
             if b.kind == VarKind::Path && b.name.as_str() == name {

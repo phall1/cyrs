@@ -45,11 +45,18 @@ use cyrs_diag::DiagnosticsSink;
 use cyrs_hir::{
     Binding, Clause, Direction, Expr, HirId, Pattern, PatternElement, PatternPart, Projection,
     RelLength, Statement, VarId, VarKind, YieldItem, desugar::desugar_statement,
-    lower::lower_statement, pretty::print_overlay,
+    pretty::print_overlay,
 };
 use cyrs_sema::resolve;
 use cyrs_syntax::{TextRange, TextSize};
 use smol_str::SmolStr;
+
+/// Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+/// fallible since cy-cfi; `lower_parse` (infallible) keeps these tests
+/// able to feed malformed input through the resolve pipeline.
+fn lower_statement(src: &str) -> Statement {
+    cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

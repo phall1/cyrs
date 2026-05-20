@@ -662,9 +662,16 @@ mod tests {
     use cyrs_diag::DiagnosticsSink;
     use cyrs_hir::{
         Binding, Clause, HirOffset, HirSpan, Pattern, PatternElement, PatternPart, Projection,
-        Statement, VarId, VarKind, lower::lower_statement,
+        Statement, VarId, VarKind,
     };
     use smol_str::SmolStr;
+
+    // `cyrs_hir::lower::lower_statement` is fallible since cy-cfi; these
+    // resolve tests feed it source that may not parse cleanly, so use the
+    // infallible `lower_parse` primitive.
+    fn lower_statement(src: &str) -> Statement {
+        cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+    }
 
     // -----------------------------------------------------------------------
     // Render helpers

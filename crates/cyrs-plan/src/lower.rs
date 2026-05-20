@@ -1517,7 +1517,13 @@ mod tests {
     use super::*;
     use crate::SortDir;
     use cyrs_hir::desugar::desugar_statement;
-    use cyrs_hir::lower::lower_statement as hir_lower;
+
+    // Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+    // fallible since cy-cfi; `lower_parse` is the infallible primitive and
+    // does not reject parser-recovered inputs (e.g. the no-panic test).
+    fn hir_lower(src: &str) -> cyrs_hir::Statement {
+        cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+    }
 
     // Helper: lower from source Cypher → plan via HIR.
     fn plan_from(src: &str) -> PlanStatement {

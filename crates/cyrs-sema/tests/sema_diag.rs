@@ -19,7 +19,14 @@
 #![allow(clippy::doc_markdown)]
 
 use cyrs_diag::{DiagnosticsSink, render_text_string};
-use cyrs_hir::{desugar::desugar_statement, lower::lower_statement};
+use cyrs_hir::desugar::desugar_statement;
+
+/// Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+/// fallible since cy-cfi; these sema tests deliberately feed it inputs
+/// with syntax errors, so `lower_parse` (infallible) is required.
+fn lower_statement(src: &str) -> cyrs_hir::Statement {
+    cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+}
 use cyrs_schema::{
     EndpointDecl, FnCategories, FunctionSignature, ParamDecl, ProcedureSignature, PropertyDecl,
     PropertyType, ReturnTy, SchemaProvider,

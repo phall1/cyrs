@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 
 use cyrs_diag::{DiagnosticsSink, render_text_string};
 use cyrs_fmt::format;
-use cyrs_hir::{desugar::desugar_statement, lower::lower_statement};
+use cyrs_hir::{desugar::desugar_statement, lower::lower_parse};
 use cyrs_plan::{lower::lower_statement as plan_lower, pretty::pretty};
 use cyrs_schema::{
     Cardinality, EndpointDecl, FnCategories, FunctionSignature, ParamDecl, ProcMode,
@@ -286,7 +286,9 @@ pub fn run_sema_case(case: &TestCase, bless: bool) -> std::io::Result<Outcome> {
 
     let json_schema = case.read_schema_json()?;
 
-    let stmt = lower_statement(&source);
+    // cy-cfi: lower best-effort from the parsed tree — the sema corpus
+    // deliberately includes malformed inputs that exercise diagnostics.
+    let stmt = lower_parse(&cyrs_syntax::parse(&source)).expect("lower_parse is infallible");
     let stmt = desugar_statement(stmt);
     let mut sink = DiagnosticsSink::new();
     let opts = SemaOptions {
@@ -360,7 +362,9 @@ pub fn run_dialect_case(case: &TestCase, bless: bool) -> std::io::Result<Outcome
 pub fn run_plan_case(case: &TestCase, bless: bool) -> std::io::Result<Outcome> {
     let source = case.read_source()?;
 
-    let hir_stmt = lower_statement(&source);
+    // cy-cfi: lower best-effort from the parsed tree (plan corpus inputs
+    // are well-formed, but `lower_parse` keeps this infallible).
+    let hir_stmt = lower_parse(&cyrs_syntax::parse(&source)).expect("lower_parse is infallible");
     let hir_stmt = desugar_statement(hir_stmt);
     // cy-wlr: plan lowering is fallible. Compiletest plan corpus inputs are
     // expected to be well-formed (they run the full HIR pipeline first); if

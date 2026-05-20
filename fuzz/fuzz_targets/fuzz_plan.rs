@@ -12,8 +12,13 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
 
-    // Produce HIR.
-    let stmt = cyrs_hir::lower::lower_statement(s);
+    // Produce HIR. `lower_parse` (cy-cfi) lowers best-effort from the
+    // recovered parse tree, so the plan layer is still exercised for
+    // inputs the parser reported errors on — `lower_statement` would
+    // short-circuit those to `Err` and skip plan lowering entirely.
+    let Ok(stmt) = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(s)) else {
+        return;
+    };
 
     // Lower to plan — must not panic on any HIR shape. Pre-condition
     // violations (un-resolved names, un-desugared expressions) surface as

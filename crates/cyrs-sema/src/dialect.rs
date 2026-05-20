@@ -777,7 +777,8 @@ mod tests {
     /// `SESSION SET …` is allowed in `GqlAligned` (no diagnostic).
     #[test]
     fn session_set_gql_clean() {
-        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH");
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH")
+            .expect("clean input lowers");
         assert!(stmt.session_set.is_some(), "lowered to session_set");
         let mut sink = DiagnosticsSink::new();
         check_dialect(&stmt, DialectMode::GqlAligned, &mut sink);
@@ -791,7 +792,8 @@ mod tests {
     /// `SESSION SET GRAPH` is rejected in `OpenCypherV9` (E4020).
     #[test]
     fn session_set_graph_oc_denied() {
-        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH");
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET GRAPH CURRENT_GRAPH")
+            .expect("clean input lowers");
         let mut sink = DiagnosticsSink::new();
         check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
         let diags = sink.into_sorted();
@@ -802,7 +804,8 @@ mod tests {
     /// `SESSION SET TIME ZONE` is rejected in `OpenCypherV9` (E4020).
     #[test]
     fn session_set_time_zone_oc_denied() {
-        let stmt = cyrs_hir::lower::lower_statement("SESSION SET TIME ZONE \"utc\"");
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET TIME ZONE \"utc\"")
+            .expect("clean input lowers");
         let mut sink = DiagnosticsSink::new();
         check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
         let diags = sink.into_sorted();
@@ -813,7 +816,8 @@ mod tests {
     /// `SESSION SET VALUE` is rejected in `OpenCypherV9` (E4020).
     #[test]
     fn session_set_value_oc_denied() {
-        let stmt = cyrs_hir::lower::lower_statement("SESSION SET VALUE $bar = {x: 'hi'}");
+        let stmt = cyrs_hir::lower::lower_statement("SESSION SET VALUE $bar = {x: 'hi'}")
+            .expect("clean input lowers");
         let mut sink = DiagnosticsSink::new();
         check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
         let diags = sink.into_sorted();
@@ -824,7 +828,8 @@ mod tests {
     /// A plain `MATCH`/`RETURN` does not trigger the SESSION SET gate.
     #[test]
     fn non_session_set_does_not_fire_e4020() {
-        let stmt = cyrs_hir::lower::lower_statement("MATCH (n) RETURN n");
+        let stmt =
+            cyrs_hir::lower::lower_statement("MATCH (n) RETURN n").expect("clean input lowers");
         let mut sink = DiagnosticsSink::new();
         check_dialect(&stmt, DialectMode::OpenCypherV9, &mut sink);
         let diags = sink.into_sorted();
