@@ -169,6 +169,9 @@ fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
             Clause::With {
                 projections,
                 filter,
+                order_by,
+                skip,
+                limit,
                 ..
             } => {
                 for p in projections {
@@ -177,11 +180,19 @@ fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
                 if let Some(f) = filter {
                     check_expr(f, span)?;
                 }
+                check_order_skip_limit(order_by, skip.as_ref(), limit.as_ref(), span)?;
             }
-            Clause::Return { projections, .. } => {
+            Clause::Return {
+                projections,
+                order_by,
+                skip,
+                limit,
+                ..
+            } => {
                 for p in projections {
                     check_expr(&p.expr, span)?;
                 }
+                check_order_skip_limit(order_by, skip.as_ref(), limit.as_ref(), span)?;
             }
             Clause::Unwind { list, .. } => check_expr(list, span)?,
             Clause::Merge {
@@ -267,6 +278,32 @@ fn check_remove_item(item: &RemoveItem, span: HirSpan) -> Result<(), PlanLowerEr
     match item {
         RemoveItem::Property { target, .. } => check_expr(target, span)?,
         RemoveItem::Labels { .. } => {}
+    }
+    Ok(())
+}
+
+/// Scan the `ORDER BY` / `SKIP` / `LIMIT` trailer expressions shared by the
+/// `WITH` and `RETURN` clauses.
+///
+/// These positions were previously left unscanned: an un-desugared
+/// (`MapProjection`, `ListComprehension`) or unresolved expression in an
+/// `ORDER BY` key — or a `SKIP` / `LIMIT` operand — reached `lower_expr`
+/// and tripped a `debug_assert!` instead of surfacing as a clean `Err`.
+/// Found by `fuzz_plan`.
+fn check_order_skip_limit(
+    order_by: &[OrderItem],
+    skip: Option<&HirExpr>,
+    limit: Option<&HirExpr>,
+    span: HirSpan,
+) -> Result<(), PlanLowerError> {
+    for item in order_by {
+        check_expr(&item.expr, span)?;
+    }
+    if let Some(s) = skip {
+        check_expr(s, span)?;
+    }
+    if let Some(l) = limit {
+        check_expr(l, span)?;
     }
     Ok(())
 }
@@ -2899,6 +2936,41 @@ mod tests {
         };
         let stmt = stmt_with_return_expr(expr);
         let err = lower_statement(&stmt).expect_err("map projection must be rejected");
+        match err {
+            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "MapProjection"),
+            other => panic!("expected UndesugaredExpr(MapProjection), got {other:?}"),
+        }
+    }
+
+    /// An un-desugared expression in a `RETURN ... ORDER BY` key must
+    /// surface as `Err`, not panic — `precheck_statement` previously
+    /// skipped the `ORDER BY` / `SKIP` / `LIMIT` trailer. Found by
+    /// `fuzz_plan`.
+    #[test]
+    fn lower_statement_returns_err_on_undesugared_order_by_key() {
+        let span = HirSpan::default();
+        let mut stmt = Statement::new(span);
+        stmt.clauses.push(Clause::Return {
+            id: cyrs_hir::HirId::DUMMY,
+            projections: vec![Projection {
+                expr: HirExpr::Var(HirVarId(0)),
+                alias: Some("x".into()),
+                span,
+            }],
+            distinct: false,
+            span,
+            order_by: vec![OrderItem {
+                expr: HirExpr::MapProjection {
+                    base: Box::new(HirExpr::Var(HirVarId(0))),
+                    items: vec![],
+                },
+                descending: false,
+                span,
+            }],
+            skip: None,
+            limit: None,
+        });
+        let err = lower_statement(&stmt).expect_err("ORDER BY key must be scanned");
         match err {
             PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "MapProjection"),
             other => panic!("expected UndesugaredExpr(MapProjection), got {other:?}"),
