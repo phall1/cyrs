@@ -174,7 +174,15 @@ fn run_with(label: &str, schema: Option<&dyn SchemaProvider>) {
     println!("== {label} ==");
     println!("query: {QUERY}");
 
-    let stmt = desugar_statement(lower_statement(QUERY));
+    // cy-cfi: HIR lowering returns a typed `Result` so an embedder has a
+    // non-panicking failure channel — no `catch_unwind` needed.
+    let stmt = match lower_statement(QUERY) {
+        Ok(stmt) => desugar_statement(stmt),
+        Err(e) => {
+            println!("lowering failed: {e}");
+            return;
+        }
+    };
 
     // Resolved bindings: report how many use-sites the resolver
     // bound. `cyrs-sema::analyse` runs the same resolver pass

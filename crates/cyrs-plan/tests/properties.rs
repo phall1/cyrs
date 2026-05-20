@@ -14,9 +14,16 @@
 //! Inputs that produce no ops (empty plan) are still checked — the empty
 //! plan must also be deterministic.
 
-use cyrs_hir::{desugar::desugar_statement, lower::lower_statement as hir_lower};
+use cyrs_hir::{desugar::desugar_statement, lower::lower_parse};
 use cyrs_plan::lower::lower_statement as plan_lower;
 use proptest::prelude::*;
+
+/// Lower `src` → HIR best-effort. `lower_parse` (cy-cfi) is infallible and
+/// — unlike `lower_statement` — does not reject inputs the parser
+/// recovered from, which the determinism property must still exercise.
+fn hir_lower(src: &str) -> cyrs_hir::Statement {
+    lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

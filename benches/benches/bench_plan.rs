@@ -15,7 +15,7 @@ RETURN n.name AS source, m.name AS target, hops
 "#;
 
 fn bench_plan(c: &mut Criterion) {
-    let stmt = cyrs_hir::lower::lower_statement(QUERY);
+    let stmt = cyrs_hir::lower::lower_statement(QUERY).expect("bench query must lower cleanly");
 
     c.bench_function("plan", |b| {
         b.iter(|| {

@@ -56,7 +56,7 @@ use std::sync::Arc;
 
 use cyrs_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cyrs_hir::desugar::desugar_statement;
-use cyrs_hir::lower::lower_statement as hir_lower;
+use cyrs_hir::lower::lower_parse as hir_lower;
 use cyrs_plan::lower::{PlanStatement, lower_statement as plan_lower};
 use cyrs_sema::SemaOptions;
 use cyrs_sema::resolve::ResolveResult;
@@ -242,13 +242,15 @@ pub fn resolved_names(
     file: SourceFile,
     file_opts: FileOptions,
 ) -> ResolvedNamesOutput {
-    // Establish Salsa dependency on the parsed CST.
-    let _cst = parse_cst(db, file);
-    let src = file.source(db);
+    // Establish Salsa dependency on the parsed CST. Lowering reuses this
+    // already-parsed tree via `lower_parse` (cy-cfi) rather than
+    // re-running the parser through `lower_statement`.
+    let cst = parse_cst(db, file);
     let opts = file_opts.options(db);
 
-    // Lower and desugar HIR inline (not stored in Salsa — see module doc).
-    let stmt = hir_lower(src.as_str());
+    // Lower and desugar HIR inline (not stored in Salsa — see module
+    // doc). `lower_parse` is infallible, so no fallback path is needed.
+    let stmt = hir_lower(cst.parse()).expect("cyrs-db: lower_parse is infallible");
     let stmt = desugar_statement(stmt);
 
     let mut sink = DiagnosticsSink::new();
@@ -270,15 +272,15 @@ pub fn sema_diagnostics(
     file_opts: FileOptions,
     ws: WorkspaceInputs,
 ) -> DiagnosticsOutput {
-    // Establish Salsa dependency on the parsed CST.
-    let _cst = parse_cst(db, file);
-    let src = file.source(db);
+    // Establish Salsa dependency on the parsed CST; lower from it
+    // directly via `lower_parse` (cy-cfi) — no second parse.
+    let cst = parse_cst(db, file);
     let opts = file_opts.options(db);
     let schema = ws.schema(db);
     let schema_ref = schema.as_deref();
 
-    // Lower and desugar HIR inline.
-    let stmt = hir_lower(src.as_str());
+    // Lower and desugar HIR inline. `lower_parse` is infallible.
+    let stmt = hir_lower(cst.parse()).expect("cyrs-db: lower_parse is infallible");
     let stmt = desugar_statement(stmt);
 
     let sema_opts = SemaOptions {
@@ -307,12 +309,12 @@ pub fn sema_diagnostics(
 /// HIR lowering is performed inline (see module doc for rationale).
 #[salsa::tracked(lru = 256)]
 pub fn plan_of(db: &dyn CypherDb, file: SourceFile) -> PlanOutput {
-    // Establish Salsa dependency on the parsed CST.
-    let _cst = parse_cst(db, file);
-    let src = file.source(db);
+    // Establish Salsa dependency on the parsed CST; lower from it
+    // directly via `lower_parse` (cy-cfi) — no second parse.
+    let cst = parse_cst(db, file);
 
-    // Lower and desugar HIR inline.
-    let stmt = hir_lower(src.as_str());
+    // Lower and desugar HIR inline. `lower_parse` is infallible.
+    let stmt = hir_lower(cst.parse()).expect("cyrs-db: lower_parse is infallible");
     let stmt = desugar_statement(stmt);
 
     // cy-wlr: `plan_lower` is fallible now. When the HIR still contains

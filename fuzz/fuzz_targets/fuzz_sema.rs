@@ -10,8 +10,13 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
 
-    // Lower to HIR (includes AST parse).
-    let stmt = cyrs_hir::lower::lower_statement(s);
+    // Lower to HIR. `lower_parse` (cy-cfi) lowers best-effort from the
+    // recovered parse tree so sema is exercised even for inputs the
+    // parser reported errors on (the common fuzz case); `lower_statement`
+    // would short-circuit those to `Err` and skip analysis.
+    let Ok(stmt) = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(s)) else {
+        return;
+    };
 
     // Run semantic analysis — must not panic.
     let mut sink = cyrs_diag::DiagnosticsSink::new();

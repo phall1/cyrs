@@ -28,7 +28,10 @@ pub(crate) fn compute(db: &Database, file_id: FileId, range: Range) -> Vec<Inlay
     // workspace `Database` does not expose the Statement directly;
     // this is the same pattern the hover / executeCommand engines
     // use.  Cost is negligible for a typical open-file workload.
-    let stmt = cyrs_hir::lower::lower_statement(&source);
+    // Lower best-effort from the parsed tree (cy-cfi): the buffer may
+    // contain syntax errors.
+    let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+        .expect("lower_parse is infallible");
     let mut hints: Vec<InlayHint> = Vec::new();
     for binding in stmt.bindings.values() {
         if !filter.intersects(binding.defined_at) {

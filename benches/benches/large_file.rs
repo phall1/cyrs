@@ -64,7 +64,13 @@ use criterion::Criterion;
 
 use cyrs_db::{Database, DialectMode};
 use cyrs_hir::desugar::desugar_statement;
-use cyrs_hir::lower::lower_statement;
+
+/// Parse + lower one statement. `cyrs_hir::lower::lower_statement` is
+/// fallible since cy-cfi; the bench corpus is well-formed Cypher, so
+/// `.expect()` the `Ok` while still timing the same parse + lower path.
+fn lower_statement(src: &str) -> cyrs_hir::Statement {
+    cyrs_hir::lower::lower_statement(src).expect("bench corpus must lower cleanly")
+}
 
 // ---------------------------------------------------------------------------
 // Configuration

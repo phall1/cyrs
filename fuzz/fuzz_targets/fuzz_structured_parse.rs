@@ -109,7 +109,10 @@ fuzz_target!(|data: &[u8]| {
     // Lower to HIR and run sema; any panic is a blocker. We do not
     // assert on diagnostic content — `cyrs-sema` may legitimately
     // flag the generator's output (e.g. unknown function calls).
-    let stmt = cyrs_hir::lower::lower_statement(&src);
+    // Lower via `lower_parse` (cy-cfi) reusing the already-computed
+    // `parsed` above — Oracle 1 has proven it is error-free, so
+    // lowering succeeds.
+    let stmt = cyrs_hir::lower::lower_parse(&parsed).expect("lower_parse is infallible");
     let mut sink = cyrs_diag::DiagnosticsSink::new();
     let opts = cyrs_sema::SemaOptions::default();
     cyrs_sema::analyse(&stmt, None, &opts, &mut sink);

@@ -102,7 +102,13 @@ impl SessionSetHir {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lower::lower_statement;
+    use crate::Statement;
+
+    // `lower_statement` is fallible since cy-cfi; these tests all drive it
+    // with well-formed SESSION SET input, so unwrap the `Ok` locally.
+    fn lower_statement(src: &str) -> Statement {
+        crate::lower::lower_statement(src).expect("SESSION SET test input must lower cleanly")
+    }
 
     #[test]
     fn lowers_session_set_graph() {

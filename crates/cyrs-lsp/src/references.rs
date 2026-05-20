@@ -81,7 +81,10 @@ pub(crate) fn compute(
     let mut ranges = collect_sites(db, file_id, &name);
 
     if !include_declaration {
-        let stmt = cyrs_hir::lower::lower_statement(&source);
+        // Lower best-effort from the parsed tree (cy-cfi): the buffer
+        // may have syntax errors, so `lower_parse` over `lower_statement`.
+        let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+            .expect("lower_parse is infallible");
         if let Some(binding) = stmt.bindings.values().find(|b| b.name.as_str() == name) {
             let defined_at = binding.defined_at;
             ranges.retain(|r| *r != defined_at);

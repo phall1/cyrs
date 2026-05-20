@@ -681,8 +681,11 @@ fn handle_execute_command(
                     );
                 }
             };
-            let stmt =
-                cyrs_hir::desugar::desugar_statement(cyrs_hir::lower::lower_statement(&source));
+            // Lower best-effort from the parsed tree (cy-cfi).
+            let stmt = cyrs_hir::desugar::desugar_statement(
+                cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+                    .expect("lower_parse is infallible"),
+            );
             let mut sink = cyrs_diag::DiagnosticsSink::new();
             let resolved = cyrs_sema::resolve::resolve(&stmt, false, &mut sink).resolved_names;
             Response::new_ok(

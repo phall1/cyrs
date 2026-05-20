@@ -567,8 +567,12 @@ fn has_no_errors(src: &str) -> bool {
 }
 
 /// Lower and desugar a source string into an HIR Statement.
+///
+/// `lower_statement` is fallible since cy-cfi; these properties feed it
+/// well-formed Cypher (the `cypher_valid` strategy and literal valid
+/// queries), so an `Err` here is itself a property violation.
 fn lower(src: &str) -> Statement {
-    let stmt = lower_statement(src);
+    let stmt = lower_statement(src).expect("property input must parse and lower cleanly");
     desugar_statement(stmt)
 }
 

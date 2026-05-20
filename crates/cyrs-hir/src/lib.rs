@@ -32,6 +32,9 @@
 pub mod catalog;
 // --- end cy-v5u6 ---
 pub mod desugar;
+// --- cy-cfi typed HIR-lowering failure channel ---
+pub mod error;
+// --- end cy-cfi ---
 pub mod lower;
 pub mod pretty;
 pub mod scope;
@@ -45,6 +48,9 @@ pub use catalog::{
     CatalogHir, CatalogStatement, GraphSourceHir, GraphTypeHir, lower_catalog_from_parse,
 };
 // --- end cy-v5u6 ---
+// --- cy-cfi typed HIR-lowering failure channel ---
+pub use error::HirLowerError;
+// --- end cy-cfi ---
 pub use lower::{lower_parse, lower_statement};
 pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
@@ -101,7 +107,14 @@ pub struct ParseToHir {
 #[must_use]
 pub fn parse_to_hir(src: &str) -> ParseToHir {
     let parse = cyrs_syntax::parse(src);
-    let hir = lower::lower_parse(&parse);
+    // `lower_parse` is infallible today (it never returns `Err`); the
+    // typed channel exists for forward-compatibility (cy-cfi). This
+    // convenience wrapper deliberately keeps its best-effort contract:
+    // it surfaces syntax errors via `syntax_errors` and always yields a
+    // (possibly partial) `Statement`, so an `Err` here would be a
+    // genuine lowering-invariant bug — `expect` rather than swallow it.
+    let hir = lower::lower_parse(&parse)
+        .expect("lower_parse is infallible; an Err signals a lowering-invariant bug");
     let syntax_errors = parse.errors().to_vec();
     ParseToHir {
         parse,
@@ -863,8 +876,8 @@ mod tests {
         // The sugar wrapper must agree with the primitive.
         let src = "MATCH (a) RETURN a";
         let parse = cyrs_syntax::parse(src);
-        let via_parse = lower::lower_parse(&parse);
-        let via_str = lower::lower_statement(src);
+        let via_parse = lower::lower_parse(&parse).expect("clean input lowers");
+        let via_str = lower::lower_statement(src).expect("clean input lowers");
         assert_eq!(via_parse.clauses.len(), via_str.clauses.len());
         assert_eq!(via_parse.bindings.len(), via_str.bindings.len());
         assert_eq!(via_parse.node_count(), via_str.node_count());
