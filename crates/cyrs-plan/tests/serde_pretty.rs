@@ -35,6 +35,7 @@ fn read_plan(ops: Vec<ReadOp>) -> PlanStatement {
         ops,
         write_ops: vec![],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -44,6 +45,7 @@ fn write_plan(write_ops: Vec<WriteOp>) -> PlanStatement {
         ops: vec![],
         write_ops,
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -329,6 +331,7 @@ fn roundtrip_empty_plan() {
         ops: vec![],
         write_ops: vec![],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     };
     assert_roundtrip_eq(&plan);
 }
@@ -631,6 +634,7 @@ fn pretty_snap_write_ops() {
             },
         ],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     };
     insta::assert_snapshot!("pretty_write_ops", pretty(&plan));
 }

@@ -695,6 +695,63 @@ pub enum UnaryOp {
     Not,
 }
 
+/// A scalar (non-collection, non-entity) value type for a query
+/// parameter. cy-7it (feat-request §2.4).
+///
+/// Mirrors the primitive variants of `cyrs_schema::PropertyType` at the
+/// plan layer so the schema crate is not leaked across the plan boundary
+/// (the crate graph forbids `cyrs-plan → cyrs-schema`; cf. the plan-local
+/// [`ListPredKind`] which mirrors `cyrs_hir::ListPredKind` for the same
+/// reason). A consumer holding a `cyrs_schema::PropertyType` can map its
+/// primitive variants onto these one-to-one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum ScalarType {
+    /// A string value (`cyrs_schema::PropertyType::String`).
+    String,
+    /// A 64-bit signed integer (`cyrs_schema::PropertyType::Int`).
+    Int,
+    /// A 64-bit IEEE-754 float (`cyrs_schema::PropertyType::Float`).
+    Float,
+    /// A boolean value (`cyrs_schema::PropertyType::Bool`).
+    Bool,
+}
+
+/// The best-effort inferred type of a query `$param` reference, as carried
+/// on [`lower::PlanStatement::params`]. cy-7it (feat-request §2.4).
+///
+/// Type inference during HIR→Plan lowering is *syntactic and best-effort*:
+/// a parameter compared against an integer literal infers
+/// `Scalar(ScalarType::Int)`, a parameter used as the iterable of `UNWIND`
+/// infers [`ParamType::List`], and so on. Where the lowering pass cannot
+/// constrain the parameter — it appears only in a bare projection, or as a
+/// function argument, or in conflicting contexts — the type is
+/// [`ParamType::Unknown`]. An embedder (e.g. pgGraph binding Postgres SPI
+/// parameters) must treat `Unknown` as "bind whatever the caller supplied".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum ParamType {
+    /// A scalar value of a known primitive type.
+    Scalar(ScalarType),
+    /// A list / array value.
+    List,
+    /// A map / object value.
+    Map,
+    /// A graph node value.
+    Node,
+    /// A graph relationship value.
+    Relationship,
+    /// A graph path value.
+    Path,
+    /// The parameter is unconstrained — the lowering pass could not infer
+    /// a type. Bind it as whatever the caller supplies.
+    Unknown,
+}
+
 /// Discriminant for [`Expr::ListPredicate`] (cy-8x5, spec §19 row
 /// "List predicates"). Mirrors `cyrs_hir::ListPredKind` at the plan
 /// layer so the HIR is not leaked across the plan boundary.

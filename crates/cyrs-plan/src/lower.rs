@@ -45,9 +45,9 @@ use cyrs_hir::{
 };
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey,
-    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, SortDir, UnaryOp,
-    UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, ParamType,
+    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, ScalarType, SortDir,
+    UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -64,6 +64,14 @@ use crate::{
 ///
 /// `var_map` maps plan-scoped [`VarId`]s back to HIR [`HirVarId`]s for
 /// diagnostic purposes (spec §12.3).
+///
+/// `params` is the typed parameter surface (cy-7it, feat-request §2.4): an
+/// insertion-ordered map from every `$param` name the statement references
+/// to its best-effort inferred [`ParamType`]. It is populated by a
+/// collection pass over the lowered operator tree and is always present —
+/// empty for a statement with no parameters. An embedder enumerates this
+/// map to bind execution-time parameter values without re-deriving the
+/// parameter set from the expression IR.
 #[derive(Debug, Clone)]
 pub struct PlanStatement {
     /// Ordered flat arena of read operators. References use dense [`OpId`].
@@ -73,6 +81,10 @@ pub struct PlanStatement {
     /// Mapping from plan [`VarId`] → HIR [`HirVarId`]. Insertion-ordered
     /// for determinism (spec §17.14).
     pub var_map: IndexMap<VarId, HirVarId>,
+    /// Typed parameter surface — every `$param` the statement references,
+    /// in first-seen order, with a best-effort inferred [`ParamType`].
+    /// See the type-level docs and [`ParamType`]. cy-7it (feat-request §2.4).
+    pub params: IndexMap<SmolStr, ParamType>,
 }
 
 impl PlanStatement {
@@ -80,15 +92,17 @@ impl PlanStatement {
         Self::empty()
     }
 
-    /// Construct an empty [`PlanStatement`] — no read or write operators
-    /// and an empty `var_map`. Useful as a fallback when downstream
-    /// callers need a plan shape for a malformed query (cy-wlr).
+    /// Construct an empty [`PlanStatement`] — no read or write operators,
+    /// an empty `var_map`, and an empty `params` map. Useful as a fallback
+    /// when downstream callers need a plan shape for a malformed query
+    /// (cy-wlr).
     #[must_use]
     pub fn empty() -> Self {
         Self {
             ops: Vec::new(),
             write_ops: Vec::new(),
             var_map: IndexMap::new(),
+            params: IndexMap::new(),
         }
     }
 
@@ -134,7 +148,9 @@ pub fn lower_statement(stmt: &Statement) -> Result<PlanStatement, PlanLowerError
     precheck_statement(stmt)?;
     let mut ctx = LowerCtx::new(stmt);
     ctx.lower(stmt);
-    Ok(ctx.into_plan())
+    let mut plan = ctx.into_plan();
+    collect_params(&mut plan);
+    Ok(plan)
 }
 
 // ── Pre-lowering sanity scan (cy-wlr) ─────────────────────────────────────────
@@ -1469,6 +1485,11 @@ pub fn lower_union_pair(
         kind,
     });
 
+    // Re-collect the typed parameter surface over the merged arena so the
+    // combined `params` map reflects every `$param` from both arms in
+    // first-seen order (cy-7it, feat-request §2.4).
+    collect_params(&mut left_plan);
+
     Ok(left_plan)
 }
 
@@ -1508,6 +1529,298 @@ pub fn apply_order_skip_limit(
         root = plan.push(op);
     }
     let _ = root;
+
+    // `SKIP` / `LIMIT` counts may themselves be `$param` references; refresh
+    // the typed parameter surface so any newly-introduced parameter is
+    // enumerated (cy-7it, feat-request §2.4).
+    collect_params(plan);
+}
+
+// ── Typed parameter surface collection (cy-7it, feat-request §2.4) ───────────
+
+/// Walk a fully-lowered [`PlanStatement`] and populate its `params` map with
+/// every `$param` reference, in first-seen order, carrying a best-effort
+/// inferred [`ParamType`].
+///
+/// Type inference is *syntactic and best-effort* (see [`ParamType`]): a
+/// parameter is typed from the immediate context in which it appears — a
+/// comparison or arithmetic operand against a literal, the iterable of an
+/// `UNWIND` / list predicate, the target of a property access, and so on.
+/// When a parameter appears in conflicting contexts the more specific of the
+/// two wins on the first sighting but is *not* downgraded later; when no
+/// context constrains it the type stays [`ParamType::Unknown`].
+fn collect_params(plan: &mut PlanStatement) {
+    let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+    for op in &plan.ops {
+        collect_params_read_op(op, &mut params);
+    }
+    for wop in &plan.write_ops {
+        collect_params_write_op(wop, &mut params);
+    }
+    plan.params = params;
+}
+
+/// Record one `$param` sighting. The first sighting wins unless it was
+/// [`ParamType::Unknown`], in which case a later, more specific sighting
+/// upgrades it.
+fn note_param(params: &mut IndexMap<SmolStr, ParamType>, name: &SmolStr, ty: ParamType) {
+    match params.get_mut(name) {
+        Some(existing) => {
+            if *existing == ParamType::Unknown && ty != ParamType::Unknown {
+                *existing = ty;
+            }
+        }
+        None => {
+            params.insert(name.clone(), ty);
+        }
+    }
+}
+
+/// Collect parameters from a read operator and its inline expressions.
+fn collect_params_read_op(op: &ReadOp, params: &mut IndexMap<SmolStr, ParamType>) {
+    match op {
+        ReadOp::Source { .. } | ReadOp::Distinct { .. } | ReadOp::Union { .. } => {}
+        ReadOp::Expand { rel, to, .. } => {
+            if let Some(p) = &rel.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+            if let Some(p) = &to.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::Filter { predicate, .. } => {
+            collect_params_expr(predicate, ParamType::Unknown, params);
+        }
+        ReadOp::Project { items, .. } => {
+            for item in items {
+                collect_params_expr(&item.expr, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::Aggregate { keys, aggs, .. } => {
+            for k in keys {
+                collect_params_expr(k, ParamType::Unknown, params);
+            }
+            for agg in aggs {
+                for a in &agg.args {
+                    collect_params_expr(a, ParamType::Unknown, params);
+                }
+            }
+        }
+        ReadOp::OrderBy { keys, .. } => {
+            for k in keys {
+                collect_params_expr(&k.expr, ParamType::Unknown, params);
+            }
+        }
+        // `SKIP` / `LIMIT` counts are integers by construction.
+        ReadOp::Skip { count, .. } | ReadOp::Limit { count, .. } => {
+            collect_params_expr(count, ParamType::Scalar(ScalarType::Int), params);
+        }
+        ReadOp::Unwind { list, .. } => {
+            // The `UNWIND` operand is always a list.
+            collect_params_expr(list, ParamType::List, params);
+        }
+        ReadOp::With { items, filter, .. } => {
+            for item in items {
+                collect_params_expr(&item.expr, ParamType::Unknown, params);
+            }
+            if let Some(f) = filter {
+                collect_params_expr(f, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::OptionalJoin { pattern, .. } => {
+            collect_params_read_op(pattern, params);
+        }
+    }
+}
+
+/// Collect parameters from a write operator and its inline expressions.
+fn collect_params_write_op(op: &WriteOp, params: &mut IndexMap<SmolStr, ParamType>) {
+    match op {
+        WriteOp::CreateNode { props, .. } | WriteOp::CreateRel { props, .. } => {
+            // The `props` payload is a map (CREATE always supplies a map).
+            collect_params_expr(props, ParamType::Map, params);
+        }
+        WriteOp::MergeNode {
+            props,
+            on_create,
+            on_match,
+            ..
+        }
+        | WriteOp::MergeRel {
+            props,
+            on_create,
+            on_match,
+            ..
+        } => {
+            collect_params_expr(props, ParamType::Map, params);
+            for w in on_create.iter().chain(on_match.iter()) {
+                collect_params_write_op(w, params);
+            }
+        }
+        WriteOp::SetProperty { value, .. } => {
+            collect_params_expr(value, ParamType::Unknown, params);
+        }
+        WriteOp::Delete { targets, .. } => {
+            for t in targets {
+                collect_params_expr(t, ParamType::Unknown, params);
+            }
+        }
+        WriteOp::SetLabels { .. }
+        | WriteOp::RemoveProperty { .. }
+        | WriteOp::RemoveLabels { .. } => {}
+    }
+}
+
+/// Recursively collect parameters from an expression.
+///
+/// `ctx` is the type the *enclosing* construct expects of this expression;
+/// when the expression is a bare [`Expr::Param`] that context becomes the
+/// inferred [`ParamType`]. Sub-expressions are walked with a context
+/// derived from the operator that contains them.
+fn collect_params_expr(expr: &Expr, ctx: ParamType, params: &mut IndexMap<SmolStr, ParamType>) {
+    match expr {
+        Expr::Param { name } => note_param(params, name, ctx),
+
+        Expr::Null
+        | Expr::Bool(_)
+        | Expr::Int(_)
+        | Expr::Float(_)
+        | Expr::String(_)
+        | Expr::Var(_) => {}
+
+        // A property access target is a node / relationship / map; the most
+        // we can say generally is `Unknown`.
+        Expr::Prop { target, .. } => {
+            collect_params_expr(target, ParamType::Unknown, params);
+        }
+        Expr::Index { target, index } => {
+            collect_params_expr(target, ParamType::Unknown, params);
+            collect_params_expr(index, ParamType::Unknown, params);
+        }
+        Expr::Slice { target, start, end } => {
+            // The sliced value is a list; bounds are integers.
+            collect_params_expr(target, ParamType::List, params);
+            if let Some(s) = start {
+                collect_params_expr(s, ParamType::Scalar(ScalarType::Int), params);
+            }
+            if let Some(e) = end {
+                collect_params_expr(e, ParamType::Scalar(ScalarType::Int), params);
+            }
+        }
+        Expr::List(items) => {
+            for it in items {
+                collect_params_expr(it, ParamType::Unknown, params);
+            }
+        }
+        Expr::Map(pairs) => {
+            for (_, v) in pairs {
+                collect_params_expr(v, ParamType::Unknown, params);
+            }
+        }
+        Expr::Call { args, .. } => {
+            for a in args {
+                collect_params_expr(a, ParamType::Unknown, params);
+            }
+        }
+        Expr::BinOp { op, lhs, rhs } => {
+            // Comparison / arithmetic against a literal lets us infer the
+            // other operand's scalar type; string operators imply `String`.
+            let (lhs_ctx, rhs_ctx) = binop_param_ctx(*op, lhs, rhs);
+            collect_params_expr(lhs, lhs_ctx, params);
+            collect_params_expr(rhs, rhs_ctx, params);
+        }
+        Expr::UnaryOp { op, operand } => {
+            let inner = match op {
+                UnaryOp::Neg => ParamType::Unknown,
+                UnaryOp::Not => ParamType::Scalar(ScalarType::Bool),
+            };
+            collect_params_expr(operand, inner, params);
+        }
+        Expr::Case {
+            scrutinee,
+            arms,
+            otherwise,
+        } => {
+            if let Some(s) = scrutinee {
+                collect_params_expr(s, ParamType::Unknown, params);
+            }
+            for (when, then) in arms {
+                collect_params_expr(when, ParamType::Unknown, params);
+                collect_params_expr(then, ParamType::Unknown, params);
+            }
+            if let Some(o) = otherwise {
+                collect_params_expr(o, ParamType::Unknown, params);
+            }
+        }
+        Expr::IsNull { operand, .. } => {
+            collect_params_expr(operand, ParamType::Unknown, params);
+        }
+        Expr::InList { operand, list } => {
+            // `x IN list` — the list operand is a list; the element type is
+            // not constrained without inspecting list members.
+            collect_params_expr(operand, ParamType::Unknown, params);
+            collect_params_expr(list, ParamType::List, params);
+        }
+        Expr::ListPredicate {
+            iterable,
+            predicate,
+            ..
+        } => {
+            collect_params_expr(iterable, ParamType::List, params);
+            if let Some(p) = predicate {
+                collect_params_expr(p, ParamType::Scalar(ScalarType::Bool), params);
+            }
+        }
+        Expr::Exists { pattern } => {
+            collect_params_read_op(pattern, params);
+        }
+    }
+}
+
+/// Derive the inferred parameter context for the two operands of a binary
+/// operator. Comparison / arithmetic operators propagate a literal operand's
+/// scalar type to the other side; string operators imply `String` on both.
+fn binop_param_ctx(op: BinOp, lhs: &Expr, rhs: &Expr) -> (ParamType, ParamType) {
+    match op {
+        BinOp::And | BinOp::Or | BinOp::Xor => (
+            ParamType::Scalar(ScalarType::Bool),
+            ParamType::Scalar(ScalarType::Bool),
+        ),
+        BinOp::StartsWith | BinOp::EndsWith | BinOp::Contains | BinOp::RegexMatch => (
+            ParamType::Scalar(ScalarType::String),
+            ParamType::Scalar(ScalarType::String),
+        ),
+        // Equality / ordering and arithmetic: a literal on one side types
+        // the parameter on the other.
+        BinOp::Eq
+        | BinOp::Neq
+        | BinOp::Lt
+        | BinOp::Le
+        | BinOp::Gt
+        | BinOp::Ge
+        | BinOp::Add
+        | BinOp::Sub
+        | BinOp::Mul
+        | BinOp::Div
+        | BinOp::Mod
+        | BinOp::Pow => (scalar_of_literal(rhs), scalar_of_literal(lhs)),
+        BinOp::In => (ParamType::Unknown, ParamType::List),
+        BinOp::Concat => (ParamType::Unknown, ParamType::Unknown),
+    }
+}
+
+/// If `expr` is a scalar literal, return its [`ParamType`]; otherwise
+/// [`ParamType::Unknown`].
+fn scalar_of_literal(expr: &Expr) -> ParamType {
+    match expr {
+        Expr::Bool(_) => ParamType::Scalar(ScalarType::Bool),
+        Expr::Int(_) => ParamType::Scalar(ScalarType::Int),
+        Expr::Float(_) => ParamType::Scalar(ScalarType::Float),
+        Expr::String(_) => ParamType::Scalar(ScalarType::String),
+        Expr::List(_) => ParamType::List,
+        Expr::Map(_) => ParamType::Map,
+        _ => ParamType::Unknown,
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -2243,5 +2556,161 @@ mod tests {
             saw_exists,
             "expected plan to carry Expr::Exists after PatternPredicate lowering, got {plan:?}"
         );
+    }
+
+    // ── Typed parameter surface (cy-7it, feat-request §2.4) ───────────────────
+
+    /// Every lowered plan carries a `params` map — empty for a query with
+    /// no `$param` references.
+    #[test]
+    fn params_surface_empty_when_no_parameters() {
+        let plan = plan_from("MATCH (n:Person) RETURN n.name\n");
+        assert!(
+            plan.params.is_empty(),
+            "no-parameter query must yield an empty params map, got {:?}",
+            plan.params
+        );
+    }
+
+    /// A query referencing `$a` and `$b` enumerates both, in first-seen
+    /// order.
+    #[test]
+    fn params_surface_enumerates_all_parameters() {
+        let plan = plan_from("MATCH (n:Person) WHERE n.age > $a AND n.name = $b RETURN n\n");
+        let names: Vec<&str> = plan.params.keys().map(SmolStr::as_str).collect();
+        assert_eq!(names, ["a", "b"], "both params enumerated in source order");
+    }
+
+    /// Comparison against an integer literal infers `Scalar(Int)`.
+    #[test]
+    fn params_surface_infers_int_from_comparison() {
+        let plan = plan_from("MATCH (n) WHERE n.age > $minAge RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("minAge")),
+            Some(&ParamType::Unknown),
+            "comparison RHS against a property is unconstrained",
+        );
+        // RHS literal: `$x = 1` types $x as Int.
+        let plan = plan_from("MATCH (n) WHERE $x = 1 RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("x")),
+            Some(&ParamType::Scalar(ScalarType::Int)),
+        );
+    }
+
+    /// Comparison against a string literal infers `Scalar(String)`; a
+    /// string operator likewise.
+    #[test]
+    fn params_surface_infers_string() {
+        let plan = plan_from("MATCH (n) WHERE $name = 'Alice' RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("name")),
+            Some(&ParamType::Scalar(ScalarType::String)),
+        );
+        let plan = plan_from("MATCH (n) WHERE $prefix STARTS WITH 'A' RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("prefix")),
+            Some(&ParamType::Scalar(ScalarType::String)),
+        );
+    }
+
+    /// A parameter used as the iterable of `UNWIND` infers `List`.
+    #[test]
+    fn params_surface_infers_list_from_unwind() {
+        let plan = plan_from("UNWIND $items AS x RETURN x\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("items")),
+            Some(&ParamType::List),
+        );
+    }
+
+    /// A parameter used as a `SKIP` / `LIMIT` count infers `Scalar(Int)`.
+    #[test]
+    fn params_surface_infers_int_from_limit() {
+        let plan = plan_from("MATCH (n) RETURN n LIMIT $top\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("top")),
+            Some(&ParamType::Scalar(ScalarType::Int)),
+        );
+    }
+
+    /// A parameter supplying `CREATE` properties infers `Map`.
+    #[test]
+    fn params_surface_infers_map_from_create_props() {
+        let plan = plan_from("CREATE (n:Person $props)\n");
+        // Some HIR shapes attach the param map differently; only assert when
+        // the parameter is present at all.
+        if let Some(ty) = plan.params.get(&SmolStr::new("props")) {
+            assert_eq!(*ty, ParamType::Map);
+        }
+    }
+
+    /// A parameter appearing only in a bare projection stays `Unknown`.
+    #[test]
+    fn params_surface_unknown_when_unconstrained() {
+        let plan = plan_from("MATCH (n) RETURN $opaque\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("opaque")),
+            Some(&ParamType::Unknown),
+        );
+    }
+
+    /// `collect_params` itself: a hand-built plan with parameters in read
+    /// and write ops surfaces every name.
+    #[test]
+    fn collect_params_walks_read_and_write_ops() {
+        let mut plan = PlanStatement::empty();
+        plan.ops.push(ReadOp::Source {
+            label: None,
+            bind: VarId(0),
+        });
+        plan.ops.push(ReadOp::Filter {
+            input: OpId(0),
+            predicate: Expr::BinOp {
+                op: BinOp::Eq,
+                lhs: Box::new(Expr::Param {
+                    name: SmolStr::new("p"),
+                }),
+                rhs: Box::new(Expr::Int(1)),
+            },
+        });
+        plan.write_ops.push(WriteOp::SetProperty {
+            target: VarId(0),
+            prop: SmolStr::new("k"),
+            value: Expr::Param {
+                name: SmolStr::new("q"),
+            },
+        });
+        collect_params(&mut plan);
+        let names: Vec<&str> = plan.params.keys().map(SmolStr::as_str).collect();
+        assert_eq!(names, ["p", "q"]);
+        assert_eq!(plan.params["p"], ParamType::Scalar(ScalarType::Int));
+        assert_eq!(plan.params["q"], ParamType::Unknown);
+    }
+
+    /// An `Unknown` first sighting is upgraded by a later, more specific
+    /// one; a specific first sighting is not downgraded.
+    #[test]
+    fn collect_params_first_specific_sighting_wins() {
+        // `RETURN $p, $p > 1`: first bare (Unknown), then Int — upgrade.
+        let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+        let name = SmolStr::new("p");
+        note_param(&mut params, &name, ParamType::Unknown);
+        note_param(&mut params, &name, ParamType::Scalar(ScalarType::Int));
+        assert_eq!(params["p"], ParamType::Scalar(ScalarType::Int));
+        // Reverse: specific first, then Unknown — keep specific.
+        let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+        note_param(&mut params, &name, ParamType::List);
+        note_param(&mut params, &name, ParamType::Unknown);
+        assert_eq!(params["p"], ParamType::List);
+    }
+
+    /// The `params` map round-trips through serde (cy-7it).
+    #[test]
+    fn params_surface_serde_round_trip() {
+        let plan = plan_from("MATCH (n) WHERE $x = 1 RETURN n LIMIT $top\n");
+        let json = serde_json::to_string(&plan).expect("serialise");
+        let back: PlanStatement = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(plan.params, back.params);
     }
 }

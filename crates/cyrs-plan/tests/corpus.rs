@@ -22,6 +22,7 @@ fn read_plan(ops: Vec<ReadOp>) -> PlanStatement {
         ops,
         write_ops: vec![],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -30,6 +31,7 @@ fn write_plan(write_ops: Vec<WriteOp>) -> PlanStatement {
         ops: vec![],
         write_ops,
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -38,6 +40,7 @@ fn rw_plan(ops: Vec<ReadOp>, write_ops: Vec<WriteOp>) -> PlanStatement {
         ops,
         write_ops,
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 

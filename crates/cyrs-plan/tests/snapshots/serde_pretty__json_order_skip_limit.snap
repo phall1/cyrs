@@ -42,6 +42,7 @@ expression: "serde_json::to_value(&plan).unwrap()"
       "op": "limit"
     }
   ],
+  "params": [],
   "var_map": [],
   "write_ops": []
 }

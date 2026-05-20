@@ -66,6 +66,7 @@ expression: "serde_json::to_value(&plan).unwrap()"
       "op": "project"
     }
   ],
+  "params": [],
   "var_map": [],
   "write_ops": []
 }
