@@ -9,6 +9,9 @@ expression: "serde_json::to_value(&plan).unwrap()"
   "write_ops": [
     {
       "bind": 0,
+      "key_props": [
+        "name"
+      ],
       "labels": [
         "Person"
       ],

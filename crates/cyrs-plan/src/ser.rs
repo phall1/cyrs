@@ -905,6 +905,8 @@ enum WriteOpSer {
     MergeNode {
         labels: Vec<SmolStr>,
         props: Expr,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        key_props: Vec<SmolStr>,
         on_create: Vec<WriteOp>,
         on_match: Vec<WriteOp>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -915,6 +917,8 @@ enum WriteOpSer {
         to: VarId,
         rel_type: SmolStr,
         props: Expr,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        key_props: Vec<SmolStr>,
         on_create: Vec<WriteOp>,
         on_match: Vec<WriteOp>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -971,12 +975,14 @@ impl Serialize for WriteOp {
             WriteOp::MergeNode {
                 labels,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
             } => WriteOpSer::MergeNode {
                 labels: labels.clone(),
                 props: props.clone(),
+                key_props: key_props.clone(),
                 on_create: on_create.clone(),
                 on_match: on_match.clone(),
                 bind: *bind,
@@ -986,6 +992,7 @@ impl Serialize for WriteOp {
                 to,
                 rel_type,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
@@ -994,6 +1001,7 @@ impl Serialize for WriteOp {
                 to: *to,
                 rel_type: rel_type.clone(),
                 props: props.clone(),
+                key_props: key_props.clone(),
                 on_create: on_create.clone(),
                 on_match: on_match.clone(),
                 bind: *bind,
@@ -1057,12 +1065,14 @@ impl<'de> Deserialize<'de> for WriteOp {
             WriteOpSer::MergeNode {
                 labels,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
             } => WriteOp::MergeNode {
                 labels,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
@@ -1072,6 +1082,7 @@ impl<'de> Deserialize<'de> for WriteOp {
                 to,
                 rel_type,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
@@ -1080,6 +1091,7 @@ impl<'de> Deserialize<'de> for WriteOp {
                 to,
                 rel_type,
                 props,
+                key_props,
                 on_create,
                 on_match,
                 bind,
