@@ -61,6 +61,29 @@ fn all_covers_every_variant() {
     assert_eq!(expected, actual);
 }
 
+/// The `E4500..=E4999` block is permanently reserved for external
+/// embedders (e.g. a host that embeds cyrs and mints its own codes for
+/// storage-model rejections cyrs cannot diagnose). cyrs's own
+/// `DiagCode` enum must never assign a code in that range — its native
+/// dialect / compatibility codes are confined to `E4000..=E4499`.
+///
+/// This test mechanically enforces the policy documented on
+/// `DiagCode`: adding a native variant in the reserved range fails CI
+/// here. See feat-request §3.1 / `docs/embedder-issues/0003`.
+#[test]
+fn embedder_reserved_range_is_empty() {
+    const RESERVED: std::ops::RangeInclusive<u32> = 4500..=4999;
+    for c in DiagCode::ALL {
+        let n = *c as u32;
+        assert!(
+            !RESERVED.contains(&n),
+            "code {} ({n}) falls in the embedder-reserved range \
+             E4500..=E4999 — native cyrs codes must stay below E4500",
+            c.as_str(),
+        );
+    }
+}
+
 #[test]
 fn all_count_pinned() {
     // When you add a variant to `DiagCode`, append it to `ALL` and
