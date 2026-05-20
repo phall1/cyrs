@@ -55,6 +55,8 @@ pub use session::{SessionSetHir, SessionSetVariantHir};
 // --- end cy-lp3y ---
 pub use visit::{Visitor, walk_clause, walk_expr, walk_statement};
 
+use std::ops::Range;
+
 use cyrs_syntax::{Parse, SyntaxError, SyntaxNode, TextRange};
 
 /// Aggregated output of [`parse_to_hir`].
@@ -219,6 +221,30 @@ impl Statement {
     /// from. Returns `None` for unknown or dummy ids.
     pub fn syntax_for(&self, id: HirId) -> Option<&SyntaxNode> {
         self.node_map.get(&id)
+    }
+
+    /// Byte range of the HIR node identified by `id` in the original
+    /// source text.
+    ///
+    /// This is the **supported, SemVer-stable** path for embedders that
+    /// project cyrs diagnostics onto a host's caret/underline API — for
+    /// example mapping a HIR node back to a byte offset for a Postgres
+    /// `errposition()` call. The returned [`Range<usize>`] is a
+    /// half-open `start..end` of UTF-8 byte offsets into the source the
+    /// statement was lowered from.
+    ///
+    /// Returns `None` for [`HirId::DUMMY`] and for any id with no entry
+    /// in [`Statement::node_map`] (the same cases as
+    /// [`Statement::syntax_for`]).
+    ///
+    /// Equivalent to `self.syntax_for(id).map(|n| n.text_range())`
+    /// followed by a [`TextRange`] → byte-offset conversion; prefer this
+    /// accessor over open-coding that conversion.
+    pub fn span_of(&self, id: HirId) -> Option<Range<usize>> {
+        self.syntax_for(id).map(|node| {
+            let range = node.text_range();
+            u32::from(range.start()) as usize..u32::from(range.end()) as usize
+        })
     }
 
     /// Total number of lowered HIR nodes recorded in the map.
@@ -718,6 +744,37 @@ mod tests {
         assert!(stmt.syntax_for(id2).is_some());
         assert!(stmt.syntax_for(HirId::DUMMY).is_none());
         assert!(stmt.syntax_for(HirId(999)).is_none());
+    }
+
+    #[test]
+    fn span_of_returns_byte_range_of_recorded_node() {
+        // Lower a real statement so the node map carries distinct,
+        // sub-statement syntax nodes (the MATCH and RETURN clauses).
+        let src = "MATCH (n) RETURN n";
+        let stmt = lower::lower_statement(src);
+
+        let match_id = stmt.clauses[0].id();
+        let return_id = stmt.clauses[1].id();
+
+        // Each clause id resolves to the byte range its syntax node
+        // covers, and that range agrees with `syntax_for`.
+        for id in [match_id, return_id] {
+            let range = stmt.span_of(id).expect("clause id has a node");
+            let syntax_range = stmt.syntax_for(id).unwrap().text_range();
+            assert_eq!(range.start, u32::from(syntax_range.start()) as usize);
+            assert_eq!(range.end, u32::from(syntax_range.end()) as usize);
+            // The range is a valid, in-bounds slice of the source.
+            assert!(range.start <= range.end);
+            assert!(range.end <= src.len());
+            let _ = &src[range];
+        }
+
+        // The MATCH clause starts at the head of the source.
+        assert_eq!(stmt.span_of(match_id).unwrap().start, 0);
+
+        // Unknown and dummy ids yield `None`, matching `syntax_for`.
+        assert_eq!(stmt.span_of(HirId::DUMMY), None);
+        assert_eq!(stmt.span_of(HirId(99_999)), None);
     }
 
     #[test]
