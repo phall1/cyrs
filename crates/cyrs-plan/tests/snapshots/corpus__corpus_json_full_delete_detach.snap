@@ -32,6 +32,7 @@ expression: "serde_json::to_value(&plan).unwrap()"
       }
     }
   ],
+  "params": [],
   "var_map": [],
   "write_ops": [
     {

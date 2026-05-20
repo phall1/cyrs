@@ -1106,6 +1106,7 @@ impl<'de> Deserialize<'de> for WriteOp {
 // `var_map` is IndexMap<VarId, HirVarId>. Serialised as an array of
 // `[plan_var_u32, hir_var_u32]` pairs to keep ordering stable.
 
+use crate::ParamType;
 use crate::lower::PlanStatement;
 use cyrs_hir::VarId as HirVarId;
 use indexmap::IndexMap;
@@ -1118,6 +1119,12 @@ struct PlanStatementSer {
     /// Ordered pairs of `(plan_var_id, hir_var_id)`. Insertion order is
     /// preserved by `IndexMap` (spec §17.14 determinism).
     var_map: Vec<(u32, u32)>,
+    /// Ordered pairs of `(param_name, inferred_type)` — the typed
+    /// parameter surface (cy-7it, feat-request §2.4). Insertion order is
+    /// preserved by `IndexMap` (spec §17.14 determinism). Defaults to
+    /// empty so plans serialised before this field landed still load.
+    #[serde(default)]
+    params: Vec<(SmolStr, ParamType)>,
 }
 
 impl Serialize for PlanStatement {
@@ -1127,10 +1134,16 @@ impl Serialize for PlanStatement {
             .iter()
             .map(|(plan_v, hir_v)| (plan_v.0, hir_v.0))
             .collect();
+        let params: Vec<(SmolStr, ParamType)> = self
+            .params
+            .iter()
+            .map(|(name, ty)| (name.clone(), *ty))
+            .collect();
         PlanStatementSer {
             ops: self.ops.clone(),
             write_ops: self.write_ops.clone(),
             var_map,
+            params,
         }
         .serialize(s)
     }
@@ -1143,10 +1156,15 @@ impl<'de> Deserialize<'de> for PlanStatement {
         for (plan_v, hir_v) in proxy.var_map {
             var_map.insert(VarId(plan_v), HirVarId(hir_v));
         }
+        let mut params: IndexMap<SmolStr, ParamType> = IndexMap::with_capacity(proxy.params.len());
+        for (name, ty) in proxy.params {
+            params.insert(name, ty);
+        }
         Ok(PlanStatement {
             ops: proxy.ops,
             write_ops: proxy.write_ops,
             var_map,
+            params,
         })
     }
 }
