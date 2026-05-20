@@ -710,6 +710,12 @@ impl<S: SchemaProvider> SchemaProvider for StandardLibrary<S> {
         self.inner.has_relationship_type(name)
     }
 
+    fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+        // Multi-label storage compatibility is a property of the
+        // wrapped schema; stdlib adds no labels of its own.
+        self.inner.labels_compatible(labels)
+    }
+
     fn node_properties(&self, label: &str) -> Option<Vec<PropertyDecl>> {
         self.inner.node_properties(label)
     }

@@ -562,6 +562,21 @@ pub enum DiagCode {
     E4022 = 4022,
     // --- end cy-v5u6 ---
 
+    // --- cy-5js multi-label compatibility ---
+    /// `incompatible_labels` — a `CREATE` node pattern (or a `SET` that
+    /// adds labels) declares a multi-label combination the schema's
+    /// [`SchemaProvider::labels_compatible`] reports cannot co-exist on
+    /// one node (feat-request §2.3). Emitted by
+    /// `cyrs-sema::schema_aware::check_schema_aware`. A provider that
+    /// returns `None` (does not constrain the combination) never fires
+    /// this gate.
+    ///
+    /// [`SchemaProvider::labels_compatible`]: ../cyrs_schema/trait.SchemaProvider.html#method.labels_compatible
+    ///
+    /// Docs: `docs/errors/E4023.md`
+    E4023 = 4023,
+    // --- end cy-5js ---
+
     // --- type system (E5000–E5999) ------------------------------------
     /// Type mismatch in unification — two incompatible concrete types cannot
     /// be unified (spec §7.2, §7.3).
@@ -908,6 +923,9 @@ impl DiagCode {
             Self::E4021 => "E4021",
             Self::E4022 => "E4022",
             // --- end cy-v5u6 ---
+            // --- cy-5js multi-label compatibility ---
+            Self::E4023 => "E4023",
+            // --- end cy-5js ---
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
             Self::E5011 => "E5011",
@@ -1078,6 +1096,7 @@ impl DiagCode {
         // --- cy-v5u6 catalog DDL ---
         Self::E4021,
         Self::E4022,
+        Self::E4023,
         // --- end cy-v5u6 ---
         Self::E5003,
         Self::E5010,

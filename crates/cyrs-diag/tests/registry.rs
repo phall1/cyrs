@@ -94,7 +94,7 @@ fn all_count_pinned() {
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
     //   10  schema-aware   (E3001–E3004, E3006–E3011, cy-36u + cy-0ek + cy-e45)
-    //   13  dialect        (E4001 + E4010–E4021, cy-z49 + cy-v5u6)
+    //   14  dialect        (E4001 + E4010–E4023, cy-z49 + cy-v5u6 + cy-5js)
     //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
     //    8  style          (W6001–W6007, W6010, cy-0ek)
     //    4  perf           (W7001–W7004)
@@ -158,6 +158,9 @@ fn all_count_pinned() {
     //         constraint) for schema-aware MERGE validation against
     //         `SchemaProvider::{label,rel_type}_unique_props` (feat-
     //         request §2.2; spec §7.5). E3005 stays retired (cy-va1).
-    const EXPECTED: usize = 143;
+    // cy-5js: added E4023 (incompatible multi-label combination) for the
+    //         `SchemaProvider::labels_compatible` check on `CREATE` node
+    //         patterns and label-adding `SET` items (feat-request §2.3).
+    const EXPECTED: usize = 144;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
