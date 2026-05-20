@@ -605,6 +605,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(var),

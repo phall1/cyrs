@@ -169,6 +169,30 @@ fn print_op(arena: &[ReadOp], idx: usize, depth: usize, out: &mut String) {
             // Inner arm: embedded tree (not in arena).
             print_op_tree(pattern, depth + 1, out);
         }
+        ReadOp::ShortestPath {
+            input,
+            from,
+            rel,
+            to,
+            bind_path,
+            all,
+        } => {
+            let func = if *all {
+                "allShortestPaths"
+            } else {
+                "shortestPath"
+            };
+            writeln!(
+                out,
+                "{pfx}ShortestPath ${} = {func}((${})-[{}]-(${}))",
+                bind_path.0,
+                from.0,
+                format_rel_spec(rel),
+                to.0,
+            )
+            .unwrap();
+            print_op(arena, input.0 as usize, depth + 1, out);
+        }
     }
 }
 
@@ -238,6 +262,7 @@ fn op_name(op: &ReadOp) -> &'static str {
         ReadOp::Union { .. } => "Union",
         ReadOp::With { .. } => "With",
         ReadOp::OptionalJoin { .. } => "OptionalJoin",
+        ReadOp::ShortestPath { .. } => "ShortestPath",
     }
 }
 

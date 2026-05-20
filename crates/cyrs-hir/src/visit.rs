@@ -393,6 +393,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var),

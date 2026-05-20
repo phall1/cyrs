@@ -764,6 +764,7 @@ mod tests {
         Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: hir_id,
                     bind: Some(bind_var),
@@ -1286,6 +1287,7 @@ mod tests {
                 pattern: Pattern {
                     parts: vec![PatternPart {
                         named_as: None,
+                        shortest: cyrs_hir::ShortestPath::No,
                         elements: vec![PatternElement::Node {
                             id: nid,
                             bind: Some(a),

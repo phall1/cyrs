@@ -762,6 +762,14 @@ enum ReadOpSer {
         input: OpId,
         pattern: Box<ReadOp>,
     },
+    ShortestPath {
+        input: OpId,
+        from: VarId,
+        rel: RelSpec,
+        to: VarId,
+        bind_path: VarId,
+        all: bool,
+    },
 }
 
 impl Serialize for ReadOp {
@@ -835,6 +843,21 @@ impl Serialize for ReadOp {
                 input: *input,
                 pattern: pattern.clone(),
             },
+            ReadOp::ShortestPath {
+                input,
+                from,
+                rel,
+                to,
+                bind_path,
+                all,
+            } => ReadOpSer::ShortestPath {
+                input: *input,
+                from: *from,
+                rel: rel.clone(),
+                to: *to,
+                bind_path: *bind_path,
+                all: *all,
+            },
         };
         proxy.serialize(s)
     }
@@ -879,6 +902,21 @@ impl<'de> Deserialize<'de> for ReadOp {
                 filter,
             },
             ReadOpSer::OptionalJoin { input, pattern } => ReadOp::OptionalJoin { input, pattern },
+            ReadOpSer::ShortestPath {
+                input,
+                from,
+                rel,
+                to,
+                bind_path,
+                all,
+            } => ReadOp::ShortestPath {
+                input,
+                from,
+                rel,
+                to,
+                bind_path,
+                all,
+            },
         })
     }
 }
