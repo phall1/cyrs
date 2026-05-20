@@ -469,6 +469,14 @@ mod tests {
         let s = EmptySchema;
         assert!(s.labels().is_empty());
         assert!(!s.has_label("Person"));
+        assert!(s.relationship_types().is_empty());
+        assert!(!s.has_relationship_type("KNOWS"));
+        assert!(s.node_properties("Person").is_none());
+        assert!(s.relationship_properties("KNOWS").is_none());
+        assert!(s.relationship_endpoints("KNOWS").is_empty());
+        assert!(s.inverse_of("KNOWS").is_none());
+        assert!(s.function("count").is_none());
+        assert!(s.procedure("db.labels").is_none());
         assert_eq!(s.schema_digest(), [0u8; 32]);
     }
 
@@ -483,6 +491,17 @@ mod tests {
             s.labels_compatible(&[SmolStr::new("A"), SmolStr::new("B")]),
             None,
         );
+    }
+
+    #[test]
+    fn unique_props_default_to_empty() {
+        // `label_unique_props` / `rel_type_unique_props` default to empty
+        // so pre-existing `SchemaProvider` impls compile unchanged — a
+        // provider that declares no uniqueness constraints (feat-request
+        // §2.2).
+        let s = EmptySchema;
+        assert!(s.label_unique_props("Person").is_empty());
+        assert!(s.rel_type_unique_props("KNOWS").is_empty());
     }
 
     #[test]
