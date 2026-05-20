@@ -12,15 +12,45 @@
 //! | `E1000..=E1999` | Name resolution                          |
 //! | `E2000..=E2999` | Semantic — schema-free                   |
 //! | `E3000..=E3999` | Semantic — schema-aware                  |
-//! | `E4000..=E4999` | Dialect / compatibility                  |
+//! | `E4000..=E4499` | Dialect / compatibility                  |
+//! | `E4500..=E4999` | **Reserved — embedder-owned** (see below)|
 //! | `E5000..=E5999` | Type system                              |
 //! | `W6000..=W6999` | Style / lint warnings                    |
 //! | `W7000..=W7999` | Performance warnings                     |
 //! | `N8000..=N8999` | Informational notes                      |
+//!
+//! # Embedder-owned reserved range (`E4500..=E4999`)
+//!
+//! The `E4500..=E4999` block is **permanently reserved for external
+//! embedders** (hosts that embed cyrs as a query-language front-end).
+//! Such hosts routinely need to reject queries for reasons cyrs cannot
+//! diagnose — concerns of their own storage model (label not registered,
+//! a `MERGE` key not backed by a constraint, label-set arithmetic that
+//! the host cannot support, etc.). Those rejections need diagnostic
+//! codes, but they are not cyrs's to mint.
+//!
+//! This is a **stable policy**: cyrs's own [`DiagCode`] enum will never
+//! mint a code whose numeric discriminant falls in `4500..=4999`. cyrs's
+//! native dialect / compatibility codes are confined to `E4000..=E4499`.
+//! An embedder may therefore allocate `E4500..=E4999` for its own
+//! diagnostics with no risk that a future cyrs release collides with it.
+//!
+//! The guarantee is mechanically enforced: `tests/registry.rs` asserts
+//! that no entry of [`DiagCode::ALL`] lands in the reserved range, so
+//! adding a native code there fails CI. The reservation is policy +
+//! test only — cyrs does not itself define an `E45xx` variant, since
+//! the codes in that range belong to the embedder, not to cyrs.
 
 use core::fmt;
 
 /// Stable diagnostic code. Rendered as `E0001` / `W6001` / `N8001`.
+///
+/// # Reserved range
+///
+/// The numeric range `4500..=4999` (`E4500..=E4999`) is **reserved for
+/// external embedders** and will never be assigned a native cyrs
+/// variant — see the [module docs](self) for the full policy. cyrs's
+/// own dialect / compatibility codes live in `E4000..=E4499`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(non_camel_case_types)]
@@ -439,7 +469,10 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E3011.md`
     E3011 = 3011,
 
-    // --- dialect (E4000–E4999) ----------------------------------------
+    // --- dialect (E4000–E4499) ----------------------------------------
+    // NOTE: native cyrs dialect codes stop at E4499. The range
+    // E4500–E4999 is permanently reserved for embedders (see the
+    // module docs) and is enforced empty by `tests/registry.rs`.
     /// Dialect not supported (spec §9.3).
     ///
     /// Emitted by `cyrs-sema::dialect::reject_neo4j_current` when the
