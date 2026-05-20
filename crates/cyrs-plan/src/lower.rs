@@ -41,7 +41,8 @@ use smol_str::SmolStr;
 use cyrs_hir::{
     BinOp as HirBinOp, Clause, Direction as HirDir, Expr as HirExpr, HirSpan,
     ListPredKind as HirListPredKind, OrderItem, Pattern, PatternElement, PatternPart, Projection,
-    RelLength as HirRelLen, RemoveItem, SetItem, Statement, VarId as HirVarId,
+    RelLength as HirRelLen, RemoveItem, SetItem, ShortestPath as HirShortestPath, Statement,
+    VarId as HirVarId,
 };
 
 use crate::{
@@ -663,6 +664,18 @@ impl<'s> LowerCtx<'s> {
     }
 
     fn lower_pattern_part(&mut self, part: &PatternPart, vars: &mut Vec<VarId>) -> OpId {
+        // `shortestPath(...)` / `allShortestPaths(...)` parts lower to a
+        // dedicated `ReadOp::ShortestPath` rather than a plain var-length
+        // `Expand`, so a consumer can dispatch to a native path-finder
+        // (cy-eaq, feat-request §1.1). Fall through to the generic
+        // node/rel walk for plain parts and for any shortest-path part
+        // whose recovered shape is not the canonical `(a)-[*]-(b)`.
+        if part.shortest != HirShortestPath::No
+            && let Some(op) = self.lower_shortest_path_part(part, vars)
+        {
+            return op;
+        }
+
         // Walk elements; first node becomes Source, alternating
         // Rel+Node pairs become Expand.
         //
@@ -761,6 +774,101 @@ impl<'s> LowerCtx<'s> {
         // pre-scan and hands us a part with no Node, degrade to a degenerate
         // all-node Source so lowering still produces a valid plan.
         last_op.unwrap_or_else(|| self.push_source_all())
+    }
+
+    /// Resolve an optional HIR binding to a plan [`VarId`].
+    ///
+    /// A present binding is mapped through [`Self::map_var`] and recorded
+    /// in `vars`; an absent one gets a freshly synthesised `VarId` (an
+    /// anonymous endpoint or path). Mirrors the bind-or-synthesise idiom
+    /// used throughout [`Self::lower_pattern_part`].
+    fn endpoint_var(&mut self, bind: Option<HirVarId>, vars: &mut Vec<VarId>) -> VarId {
+        if let Some(v) = bind {
+            let pv = self.map_var(v);
+            vars.push(pv);
+            pv
+        } else {
+            let v = VarId(self.next_var);
+            self.next_var += 1;
+            v
+        }
+    }
+
+    /// Lower a `shortestPath(...)` / `allShortestPaths(...)` pattern part
+    /// to a [`ReadOp::ShortestPath`].
+    ///
+    /// The canonical shortest-path shape is two endpoint nodes joined by
+    /// a single (normally variable-length) relationship: `(a)-[*]-(b)`.
+    /// The first endpoint becomes a [`ReadOp::Source`]; the relationship
+    /// and second endpoint become the `ShortestPath` operator. The path
+    /// binder from `p = shortestPath(...)` (`part.named_as`) is threaded
+    /// into `bind_path`; an anonymous shortest path gets a synthesised
+    /// `VarId`.
+    ///
+    /// Returns `None` for any non-canonical recovered shape (a missing
+    /// endpoint, more than one relationship), so the caller falls back
+    /// to the generic node/rel walk rather than dropping the part.
+    fn lower_shortest_path_part(
+        &mut self,
+        part: &PatternPart,
+        vars: &mut Vec<VarId>,
+    ) -> Option<OpId> {
+        // Canonical shape only: Node, Rel, Node.
+        let [from_elem, rel_elem, to_elem] = part.elements.as_slice() else {
+            return None;
+        };
+        let (
+            PatternElement::Node {
+                bind: from_bind,
+                labels: from_labels,
+                props: from_props,
+                ..
+            },
+            PatternElement::Rel { .. },
+            PatternElement::Node { bind: to_bind, .. },
+        ) = (from_elem, rel_elem, to_elem)
+        else {
+            return None;
+        };
+
+        // First endpoint → Source (mirrors the leading-node arm of
+        // `lower_pattern_part`).
+        let from_var = self.endpoint_var(*from_bind, vars);
+        let label_set = if from_labels.is_empty() {
+            None
+        } else {
+            Some(LabelSet(from_labels.clone()))
+        };
+        let mut input = self.plan.push(ReadOp::Source {
+            label: label_set,
+            bind: from_var,
+        });
+        if let Some(prop_expr) = from_props.as_ref() {
+            let predicate = self.lower_expr(prop_expr);
+            input = self.plan.push(ReadOp::Filter { input, predicate });
+        }
+
+        // Relationship spec — reuse the shared `Expand` lowering so the
+        // var-length qualifier is carried identically.
+        let (rel_spec, _bind_rel) = self.lower_rel_element(rel_elem, vars);
+
+        // Second endpoint.
+        let to_var = self.endpoint_var(*to_bind, vars);
+
+        // Path binder: `p = shortestPath(...)` carries `named_as`; an
+        // anonymous shortest path gets a fresh synthesised var.
+        let bind_path = self.endpoint_var(part.named_as, vars);
+
+        let all = matches!(part.shortest, HirShortestPath::AllShortest);
+
+        Some(self.plan.push(ReadOp::ShortestPath {
+            input,
+            from: from_var,
+            rel: rel_spec,
+            to: to_var,
+            bind_path,
+            all,
+        }))
     }
 
     fn lower_rel_element(
@@ -1686,6 +1794,11 @@ fn collect_params_read_op(op: &ReadOp, params: &mut IndexMap<SmolStr, ParamType>
                 collect_params_expr(p, ParamType::Unknown, params);
             }
         }
+        ReadOp::ShortestPath { rel, .. } => {
+            if let Some(p) = &rel.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+        }
         ReadOp::Filter { predicate, .. } => {
             collect_params_expr(predicate, ParamType::Unknown, params);
         }
@@ -2016,6 +2129,17 @@ mod tests {
                 )
             }
             ReadOp::OptionalJoin { input, .. } => format!("OptionalJoin(input={})", input.0),
+            ReadOp::ShortestPath {
+                input,
+                from,
+                to,
+                bind_path,
+                all,
+                ..
+            } => format!(
+                "ShortestPath(input={}, from={}, to={}, bind_path={}, all={})",
+                input.0, from.0, to.0, bind_path.0, all
+            ),
         }
     }
 
@@ -2438,6 +2562,67 @@ mod tests {
         );
     }
 
+    // ── Shortest-path lowering (cy-eaq, feat-request §1.1) ───────────────────
+
+    /// `shortestPath(...)` lowers to a dedicated `ReadOp::ShortestPath`,
+    /// not a plain var-length `Expand`.
+    #[test]
+    fn shortest_path_lowers_to_shortest_path_op() {
+        let plan = plan_from("MATCH p = shortestPath((a)-[*]->(b)) RETURN p");
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ShortestPath { all: false, .. })),
+            "expected a ShortestPath(all=false) op; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+        assert!(
+            !plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::Expand { .. })),
+            "shortestPath must not degrade to a plain Expand; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+    }
+
+    /// `allShortestPaths(...)` lowers to `ReadOp::ShortestPath { all: true }`.
+    #[test]
+    fn all_shortest_paths_sets_all_flag() {
+        let plan = plan_from("MATCH p = allShortestPaths((a)-[*]->(b)) RETURN p");
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ShortestPath { all: true, .. })),
+            "expected a ShortestPath(all=true) op; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+    }
+
+    /// Acceptance criterion: the shortest-path plan is *distinct* from the
+    /// plain var-length `Expand` plan for the otherwise-identical pattern.
+    #[test]
+    fn shortest_path_plan_differs_from_plain_expand() {
+        let shortest = plan_from("MATCH p = shortestPath((a)-[*]->(b)) RETURN p");
+        let plain = plan_from("MATCH p = (a)-[*]->(b) RETURN p");
+
+        // The plain var-length pattern lowers via an Expand.
+        assert!(
+            plain
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::Expand { .. })),
+            "plain var-length pattern should lower to an Expand; ops={:?}",
+            plain.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+        // The two plans must not be structurally identical.
+        assert_ne!(
+            render(&shortest),
+            render(&plain),
+            "shortest-path plan must differ from the plain Expand plan"
+        );
+    }
+
     // ── Determinism check ────────────────────────────────────────────────────
 
     #[test]
@@ -2492,6 +2677,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -2538,6 +2724,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -2590,6 +2777,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -2737,6 +2925,7 @@ mod tests {
         let pattern = cyrs_hir::Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![element],
             }],
         };

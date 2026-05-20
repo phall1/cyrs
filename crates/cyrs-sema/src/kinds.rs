@@ -638,6 +638,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(n),
@@ -685,6 +686,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -779,6 +781,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(n),
@@ -829,6 +832,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -896,6 +900,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(x), // Value var in node position!
@@ -972,6 +977,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,

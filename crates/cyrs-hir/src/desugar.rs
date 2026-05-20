@@ -652,6 +652,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var_id),
@@ -970,6 +971,7 @@ mod tests {
         let span = TextRange::default();
         let expr = pattern_predicate(vec![PatternPart {
             named_as: None,
+            shortest: crate::ShortestPath::No,
             elements: vec![
                 PatternElement::Node {
                     id: HirId(1),

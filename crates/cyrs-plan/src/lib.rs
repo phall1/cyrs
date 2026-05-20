@@ -331,6 +331,34 @@ pub enum ReadOp {
         /// always a fresh sub-tree introduced by `OPTIONAL MATCH`).
         pattern: Box<ReadOp>,
     },
+    /// Shortest-path search — finds the minimum-hop path(s) between two
+    /// already-bound nodes. Spec §6.4, §12.1 N14.
+    ///
+    /// Implements `MATCH p = shortestPath((a)-[*]->(b))` and the
+    /// `allShortestPaths(...)` variant. This is distinct from a plain
+    /// var-length [`ReadOp::Expand`]: an `Expand` enumerates *every*
+    /// matching path, whereas `ShortestPath` keeps only the shortest
+    /// — `all = false` keeps a single shortest path, `all = true` keeps
+    /// every path of minimum length. Consumers with a native path-finding
+    /// module dispatch to it here instead of post-filtering an exhaustive
+    /// expansion.
+    ShortestPath {
+        /// Source operator that provides the `from` (and `to`) variable.
+        input: OpId,
+        /// Variable holding the start node (the first endpoint).
+        from: VarId,
+        /// Relationship type / direction / length specification for the
+        /// var-length pattern between the endpoints. Mirrors the `rel`
+        /// field of [`ReadOp::Expand`].
+        rel: RelSpec,
+        /// Variable holding the end node (the second endpoint).
+        to: VarId,
+        /// Variable that receives the matched path value.
+        bind_path: VarId,
+        /// `false` for `shortestPath` (a single shortest path); `true`
+        /// for `allShortestPaths` (every minimum-length path).
+        all: bool,
+    },
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -393,12 +393,36 @@ pub struct Pattern {
     pub parts: Vec<PatternPart>,
 }
 
+/// Whether a [`PatternPart`] is wrapped in a `shortestPath` /
+/// `allShortestPaths` call.
+///
+/// A bare path component is [`ShortestPath::No`]. `shortestPath(...)`
+/// becomes [`ShortestPath::Shortest`] and `allShortestPaths(...)`
+/// becomes [`ShortestPath::AllShortest`]. The plan layer surfaces the
+/// non-`No` cases as a dedicated `ShortestPath` read operator
+/// (`cyrs_plan::ReadOp::ShortestPath`) rather than a plain var-length
+/// `Expand`. Spec §6.4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ShortestPath {
+    /// A plain path component, not wrapped in a shortest-path call.
+    #[default]
+    No,
+    /// `shortestPath(...)` — a single shortest path between the endpoints.
+    Shortest,
+    /// `allShortestPaths(...)` — every minimum-length path between them.
+    AllShortest,
+}
+
 /// One connected component of a [`Pattern`], optionally bound to a
 /// path variable (`p = (a)-[]->(b)`).
 #[derive(Debug, Clone)]
 pub struct PatternPart {
     pub named_as: Option<VarId>,
     pub elements: Vec<PatternElement>,
+    /// Whether this component is wrapped in `shortestPath` /
+    /// `allShortestPaths`. [`ShortestPath::No`] for a bare path.
+    pub shortest: ShortestPath,
 }
 
 /// An individual node or relationship within a [`PatternPart`].
@@ -764,7 +788,7 @@ mod tests {
         // Lower a real statement so the node map carries distinct,
         // sub-statement syntax nodes (the MATCH and RETURN clauses).
         let src = "MATCH (n) RETURN n";
-        let stmt = lower::lower_statement(src);
+        let stmt = lower::lower_statement(src).expect("valid statement lowers");
 
         let match_id = stmt.clauses[0].id();
         let return_id = stmt.clauses[1].id();
@@ -814,6 +838,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var),

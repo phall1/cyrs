@@ -248,6 +248,7 @@ fn snap_09_multi_binding_all_kinds() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![
                     PatternElement::Node {
                         id: nid_a,
@@ -342,6 +343,7 @@ fn snap_11_with_barrier_projected() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -406,6 +408,7 @@ fn snap_12_with_barrier_dropped() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -470,6 +473,7 @@ fn snap_13_with_alias() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(a),
@@ -566,6 +570,7 @@ fn snap_15_shadowing_warn() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(a),
@@ -605,6 +610,7 @@ fn snap_15_shadowing_warn() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(a),
@@ -657,6 +663,7 @@ fn snap_16_double_with_barrier() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -696,6 +703,7 @@ fn snap_16_double_with_barrier() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(c),
@@ -776,6 +784,7 @@ fn snap_17_kind_mismatch_node_in_arithmetic() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(n),
@@ -897,6 +906,7 @@ fn snap_22_create_binds() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(n),

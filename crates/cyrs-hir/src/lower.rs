@@ -31,7 +31,7 @@ use cyrs_syntax::{Parse, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse
 use crate::{
     BinOp, Binding, Clause, Direction, Expr, HirId, HirLowerError, ListPredKind, MapProjectionItem,
     OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem,
-    Statement, UnaryOp, VarId, VarKind,
+    ShortestPath, Statement, UnaryOp, VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -529,21 +529,23 @@ impl LowerCtx {
                 SyntaxKind::PATTERN_PART => {
                     out.push(self.lower_pattern_part(child));
                 }
-                // cy-b5b: `shortestPath((a)-[*]->(b))` and
-                // `allShortestPaths(...)` wrap an inner PATTERN_PART. For
-                // v1 we lower the inner pattern directly and treat the
-                // shortest-path discriminant as a CST-level annotation;
-                // downstream layers (plan) will surface the variant via
-                // its own wrapper op. The path-binder case (`p = ...`)
-                // is handled below via NAMED_PATTERN_PART, which can
-                // wrap either a plain PATTERN_PART or a
+                // cy-eaq: `shortestPath((a)-[*]->(b))` and
+                // `allShortestPaths(...)` wrap an inner PATTERN_PART. We
+                // lower the inner pattern and record the shortest-path
+                // discriminant on the `PatternPart` so the plan layer
+                // can surface a dedicated `ReadOp::ShortestPath` rather
+                // than a plain var-length `Expand`. The path-binder case
+                // (`p = ...`) is handled below via NAMED_PATTERN_PART,
+                // which can wrap either a plain PATTERN_PART or a
                 // SHORTEST_PATH_PATTERN.
                 SyntaxKind::SHORTEST_PATH_PATTERN => {
                     if let Some(inner) = child
                         .children()
                         .find(|n| n.kind() == SyntaxKind::PATTERN_PART)
                     {
-                        out.push(self.lower_pattern_part(inner));
+                        let mut part = self.lower_pattern_part(inner);
+                        part.shortest = shortest_path_kind(&child);
+                        out.push(part);
                     }
                 }
                 SyntaxKind::NAMED_PATTERN_PART => {
@@ -558,18 +560,24 @@ impl LowerCtx {
                             });
                     // The inner shape is either PATTERN_PART (plain) or
                     // SHORTEST_PATH_PATTERN (wrapping its own
-                    // PATTERN_PART). Both reduce to a single
-                    // PatternPart in HIR for v1.
+                    // PATTERN_PART). The shortest-path discriminant is
+                    // recorded on the resulting `PatternPart` so the
+                    // plan layer can lower `p = shortestPath(...)` to a
+                    // dedicated `ReadOp::ShortestPath`.
                     let inner_part = child.children().find_map(|n| match n.kind() {
-                        SyntaxKind::PATTERN_PART => Some(n),
+                        SyntaxKind::PATTERN_PART => Some((n, ShortestPath::No)),
                         SyntaxKind::SHORTEST_PATH_PATTERN => {
-                            n.children().find(|c| c.kind() == SyntaxKind::PATTERN_PART)
+                            let kind = shortest_path_kind(&n);
+                            n.children()
+                                .find(|c| c.kind() == SyntaxKind::PATTERN_PART)
+                                .map(|c| (c, kind))
                         }
                         _ => None,
                     });
-                    if let Some(inner) = inner_part {
+                    if let Some((inner, kind)) = inner_part {
                         let mut part = self.lower_pattern_part(inner);
                         part.named_as = bind;
+                        part.shortest = kind;
                         out.push(part);
                     }
                 }
@@ -584,6 +592,7 @@ impl LowerCtx {
         PatternPart {
             named_as: None,
             elements,
+            shortest: crate::ShortestPath::No,
         }
     }
 
@@ -1541,6 +1550,7 @@ impl LowerCtx {
             } else {
                 vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: elems,
                 }]
             }
@@ -1561,6 +1571,20 @@ fn has_token(node: &SyntaxNode, kind: SyntaxKind) -> bool {
     node.children_with_tokens()
         .filter_map(SyntaxElement::into_token)
         .any(|t| t.kind() == kind)
+}
+
+/// Classify a `SHORTEST_PATH_PATTERN` node by its leading keyword token.
+///
+/// The parser keeps the `shortestPath` / `allShortestPaths` keyword as a
+/// child token of the node (see `grammar::pattern::shortest_path_pattern`),
+/// so the discriminant is recoverable here. A node without either keyword
+/// (a recovery shape) degrades to [`ShortestPath::Shortest`].
+fn shortest_path_kind(node: &SyntaxNode) -> ShortestPath {
+    if has_token(node, SyntaxKind::ALLSHORTESTPATHS_KW) {
+        ShortestPath::AllShortest
+    } else {
+        ShortestPath::Shortest
+    }
 }
 
 /// Extract the text of the first `IDENT` or `QUOTED_IDENT` token that is a
