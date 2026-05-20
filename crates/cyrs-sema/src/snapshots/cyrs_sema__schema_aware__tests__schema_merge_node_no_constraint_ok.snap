@@ -1,0 +1,5 @@
+---
+source: crates/cyrs-sema/src/schema_aware.rs
+expression: "run(&stmt, &schema)"
+---
+diagnostics: 0
