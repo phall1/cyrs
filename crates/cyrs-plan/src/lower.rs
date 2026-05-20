@@ -39,9 +39,9 @@ use indexmap::IndexMap;
 use smol_str::SmolStr;
 
 use cyrs_hir::{
-    Clause, Direction as HirDir, Expr as HirExpr, HirSpan, ListPredKind as HirListPredKind,
-    OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength as HirRelLen,
-    RemoveItem, SetItem, Statement, VarId as HirVarId,
+    BinOp as HirBinOp, Clause, Direction as HirDir, Expr as HirExpr, HirSpan,
+    ListPredKind as HirListPredKind, OrderItem, Pattern, PatternElement, PatternPart, Projection,
+    RelLength as HirRelLen, RemoveItem, SetItem, Statement, VarId as HirVarId,
 };
 
 use crate::{
@@ -535,7 +535,21 @@ impl<'s> LowerCtx<'s> {
                     on_match,
                     ..
                 } => {
-                    let write_ops = self.lower_merge_pattern(pattern, on_create, on_match);
+                    // The HIR desugar pass moves the MERGE pattern's inline
+                    // `{k: ...}` map for *node* elements into a synthetic
+                    // `WHERE` clause spliced immediately after the MERGE
+                    // (see `cyrs_hir::desugar`). Cypher grammar never lets a
+                    // hand-written `WHERE` follow a `MERGE`, so a `Where`
+                    // sitting directly after this clause is unambiguously
+                    // that synthetic clause — recover the per-variable key
+                    // property names from its equality predicates so the
+                    // structured `key_props` survives desugaring.
+                    let node_keys = match stmt.clauses.get(i + 1) {
+                        Some(Clause::Where { predicate, .. }) => collect_merge_key_props(predicate),
+                        _ => Vec::new(),
+                    };
+                    let write_ops =
+                        self.lower_merge_pattern(pattern, on_create, on_match, &node_keys);
                     self.plan.write_ops.extend(write_ops);
                 }
                 Clause::Set { items, .. } => {
@@ -932,11 +946,21 @@ impl<'s> LowerCtx<'s> {
         ops
     }
 
+    /// Lower a MERGE clause into write operations.
+    ///
+    /// `node_key_props` carries `(HIR variable, property name)` pairs
+    /// recovered by the caller from the desugar-synthesized `WHERE` clause
+    /// (see the `Clause::Merge` arm of the clause-walk in `Self::lower`). It
+    /// supplies the structured key surface for node patterns whose inline
+    /// `{k: ...}` map was hoisted out of the pattern by desugaring.
+    /// Relationship patterns are not desugared, so their keys come straight
+    /// from the (still-literal) properties expression via `merge_key_props`.
     fn lower_merge_pattern(
         &mut self,
         pattern: &Pattern,
         on_create: &[SetItem],
         on_match: &[SetItem],
+        node_key_props: &[(HirVarId, SmolStr)],
     ) -> Vec<WriteOp> {
         let mut ops = Vec::new();
         let create_ops = self.lower_set_items(on_create);
@@ -957,9 +981,25 @@ impl<'s> LowerCtx<'s> {
                         } else {
                             Expr::Map(vec![])
                         };
+                        // Keys come from the still-literal props map when
+                        // present (e.g. a non-desugared parameter map is not
+                        // a literal so yields nothing), otherwise from the
+                        // desugared WHERE recovered for this node's variable.
+                        let mut key_props = merge_key_props(&props_expr);
+                        if key_props.is_empty()
+                            && let Some(v) = bind
+                        {
+                            key_props.extend(
+                                node_key_props
+                                    .iter()
+                                    .filter(|(kv, _)| *kv == v)
+                                    .map(|(_, k)| k.clone()),
+                            );
+                        }
                         ops.push(WriteOp::MergeNode {
                             labels,
                             props: props_expr,
+                            key_props,
                             on_create: create_ops.clone(),
                             on_match: match_ops.clone(),
                             bind: bind_var,
@@ -980,11 +1020,13 @@ impl<'s> LowerCtx<'s> {
                         } else {
                             Expr::Map(vec![])
                         };
+                        let key_props = merge_key_props(&props_expr);
                         ops.push(WriteOp::MergeRel {
                             from,
                             to,
                             rel_type,
                             props: props_expr,
+                            key_props,
                             on_create: create_ops.clone(),
                             on_match: match_ops.clone(),
                             bind: bind_rel,
@@ -1326,6 +1368,62 @@ fn is_aggregate_func(name: &str) -> bool {
             | "percentilecont"
             | "percentiledisc"
     )
+}
+
+/// Extract the MERGE pattern's key property names from a lowered properties
+/// expression.
+///
+/// When the MERGE pattern carries an inline literal map (`{k: ...}`), the
+/// lowered `props` is an [`Expr::Map`] and its keys — in source order — are
+/// the structured key surface embedders compile into an upsert's
+/// conflict-target column list. When `props` is anything else (a parameter,
+/// a non-literal expression, or absent), no keys can be statically derived
+/// and an empty `Vec` is returned. See [`WriteOp::MergeNode::key_props`].
+fn merge_key_props(props: &Expr) -> Vec<SmolStr> {
+    match props {
+        Expr::Map(entries) => entries.iter().map(|(k, _)| k.clone()).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Recover MERGE node key properties from a desugar-synthesized `WHERE`
+/// predicate.
+///
+/// `cyrs_hir::desugar` rewrites an inline `{k1: v1, k2: v2}` map on a MERGE
+/// *node* element into the conjunction `var.k1 = v1 AND var.k2 = v2`. This
+/// walks that AND-chain left-to-right and yields each `(variable, property)`
+/// pair in source order. Conjuncts that are not a `Var.prop = expr` equality
+/// (which a synthetic MERGE `WHERE` never contains) are ignored, so passing
+/// an unrelated predicate simply yields an empty result.
+fn collect_merge_key_props(predicate: &HirExpr) -> Vec<(HirVarId, SmolStr)> {
+    let mut out = Vec::new();
+    collect_merge_key_props_into(predicate, &mut out);
+    out
+}
+
+fn collect_merge_key_props_into(expr: &HirExpr, out: &mut Vec<(HirVarId, SmolStr)>) {
+    match expr {
+        HirExpr::BinOp {
+            op: HirBinOp::And,
+            lhs,
+            rhs,
+        } => {
+            collect_merge_key_props_into(lhs, out);
+            collect_merge_key_props_into(rhs, out);
+        }
+        HirExpr::BinOp {
+            op: HirBinOp::Eq,
+            lhs,
+            ..
+        } => {
+            if let HirExpr::Prop { target, prop } = lhs.as_ref()
+                && let HirExpr::Var(var) = target.as_ref()
+            {
+                out.push((*var, prop.clone()));
+            }
+        }
+        _ => {}
+    }
 }
 
 // ── Create/Merge pattern decomposition helper ─────────────────────────────────
@@ -1762,6 +1860,135 @@ mod tests {
     fn snap_merge_node() {
         let plan = plan_from("MERGE (n:Person {name: 'Alice'})");
         insta::assert_snapshot!("plan_merge_node", render(&plan));
+    }
+
+    // 10a. MERGE node — key_props surfaced from the inline literal map.
+    #[test]
+    fn merge_node_key_props_from_literal_map() {
+        let plan = plan_from("MERGE (n:Person {email: $e})");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["email"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10b. Multi-key MERGE node preserves source order of the map keys.
+    #[test]
+    fn merge_node_key_props_multi_key_in_order() {
+        let plan = plan_from("MERGE (n:Person {first: $f, last: $l})");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["first", "last"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10c. MERGE node with no inline properties carries empty key_props.
+    #[test]
+    fn merge_node_key_props_empty_without_props() {
+        let plan = plan_from("MERGE (n:Person)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert!(key_props.is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10d. MERGE relationship — key_props surfaced from the inline literal map.
+    #[test]
+    fn merge_rel_key_props_from_literal_map() {
+        let plan = plan_from("MATCH (a:Person), (b:Person) MERGE (a)-[r:FOLLOWS {since: $s}]->(b)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeRel { .. }))
+            .expect("expected a MergeRel write op");
+        match merge {
+            WriteOp::MergeRel { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["since"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10e. A non-literal-map MERGE node prop expression yields no key_props.
+    #[test]
+    fn merge_node_key_props_empty_for_param_map() {
+        // `MERGE (n:Person $p)` — the whole map is a parameter, not a
+        // literal `{k: ...}`, so desugaring leaves it on the pattern and
+        // no static keys can be derived.
+        let plan = plan_from("MERGE (n:Person $p)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert!(key_props.is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10f. `merge_key_props` returns the literal map's keys, in order.
+    #[test]
+    fn merge_key_props_extracts_literal_map_keys() {
+        let map = Expr::Map(vec![("a".into(), Expr::Int(1)), ("b".into(), Expr::Int(2))]);
+        assert_eq!(merge_key_props(&map).as_slice(), ["a", "b"]);
+        // A non-map expression carries no statically derivable keys.
+        assert!(merge_key_props(&Expr::Int(7)).is_empty());
+    }
+
+    // 10g. `collect_merge_key_props` reverses the desugar AND-chain and
+    //      skips conjuncts that are not `Var.prop = expr` equalities.
+    #[test]
+    fn collect_merge_key_props_walks_and_chain() {
+        use cyrs_hir::VarId as HirVar;
+        let eq = |v: u32, p: &str| HirExpr::BinOp {
+            op: HirBinOp::Eq,
+            lhs: Box::new(HirExpr::Prop {
+                target: Box::new(HirExpr::Var(HirVar(v))),
+                prop: p.into(),
+            }),
+            rhs: Box::new(HirExpr::Param("x".into())),
+        };
+        let pred = HirExpr::BinOp {
+            op: HirBinOp::And,
+            lhs: Box::new(eq(0, "first")),
+            rhs: Box::new(HirExpr::BinOp {
+                op: HirBinOp::And,
+                lhs: Box::new(eq(0, "last")),
+                // Not a Var.prop equality — must be ignored.
+                rhs: Box::new(HirExpr::Bool(true)),
+            }),
+        };
+        let keys = collect_merge_key_props(&pred);
+        assert_eq!(
+            keys,
+            vec![(HirVar(0), "first".into()), (HirVar(0), "last".into())]
+        );
+        // A predicate with no equalities yields nothing.
+        assert!(collect_merge_key_props(&HirExpr::Bool(true)).is_empty());
     }
 
     // 11. SET property

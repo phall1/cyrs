@@ -266,6 +266,7 @@ fn json_snap_write_merge_with_on_create() {
     let plan = write_plan(vec![WriteOp::MergeNode {
         labels: vec!["Person".into()],
         props: Expr::Map(vec![("name".into(), Expr::String("Bob".into()))]),
+        key_props: vec!["name".into()],
         on_create: vec![WriteOp::SetProperty {
             target: VarId(0),
             prop: "created".into(),
@@ -707,6 +708,7 @@ fn pretty_snap_merge_node() {
     let plan = write_plan(vec![WriteOp::MergeNode {
         labels: vec!["Person".into()],
         props: Expr::Map(vec![("name".into(), Expr::String("Carol".into()))]),
+        key_props: vec!["name".into()],
         on_create: vec![WriteOp::SetProperty {
             target: VarId(0),
             prop: "created_at".into(),

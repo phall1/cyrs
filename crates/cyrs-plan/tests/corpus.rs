@@ -1224,6 +1224,7 @@ fn corpus_pretty_merge_node_on_create_match() {
                 name: "email".into(),
             },
         )]),
+        key_props: vec!["email".into()],
         on_create: vec![WriteOp::SetProperty {
             target: VarId(0),
             prop: "created".into(),
@@ -1260,6 +1261,7 @@ fn corpus_pretty_merge_rel() {
             to: VarId(1),
             rel_type: "FOLLOWS".into(),
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create: vec![WriteOp::SetProperty {
                 target: VarId(2),
                 prop: "since".into(),
@@ -2187,6 +2189,7 @@ fn corpus_json_merge_rel_with_on_create() {
             to: VarId(1),
             rel_type: "FOLLOWS".into(),
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create: vec![WriteOp::SetProperty {
                 target: VarId(2),
                 prop: "since".into(),

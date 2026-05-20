@@ -384,6 +384,19 @@ pub enum WriteOp {
         labels: Vec<SmolStr>,
         /// Property predicate / initial values.
         props: Expr,
+        /// Property names of the `{k: ...}` map written inline in the MERGE
+        /// pattern, in source order.
+        ///
+        /// This is the structured key surface embedders need to compile a
+        /// MERGE to an upsert (e.g. an `INSERT ... ON CONFLICT (<key cols>)
+        /// DO UPDATE` statement): the conflict-target column list is
+        /// exactly these property names. It is derived from the sibling
+        /// `props` field during HIR→Plan lowering and mirrors its keys
+        /// whenever `props` is a literal [`Expr::Map`]. If the pattern's
+        /// properties are not a literal map (e.g. `MERGE (n:Person $param)`),
+        /// this is empty — keys cannot be statically determined and the
+        /// embedder must fall back to inspecting `props` itself.
+        key_props: Vec<SmolStr>,
         /// Write operations to apply when a new node is created.
         on_create: Vec<WriteOp>,
         /// Write operations to apply when an existing node is found.
@@ -405,6 +418,14 @@ pub enum WriteOp {
         rel_type: SmolStr,
         /// Property predicate / initial values.
         props: Expr,
+        /// Property names of the `{k: ...}` map written inline in the MERGE
+        /// pattern, in source order.
+        ///
+        /// Same contract as the `key_props` field of [`WriteOp::MergeNode`]:
+        /// derived from the sibling `props` field during HIR→Plan lowering,
+        /// mirrors its keys when `props` is a literal [`Expr::Map`], empty
+        /// otherwise.
+        key_props: Vec<SmolStr>,
         /// Write operations to apply when a new relationship is created.
         on_create: Vec<WriteOp>,
         /// Write operations to apply when an existing relationship is found.
@@ -952,6 +973,7 @@ mod tests {
         let op = WriteOp::MergeNode {
             labels: vec!["Person".into()],
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create,
             on_match,
             bind: Some(VarId(0)),
@@ -968,11 +990,50 @@ mod tests {
             to: VarId(1),
             rel_type: "FOLLOWS".into(),
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create: vec![],
             on_match: vec![],
             bind: None,
         };
         assert!(format!("{op:?}").contains("FOLLOWS"));
+    }
+
+    #[test]
+    fn write_op_merge_node_carries_key_props() {
+        let op = WriteOp::MergeNode {
+            labels: vec!["Person".into()],
+            props: Expr::Map(vec![("email".into(), Expr::Param { name: "e".into() })]),
+            key_props: vec!["email".into()],
+            on_create: vec![],
+            on_match: vec![],
+            bind: None,
+        };
+        match &op {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["email"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn write_op_merge_rel_carries_key_props() {
+        let op = WriteOp::MergeRel {
+            from: VarId(0),
+            to: VarId(1),
+            rel_type: "FOLLOWS".into(),
+            props: Expr::Map(vec![("since".into(), Expr::Int(2020))]),
+            key_props: vec!["since".into()],
+            on_create: vec![],
+            on_match: vec![],
+            bind: None,
+        };
+        match &op {
+            WriteOp::MergeRel { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["since"]);
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]

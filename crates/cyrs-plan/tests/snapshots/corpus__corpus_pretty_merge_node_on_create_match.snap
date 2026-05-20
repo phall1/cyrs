@@ -4,6 +4,7 @@ expression: pretty(&plan)
 ---
 WriteOps:
   MergeNode (:Person AS $0) props={email: $email}
+    key_props=["email"]
     ON CREATE:
       SetProperty $0.created = true
     ON MATCH:
