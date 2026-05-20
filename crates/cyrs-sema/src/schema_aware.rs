@@ -4,7 +4,7 @@
 //! Checks that every label, relationship type, property, and function
 //! call in the statement is consistent with the declared schema.
 //!
-//! # Checks (E3xxx range — spec §10.2)
+//! # Checks (E3xxx / E4xxx ranges — spec §10.2)
 //!
 //! | Rule | Code |
 //! |------|------|
@@ -15,6 +15,13 @@
 //! | Function call to unknown function | [`E3006`] |
 //! | Function arity mismatch | [`E3007`] |
 //! | Procedure call to unknown procedure | [`E3008`] |
+//! | `CREATE` / `SET` produces an unstorable multi-label combination | [`E4023`] |
+//!
+//! The multi-label compatibility check ([`E4023`]) consults
+//! [`SchemaProvider::labels_compatible`]; it sits in the
+//! dialect/compatibility (`E4xxx`) range because it is a
+//! storage-capability question, not a schema-shape one
+//! (feat-request §2.3).
 //!
 //! [`E3001`]: cyrs_diag::DiagCode::E3001
 //! [`E3002`]: cyrs_diag::DiagCode::E3002
@@ -23,6 +30,7 @@
 //! [`E3006`]: cyrs_diag::DiagCode::E3006
 //! [`E3007`]: cyrs_diag::DiagCode::E3007
 //! [`E3008`]: cyrs_diag::DiagCode::E3008
+//! [`E4023`]: cyrs_diag::DiagCode::E4023
 
 use cyrs_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cyrs_hir::{
@@ -75,10 +83,15 @@ impl SchemaCtx<'_> {
 
     fn check_clause(&mut self, clause: &Clause) {
         match clause {
-            Clause::Match { pattern, .. }
-            | Clause::Create { pattern, .. }
-            | Clause::Merge { pattern, .. } => {
-                self.check_pattern(pattern);
+            Clause::Match { pattern, .. } => {
+                self.check_pattern(pattern, false);
+            }
+            // `CREATE` and the create-branch of `MERGE` both materialise
+            // new nodes, so a multi-label node pattern there is subject
+            // to the `labels_compatible` storage check (feat-request
+            // §2.3). `MATCH` only reads, so it is exempt.
+            Clause::Create { pattern, .. } | Clause::Merge { pattern, .. } => {
+                self.check_pattern(pattern, true);
             }
             Clause::Where { predicate, .. } => {
                 self.check_expr(predicate);
@@ -118,7 +131,12 @@ impl SchemaCtx<'_> {
                         SetItem::AssignMap { map, .. } => {
                             self.check_expr(map);
                         }
-                        SetItem::Labels { .. } => {}
+                        SetItem::Labels { labels, .. } => {
+                            // `SET n:A:B` adds a multi-label set to a
+                            // node; the same storage-compatibility rule
+                            // as `CREATE` applies (feat-request §2.3).
+                            self.check_labels_compatible(labels, dummy_span());
+                        }
                     }
                 }
             }
@@ -151,7 +169,14 @@ impl SchemaCtx<'_> {
         }
     }
 
-    fn check_pattern(&mut self, pattern: &Pattern) {
+    /// Walk `pattern`, checking labels, relationship types, and inline
+    /// properties against the schema.
+    ///
+    /// `creating` is `true` for `CREATE` / `MERGE` patterns, which
+    /// materialise nodes and therefore have their multi-label node
+    /// patterns checked against [`SchemaProvider::labels_compatible`]
+    /// (feat-request §2.3). `MATCH` patterns pass `false`.
+    fn check_pattern(&mut self, pattern: &Pattern, creating: bool) {
         for part in &pattern.parts {
             for elem in &part.elements {
                 match elem {
@@ -171,6 +196,11 @@ impl SchemaCtx<'_> {
                                     format!("unknown label `:{label}`"),
                                 ));
                             }
+                        }
+                        // For creating patterns, check that the label
+                        // combination can be stored together.
+                        if creating {
+                            self.check_labels_compatible(labels, *span);
                         }
                         // Check property map keys against schema for each label.
                         if let Some(p) = props {
@@ -384,7 +414,8 @@ impl SchemaCtx<'_> {
             }
 
             Expr::PatternPredicate(pat) => {
-                self.check_pattern(pat);
+                // A pattern predicate matches; it never creates.
+                self.check_pattern(pat, false);
             }
 
             Expr::ListComprehension {
@@ -448,6 +479,31 @@ impl SchemaCtx<'_> {
     fn check_prop_assignment(&mut self, target: &Expr, _prop: &SmolStr, value: &Expr) {
         self.check_expr(target);
         self.check_expr(value);
+    }
+
+    /// Check that a node's label set can be stored together
+    /// (feat-request §2.3).
+    ///
+    /// Consults [`SchemaProvider::labels_compatible`]. Only
+    /// `Some(false)` — the provider positively rejects the combination
+    /// — emits a diagnostic; `None` (provider does not constrain) and
+    /// `Some(true)` are accepted. A label set of length 0 or 1 is
+    /// trivially storable, so the provider is not consulted for it.
+    fn check_labels_compatible(&mut self, labels: &[SmolStr], span: HirSpan) {
+        if labels.len() < 2 {
+            return;
+        }
+        if self.schema.labels_compatible(labels) == Some(false) {
+            let label_list: Vec<_> = labels.iter().map(|l| format!(":{l}")).collect();
+            self.sink.push(Diagnostic::error(
+                DiagCode::E4023,
+                span,
+                format!(
+                    "labels {} cannot be combined on a single node",
+                    label_list.join(""),
+                ),
+            ));
+        }
     }
 
     /// Validate a function call against the schema catalog.
@@ -1344,5 +1400,172 @@ mod tests {
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_no_labels_prop_unchecked_ok", run(&stmt, &schema));
+    }
+
+    // -----------------------------------------------------------------------
+    // 19. Multi-label compatibility — `SchemaProvider::labels_compatible`
+    //     (feat-request §2.3, code E4023).
+    //
+    // `LabelCompatSchema` declares four labels and forbids exactly the
+    // combination `:Person` + `:Robot` (a relational embedder where the
+    // two map to incompatible tables). Every other combination is
+    // `Some(true)`; this provider always answers (never `None`).
+    // -----------------------------------------------------------------------
+
+    #[derive(Debug)]
+    struct LabelCompatSchema;
+
+    impl SchemaProvider for LabelCompatSchema {
+        fn labels(&self) -> Vec<SmolStr> {
+            vec![
+                SmolStr::new("Person"),
+                SmolStr::new("Robot"),
+                SmolStr::new("Employee"),
+                SmolStr::new("Admin"),
+            ]
+        }
+        fn relationship_types(&self) -> Vec<SmolStr> {
+            vec![]
+        }
+        fn node_properties(&self, label: &str) -> Option<Vec<PropertyDecl>> {
+            if self.labels().iter().any(|l| l == label) {
+                Some(vec![])
+            } else {
+                None
+            }
+        }
+        fn relationship_properties(&self, _: &str) -> Option<Vec<PropertyDecl>> {
+            None
+        }
+        fn relationship_endpoints(&self, _: &str) -> Vec<EndpointDecl> {
+            vec![]
+        }
+        fn inverse_of(&self, _: &str) -> Option<SmolStr> {
+            None
+        }
+        fn function(&self, _: &str) -> Option<FunctionSignature> {
+            None
+        }
+        fn procedure(&self, _: &str) -> Option<ProcedureSignature> {
+            None
+        }
+        fn schema_digest(&self) -> [u8; 32] {
+            [2u8; 32]
+        }
+        fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+            let has = |n: &str| labels.iter().any(|l| l == n);
+            // `:Person` and `:Robot` cannot live on the same node.
+            Some(!(has("Person") && has("Robot")))
+        }
+    }
+
+    /// Build a single-node `CREATE (n:..)` statement.
+    fn create_node_stmt(labels: Vec<SmolStr>) -> Statement {
+        let mut stmt = Statement::new(zero_range());
+        let cid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Create {
+            id: cid,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: None,
+                        labels,
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        stmt
+    }
+
+    #[test]
+    fn create_incompatible_label_combo_rejected_e4023() {
+        // CREATE (n:Person:Robot) — provider returns Some(false).
+        let stmt = create_node_stmt(vec![SmolStr::new("Person"), SmolStr::new("Robot")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(out.contains("E4023"), "expected E4023, got: {out}");
+        assert!(
+            out.contains(":Person") && out.contains(":Robot"),
+            "diagnostic should name the conflicting labels, got: {out}",
+        );
+    }
+
+    #[test]
+    fn create_compatible_label_combo_ok() {
+        // CREATE (n:Employee:Admin) — provider returns Some(true).
+        let stmt = create_node_stmt(vec![SmolStr::new("Employee"), SmolStr::new("Admin")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn create_single_label_never_checked() {
+        // CREATE (n:Person) — a length-1 set is trivially storable; the
+        // provider is not even consulted.
+        let stmt = create_node_stmt(vec![SmolStr::new("Person")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn set_adding_incompatible_labels_rejected_e4023() {
+        // SET n:Person:Robot — the added label set is checked too.
+        let mut stmt = Statement::new(zero_range());
+        let target = intern_var(&mut stmt, "n", VarKind::Node);
+        let sid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Set {
+            id: sid,
+            items: vec![cyrs_hir::SetItem::Labels {
+                target,
+                labels: vec![SmolStr::new("Person"), SmolStr::new("Robot")],
+            }],
+            span: zero_range(),
+        });
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(out.contains("E4023"), "expected E4023, got: {out}");
+    }
+
+    #[test]
+    fn set_adding_compatible_labels_ok() {
+        // SET n:Employee:Admin — compatible combination, no diagnostic.
+        let mut stmt = Statement::new(zero_range());
+        let target = intern_var(&mut stmt, "n", VarKind::Node);
+        let sid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Set {
+            id: sid,
+            items: vec![cyrs_hir::SetItem::Labels {
+                target,
+                labels: vec![SmolStr::new("Employee"), SmolStr::new("Admin")],
+            }],
+            span: zero_range(),
+        });
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn match_incompatible_label_combo_not_checked() {
+        // MATCH (n:Person:Robot) — MATCH only reads; even an
+        // incompatible combination is not rejected by E4023.
+        let stmt = node_match_stmt(vec![SmolStr::new("Person"), SmolStr::new("Robot")], None);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn permissive_provider_none_does_not_reject() {
+        // `TestSchema` uses the default `labels_compatible` (returns
+        // `None`): a multi-label CREATE is accepted (permissive).
+        let stmt = create_node_stmt(vec![SmolStr::new("Person"), SmolStr::new("Company")]);
+        let out = run(&stmt, &TestSchema);
+        assert!(
+            !out.contains("E4023"),
+            "a `None`-returning provider must not trigger E4023, got: {out}",
+        );
     }
 }
