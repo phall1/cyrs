@@ -179,7 +179,10 @@ fn keyword_hover(token: &SyntaxToken) -> Option<String> {
 /// (Kind)` plus a defined-at line; otherwise return `None`.
 fn binding_hover(db: &Database, file_id: FileId, name: &str) -> Option<String> {
     let source = db.source_of(file_id).ok()?;
-    let stmt = cyrs_hir::lower::lower_statement(&source);
+    // Lower best-effort from the parsed tree (cy-cfi): editor buffers may
+    // have syntax errors, and hover must still surface known bindings.
+    let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(&source))
+        .expect("lower_parse is infallible");
     let binding: &Binding = stmt.bindings.values().find(|b| b.name.as_str() == name)?;
     Some(format!(
         "**variable** `{name}` ({kind:?})\n\nDefined at byte range `{start}..{end}`.",

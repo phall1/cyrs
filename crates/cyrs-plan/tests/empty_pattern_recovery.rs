@@ -31,6 +31,7 @@ fn lower_statement_rejects_empty_pattern_part_from_bare_match() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![],
             }],
         },
@@ -87,6 +88,7 @@ fn lower_statement_rejects_rel_first_pattern_part() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![
                     PatternElement::Rel {
                         id: HirId::DUMMY,

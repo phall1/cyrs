@@ -45,11 +45,18 @@ use cyrs_diag::DiagnosticsSink;
 use cyrs_hir::{
     Binding, Clause, Direction, Expr, HirId, Pattern, PatternElement, PatternPart, Projection,
     RelLength, Statement, VarId, VarKind, YieldItem, desugar::desugar_statement,
-    lower::lower_statement, pretty::print_overlay,
+    pretty::print_overlay,
 };
 use cyrs_sema::resolve;
 use cyrs_syntax::{TextRange, TextSize};
 use smol_str::SmolStr;
+
+/// Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+/// fallible since cy-cfi; `lower_parse` (infallible) keeps these tests
+/// able to feed malformed input through the resolve pipeline.
+fn lower_statement(src: &str) -> Statement {
+    cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -241,6 +248,7 @@ fn snap_09_multi_binding_all_kinds() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![
                     PatternElement::Node {
                         id: nid_a,
@@ -335,6 +343,7 @@ fn snap_11_with_barrier_projected() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -399,6 +408,7 @@ fn snap_12_with_barrier_dropped() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -463,6 +473,7 @@ fn snap_13_with_alias() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(a),
@@ -559,6 +570,7 @@ fn snap_15_shadowing_warn() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(a),
@@ -598,6 +610,7 @@ fn snap_15_shadowing_warn() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(a),
@@ -650,6 +663,7 @@ fn snap_16_double_with_barrier() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(v),
@@ -689,6 +703,7 @@ fn snap_16_double_with_barrier() {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: Some(c),
@@ -769,6 +784,7 @@ fn snap_17_kind_mismatch_node_in_arithmetic() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(n),
@@ -890,6 +906,7 @@ fn snap_22_create_binds() {
         pattern: Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![PatternElement::Node {
                     id: nid,
                     bind: Some(n),

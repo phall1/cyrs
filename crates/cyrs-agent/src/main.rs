@@ -726,17 +726,25 @@ fn handle(
         // plan: plan JSON
         // ------------------------------------------------------------------
         AgentRequest::Plan { text, dialect: _ } => {
-            let stmt = hir_lower(&text);
-            let stmt = desugar_statement(stmt);
-            // cy-wlr: precondition failures surface as an Error response
-            // rather than a panic for malformed HIR inputs.
-            match plan_lower(&stmt) {
-                Ok(plan) => match serde_json::to_value(&plan) {
-                    Ok(plan_json) => AgentResponse::Plan { plan_json },
-                    Err(e) => AgentResponse::Error {
-                        message: e.to_string(),
-                    },
-                },
+            // cy-cfi: HIR lowering is fallible — a parse failure surfaces
+            // as an Error response rather than a panic.
+            match hir_lower(&text) {
+                Ok(stmt) => {
+                    let stmt = desugar_statement(stmt);
+                    // cy-wlr: precondition failures surface as an Error
+                    // response rather than a panic for malformed HIR.
+                    match plan_lower(&stmt) {
+                        Ok(plan) => match serde_json::to_value(&plan) {
+                            Ok(plan_json) => AgentResponse::Plan { plan_json },
+                            Err(e) => AgentResponse::Error {
+                                message: e.to_string(),
+                            },
+                        },
+                        Err(e) => AgentResponse::Error {
+                            message: e.to_string(),
+                        },
+                    }
+                }
                 Err(e) => AgentResponse::Error {
                     message: e.to_string(),
                 },
@@ -747,14 +755,22 @@ fn handle(
         // explain: human-readable plan summary
         // ------------------------------------------------------------------
         AgentRequest::Explain { text, dialect: _ } => {
-            let stmt = hir_lower(&text);
-            let stmt = desugar_statement(stmt);
-            // cy-wlr: precondition failures surface as an Error response
-            // rather than a panic for malformed HIR inputs.
-            match plan_lower(&stmt) {
-                Ok(plan) => AgentResponse::Explain {
-                    markdown: plan_pretty(&plan),
-                },
+            // cy-cfi: HIR lowering is fallible — a parse failure surfaces
+            // as an Error response rather than a panic.
+            match hir_lower(&text) {
+                Ok(stmt) => {
+                    let stmt = desugar_statement(stmt);
+                    // cy-wlr: precondition failures surface as an Error
+                    // response rather than a panic for malformed HIR.
+                    match plan_lower(&stmt) {
+                        Ok(plan) => AgentResponse::Explain {
+                            markdown: plan_pretty(&plan),
+                        },
+                        Err(e) => AgentResponse::Error {
+                            message: e.to_string(),
+                        },
+                    }
+                }
                 Err(e) => AgentResponse::Error {
                     message: e.to_string(),
                 },
@@ -839,10 +855,12 @@ fn completion_item_to_json(item: NeutralItem) -> Value {
 fn resolve_overlay(text: &str) -> String {
     use cyrs_diag::DiagnosticsSink;
     use cyrs_hir::desugar::desugar_statement;
-    use cyrs_hir::lower::lower_statement;
+    use cyrs_hir::lower::lower_parse;
     use cyrs_hir::pretty::print_overlay;
 
-    let stmt = lower_statement(text);
+    // cy-cfi: lower best-effort from the parsed tree so this test helper
+    // stays infallible regardless of the input's syntactic shape.
+    let stmt = lower_parse(&cyrs_syntax::parse(text)).expect("lower_parse is infallible");
     let stmt = desugar_statement(stmt);
     let mut sink = DiagnosticsSink::new();
     let result = cyrs_sema::resolve::resolve(&stmt, false, &mut sink);

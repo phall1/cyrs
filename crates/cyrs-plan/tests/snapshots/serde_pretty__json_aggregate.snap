@@ -31,6 +31,7 @@ expression: "serde_json::to_value(&plan).unwrap()"
       "op": "aggregate"
     }
   ],
+  "params": [],
   "var_map": [],
   "write_ops": []
 }

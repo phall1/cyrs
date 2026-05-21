@@ -4,7 +4,7 @@
 //! Checks that every label, relationship type, property, and function
 //! call in the statement is consistent with the declared schema.
 //!
-//! # Checks (E3xxx range — spec §10.2)
+//! # Checks (E3xxx / E4xxx ranges — spec §10.2)
 //!
 //! | Rule | Code |
 //! |------|------|
@@ -12,17 +12,27 @@
 //! | Relationship pattern uses unknown type | [`E3002`] |
 //! | Property access on labeled/typed binding not declared in schema | [`E3003`] |
 //! | Property type conflicts with usage context | [`E3004`] |
+//! | MERGE key not backed by a declared uniqueness constraint | [`E3009`] |
 //! | Function call to unknown function | [`E3006`] |
 //! | Function arity mismatch | [`E3007`] |
 //! | Procedure call to unknown procedure | [`E3008`] |
+//! | `CREATE` / `SET` produces an unstorable multi-label combination | [`E4023`] |
+//!
+//! The multi-label compatibility check ([`E4023`]) consults
+//! [`SchemaProvider::labels_compatible`]; it sits in the
+//! dialect/compatibility (`E4xxx`) range because it is a
+//! storage-capability question, not a schema-shape one
+//! (feat-request §2.3).
 //!
 //! [`E3001`]: cyrs_diag::DiagCode::E3001
 //! [`E3002`]: cyrs_diag::DiagCode::E3002
 //! [`E3003`]: cyrs_diag::DiagCode::E3003
 //! [`E3004`]: cyrs_diag::DiagCode::E3004
+//! [`E3009`]: cyrs_diag::DiagCode::E3009
 //! [`E3006`]: cyrs_diag::DiagCode::E3006
 //! [`E3007`]: cyrs_diag::DiagCode::E3007
 //! [`E3008`]: cyrs_diag::DiagCode::E3008
+//! [`E4023`]: cyrs_diag::DiagCode::E4023
 
 use cyrs_diag::{DiagCode, Diagnostic, DiagnosticsSink};
 use cyrs_hir::{
@@ -75,10 +85,21 @@ impl SchemaCtx<'_> {
 
     fn check_clause(&mut self, clause: &Clause) {
         match clause {
-            Clause::Match { pattern, .. }
-            | Clause::Create { pattern, .. }
-            | Clause::Merge { pattern, .. } => {
-                self.check_pattern(pattern);
+            Clause::Match { pattern, .. } => {
+                self.check_pattern(pattern, false);
+            }
+            // `CREATE` materialises new nodes, so a multi-label node
+            // pattern there is subject to the `labels_compatible` storage
+            // check (feat-request §2.3). `MATCH` only reads, so it is exempt.
+            Clause::Create { pattern, .. } => {
+                self.check_pattern(pattern, true);
+            }
+            // The create-branch of `MERGE` likewise materialises nodes
+            // (labels_compatible, feat-request §2.3) and its key props are
+            // validated against declared uniqueness (feat-request §2.2).
+            Clause::Merge { pattern, .. } => {
+                self.check_pattern(pattern, true);
+                self.check_merge_keys(pattern);
             }
             Clause::Where { predicate, .. } => {
                 self.check_expr(predicate);
@@ -118,7 +139,12 @@ impl SchemaCtx<'_> {
                         SetItem::AssignMap { map, .. } => {
                             self.check_expr(map);
                         }
-                        SetItem::Labels { .. } => {}
+                        SetItem::Labels { labels, .. } => {
+                            // `SET n:A:B` adds a multi-label set to a
+                            // node; the same storage-compatibility rule
+                            // as `CREATE` applies (feat-request §2.3).
+                            self.check_labels_compatible(labels, dummy_span());
+                        }
                     }
                 }
             }
@@ -151,7 +177,14 @@ impl SchemaCtx<'_> {
         }
     }
 
-    fn check_pattern(&mut self, pattern: &Pattern) {
+    /// Walk `pattern`, checking labels, relationship types, and inline
+    /// properties against the schema.
+    ///
+    /// `creating` is `true` for `CREATE` / `MERGE` patterns, which
+    /// materialise nodes and therefore have their multi-label node
+    /// patterns checked against [`SchemaProvider::labels_compatible`]
+    /// (feat-request §2.3). `MATCH` patterns pass `false`.
+    fn check_pattern(&mut self, pattern: &Pattern, creating: bool) {
         for part in &pattern.parts {
             for elem in &part.elements {
                 match elem {
@@ -171,6 +204,11 @@ impl SchemaCtx<'_> {
                                     format!("unknown label `:{label}`"),
                                 ));
                             }
+                        }
+                        // For creating patterns, check that the label
+                        // combination can be stored together.
+                        if creating {
+                            self.check_labels_compatible(labels, *span);
                         }
                         // Check property map keys against schema for each label.
                         if let Some(p) = props {
@@ -295,6 +333,102 @@ impl SchemaCtx<'_> {
         }
     }
 
+    /// Validate the key property set of a `MERGE` pattern against the
+    /// uniqueness constraints declared by the schema (spec §7.5).
+    ///
+    /// For every node / relationship element of the `MERGE` pattern that
+    /// carries an explicit label / type **and** an inline literal property
+    /// map, the map's key set is the "MERGE key". `MERGE` is provably
+    /// deterministic only when that key set contains every property of at
+    /// least one declared uniqueness tuple
+    /// ([`SchemaProvider::label_unique_props`] /
+    /// [`SchemaProvider::rel_type_unique_props`]). When no such tuple
+    /// exists, [`DiagCode::E3009`] is emitted.
+    ///
+    /// Elements with no label/type, no property map, or a non-literal
+    /// `props` expression are skipped — the same conservatism as the
+    /// property-name checks. A schema that declares no uniqueness for the
+    /// label/type also yields no diagnostic (absence of a constraint is
+    /// not an error; the embedder still owns runtime enforcement).
+    fn check_merge_keys(&mut self, pattern: &Pattern) {
+        for part in &pattern.parts {
+            for elem in &part.elements {
+                match elem {
+                    PatternElement::Node {
+                        labels,
+                        props: Some(props),
+                        span,
+                        ..
+                    } if !labels.is_empty() => {
+                        let tuples: Vec<Vec<SmolStr>> = labels
+                            .iter()
+                            .flat_map(|l| self.schema.label_unique_props(l.as_str()))
+                            .collect();
+                        self.check_merge_key_set(props, &tuples, labels, "label", *span);
+                    }
+                    PatternElement::Rel {
+                        types,
+                        props: Some(props),
+                        span,
+                        ..
+                    } if !types.is_empty() => {
+                        let tuples: Vec<Vec<SmolStr>> = types
+                            .iter()
+                            .flat_map(|t| self.schema.rel_type_unique_props(t.as_str()))
+                            .collect();
+                        self.check_merge_key_set(props, &tuples, types, "relationship type", *span);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Shared core of [`Self::check_merge_keys`]: given the `MERGE`
+    /// element's `props` expression and the uniqueness `tuples` collected
+    /// for its labels/types, emit [`DiagCode::E3009`] when the key set is
+    /// not backed by any tuple.
+    fn check_merge_key_set(
+        &mut self,
+        props: &Expr,
+        tuples: &[Vec<SmolStr>],
+        names: &[SmolStr],
+        kind: &str,
+        span: HirSpan,
+    ) {
+        // Non-literal-map `props` cannot be analysed statically — skip,
+        // consistent with the property-name checks.
+        let Expr::Map(pairs) = props else {
+            return;
+        };
+        // A schema that declares no uniqueness for these labels/types
+        // raises nothing — absence of a constraint is not an error.
+        if tuples.is_empty() {
+            return;
+        }
+        let key_set: std::collections::BTreeSet<&SmolStr> = pairs.iter().map(|(k, _)| k).collect();
+        // Deterministic iff the key set contains every property of at
+        // least one declared uniqueness tuple.
+        let backed = tuples
+            .iter()
+            .any(|tuple| tuple.iter().all(|p| key_set.contains(p)));
+        if !backed {
+            let name_list: Vec<_> = names.iter().map(|n| format!(":{n}")).collect();
+            let mut keys: Vec<&str> = key_set.iter().map(|k| k.as_str()).collect();
+            keys.sort_unstable();
+            self.sink.push(Diagnostic::error(
+                DiagCode::E3009,
+                span,
+                format!(
+                    "MERGE key {{{}}} on {kind}(s) {} is not backed by a declared \
+                     uniqueness constraint",
+                    keys.join(", "),
+                    name_list.join(", "),
+                ),
+            ));
+        }
+    }
+
     fn check_expr(&mut self, expr: &Expr) {
         match expr {
             // Literals and bare variable references — no schema checks needed.
@@ -384,7 +518,8 @@ impl SchemaCtx<'_> {
             }
 
             Expr::PatternPredicate(pat) => {
-                self.check_pattern(pat);
+                // A pattern predicate matches; it never creates.
+                self.check_pattern(pat, false);
             }
 
             Expr::ListComprehension {
@@ -448,6 +583,31 @@ impl SchemaCtx<'_> {
     fn check_prop_assignment(&mut self, target: &Expr, _prop: &SmolStr, value: &Expr) {
         self.check_expr(target);
         self.check_expr(value);
+    }
+
+    /// Check that a node's label set can be stored together
+    /// (feat-request §2.3).
+    ///
+    /// Consults [`SchemaProvider::labels_compatible`]. Only
+    /// `Some(false)` — the provider positively rejects the combination
+    /// — emits a diagnostic; `None` (provider does not constrain) and
+    /// `Some(true)` are accepted. A label set of length 0 or 1 is
+    /// trivially storable, so the provider is not consulted for it.
+    fn check_labels_compatible(&mut self, labels: &[SmolStr], span: HirSpan) {
+        if labels.len() < 2 {
+            return;
+        }
+        if self.schema.labels_compatible(labels) == Some(false) {
+            let label_list: Vec<_> = labels.iter().map(|l| format!(":{l}")).collect();
+            self.sink.push(Diagnostic::error(
+                DiagCode::E4023,
+                span,
+                format!(
+                    "labels {} cannot be combined on a single node",
+                    label_list.join(""),
+                ),
+            ));
+        }
     }
 
     /// Validate a function call against the schema catalog.
@@ -674,6 +834,22 @@ mod tests {
             None
         }
 
+        // `Person` keys uniquely on `name`; `Company` declares no
+        // uniqueness. `KNOWS` keys uniquely on `since`.
+        fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+            match label {
+                "Person" => vec![vec![SmolStr::new("name")]],
+                _ => Vec::new(),
+            }
+        }
+
+        fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+            match rel_type {
+                "KNOWS" => vec![vec![SmolStr::new("since")]],
+                _ => Vec::new(),
+            }
+        }
+
         fn function(&self, name: &str) -> Option<FunctionSignature> {
             match name.to_ascii_lowercase().as_str() {
                 "custom_fn" => Some(FunctionSignature {
@@ -777,6 +953,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind,
@@ -841,6 +1018,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -891,6 +1069,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -939,6 +1118,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: None,
@@ -972,6 +1152,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: None,
@@ -1005,6 +1186,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: None,
@@ -1040,6 +1222,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -1093,6 +1276,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![
                         PatternElement::Node {
                             id: nid_a,
@@ -1331,6 +1515,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: nid,
                         bind: None,
@@ -1344,5 +1529,367 @@ mod tests {
         });
         let schema = test_schema();
         insta::assert_snapshot!("schema_no_labels_prop_unchecked_ok", run(&stmt, &schema));
+    }
+
+    // -----------------------------------------------------------------------
+    // MERGE uniqueness validation (E3009, cy-e45 / feat-request §2.2)
+    // -----------------------------------------------------------------------
+
+    /// Build a single-node `MERGE` statement with the given label and
+    /// inline literal property map.
+    fn merge_node_stmt(label: &str, props: Vec<(&str, Expr)>) -> Statement {
+        let mut stmt = Statement::new(zero_range());
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        let map = Expr::Map(
+            props
+                .into_iter()
+                .map(|(k, v)| (SmolStr::new(k), v))
+                .collect(),
+        );
+        stmt.clauses.push(Clause::Merge {
+            id: mid,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: None,
+                        labels: vec![SmolStr::new(label)],
+                        props: Some(map),
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            on_create: Vec::new(),
+            on_match: Vec::new(),
+            span: zero_range(),
+        });
+        stmt
+    }
+
+    /// Build a `MERGE (a)-[:REL props]->(b)` statement with the given
+    /// relationship type and inline literal property map.
+    fn merge_rel_stmt(rel_type: &str, props: Vec<(&str, Expr)>) -> Statement {
+        let mut stmt = Statement::new(zero_range());
+        let mid = alloc(&mut stmt);
+        let nid_a = alloc(&mut stmt);
+        let rid = alloc(&mut stmt);
+        let nid_b = alloc(&mut stmt);
+        let map = Expr::Map(
+            props
+                .into_iter()
+                .map(|(k, v)| (SmolStr::new(k), v))
+                .collect(),
+        );
+        stmt.clauses.push(Clause::Merge {
+            id: mid,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
+                    elements: vec![
+                        PatternElement::Node {
+                            id: nid_a,
+                            bind: None,
+                            labels: vec![],
+                            props: None,
+                            span: zero_range(),
+                        },
+                        PatternElement::Rel {
+                            id: rid,
+                            bind: None,
+                            types: vec![SmolStr::new(rel_type)],
+                            direction: Direction::Outgoing,
+                            length: RelLength::Single,
+                            props: Some(map),
+                            span: zero_range(),
+                        },
+                        PatternElement::Node {
+                            id: nid_b,
+                            bind: None,
+                            labels: vec![],
+                            props: None,
+                            span: zero_range(),
+                        },
+                    ],
+                }],
+            },
+            on_create: Vec::new(),
+            on_match: Vec::new(),
+            span: zero_range(),
+        });
+        stmt
+    }
+
+    // 19. MERGE node keyed on the declared unique property → clean.
+    #[test]
+    fn snap_schema_merge_node_unique_key_ok() {
+        let stmt = merge_node_stmt(
+            "Person",
+            vec![("name", Expr::String(SmolStr::new("Alice")))],
+        );
+        let schema = test_schema();
+        insta::assert_snapshot!("schema_merge_node_unique_key_ok", run(&stmt, &schema));
+    }
+
+    // 20. MERGE node keyed on a non-unique property → E3009.
+    #[test]
+    fn snap_schema_merge_node_non_unique_key_error() {
+        // `age` is a declared property but carries no uniqueness tuple.
+        let stmt = merge_node_stmt("Person", vec![("age", Expr::Int(30))]);
+        let schema = test_schema();
+        insta::assert_snapshot!(
+            "schema_merge_node_non_unique_key_error",
+            run(&stmt, &schema)
+        );
+    }
+
+    // 21. MERGE node with a superset key (unique prop + extra) → clean:
+    //     containing a full uniqueness tuple is enough.
+    #[test]
+    fn snap_schema_merge_node_superset_key_ok() {
+        let stmt = merge_node_stmt(
+            "Person",
+            vec![
+                ("name", Expr::String(SmolStr::new("Alice"))),
+                ("age", Expr::Int(30)),
+            ],
+        );
+        let schema = test_schema();
+        insta::assert_snapshot!("schema_merge_node_superset_key_ok", run(&stmt, &schema));
+    }
+
+    // 22. MERGE node on a label with no declared uniqueness → clean
+    //     (absence of a constraint is not an error).
+    #[test]
+    fn snap_schema_merge_node_no_constraint_ok() {
+        let stmt = merge_node_stmt(
+            "Company",
+            vec![("name", Expr::String(SmolStr::new("Acme")))],
+        );
+        let schema = test_schema();
+        insta::assert_snapshot!("schema_merge_node_no_constraint_ok", run(&stmt, &schema));
+    }
+
+    // 23. MERGE relationship keyed on the declared unique property → clean.
+    #[test]
+    fn snap_schema_merge_rel_unique_key_ok() {
+        let stmt = merge_rel_stmt("KNOWS", vec![("since", Expr::Int(2020))]);
+        let schema = test_schema();
+        insta::assert_snapshot!("schema_merge_rel_unique_key_ok", run(&stmt, &schema));
+    }
+
+    // 24. MERGE relationship keyed on a non-unique property → E3009.
+    #[test]
+    fn snap_schema_merge_rel_non_unique_key_error() {
+        // `KNOWS` declares uniqueness only on `since`; an empty key set
+        // backs nothing either, but here we use a declared-but-non-unique
+        // shape via an unknown key to exercise the E3009 path together
+        // with the E3003 path.
+        let stmt = merge_rel_stmt("KNOWS", vec![("weight", Expr::Int(1))]);
+        let schema = test_schema();
+        insta::assert_snapshot!("schema_merge_rel_non_unique_key_error", run(&stmt, &schema));
+    }
+
+    // 25. MERGE on a non-literal `props` expression → skipped (clean):
+    //     a parameter map cannot be analysed statically.
+    #[test]
+    fn snap_schema_merge_non_literal_props_skipped_ok() {
+        let mut stmt = Statement::new(zero_range());
+        let mid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Merge {
+            id: mid,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: None,
+                        labels: vec![SmolStr::new("Person")],
+                        props: Some(Expr::Param(SmolStr::new("p"))),
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            on_create: Vec::new(),
+            on_match: Vec::new(),
+            span: zero_range(),
+        });
+        let schema = test_schema();
+        insta::assert_snapshot!(
+            "schema_merge_non_literal_props_skipped_ok",
+            run(&stmt, &schema)
+        );
+    }
+
+    // 19. Multi-label compatibility — `SchemaProvider::labels_compatible`
+    //     (feat-request §2.3, code E4023).
+    //
+    // `LabelCompatSchema` declares four labels and forbids exactly the
+    // combination `:Person` + `:Robot` (a relational embedder where the
+    // two map to incompatible tables). Every other combination is
+    // `Some(true)`; this provider always answers (never `None`).
+    // -----------------------------------------------------------------------
+
+    #[derive(Debug)]
+    struct LabelCompatSchema;
+
+    impl SchemaProvider for LabelCompatSchema {
+        fn labels(&self) -> Vec<SmolStr> {
+            vec![
+                SmolStr::new("Person"),
+                SmolStr::new("Robot"),
+                SmolStr::new("Employee"),
+                SmolStr::new("Admin"),
+            ]
+        }
+        fn relationship_types(&self) -> Vec<SmolStr> {
+            vec![]
+        }
+        fn node_properties(&self, label: &str) -> Option<Vec<PropertyDecl>> {
+            if self.labels().iter().any(|l| l == label) {
+                Some(vec![])
+            } else {
+                None
+            }
+        }
+        fn relationship_properties(&self, _: &str) -> Option<Vec<PropertyDecl>> {
+            None
+        }
+        fn relationship_endpoints(&self, _: &str) -> Vec<EndpointDecl> {
+            vec![]
+        }
+        fn inverse_of(&self, _: &str) -> Option<SmolStr> {
+            None
+        }
+        fn function(&self, _: &str) -> Option<FunctionSignature> {
+            None
+        }
+        fn procedure(&self, _: &str) -> Option<ProcedureSignature> {
+            None
+        }
+        fn schema_digest(&self) -> [u8; 32] {
+            [2u8; 32]
+        }
+        fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+            let has = |n: &str| labels.iter().any(|l| l == n);
+            // `:Person` and `:Robot` cannot live on the same node.
+            Some(!(has("Person") && has("Robot")))
+        }
+    }
+
+    /// Build a single-node `CREATE (n:..)` statement.
+    fn create_node_stmt(labels: Vec<SmolStr>) -> Statement {
+        let mut stmt = Statement::new(zero_range());
+        let cid = alloc(&mut stmt);
+        let nid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Create {
+            id: cid,
+            pattern: Pattern {
+                parts: vec![PatternPart {
+                    named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
+                    elements: vec![PatternElement::Node {
+                        id: nid,
+                        bind: None,
+                        labels,
+                        props: None,
+                        span: zero_range(),
+                    }],
+                }],
+            },
+            span: zero_range(),
+        });
+        stmt
+    }
+
+    #[test]
+    fn create_incompatible_label_combo_rejected_e4023() {
+        // CREATE (n:Person:Robot) — provider returns Some(false).
+        let stmt = create_node_stmt(vec![SmolStr::new("Person"), SmolStr::new("Robot")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(out.contains("E4023"), "expected E4023, got: {out}");
+        assert!(
+            out.contains(":Person") && out.contains(":Robot"),
+            "diagnostic should name the conflicting labels, got: {out}",
+        );
+    }
+
+    #[test]
+    fn create_compatible_label_combo_ok() {
+        // CREATE (n:Employee:Admin) — provider returns Some(true).
+        let stmt = create_node_stmt(vec![SmolStr::new("Employee"), SmolStr::new("Admin")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn create_single_label_never_checked() {
+        // CREATE (n:Person) — a length-1 set is trivially storable; the
+        // provider is not even consulted.
+        let stmt = create_node_stmt(vec![SmolStr::new("Person")]);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn set_adding_incompatible_labels_rejected_e4023() {
+        // SET n:Person:Robot — the added label set is checked too.
+        let mut stmt = Statement::new(zero_range());
+        let target = intern_var(&mut stmt, "n", VarKind::Node);
+        let sid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Set {
+            id: sid,
+            items: vec![cyrs_hir::SetItem::Labels {
+                target,
+                labels: vec![SmolStr::new("Person"), SmolStr::new("Robot")],
+            }],
+            span: zero_range(),
+        });
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(out.contains("E4023"), "expected E4023, got: {out}");
+    }
+
+    #[test]
+    fn set_adding_compatible_labels_ok() {
+        // SET n:Employee:Admin — compatible combination, no diagnostic.
+        let mut stmt = Statement::new(zero_range());
+        let target = intern_var(&mut stmt, "n", VarKind::Node);
+        let sid = alloc(&mut stmt);
+        stmt.clauses.push(Clause::Set {
+            id: sid,
+            items: vec![cyrs_hir::SetItem::Labels {
+                target,
+                labels: vec![SmolStr::new("Employee"), SmolStr::new("Admin")],
+            }],
+            span: zero_range(),
+        });
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn match_incompatible_label_combo_not_checked() {
+        // MATCH (n:Person:Robot) — MATCH only reads; even an
+        // incompatible combination is not rejected by E4023.
+        let stmt = node_match_stmt(vec![SmolStr::new("Person"), SmolStr::new("Robot")], None);
+        let out = run(&stmt, &LabelCompatSchema);
+        assert!(!out.contains("E4023"), "expected no E4023, got: {out}");
+    }
+
+    #[test]
+    fn permissive_provider_none_does_not_reject() {
+        // `TestSchema` uses the default `labels_compatible` (returns
+        // `None`): a multi-label CREATE is accepted (permissive).
+        let stmt = create_node_stmt(vec![SmolStr::new("Person"), SmolStr::new("Company")]);
+        let out = run(&stmt, &TestSchema);
+        assert!(
+            !out.contains("E4023"),
+            "a `None`-returning provider must not trigger E4023, got: {out}",
+        );
     }
 }

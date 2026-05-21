@@ -39,15 +39,16 @@ use indexmap::IndexMap;
 use smol_str::SmolStr;
 
 use cyrs_hir::{
-    Clause, Direction as HirDir, Expr as HirExpr, HirSpan, ListPredKind as HirListPredKind,
-    OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength as HirRelLen,
-    RemoveItem, SetItem, Statement, VarId as HirVarId,
+    BinOp as HirBinOp, Clause, Direction as HirDir, Expr as HirExpr, HirSpan,
+    ListPredKind as HirListPredKind, OrderItem, Pattern, PatternElement, PatternPart, Projection,
+    RelLength as HirRelLen, RemoveItem, SetItem, ShortestPath as HirShortestPath, Statement,
+    VarId as HirVarId,
 };
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey,
-    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, SortDir, UnaryOp,
-    UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, ParamType,
+    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, ScalarType, SortDir,
+    UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -64,6 +65,14 @@ use crate::{
 ///
 /// `var_map` maps plan-scoped [`VarId`]s back to HIR [`HirVarId`]s for
 /// diagnostic purposes (spec §12.3).
+///
+/// `params` is the typed parameter surface (cy-7it, feat-request §2.4): an
+/// insertion-ordered map from every `$param` name the statement references
+/// to its best-effort inferred [`ParamType`]. It is populated by a
+/// collection pass over the lowered operator tree and is always present —
+/// empty for a statement with no parameters. An embedder enumerates this
+/// map to bind execution-time parameter values without re-deriving the
+/// parameter set from the expression IR.
 #[derive(Debug, Clone)]
 pub struct PlanStatement {
     /// Ordered flat arena of read operators. References use dense [`OpId`].
@@ -73,6 +82,10 @@ pub struct PlanStatement {
     /// Mapping from plan [`VarId`] → HIR [`HirVarId`]. Insertion-ordered
     /// for determinism (spec §17.14).
     pub var_map: IndexMap<VarId, HirVarId>,
+    /// Typed parameter surface — every `$param` the statement references,
+    /// in first-seen order, with a best-effort inferred [`ParamType`].
+    /// See the type-level docs and [`ParamType`]. cy-7it (feat-request §2.4).
+    pub params: IndexMap<SmolStr, ParamType>,
 }
 
 impl PlanStatement {
@@ -80,15 +93,17 @@ impl PlanStatement {
         Self::empty()
     }
 
-    /// Construct an empty [`PlanStatement`] — no read or write operators
-    /// and an empty `var_map`. Useful as a fallback when downstream
-    /// callers need a plan shape for a malformed query (cy-wlr).
+    /// Construct an empty [`PlanStatement`] — no read or write operators,
+    /// an empty `var_map`, and an empty `params` map. Useful as a fallback
+    /// when downstream callers need a plan shape for a malformed query
+    /// (cy-wlr).
     #[must_use]
     pub fn empty() -> Self {
         Self {
             ops: Vec::new(),
             write_ops: Vec::new(),
             var_map: IndexMap::new(),
+            params: IndexMap::new(),
         }
     }
 
@@ -134,7 +149,9 @@ pub fn lower_statement(stmt: &Statement) -> Result<PlanStatement, PlanLowerError
     precheck_statement(stmt)?;
     let mut ctx = LowerCtx::new(stmt);
     ctx.lower(stmt);
-    Ok(ctx.into_plan())
+    let mut plan = ctx.into_plan();
+    collect_params(&mut plan);
+    Ok(plan)
 }
 
 // ── Pre-lowering sanity scan (cy-wlr) ─────────────────────────────────────────
@@ -152,6 +169,9 @@ fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
             Clause::With {
                 projections,
                 filter,
+                order_by,
+                skip,
+                limit,
                 ..
             } => {
                 for p in projections {
@@ -160,11 +180,19 @@ fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
                 if let Some(f) = filter {
                     check_expr(f, span)?;
                 }
+                check_order_skip_limit(order_by, skip.as_ref(), limit.as_ref(), span)?;
             }
-            Clause::Return { projections, .. } => {
+            Clause::Return {
+                projections,
+                order_by,
+                skip,
+                limit,
+                ..
+            } => {
                 for p in projections {
                     check_expr(&p.expr, span)?;
                 }
+                check_order_skip_limit(order_by, skip.as_ref(), limit.as_ref(), span)?;
             }
             Clause::Unwind { list, .. } => check_expr(list, span)?,
             Clause::Merge {
@@ -250,6 +278,32 @@ fn check_remove_item(item: &RemoveItem, span: HirSpan) -> Result<(), PlanLowerEr
     match item {
         RemoveItem::Property { target, .. } => check_expr(target, span)?,
         RemoveItem::Labels { .. } => {}
+    }
+    Ok(())
+}
+
+/// Scan the `ORDER BY` / `SKIP` / `LIMIT` trailer expressions shared by the
+/// `WITH` and `RETURN` clauses.
+///
+/// These positions were previously left unscanned: an un-desugared
+/// (`MapProjection`, `ListComprehension`) or unresolved expression in an
+/// `ORDER BY` key — or a `SKIP` / `LIMIT` operand — reached `lower_expr`
+/// and tripped a `debug_assert!` instead of surfacing as a clean `Err`.
+/// Found by `fuzz_plan`.
+fn check_order_skip_limit(
+    order_by: &[OrderItem],
+    skip: Option<&HirExpr>,
+    limit: Option<&HirExpr>,
+    span: HirSpan,
+) -> Result<(), PlanLowerError> {
+    for item in order_by {
+        check_expr(&item.expr, span)?;
+    }
+    if let Some(s) = skip {
+        check_expr(s, span)?;
+    }
+    if let Some(l) = limit {
+        check_expr(l, span)?;
     }
     Ok(())
 }
@@ -535,7 +589,21 @@ impl<'s> LowerCtx<'s> {
                     on_match,
                     ..
                 } => {
-                    let write_ops = self.lower_merge_pattern(pattern, on_create, on_match);
+                    // The HIR desugar pass moves the MERGE pattern's inline
+                    // `{k: ...}` map for *node* elements into a synthetic
+                    // `WHERE` clause spliced immediately after the MERGE
+                    // (see `cyrs_hir::desugar`). Cypher grammar never lets a
+                    // hand-written `WHERE` follow a `MERGE`, so a `Where`
+                    // sitting directly after this clause is unambiguously
+                    // that synthetic clause — recover the per-variable key
+                    // property names from its equality predicates so the
+                    // structured `key_props` survives desugaring.
+                    let node_keys = match stmt.clauses.get(i + 1) {
+                        Some(Clause::Where { predicate, .. }) => collect_merge_key_props(predicate),
+                        _ => Vec::new(),
+                    };
+                    let write_ops =
+                        self.lower_merge_pattern(pattern, on_create, on_match, &node_keys);
                     self.plan.write_ops.extend(write_ops);
                 }
                 Clause::Set { items, .. } => {
@@ -633,6 +701,18 @@ impl<'s> LowerCtx<'s> {
     }
 
     fn lower_pattern_part(&mut self, part: &PatternPart, vars: &mut Vec<VarId>) -> OpId {
+        // `shortestPath(...)` / `allShortestPaths(...)` parts lower to a
+        // dedicated `ReadOp::ShortestPath` rather than a plain var-length
+        // `Expand`, so a consumer can dispatch to a native path-finder
+        // (cy-eaq, feat-request §1.1). Fall through to the generic
+        // node/rel walk for plain parts and for any shortest-path part
+        // whose recovered shape is not the canonical `(a)-[*]-(b)`.
+        if part.shortest != HirShortestPath::No
+            && let Some(op) = self.lower_shortest_path_part(part, vars)
+        {
+            return op;
+        }
+
         // Walk elements; first node becomes Source, alternating
         // Rel+Node pairs become Expand.
         //
@@ -731,6 +811,101 @@ impl<'s> LowerCtx<'s> {
         // pre-scan and hands us a part with no Node, degrade to a degenerate
         // all-node Source so lowering still produces a valid plan.
         last_op.unwrap_or_else(|| self.push_source_all())
+    }
+
+    /// Resolve an optional HIR binding to a plan [`VarId`].
+    ///
+    /// A present binding is mapped through [`Self::map_var`] and recorded
+    /// in `vars`; an absent one gets a freshly synthesised `VarId` (an
+    /// anonymous endpoint or path). Mirrors the bind-or-synthesise idiom
+    /// used throughout [`Self::lower_pattern_part`].
+    fn endpoint_var(&mut self, bind: Option<HirVarId>, vars: &mut Vec<VarId>) -> VarId {
+        if let Some(v) = bind {
+            let pv = self.map_var(v);
+            vars.push(pv);
+            pv
+        } else {
+            let v = VarId(self.next_var);
+            self.next_var += 1;
+            v
+        }
+    }
+
+    /// Lower a `shortestPath(...)` / `allShortestPaths(...)` pattern part
+    /// to a [`ReadOp::ShortestPath`].
+    ///
+    /// The canonical shortest-path shape is two endpoint nodes joined by
+    /// a single (normally variable-length) relationship: `(a)-[*]-(b)`.
+    /// The first endpoint becomes a [`ReadOp::Source`]; the relationship
+    /// and second endpoint become the `ShortestPath` operator. The path
+    /// binder from `p = shortestPath(...)` (`part.named_as`) is threaded
+    /// into `bind_path`; an anonymous shortest path gets a synthesised
+    /// `VarId`.
+    ///
+    /// Returns `None` for any non-canonical recovered shape (a missing
+    /// endpoint, more than one relationship), so the caller falls back
+    /// to the generic node/rel walk rather than dropping the part.
+    fn lower_shortest_path_part(
+        &mut self,
+        part: &PatternPart,
+        vars: &mut Vec<VarId>,
+    ) -> Option<OpId> {
+        // Canonical shape only: Node, Rel, Node.
+        let [from_elem, rel_elem, to_elem] = part.elements.as_slice() else {
+            return None;
+        };
+        let (
+            PatternElement::Node {
+                bind: from_bind,
+                labels: from_labels,
+                props: from_props,
+                ..
+            },
+            PatternElement::Rel { .. },
+            PatternElement::Node { bind: to_bind, .. },
+        ) = (from_elem, rel_elem, to_elem)
+        else {
+            return None;
+        };
+
+        // First endpoint → Source (mirrors the leading-node arm of
+        // `lower_pattern_part`).
+        let from_var = self.endpoint_var(*from_bind, vars);
+        let label_set = if from_labels.is_empty() {
+            None
+        } else {
+            Some(LabelSet(from_labels.clone()))
+        };
+        let mut input = self.plan.push(ReadOp::Source {
+            label: label_set,
+            bind: from_var,
+        });
+        if let Some(prop_expr) = from_props.as_ref() {
+            let predicate = self.lower_expr(prop_expr);
+            input = self.plan.push(ReadOp::Filter { input, predicate });
+        }
+
+        // Relationship spec — reuse the shared `Expand` lowering so the
+        // var-length qualifier is carried identically.
+        let (rel_spec, _bind_rel) = self.lower_rel_element(rel_elem, vars);
+
+        // Second endpoint.
+        let to_var = self.endpoint_var(*to_bind, vars);
+
+        // Path binder: `p = shortestPath(...)` carries `named_as`; an
+        // anonymous shortest path gets a fresh synthesised var.
+        let bind_path = self.endpoint_var(part.named_as, vars);
+
+        let all = matches!(part.shortest, HirShortestPath::AllShortest);
+
+        Some(self.plan.push(ReadOp::ShortestPath {
+            input,
+            from: from_var,
+            rel: rel_spec,
+            to: to_var,
+            bind_path,
+            all,
+        }))
     }
 
     fn lower_rel_element(
@@ -932,11 +1107,21 @@ impl<'s> LowerCtx<'s> {
         ops
     }
 
+    /// Lower a MERGE clause into write operations.
+    ///
+    /// `node_key_props` carries `(HIR variable, property name)` pairs
+    /// recovered by the caller from the desugar-synthesized `WHERE` clause
+    /// (see the `Clause::Merge` arm of the clause-walk in `Self::lower`). It
+    /// supplies the structured key surface for node patterns whose inline
+    /// `{k: ...}` map was hoisted out of the pattern by desugaring.
+    /// Relationship patterns are not desugared, so their keys come straight
+    /// from the (still-literal) properties expression via `merge_key_props`.
     fn lower_merge_pattern(
         &mut self,
         pattern: &Pattern,
         on_create: &[SetItem],
         on_match: &[SetItem],
+        node_key_props: &[(HirVarId, SmolStr)],
     ) -> Vec<WriteOp> {
         let mut ops = Vec::new();
         let create_ops = self.lower_set_items(on_create);
@@ -957,9 +1142,25 @@ impl<'s> LowerCtx<'s> {
                         } else {
                             Expr::Map(vec![])
                         };
+                        // Keys come from the still-literal props map when
+                        // present (e.g. a non-desugared parameter map is not
+                        // a literal so yields nothing), otherwise from the
+                        // desugared WHERE recovered for this node's variable.
+                        let mut key_props = merge_key_props(&props_expr);
+                        if key_props.is_empty()
+                            && let Some(v) = bind
+                        {
+                            key_props.extend(
+                                node_key_props
+                                    .iter()
+                                    .filter(|(kv, _)| *kv == v)
+                                    .map(|(_, k)| k.clone()),
+                            );
+                        }
                         ops.push(WriteOp::MergeNode {
                             labels,
                             props: props_expr,
+                            key_props,
                             on_create: create_ops.clone(),
                             on_match: match_ops.clone(),
                             bind: bind_var,
@@ -980,11 +1181,13 @@ impl<'s> LowerCtx<'s> {
                         } else {
                             Expr::Map(vec![])
                         };
+                        let key_props = merge_key_props(&props_expr);
                         ops.push(WriteOp::MergeRel {
                             from,
                             to,
                             rel_type,
                             props: props_expr,
+                            key_props,
                             on_create: create_ops.clone(),
                             on_match: match_ops.clone(),
                             bind: bind_rel,
@@ -1328,6 +1531,62 @@ fn is_aggregate_func(name: &str) -> bool {
     )
 }
 
+/// Extract the MERGE pattern's key property names from a lowered properties
+/// expression.
+///
+/// When the MERGE pattern carries an inline literal map (`{k: ...}`), the
+/// lowered `props` is an [`Expr::Map`] and its keys — in source order — are
+/// the structured key surface embedders compile into an upsert's
+/// conflict-target column list. When `props` is anything else (a parameter,
+/// a non-literal expression, or absent), no keys can be statically derived
+/// and an empty `Vec` is returned. See [`WriteOp::MergeNode::key_props`].
+fn merge_key_props(props: &Expr) -> Vec<SmolStr> {
+    match props {
+        Expr::Map(entries) => entries.iter().map(|(k, _)| k.clone()).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Recover MERGE node key properties from a desugar-synthesized `WHERE`
+/// predicate.
+///
+/// `cyrs_hir::desugar` rewrites an inline `{k1: v1, k2: v2}` map on a MERGE
+/// *node* element into the conjunction `var.k1 = v1 AND var.k2 = v2`. This
+/// walks that AND-chain left-to-right and yields each `(variable, property)`
+/// pair in source order. Conjuncts that are not a `Var.prop = expr` equality
+/// (which a synthetic MERGE `WHERE` never contains) are ignored, so passing
+/// an unrelated predicate simply yields an empty result.
+fn collect_merge_key_props(predicate: &HirExpr) -> Vec<(HirVarId, SmolStr)> {
+    let mut out = Vec::new();
+    collect_merge_key_props_into(predicate, &mut out);
+    out
+}
+
+fn collect_merge_key_props_into(expr: &HirExpr, out: &mut Vec<(HirVarId, SmolStr)>) {
+    match expr {
+        HirExpr::BinOp {
+            op: HirBinOp::And,
+            lhs,
+            rhs,
+        } => {
+            collect_merge_key_props_into(lhs, out);
+            collect_merge_key_props_into(rhs, out);
+        }
+        HirExpr::BinOp {
+            op: HirBinOp::Eq,
+            lhs,
+            ..
+        } => {
+            if let HirExpr::Prop { target, prop } = lhs.as_ref()
+                && let HirExpr::Var(var) = target.as_ref()
+            {
+                out.push((*var, prop.clone()));
+            }
+        }
+        _ => {}
+    }
+}
+
 // ── Create/Merge pattern decomposition helper ─────────────────────────────────
 
 /// A decomposed write operation from a CREATE/MERGE pattern.
@@ -1469,6 +1728,11 @@ pub fn lower_union_pair(
         kind,
     });
 
+    // Re-collect the typed parameter surface over the merged arena so the
+    // combined `params` map reflects every `$param` from both arms in
+    // first-seen order (cy-7it, feat-request §2.4).
+    collect_params(&mut left_plan);
+
     Ok(left_plan)
 }
 
@@ -1508,6 +1772,303 @@ pub fn apply_order_skip_limit(
         root = plan.push(op);
     }
     let _ = root;
+
+    // `SKIP` / `LIMIT` counts may themselves be `$param` references; refresh
+    // the typed parameter surface so any newly-introduced parameter is
+    // enumerated (cy-7it, feat-request §2.4).
+    collect_params(plan);
+}
+
+// ── Typed parameter surface collection (cy-7it, feat-request §2.4) ───────────
+
+/// Walk a fully-lowered [`PlanStatement`] and populate its `params` map with
+/// every `$param` reference, in first-seen order, carrying a best-effort
+/// inferred [`ParamType`].
+///
+/// Type inference is *syntactic and best-effort* (see [`ParamType`]): a
+/// parameter is typed from the immediate context in which it appears — a
+/// comparison or arithmetic operand against a literal, the iterable of an
+/// `UNWIND` / list predicate, the target of a property access, and so on.
+/// When a parameter appears in conflicting contexts the more specific of the
+/// two wins on the first sighting but is *not* downgraded later; when no
+/// context constrains it the type stays [`ParamType::Unknown`].
+fn collect_params(plan: &mut PlanStatement) {
+    let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+    for op in &plan.ops {
+        collect_params_read_op(op, &mut params);
+    }
+    for wop in &plan.write_ops {
+        collect_params_write_op(wop, &mut params);
+    }
+    plan.params = params;
+}
+
+/// Record one `$param` sighting. The first sighting wins unless it was
+/// [`ParamType::Unknown`], in which case a later, more specific sighting
+/// upgrades it.
+fn note_param(params: &mut IndexMap<SmolStr, ParamType>, name: &SmolStr, ty: ParamType) {
+    match params.get_mut(name) {
+        Some(existing) => {
+            if *existing == ParamType::Unknown && ty != ParamType::Unknown {
+                *existing = ty;
+            }
+        }
+        None => {
+            params.insert(name.clone(), ty);
+        }
+    }
+}
+
+/// Collect parameters from a read operator and its inline expressions.
+fn collect_params_read_op(op: &ReadOp, params: &mut IndexMap<SmolStr, ParamType>) {
+    match op {
+        ReadOp::Source { .. } | ReadOp::Distinct { .. } | ReadOp::Union { .. } => {}
+        ReadOp::Expand { rel, to, .. } => {
+            if let Some(p) = &rel.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+            if let Some(p) = &to.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::ShortestPath { rel, .. } => {
+            if let Some(p) = &rel.properties {
+                collect_params_expr(p, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::Filter { predicate, .. } => {
+            collect_params_expr(predicate, ParamType::Unknown, params);
+        }
+        ReadOp::Project { items, .. } => {
+            for item in items {
+                collect_params_expr(&item.expr, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::Aggregate { keys, aggs, .. } => {
+            for k in keys {
+                collect_params_expr(k, ParamType::Unknown, params);
+            }
+            for agg in aggs {
+                for a in &agg.args {
+                    collect_params_expr(a, ParamType::Unknown, params);
+                }
+            }
+        }
+        ReadOp::OrderBy { keys, .. } => {
+            for k in keys {
+                collect_params_expr(&k.expr, ParamType::Unknown, params);
+            }
+        }
+        // `SKIP` / `LIMIT` counts are integers by construction.
+        ReadOp::Skip { count, .. } | ReadOp::Limit { count, .. } => {
+            collect_params_expr(count, ParamType::Scalar(ScalarType::Int), params);
+        }
+        ReadOp::Unwind { list, .. } => {
+            // The `UNWIND` operand is always a list.
+            collect_params_expr(list, ParamType::List, params);
+        }
+        ReadOp::With { items, filter, .. } => {
+            for item in items {
+                collect_params_expr(&item.expr, ParamType::Unknown, params);
+            }
+            if let Some(f) = filter {
+                collect_params_expr(f, ParamType::Unknown, params);
+            }
+        }
+        ReadOp::OptionalJoin { pattern, .. } => {
+            collect_params_read_op(pattern, params);
+        }
+    }
+}
+
+/// Collect parameters from a write operator and its inline expressions.
+fn collect_params_write_op(op: &WriteOp, params: &mut IndexMap<SmolStr, ParamType>) {
+    match op {
+        WriteOp::CreateNode { props, .. } | WriteOp::CreateRel { props, .. } => {
+            // The `props` payload is a map (CREATE always supplies a map).
+            collect_params_expr(props, ParamType::Map, params);
+        }
+        WriteOp::MergeNode {
+            props,
+            on_create,
+            on_match,
+            ..
+        }
+        | WriteOp::MergeRel {
+            props,
+            on_create,
+            on_match,
+            ..
+        } => {
+            collect_params_expr(props, ParamType::Map, params);
+            for w in on_create.iter().chain(on_match.iter()) {
+                collect_params_write_op(w, params);
+            }
+        }
+        WriteOp::SetProperty { value, .. } => {
+            collect_params_expr(value, ParamType::Unknown, params);
+        }
+        WriteOp::Delete { targets, .. } => {
+            for t in targets {
+                collect_params_expr(t, ParamType::Unknown, params);
+            }
+        }
+        WriteOp::SetLabels { .. }
+        | WriteOp::RemoveProperty { .. }
+        | WriteOp::RemoveLabels { .. } => {}
+    }
+}
+
+/// Recursively collect parameters from an expression.
+///
+/// `ctx` is the type the *enclosing* construct expects of this expression;
+/// when the expression is a bare [`Expr::Param`] that context becomes the
+/// inferred [`ParamType`]. Sub-expressions are walked with a context
+/// derived from the operator that contains them.
+fn collect_params_expr(expr: &Expr, ctx: ParamType, params: &mut IndexMap<SmolStr, ParamType>) {
+    match expr {
+        Expr::Param { name } => note_param(params, name, ctx),
+
+        Expr::Null
+        | Expr::Bool(_)
+        | Expr::Int(_)
+        | Expr::Float(_)
+        | Expr::String(_)
+        | Expr::Var(_) => {}
+
+        // A property access target is a node / relationship / map; the most
+        // we can say generally is `Unknown`.
+        Expr::Prop { target, .. } => {
+            collect_params_expr(target, ParamType::Unknown, params);
+        }
+        Expr::Index { target, index } => {
+            collect_params_expr(target, ParamType::Unknown, params);
+            collect_params_expr(index, ParamType::Unknown, params);
+        }
+        Expr::Slice { target, start, end } => {
+            // The sliced value is a list; bounds are integers.
+            collect_params_expr(target, ParamType::List, params);
+            if let Some(s) = start {
+                collect_params_expr(s, ParamType::Scalar(ScalarType::Int), params);
+            }
+            if let Some(e) = end {
+                collect_params_expr(e, ParamType::Scalar(ScalarType::Int), params);
+            }
+        }
+        Expr::List(items) => {
+            for it in items {
+                collect_params_expr(it, ParamType::Unknown, params);
+            }
+        }
+        Expr::Map(pairs) => {
+            for (_, v) in pairs {
+                collect_params_expr(v, ParamType::Unknown, params);
+            }
+        }
+        Expr::Call { args, .. } => {
+            for a in args {
+                collect_params_expr(a, ParamType::Unknown, params);
+            }
+        }
+        Expr::BinOp { op, lhs, rhs } => {
+            // Comparison / arithmetic against a literal lets us infer the
+            // other operand's scalar type; string operators imply `String`.
+            let (lhs_ctx, rhs_ctx) = binop_param_ctx(*op, lhs, rhs);
+            collect_params_expr(lhs, lhs_ctx, params);
+            collect_params_expr(rhs, rhs_ctx, params);
+        }
+        Expr::UnaryOp { op, operand } => {
+            let inner = match op {
+                UnaryOp::Neg => ParamType::Unknown,
+                UnaryOp::Not => ParamType::Scalar(ScalarType::Bool),
+            };
+            collect_params_expr(operand, inner, params);
+        }
+        Expr::Case {
+            scrutinee,
+            arms,
+            otherwise,
+        } => {
+            if let Some(s) = scrutinee {
+                collect_params_expr(s, ParamType::Unknown, params);
+            }
+            for (when, then) in arms {
+                collect_params_expr(when, ParamType::Unknown, params);
+                collect_params_expr(then, ParamType::Unknown, params);
+            }
+            if let Some(o) = otherwise {
+                collect_params_expr(o, ParamType::Unknown, params);
+            }
+        }
+        Expr::IsNull { operand, .. } => {
+            collect_params_expr(operand, ParamType::Unknown, params);
+        }
+        Expr::InList { operand, list } => {
+            // `x IN list` — the list operand is a list; the element type is
+            // not constrained without inspecting list members.
+            collect_params_expr(operand, ParamType::Unknown, params);
+            collect_params_expr(list, ParamType::List, params);
+        }
+        Expr::ListPredicate {
+            iterable,
+            predicate,
+            ..
+        } => {
+            collect_params_expr(iterable, ParamType::List, params);
+            if let Some(p) = predicate {
+                collect_params_expr(p, ParamType::Scalar(ScalarType::Bool), params);
+            }
+        }
+        Expr::Exists { pattern } => {
+            collect_params_read_op(pattern, params);
+        }
+    }
+}
+
+/// Derive the inferred parameter context for the two operands of a binary
+/// operator. Comparison / arithmetic operators propagate a literal operand's
+/// scalar type to the other side; string operators imply `String` on both.
+fn binop_param_ctx(op: BinOp, lhs: &Expr, rhs: &Expr) -> (ParamType, ParamType) {
+    match op {
+        BinOp::And | BinOp::Or | BinOp::Xor => (
+            ParamType::Scalar(ScalarType::Bool),
+            ParamType::Scalar(ScalarType::Bool),
+        ),
+        BinOp::StartsWith | BinOp::EndsWith | BinOp::Contains | BinOp::RegexMatch => (
+            ParamType::Scalar(ScalarType::String),
+            ParamType::Scalar(ScalarType::String),
+        ),
+        // Equality / ordering and arithmetic: a literal on one side types
+        // the parameter on the other.
+        BinOp::Eq
+        | BinOp::Neq
+        | BinOp::Lt
+        | BinOp::Le
+        | BinOp::Gt
+        | BinOp::Ge
+        | BinOp::Add
+        | BinOp::Sub
+        | BinOp::Mul
+        | BinOp::Div
+        | BinOp::Mod
+        | BinOp::Pow => (scalar_of_literal(rhs), scalar_of_literal(lhs)),
+        BinOp::In => (ParamType::Unknown, ParamType::List),
+        BinOp::Concat => (ParamType::Unknown, ParamType::Unknown),
+    }
+}
+
+/// If `expr` is a scalar literal, return its [`ParamType`]; otherwise
+/// [`ParamType::Unknown`].
+fn scalar_of_literal(expr: &Expr) -> ParamType {
+    match expr {
+        Expr::Bool(_) => ParamType::Scalar(ScalarType::Bool),
+        Expr::Int(_) => ParamType::Scalar(ScalarType::Int),
+        Expr::Float(_) => ParamType::Scalar(ScalarType::Float),
+        Expr::String(_) => ParamType::Scalar(ScalarType::String),
+        Expr::List(_) => ParamType::List,
+        Expr::Map(_) => ParamType::Map,
+        _ => ParamType::Unknown,
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -1517,7 +2078,13 @@ mod tests {
     use super::*;
     use crate::SortDir;
     use cyrs_hir::desugar::desugar_statement;
-    use cyrs_hir::lower::lower_statement as hir_lower;
+
+    // Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+    // fallible since cy-cfi; `lower_parse` is the infallible primitive and
+    // does not reject parser-recovered inputs (e.g. the no-panic test).
+    fn hir_lower(src: &str) -> cyrs_hir::Statement {
+        cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+    }
 
     // Helper: lower from source Cypher → plan via HIR.
     fn plan_from(src: &str) -> PlanStatement {
@@ -1599,6 +2166,17 @@ mod tests {
                 )
             }
             ReadOp::OptionalJoin { input, .. } => format!("OptionalJoin(input={})", input.0),
+            ReadOp::ShortestPath {
+                input,
+                from,
+                to,
+                bind_path,
+                all,
+                ..
+            } => format!(
+                "ShortestPath(input={}, from={}, to={}, bind_path={}, all={})",
+                input.0, from.0, to.0, bind_path.0, all
+            ),
         }
     }
 
@@ -1764,6 +2342,135 @@ mod tests {
         insta::assert_snapshot!("plan_merge_node", render(&plan));
     }
 
+    // 10a. MERGE node — key_props surfaced from the inline literal map.
+    #[test]
+    fn merge_node_key_props_from_literal_map() {
+        let plan = plan_from("MERGE (n:Person {email: $e})");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["email"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10b. Multi-key MERGE node preserves source order of the map keys.
+    #[test]
+    fn merge_node_key_props_multi_key_in_order() {
+        let plan = plan_from("MERGE (n:Person {first: $f, last: $l})");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["first", "last"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10c. MERGE node with no inline properties carries empty key_props.
+    #[test]
+    fn merge_node_key_props_empty_without_props() {
+        let plan = plan_from("MERGE (n:Person)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert!(key_props.is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10d. MERGE relationship — key_props surfaced from the inline literal map.
+    #[test]
+    fn merge_rel_key_props_from_literal_map() {
+        let plan = plan_from("MATCH (a:Person), (b:Person) MERGE (a)-[r:FOLLOWS {since: $s}]->(b)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeRel { .. }))
+            .expect("expected a MergeRel write op");
+        match merge {
+            WriteOp::MergeRel { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["since"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10e. A non-literal-map MERGE node prop expression yields no key_props.
+    #[test]
+    fn merge_node_key_props_empty_for_param_map() {
+        // `MERGE (n:Person $p)` — the whole map is a parameter, not a
+        // literal `{k: ...}`, so desugaring leaves it on the pattern and
+        // no static keys can be derived.
+        let plan = plan_from("MERGE (n:Person $p)");
+        let merge = plan
+            .write_ops
+            .iter()
+            .find(|w| matches!(w, WriteOp::MergeNode { .. }))
+            .expect("expected a MergeNode write op");
+        match merge {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert!(key_props.is_empty());
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // 10f. `merge_key_props` returns the literal map's keys, in order.
+    #[test]
+    fn merge_key_props_extracts_literal_map_keys() {
+        let map = Expr::Map(vec![("a".into(), Expr::Int(1)), ("b".into(), Expr::Int(2))]);
+        assert_eq!(merge_key_props(&map).as_slice(), ["a", "b"]);
+        // A non-map expression carries no statically derivable keys.
+        assert!(merge_key_props(&Expr::Int(7)).is_empty());
+    }
+
+    // 10g. `collect_merge_key_props` reverses the desugar AND-chain and
+    //      skips conjuncts that are not `Var.prop = expr` equalities.
+    #[test]
+    fn collect_merge_key_props_walks_and_chain() {
+        use cyrs_hir::VarId as HirVar;
+        let eq = |v: u32, p: &str| HirExpr::BinOp {
+            op: HirBinOp::Eq,
+            lhs: Box::new(HirExpr::Prop {
+                target: Box::new(HirExpr::Var(HirVar(v))),
+                prop: p.into(),
+            }),
+            rhs: Box::new(HirExpr::Param("x".into())),
+        };
+        let pred = HirExpr::BinOp {
+            op: HirBinOp::And,
+            lhs: Box::new(eq(0, "first")),
+            rhs: Box::new(HirExpr::BinOp {
+                op: HirBinOp::And,
+                lhs: Box::new(eq(0, "last")),
+                // Not a Var.prop equality — must be ignored.
+                rhs: Box::new(HirExpr::Bool(true)),
+            }),
+        };
+        let keys = collect_merge_key_props(&pred);
+        assert_eq!(
+            keys,
+            vec![(HirVar(0), "first".into()), (HirVar(0), "last".into())]
+        );
+        // A predicate with no equalities yields nothing.
+        assert!(collect_merge_key_props(&HirExpr::Bool(true)).is_empty());
+    }
+
     // 11. SET property
     #[test]
     fn snap_set_property() {
@@ -1892,6 +2599,67 @@ mod tests {
         );
     }
 
+    // ── Shortest-path lowering (cy-eaq, feat-request §1.1) ───────────────────
+
+    /// `shortestPath(...)` lowers to a dedicated `ReadOp::ShortestPath`,
+    /// not a plain var-length `Expand`.
+    #[test]
+    fn shortest_path_lowers_to_shortest_path_op() {
+        let plan = plan_from("MATCH p = shortestPath((a)-[*]->(b)) RETURN p");
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ShortestPath { all: false, .. })),
+            "expected a ShortestPath(all=false) op; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+        assert!(
+            !plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::Expand { .. })),
+            "shortestPath must not degrade to a plain Expand; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+    }
+
+    /// `allShortestPaths(...)` lowers to `ReadOp::ShortestPath { all: true }`.
+    #[test]
+    fn all_shortest_paths_sets_all_flag() {
+        let plan = plan_from("MATCH p = allShortestPaths((a)-[*]->(b)) RETURN p");
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ShortestPath { all: true, .. })),
+            "expected a ShortestPath(all=true) op; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+    }
+
+    /// Acceptance criterion: the shortest-path plan is *distinct* from the
+    /// plain var-length `Expand` plan for the otherwise-identical pattern.
+    #[test]
+    fn shortest_path_plan_differs_from_plain_expand() {
+        let shortest = plan_from("MATCH p = shortestPath((a)-[*]->(b)) RETURN p");
+        let plain = plan_from("MATCH p = (a)-[*]->(b) RETURN p");
+
+        // The plain var-length pattern lowers via an Expand.
+        assert!(
+            plain
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::Expand { .. })),
+            "plain var-length pattern should lower to an Expand; ops={:?}",
+            plain.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+        // The two plans must not be structurally identical.
+        assert_ne!(
+            render(&shortest),
+            render(&plain),
+            "shortest-path plan must differ from the plain Expand plan"
+        );
+    }
+
     // ── Determinism check ────────────────────────────────────────────────────
 
     #[test]
@@ -1946,6 +2714,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -1992,6 +2761,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -2044,6 +2814,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: cyrs_hir::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: cyrs_hir::HirId::DUMMY,
                         bind: Some(n_var),
@@ -2171,6 +2942,41 @@ mod tests {
         }
     }
 
+    /// An un-desugared expression in a `RETURN ... ORDER BY` key must
+    /// surface as `Err`, not panic — `precheck_statement` previously
+    /// skipped the `ORDER BY` / `SKIP` / `LIMIT` trailer. Found by
+    /// `fuzz_plan`.
+    #[test]
+    fn lower_statement_returns_err_on_undesugared_order_by_key() {
+        let span = HirSpan::default();
+        let mut stmt = Statement::new(span);
+        stmt.clauses.push(Clause::Return {
+            id: cyrs_hir::HirId::DUMMY,
+            projections: vec![Projection {
+                expr: HirExpr::Var(HirVarId(0)),
+                alias: Some("x".into()),
+                span,
+            }],
+            distinct: false,
+            span,
+            order_by: vec![OrderItem {
+                expr: HirExpr::MapProjection {
+                    base: Box::new(HirExpr::Var(HirVarId(0))),
+                    items: vec![],
+                },
+                descending: false,
+                span,
+            }],
+            skip: None,
+            limit: None,
+        });
+        let err = lower_statement(&stmt).expect_err("ORDER BY key must be scanned");
+        match err {
+            PlanLowerError::UndesugaredExpr { kind, .. } => assert_eq!(kind, "MapProjection"),
+            other => panic!("expected UndesugaredExpr(MapProjection), got {other:?}"),
+        }
+    }
+
     /// cy-863: an `Expr::Unresolved` hidden inside a `PatternPredicate`'s
     /// embedded pattern (e.g. an unresolved name in a node-property
     /// expression) must be reported via the same `UnresolvedName` error
@@ -2191,6 +2997,7 @@ mod tests {
         let pattern = cyrs_hir::Pattern {
             parts: vec![PatternPart {
                 named_as: None,
+                shortest: cyrs_hir::ShortestPath::No,
                 elements: vec![element],
             }],
         };
@@ -2243,5 +3050,161 @@ mod tests {
             saw_exists,
             "expected plan to carry Expr::Exists after PatternPredicate lowering, got {plan:?}"
         );
+    }
+
+    // ── Typed parameter surface (cy-7it, feat-request §2.4) ───────────────────
+
+    /// Every lowered plan carries a `params` map — empty for a query with
+    /// no `$param` references.
+    #[test]
+    fn params_surface_empty_when_no_parameters() {
+        let plan = plan_from("MATCH (n:Person) RETURN n.name\n");
+        assert!(
+            plan.params.is_empty(),
+            "no-parameter query must yield an empty params map, got {:?}",
+            plan.params
+        );
+    }
+
+    /// A query referencing `$a` and `$b` enumerates both, in first-seen
+    /// order.
+    #[test]
+    fn params_surface_enumerates_all_parameters() {
+        let plan = plan_from("MATCH (n:Person) WHERE n.age > $a AND n.name = $b RETURN n\n");
+        let names: Vec<&str> = plan.params.keys().map(SmolStr::as_str).collect();
+        assert_eq!(names, ["a", "b"], "both params enumerated in source order");
+    }
+
+    /// Comparison against an integer literal infers `Scalar(Int)`.
+    #[test]
+    fn params_surface_infers_int_from_comparison() {
+        let plan = plan_from("MATCH (n) WHERE n.age > $minAge RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("minAge")),
+            Some(&ParamType::Unknown),
+            "comparison RHS against a property is unconstrained",
+        );
+        // RHS literal: `$x = 1` types $x as Int.
+        let plan = plan_from("MATCH (n) WHERE $x = 1 RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("x")),
+            Some(&ParamType::Scalar(ScalarType::Int)),
+        );
+    }
+
+    /// Comparison against a string literal infers `Scalar(String)`; a
+    /// string operator likewise.
+    #[test]
+    fn params_surface_infers_string() {
+        let plan = plan_from("MATCH (n) WHERE $name = 'Alice' RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("name")),
+            Some(&ParamType::Scalar(ScalarType::String)),
+        );
+        let plan = plan_from("MATCH (n) WHERE $prefix STARTS WITH 'A' RETURN n\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("prefix")),
+            Some(&ParamType::Scalar(ScalarType::String)),
+        );
+    }
+
+    /// A parameter used as the iterable of `UNWIND` infers `List`.
+    #[test]
+    fn params_surface_infers_list_from_unwind() {
+        let plan = plan_from("UNWIND $items AS x RETURN x\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("items")),
+            Some(&ParamType::List),
+        );
+    }
+
+    /// A parameter used as a `SKIP` / `LIMIT` count infers `Scalar(Int)`.
+    #[test]
+    fn params_surface_infers_int_from_limit() {
+        let plan = plan_from("MATCH (n) RETURN n LIMIT $top\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("top")),
+            Some(&ParamType::Scalar(ScalarType::Int)),
+        );
+    }
+
+    /// A parameter supplying `CREATE` properties infers `Map`.
+    #[test]
+    fn params_surface_infers_map_from_create_props() {
+        let plan = plan_from("CREATE (n:Person $props)\n");
+        // Some HIR shapes attach the param map differently; only assert when
+        // the parameter is present at all.
+        if let Some(ty) = plan.params.get(&SmolStr::new("props")) {
+            assert_eq!(*ty, ParamType::Map);
+        }
+    }
+
+    /// A parameter appearing only in a bare projection stays `Unknown`.
+    #[test]
+    fn params_surface_unknown_when_unconstrained() {
+        let plan = plan_from("MATCH (n) RETURN $opaque\n");
+        assert_eq!(
+            plan.params.get(&SmolStr::new("opaque")),
+            Some(&ParamType::Unknown),
+        );
+    }
+
+    /// `collect_params` itself: a hand-built plan with parameters in read
+    /// and write ops surfaces every name.
+    #[test]
+    fn collect_params_walks_read_and_write_ops() {
+        let mut plan = PlanStatement::empty();
+        plan.ops.push(ReadOp::Source {
+            label: None,
+            bind: VarId(0),
+        });
+        plan.ops.push(ReadOp::Filter {
+            input: OpId(0),
+            predicate: Expr::BinOp {
+                op: BinOp::Eq,
+                lhs: Box::new(Expr::Param {
+                    name: SmolStr::new("p"),
+                }),
+                rhs: Box::new(Expr::Int(1)),
+            },
+        });
+        plan.write_ops.push(WriteOp::SetProperty {
+            target: VarId(0),
+            prop: SmolStr::new("k"),
+            value: Expr::Param {
+                name: SmolStr::new("q"),
+            },
+        });
+        collect_params(&mut plan);
+        let names: Vec<&str> = plan.params.keys().map(SmolStr::as_str).collect();
+        assert_eq!(names, ["p", "q"]);
+        assert_eq!(plan.params["p"], ParamType::Scalar(ScalarType::Int));
+        assert_eq!(plan.params["q"], ParamType::Unknown);
+    }
+
+    /// An `Unknown` first sighting is upgraded by a later, more specific
+    /// one; a specific first sighting is not downgraded.
+    #[test]
+    fn collect_params_first_specific_sighting_wins() {
+        // `RETURN $p, $p > 1`: first bare (Unknown), then Int — upgrade.
+        let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+        let name = SmolStr::new("p");
+        note_param(&mut params, &name, ParamType::Unknown);
+        note_param(&mut params, &name, ParamType::Scalar(ScalarType::Int));
+        assert_eq!(params["p"], ParamType::Scalar(ScalarType::Int));
+        // Reverse: specific first, then Unknown — keep specific.
+        let mut params: IndexMap<SmolStr, ParamType> = IndexMap::new();
+        note_param(&mut params, &name, ParamType::List);
+        note_param(&mut params, &name, ParamType::Unknown);
+        assert_eq!(params["p"], ParamType::List);
+    }
+
+    /// The `params` map round-trips through serde (cy-7it).
+    #[test]
+    fn params_surface_serde_round_trip() {
+        let plan = plan_from("MATCH (n) WHERE $x = 1 RETURN n LIMIT $top\n");
+        let json = serde_json::to_string(&plan).expect("serialise");
+        let back: PlanStatement = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(plan.params, back.params);
     }
 }

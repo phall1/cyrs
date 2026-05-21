@@ -161,8 +161,11 @@ fn property_completions(db: &Database, source: &str, offset: TextSize) -> Vec<Co
     // Lower + resolve the current buffer. Completion is per-keystroke
     // but parse is Salsa-cached at the CST layer; lowering a single
     // statement is cheap and mirrors the hover engine's strategy —
-    // spec §14.4 p95 ≤ 25ms has comfortable headroom.
-    let stmt = cyrs_hir::lower::lower_statement(source);
+    // spec §14.4 p95 ≤ 25ms has comfortable headroom. Lower best-effort
+    // from the parsed tree (cy-cfi): a half-typed buffer rarely parses
+    // cleanly, so `lower_parse` is required over `lower_statement`.
+    let stmt = cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(source))
+        .expect("lower_parse is infallible");
     let mut sink = cyrs_diag::DiagnosticsSink::new();
     let resolved = cyrs_sema::resolve::resolve(&stmt, false, &mut sink);
 

@@ -430,12 +430,15 @@ pub fn pattern_predicate(parts: Vec<PatternPart>) -> Expr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        Binding, Direction, PatternElement, Projection, RelLength, VarId, VarKind,
-        lower::lower_statement,
-    };
+    use crate::{Binding, Direction, PatternElement, Projection, RelLength, VarId, VarKind};
     use cyrs_syntax::parse;
     use smol_str::SmolStr;
+
+    // `lower_statement` is fallible since cy-cfi; these tests drive it with
+    // well-formed input, so unwrap the `Ok` locally.
+    fn lower_statement(src: &str) -> Statement {
+        crate::lower::lower_statement(src).expect("desugar test input must lower cleanly")
+    }
 
     // --- Test helpers -------------------------------------------------------
 
@@ -649,6 +652,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var_id),
@@ -967,6 +971,7 @@ mod tests {
         let span = TextRange::default();
         let expr = pattern_predicate(vec![PatternPart {
             named_as: None,
+            shortest: crate::ShortestPath::No,
             elements: vec![
                 PatternElement::Node {
                     id: HirId(1),

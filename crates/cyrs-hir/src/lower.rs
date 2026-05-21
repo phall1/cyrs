@@ -29,9 +29,9 @@ use smol_str::SmolStr;
 use cyrs_syntax::{Parse, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse};
 
 use crate::{
-    BinOp, Binding, Clause, Direction, Expr, HirId, ListPredKind, MapProjectionItem, OrderItem,
-    Pattern, PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem, Statement,
-    UnaryOp, VarId, VarKind,
+    BinOp, Binding, Clause, Direction, Expr, HirId, HirLowerError, ListPredKind, MapProjectionItem,
+    OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem,
+    ShortestPath, Statement, UnaryOp, VarId, VarKind,
 };
 
 // ---------------------------------------------------------------------------
@@ -51,8 +51,24 @@ use crate::{
 /// first. Callers that already hold a [`Parse`] (e.g. an embedder that
 /// also needs the syntax errors) should call [`lower_parse`] directly to
 /// avoid re-running the lexer and parser — see also [`crate::parse_to_hir`].
-pub fn lower_statement(src: &str) -> Statement {
-    lower_parse(&parse(src))
+///
+/// # Errors
+///
+/// Returns [`HirLowerError::ParseFailed`] when the parser reported one or
+/// more [`cyrs_syntax::SyntaxError`]s for `src`. Earlier revisions
+/// silently swallowed those errors and returned a best-effort partial
+/// [`Statement`]; the typed channel (bead cy-cfi, feat-request §4.1)
+/// lets an embedder fail without a panic boundary. To inspect a
+/// recovered-but-erroneous tree anyway, use [`crate::parse_to_hir`],
+/// which keeps the best-effort contract.
+pub fn lower_statement(src: &str) -> Result<Statement, HirLowerError> {
+    let parsed = parse(src);
+    if !parsed.errors().is_empty() {
+        return Err(HirLowerError::ParseFailed {
+            errors: parsed.errors().to_vec(),
+        });
+    }
+    lower_parse(&parsed)
 }
 
 /// Lower an already-computed [`Parse`] into an HIR [`Statement`].
@@ -65,7 +81,18 @@ pub fn lower_statement(src: &str) -> Statement {
 ///
 /// The `Parse` is borrowed; only the underlying `SyntaxNode` is walked,
 /// so callers retain ownership.
-pub fn lower_parse(parse: &Parse) -> Statement {
+///
+/// # Errors
+///
+/// Returns [`HirLowerError::Invariant`] if a lowering-invariant violation
+/// is ever detected while walking the AST. AST → HIR lowering is
+/// genuinely infallible today — the parser always produces a tree and
+/// every syntactic shape has a lowering arm — so this function currently
+/// always returns `Ok`. The fallible signature (bead cy-cfi,
+/// feat-request §4.1) is the contract pgGraph needs: a stable, typed
+/// failure channel that survives future lowering passes growing
+/// fallible cases, without another breaking signature change.
+pub fn lower_parse(parse: &Parse) -> Result<Statement, HirLowerError> {
     let root = parse.syntax();
     // --- cy-lp3y SESSION SET HIR ---
     // GQL `SESSION SET …` is a top-level statement category that sits
@@ -85,7 +112,7 @@ pub fn lower_parse(parse: &Parse) -> Statement {
             next_var: 0,
         };
         ctx.lower_session_set_stmt(session_node);
-        return ctx.stmt;
+        return Ok(ctx.stmt);
     }
     // --- end cy-lp3y ---
 
@@ -102,7 +129,7 @@ pub fn lower_parse(parse: &Parse) -> Statement {
         next_var: 0,
     };
     ctx.lower_stmt_node(stmt_node);
-    ctx.stmt
+    Ok(ctx.stmt)
 }
 
 // ---------------------------------------------------------------------------
@@ -502,21 +529,23 @@ impl LowerCtx {
                 SyntaxKind::PATTERN_PART => {
                     out.push(self.lower_pattern_part(child));
                 }
-                // cy-b5b: `shortestPath((a)-[*]->(b))` and
-                // `allShortestPaths(...)` wrap an inner PATTERN_PART. For
-                // v1 we lower the inner pattern directly and treat the
-                // shortest-path discriminant as a CST-level annotation;
-                // downstream layers (plan) will surface the variant via
-                // its own wrapper op. The path-binder case (`p = ...`)
-                // is handled below via NAMED_PATTERN_PART, which can
-                // wrap either a plain PATTERN_PART or a
+                // cy-eaq: `shortestPath((a)-[*]->(b))` and
+                // `allShortestPaths(...)` wrap an inner PATTERN_PART. We
+                // lower the inner pattern and record the shortest-path
+                // discriminant on the `PatternPart` so the plan layer
+                // can surface a dedicated `ReadOp::ShortestPath` rather
+                // than a plain var-length `Expand`. The path-binder case
+                // (`p = ...`) is handled below via NAMED_PATTERN_PART,
+                // which can wrap either a plain PATTERN_PART or a
                 // SHORTEST_PATH_PATTERN.
                 SyntaxKind::SHORTEST_PATH_PATTERN => {
                     if let Some(inner) = child
                         .children()
                         .find(|n| n.kind() == SyntaxKind::PATTERN_PART)
                     {
-                        out.push(self.lower_pattern_part(inner));
+                        let mut part = self.lower_pattern_part(inner);
+                        part.shortest = shortest_path_kind(&child);
+                        out.push(part);
                     }
                 }
                 SyntaxKind::NAMED_PATTERN_PART => {
@@ -531,18 +560,24 @@ impl LowerCtx {
                             });
                     // The inner shape is either PATTERN_PART (plain) or
                     // SHORTEST_PATH_PATTERN (wrapping its own
-                    // PATTERN_PART). Both reduce to a single
-                    // PatternPart in HIR for v1.
+                    // PATTERN_PART). The shortest-path discriminant is
+                    // recorded on the resulting `PatternPart` so the
+                    // plan layer can lower `p = shortestPath(...)` to a
+                    // dedicated `ReadOp::ShortestPath`.
                     let inner_part = child.children().find_map(|n| match n.kind() {
-                        SyntaxKind::PATTERN_PART => Some(n),
+                        SyntaxKind::PATTERN_PART => Some((n, ShortestPath::No)),
                         SyntaxKind::SHORTEST_PATH_PATTERN => {
-                            n.children().find(|c| c.kind() == SyntaxKind::PATTERN_PART)
+                            let kind = shortest_path_kind(&n);
+                            n.children()
+                                .find(|c| c.kind() == SyntaxKind::PATTERN_PART)
+                                .map(|c| (c, kind))
                         }
                         _ => None,
                     });
-                    if let Some(inner) = inner_part {
+                    if let Some((inner, kind)) = inner_part {
                         let mut part = self.lower_pattern_part(inner);
                         part.named_as = bind;
+                        part.shortest = kind;
                         out.push(part);
                     }
                 }
@@ -557,6 +592,7 @@ impl LowerCtx {
         PatternPart {
             named_as: None,
             elements,
+            shortest: crate::ShortestPath::No,
         }
     }
 
@@ -1514,6 +1550,7 @@ impl LowerCtx {
             } else {
                 vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: elems,
                 }]
             }
@@ -1534,6 +1571,20 @@ fn has_token(node: &SyntaxNode, kind: SyntaxKind) -> bool {
     node.children_with_tokens()
         .filter_map(SyntaxElement::into_token)
         .any(|t| t.kind() == kind)
+}
+
+/// Classify a `SHORTEST_PATH_PATTERN` node by its leading keyword token.
+///
+/// The parser keeps the `shortestPath` / `allShortestPaths` keyword as a
+/// child token of the node (see `grammar::pattern::shortest_path_pattern`),
+/// so the discriminant is recoverable here. A node without either keyword
+/// (a recovery shape) degrades to [`ShortestPath::Shortest`].
+fn shortest_path_kind(node: &SyntaxNode) -> ShortestPath {
+    if has_token(node, SyntaxKind::ALLSHORTESTPATHS_KW) {
+        ShortestPath::AllShortest
+    } else {
+        ShortestPath::Shortest
+    }
 }
 
 /// Extract the text of the first `IDENT` or `QUOTED_IDENT` token that is a
@@ -1719,6 +1770,17 @@ fn strip_string_delimiters(raw: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Test-only sugar: the snapshot/behaviour tests below drive lowering
+    // with well-formed input and care only about the resulting
+    // `Statement`. Since `lower_statement` is now fallible (bead cy-cfi),
+    // this private shadow `.expect()`s the `Ok` so those tests stay
+    // terse — it takes precedence over the glob-imported public function.
+    // Tests that exercise the `Err` / `lower_parse` paths call the
+    // fully-qualified `super::lower_statement` / `super::lower_parse`.
+    fn lower_statement(src: &str) -> Statement {
+        super::lower_statement(src).expect("test input must lower cleanly")
+    }
 
     // Helper: produce a stable, readable snapshot string from a Statement.
     fn render(stmt: &Statement) -> String {
@@ -2174,5 +2236,76 @@ mod tests {
         assert!(!order_by[0].descending);
         assert!(matches!(skip, Some(Expr::Int(5))));
         assert!(matches!(limit, Some(Expr::Int(10))));
+    }
+
+    // --- cy-cfi: typed Result failure channel (feat-request §4.1) ---
+
+    #[test]
+    fn lower_statement_ok_on_well_formed_input() {
+        // Clean input yields `Ok` with the expected clause shape.
+        let stmt = super::lower_statement("MATCH (n) RETURN n")
+            .expect("well-formed input must lower to Ok");
+        assert_eq!(stmt.clauses.len(), 2);
+    }
+
+    #[test]
+    fn lower_statement_err_on_parse_failure() {
+        // A bare `MATCH` keyword is a parse failure the parser recovers
+        // from; lowering now surfaces it as a typed `Err` instead of
+        // silently returning a partial Statement.
+        let err = super::lower_statement("MATCH").expect_err("parse-failing input must yield Err");
+        match err {
+            HirLowerError::ParseFailed { errors } => {
+                assert!(
+                    !errors.is_empty(),
+                    "ParseFailed must carry the recovered SyntaxErrors"
+                );
+            }
+            other => panic!("expected ParseFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lower_statement_err_on_garbage_input() {
+        // Wholly un-parseable input also routes through the typed channel
+        // rather than panicking.
+        let err =
+            super::lower_statement("@@@ not cypher @@@").expect_err("garbage input must yield Err");
+        assert!(matches!(err, HirLowerError::ParseFailed { .. }));
+    }
+
+    #[test]
+    fn lower_statement_err_display_mentions_syntax_errors() {
+        // The `Display` impl surfaces the error count and the first
+        // recovered diagnostic for embedder-facing messages.
+        let err = super::lower_statement("MATCH (n RETURN n")
+            .expect_err("unbalanced paren must yield Err");
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("syntax error"),
+            "Display should mention syntax errors, got: {rendered}"
+        );
+    }
+
+    #[test]
+    fn lower_parse_is_ok_on_recovered_tree() {
+        // `lower_parse` borrows an already-computed `Parse` and never
+        // re-runs the parser, so it does not emit `ParseFailed` — even
+        // for a tree the parser recovered from errors, it returns `Ok`
+        // with a best-effort `Statement` (lowering is infallible today).
+        let parse = parse("MATCH");
+        assert!(!parse.errors().is_empty(), "expected parser to recover");
+        let stmt = super::lower_parse(&parse).expect("lower_parse is infallible");
+        let _ = stmt;
+    }
+
+    #[test]
+    fn lower_statement_agrees_with_lower_parse_on_clean_input() {
+        // For clean input both entry points succeed and agree.
+        let src = "MATCH (a)-[r:KNOWS]->(b) RETURN a, b, r";
+        let via_str = super::lower_statement(src).expect("clean input lowers");
+        let via_parse = super::lower_parse(&parse(src)).expect("clean input lowers");
+        assert_eq!(via_str.clauses.len(), via_parse.clauses.len());
+        assert_eq!(via_str.bindings.len(), via_parse.bindings.len());
     }
 }

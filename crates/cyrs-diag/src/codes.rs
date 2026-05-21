@@ -12,15 +12,45 @@
 //! | `E1000..=E1999` | Name resolution                          |
 //! | `E2000..=E2999` | Semantic — schema-free                   |
 //! | `E3000..=E3999` | Semantic — schema-aware                  |
-//! | `E4000..=E4999` | Dialect / compatibility                  |
+//! | `E4000..=E4499` | Dialect / compatibility                  |
+//! | `E4500..=E4999` | **Reserved — embedder-owned** (see below)|
 //! | `E5000..=E5999` | Type system                              |
 //! | `W6000..=W6999` | Style / lint warnings                    |
 //! | `W7000..=W7999` | Performance warnings                     |
 //! | `N8000..=N8999` | Informational notes                      |
+//!
+//! # Embedder-owned reserved range (`E4500..=E4999`)
+//!
+//! The `E4500..=E4999` block is **permanently reserved for external
+//! embedders** (hosts that embed cyrs as a query-language front-end).
+//! Such hosts routinely need to reject queries for reasons cyrs cannot
+//! diagnose — concerns of their own storage model (label not registered,
+//! a `MERGE` key not backed by a constraint, label-set arithmetic that
+//! the host cannot support, etc.). Those rejections need diagnostic
+//! codes, but they are not cyrs's to mint.
+//!
+//! This is a **stable policy**: cyrs's own [`DiagCode`] enum will never
+//! mint a code whose numeric discriminant falls in `4500..=4999`. cyrs's
+//! native dialect / compatibility codes are confined to `E4000..=E4499`.
+//! An embedder may therefore allocate `E4500..=E4999` for its own
+//! diagnostics with no risk that a future cyrs release collides with it.
+//!
+//! The guarantee is mechanically enforced: `tests/registry.rs` asserts
+//! that no entry of [`DiagCode::ALL`] lands in the reserved range, so
+//! adding a native code there fails CI. The reservation is policy +
+//! test only — cyrs does not itself define an `E45xx` variant, since
+//! the codes in that range belong to the embedder, not to cyrs.
 
 use core::fmt;
 
 /// Stable diagnostic code. Rendered as `E0001` / `W6001` / `N8001`.
+///
+/// # Reserved range
+///
+/// The numeric range `4500..=4999` (`E4500..=E4999`) is **reserved for
+/// external embedders** and will never be assigned a native cyrs
+/// variant — see the [module docs](self) for the full policy. cyrs's
+/// own dialect / compatibility codes live in `E4000..=E4499`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(non_camel_case_types)]
@@ -417,6 +447,19 @@ pub enum DiagCode {
     ///
     /// Docs: `docs/errors/E3008.md`
     E3008 = 3008,
+    /// `MERGE` key not backed by a declared uniqueness constraint
+    /// (spec §7.5).
+    ///
+    /// Emitted by the `cyrs-sema` schema-aware pass when a `MERGE` node or
+    /// relationship pattern carries an inline property map whose key set
+    /// does not match any uniqueness tuple declared via
+    /// `SchemaProvider::label_unique_props` /
+    /// `SchemaProvider::rel_type_unique_props`. Without a backing
+    /// constraint, `MERGE`'s match-or-create semantics are not provably
+    /// deterministic.
+    ///
+    /// Docs: `docs/errors/E3009.md`
+    E3009 = 3009,
     /// Schema-file property type is unresolved (spec 0002 §9).
     ///
     /// Emitted by `cypher schema check` when a property or parameter
@@ -439,7 +482,10 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E3011.md`
     E3011 = 3011,
 
-    // --- dialect (E4000–E4999) ----------------------------------------
+    // --- dialect (E4000–E4499) ----------------------------------------
+    // NOTE: native cyrs dialect codes stop at E4499. The range
+    // E4500–E4999 is permanently reserved for embedders (see the
+    // module docs) and is enforced empty by `tests/registry.rs`.
     /// Dialect not supported (spec §9.3).
     ///
     /// Emitted by `cyrs-sema::dialect::reject_neo4j_current` when the
@@ -515,6 +561,21 @@ pub enum DiagCode {
     /// Docs: `docs/errors/E4022.md`
     E4022 = 4022,
     // --- end cy-v5u6 ---
+
+    // --- cy-5js multi-label compatibility ---
+    /// `incompatible_labels` — a `CREATE` node pattern (or a `SET` that
+    /// adds labels) declares a multi-label combination the schema's
+    /// [`SchemaProvider::labels_compatible`] reports cannot co-exist on
+    /// one node (feat-request §2.3). Emitted by
+    /// `cyrs-sema::schema_aware::check_schema_aware`. A provider that
+    /// returns `None` (does not constrain the combination) never fires
+    /// this gate.
+    ///
+    /// [`SchemaProvider::labels_compatible`]: ../cyrs_schema/trait.SchemaProvider.html#method.labels_compatible
+    ///
+    /// Docs: `docs/errors/E4023.md`
+    E4023 = 4023,
+    // --- end cy-5js ---
 
     // --- type system (E5000–E5999) ------------------------------------
     /// Type mismatch in unification — two incompatible concrete types cannot
@@ -841,6 +902,7 @@ impl DiagCode {
             Self::E3006 => "E3006",
             Self::E3007 => "E3007",
             Self::E3008 => "E3008",
+            Self::E3009 => "E3009",
             Self::E3010 => "E3010",
             Self::E3011 => "E3011",
             Self::E4001 => "E4001",
@@ -861,6 +923,9 @@ impl DiagCode {
             Self::E4021 => "E4021",
             Self::E4022 => "E4022",
             // --- end cy-v5u6 ---
+            // --- cy-5js multi-label compatibility ---
+            Self::E4023 => "E4023",
+            // --- end cy-5js ---
             Self::E5003 => "E5003",
             Self::E5010 => "E5010",
             Self::E5011 => "E5011",
@@ -1011,6 +1076,7 @@ impl DiagCode {
         Self::E3006,
         Self::E3007,
         Self::E3008,
+        Self::E3009,
         Self::E3010,
         Self::E3011,
         Self::E4001,
@@ -1030,6 +1096,7 @@ impl DiagCode {
         // --- cy-v5u6 catalog DDL ---
         Self::E4021,
         Self::E4022,
+        Self::E4023,
         // --- end cy-v5u6 ---
         Self::E5003,
         Self::E5010,

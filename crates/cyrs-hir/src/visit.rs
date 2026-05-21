@@ -48,7 +48,7 @@
 //!     }
 //! }
 //!
-//! let stmt = lower_statement("MATCH (a) RETURN a");
+//! let stmt = lower_statement("MATCH (a) RETURN a").expect("clean input lowers");
 //! let mut c = VarCollector::default();
 //! c.visit_statement(&stmt);
 //! assert!(!c.vars.is_empty());
@@ -393,6 +393,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var),

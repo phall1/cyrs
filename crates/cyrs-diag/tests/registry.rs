@@ -61,6 +61,29 @@ fn all_covers_every_variant() {
     assert_eq!(expected, actual);
 }
 
+/// The `E4500..=E4999` block is permanently reserved for external
+/// embedders (e.g. a host that embeds cyrs and mints its own codes for
+/// storage-model rejections cyrs cannot diagnose). cyrs's own
+/// `DiagCode` enum must never assign a code in that range — its native
+/// dialect / compatibility codes are confined to `E4000..=E4499`.
+///
+/// This test mechanically enforces the policy documented on
+/// `DiagCode`: adding a native variant in the reserved range fails CI
+/// here. See feat-request §3.1 / `docs/embedder-issues/0003`.
+#[test]
+fn embedder_reserved_range_is_empty() {
+    const RESERVED: std::ops::RangeInclusive<u32> = 4500..=4999;
+    for c in DiagCode::ALL {
+        let n = *c as u32;
+        assert!(
+            !RESERVED.contains(&n),
+            "code {} ({n}) falls in the embedder-reserved range \
+             E4500..=E4999 — native cyrs codes must stay below E4500",
+            c.as_str(),
+        );
+    }
+}
+
 #[test]
 fn all_count_pinned() {
     // When you add a variant to `DiagCode`, append it to `ALL` and
@@ -70,14 +93,14 @@ fn all_count_pinned() {
     //   77  syntax         (E0001–E0082, cy-a4d + cy-3xz + cy-7s6.1 + cy-8x5 + cy-5gh + cy-41u + cy-7lf + cy-01q)
     //    2  name-res       (E1001–E1002, cy-heh)
     //    7  schema-free    (E2007–E2013, cy-b4b + cy-raq)
-    //    9  schema-aware   (E3001–E3004, E3006–E3008, E3010, E3011, cy-36u + cy-0ek)
-    //   13  dialect        (E4001 + E4010–E4021, cy-z49 + cy-v5u6)
+    //   10  schema-aware   (E3001–E3004, E3006–E3011, cy-36u + cy-0ek + cy-e45)
+    //   14  dialect        (E4001 + E4010–E4023, cy-z49 + cy-v5u6 + cy-5js)
     //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
     //    8  style          (W6001–W6007, W6010, cy-0ek)
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  125  total
+    //  126  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -131,6 +154,13 @@ fn all_count_pinned() {
     //          lowering + sema of `CREATE GRAPH` / `CREATE SCHEMA`
     //          (ISO/IEC 39075:2024 §14.14; rebased E4020/E4021 →
     //          E4021/E4022, ceded E4020 to cy-lp3y).
-    const EXPECTED: usize = 142;
+    // cy-e45: added E3009 (MERGE key not backed by a declared uniqueness
+    //         constraint) for schema-aware MERGE validation against
+    //         `SchemaProvider::{label,rel_type}_unique_props` (feat-
+    //         request §2.2; spec §7.5). E3005 stays retired (cy-va1).
+    // cy-5js: added E4023 (incompatible multi-label combination) for the
+    //         `SchemaProvider::labels_compatible` check on `CREATE` node
+    //         patterns and label-adding `SET` items (feat-request §2.3).
+    const EXPECTED: usize = 144;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

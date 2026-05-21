@@ -14,9 +14,16 @@
 //! assert that the two sets of diagnostic codes are identical.
 
 use cyrs_diag::{DiagCode, DiagnosticsSink};
-use cyrs_hir::{desugar::desugar_statement, lower::lower_statement};
+use cyrs_hir::desugar::desugar_statement;
 use cyrs_sema::{SemaOptions, analyse};
 use proptest::prelude::*;
+
+/// Lower `src` → HIR best-effort. `cyrs_hir::lower::lower_statement` is
+/// fallible since cy-cfi; this property feeds it generated input that may
+/// not parse cleanly, so `lower_parse` (infallible) is required.
+fn lower_statement(src: &str) -> cyrs_hir::Statement {
+    cyrs_hir::lower::lower_parse(&cyrs_syntax::parse(src)).expect("lower_parse is infallible")
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

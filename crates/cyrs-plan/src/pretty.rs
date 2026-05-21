@@ -169,6 +169,30 @@ fn print_op(arena: &[ReadOp], idx: usize, depth: usize, out: &mut String) {
             // Inner arm: embedded tree (not in arena).
             print_op_tree(pattern, depth + 1, out);
         }
+        ReadOp::ShortestPath {
+            input,
+            from,
+            rel,
+            to,
+            bind_path,
+            all,
+        } => {
+            let func = if *all {
+                "allShortestPaths"
+            } else {
+                "shortestPath"
+            };
+            writeln!(
+                out,
+                "{pfx}ShortestPath ${} = {func}((${})-[{}]-(${}))",
+                bind_path.0,
+                from.0,
+                format_rel_spec(rel),
+                to.0,
+            )
+            .unwrap();
+            print_op(arena, input.0 as usize, depth + 1, out);
+        }
     }
 }
 
@@ -238,6 +262,7 @@ fn op_name(op: &ReadOp) -> &'static str {
         ReadOp::Union { .. } => "Union",
         ReadOp::With { .. } => "With",
         ReadOp::OptionalJoin { .. } => "OptionalJoin",
+        ReadOp::ShortestPath { .. } => "ShortestPath",
     }
 }
 
@@ -279,6 +304,7 @@ fn print_write_op(op: &WriteOp, depth: usize, out: &mut String) {
         WriteOp::MergeNode {
             labels,
             props,
+            key_props,
             on_create,
             on_match,
             bind,
@@ -291,6 +317,9 @@ fn print_write_op(op: &WriteOp, depth: usize, out: &mut String) {
                 format_expr(props),
             )
             .unwrap();
+            if !key_props.is_empty() {
+                writeln!(out, "{pfx}  key_props={key_props:?}").unwrap();
+            }
             if !on_create.is_empty() {
                 writeln!(out, "{pfx}  ON CREATE:").unwrap();
                 for wop in on_create {
@@ -309,6 +338,7 @@ fn print_write_op(op: &WriteOp, depth: usize, out: &mut String) {
             to,
             rel_type,
             props,
+            key_props,
             on_create,
             on_match,
             bind,
@@ -322,6 +352,9 @@ fn print_write_op(op: &WriteOp, depth: usize, out: &mut String) {
             .unwrap();
             if !matches!(props, Expr::Map(v) if v.is_empty()) {
                 writeln!(out, "{}  props={}", pfx, format_expr(props)).unwrap();
+            }
+            if !key_props.is_empty() {
+                writeln!(out, "{pfx}  key_props={key_props:?}").unwrap();
             }
             if !on_create.is_empty() {
                 writeln!(out, "{pfx}  ON CREATE:").unwrap();

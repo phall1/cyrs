@@ -4,10 +4,14 @@ expression: "serde_json::to_value(&plan).unwrap()"
 ---
 {
   "ops": [],
+  "params": [],
   "var_map": [],
   "write_ops": [
     {
       "bind": 0,
+      "key_props": [
+        "name"
+      ],
       "labels": [
         "Person"
       ],

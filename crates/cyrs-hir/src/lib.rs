@@ -32,6 +32,9 @@
 pub mod catalog;
 // --- end cy-v5u6 ---
 pub mod desugar;
+// --- cy-cfi typed HIR-lowering failure channel ---
+pub mod error;
+// --- end cy-cfi ---
 pub mod lower;
 pub mod pretty;
 pub mod scope;
@@ -45,6 +48,9 @@ pub use catalog::{
     CatalogHir, CatalogStatement, GraphSourceHir, GraphTypeHir, lower_catalog_from_parse,
 };
 // --- end cy-v5u6 ---
+// --- cy-cfi typed HIR-lowering failure channel ---
+pub use error::HirLowerError;
+// --- end cy-cfi ---
 pub use lower::{lower_parse, lower_statement};
 pub use scope::{
     BindingKind, Resolution, ResolvedBinding, ResolvedNames, ScopeGraph, ScopeId, ScopeKind,
@@ -54,6 +60,8 @@ pub use scope::{
 pub use session::{SessionSetHir, SessionSetVariantHir};
 // --- end cy-lp3y ---
 pub use visit::{Visitor, walk_clause, walk_expr, walk_statement};
+
+use std::ops::Range;
 
 use cyrs_syntax::{Parse, SyntaxError, SyntaxNode, TextRange};
 
@@ -99,7 +107,14 @@ pub struct ParseToHir {
 #[must_use]
 pub fn parse_to_hir(src: &str) -> ParseToHir {
     let parse = cyrs_syntax::parse(src);
-    let hir = lower::lower_parse(&parse);
+    // `lower_parse` is infallible today (it never returns `Err`); the
+    // typed channel exists for forward-compatibility (cy-cfi). This
+    // convenience wrapper deliberately keeps its best-effort contract:
+    // it surfaces syntax errors via `syntax_errors` and always yields a
+    // (possibly partial) `Statement`, so an `Err` here would be a
+    // genuine lowering-invariant bug — `expect` rather than swallow it.
+    let hir = lower::lower_parse(&parse)
+        .expect("lower_parse is infallible; an Err signals a lowering-invariant bug");
     let syntax_errors = parse.errors().to_vec();
     ParseToHir {
         parse,
@@ -219,6 +234,30 @@ impl Statement {
     /// from. Returns `None` for unknown or dummy ids.
     pub fn syntax_for(&self, id: HirId) -> Option<&SyntaxNode> {
         self.node_map.get(&id)
+    }
+
+    /// Byte range of the HIR node identified by `id` in the original
+    /// source text.
+    ///
+    /// This is the **supported, SemVer-stable** path for embedders that
+    /// project cyrs diagnostics onto a host's caret/underline API — for
+    /// example mapping a HIR node back to a byte offset for a Postgres
+    /// `errposition()` call. The returned [`Range<usize>`] is a
+    /// half-open `start..end` of UTF-8 byte offsets into the source the
+    /// statement was lowered from.
+    ///
+    /// Returns `None` for [`HirId::DUMMY`] and for any id with no entry
+    /// in [`Statement::node_map`] (the same cases as
+    /// [`Statement::syntax_for`]).
+    ///
+    /// Equivalent to `self.syntax_for(id).map(|n| n.text_range())`
+    /// followed by a [`TextRange`] → byte-offset conversion; prefer this
+    /// accessor over open-coding that conversion.
+    pub fn span_of(&self, id: HirId) -> Option<Range<usize>> {
+        self.syntax_for(id).map(|node| {
+            let range = node.text_range();
+            u32::from(range.start()) as usize..u32::from(range.end()) as usize
+        })
     }
 
     /// Total number of lowered HIR nodes recorded in the map.
@@ -354,12 +393,36 @@ pub struct Pattern {
     pub parts: Vec<PatternPart>,
 }
 
+/// Whether a [`PatternPart`] is wrapped in a `shortestPath` /
+/// `allShortestPaths` call.
+///
+/// A bare path component is [`ShortestPath::No`]. `shortestPath(...)`
+/// becomes [`ShortestPath::Shortest`] and `allShortestPaths(...)`
+/// becomes [`ShortestPath::AllShortest`]. The plan layer surfaces the
+/// non-`No` cases as a dedicated `ShortestPath` read operator
+/// (`cyrs_plan::ReadOp::ShortestPath`) rather than a plain var-length
+/// `Expand`. Spec §6.4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ShortestPath {
+    /// A plain path component, not wrapped in a shortest-path call.
+    #[default]
+    No,
+    /// `shortestPath(...)` — a single shortest path between the endpoints.
+    Shortest,
+    /// `allShortestPaths(...)` — every minimum-length path between them.
+    AllShortest,
+}
+
 /// One connected component of a [`Pattern`], optionally bound to a
 /// path variable (`p = (a)-[]->(b)`).
 #[derive(Debug, Clone)]
 pub struct PatternPart {
     pub named_as: Option<VarId>,
     pub elements: Vec<PatternElement>,
+    /// Whether this component is wrapped in `shortestPath` /
+    /// `allShortestPaths`. [`ShortestPath::No`] for a bare path.
+    pub shortest: ShortestPath,
 }
 
 /// An individual node or relationship within a [`PatternPart`].
@@ -721,6 +784,37 @@ mod tests {
     }
 
     #[test]
+    fn span_of_returns_byte_range_of_recorded_node() {
+        // Lower a real statement so the node map carries distinct,
+        // sub-statement syntax nodes (the MATCH and RETURN clauses).
+        let src = "MATCH (n) RETURN n";
+        let stmt = lower::lower_statement(src).expect("valid statement lowers");
+
+        let match_id = stmt.clauses[0].id();
+        let return_id = stmt.clauses[1].id();
+
+        // Each clause id resolves to the byte range its syntax node
+        // covers, and that range agrees with `syntax_for`.
+        for id in [match_id, return_id] {
+            let range = stmt.span_of(id).expect("clause id has a node");
+            let syntax_range = stmt.syntax_for(id).unwrap().text_range();
+            assert_eq!(range.start, u32::from(syntax_range.start()) as usize);
+            assert_eq!(range.end, u32::from(syntax_range.end()) as usize);
+            // The range is a valid, in-bounds slice of the source.
+            assert!(range.start <= range.end);
+            assert!(range.end <= src.len());
+            let _ = &src[range];
+        }
+
+        // The MATCH clause starts at the head of the source.
+        assert_eq!(stmt.span_of(match_id).unwrap().start, 0);
+
+        // Unknown and dummy ids yield `None`, matching `syntax_for`.
+        assert_eq!(stmt.span_of(HirId::DUMMY), None);
+        assert_eq!(stmt.span_of(HirId(99_999)), None);
+    }
+
+    #[test]
     fn statement_with_bindings_and_clauses_round_trips() {
         let root = sample_syntax();
         let mut stmt = Statement::new(root.text_range());
@@ -744,6 +838,7 @@ mod tests {
             pattern: Pattern {
                 parts: vec![PatternPart {
                     named_as: None,
+                    shortest: crate::ShortestPath::No,
                     elements: vec![PatternElement::Node {
                         id: node_id,
                         bind: Some(var),
@@ -806,8 +901,8 @@ mod tests {
         // The sugar wrapper must agree with the primitive.
         let src = "MATCH (a) RETURN a";
         let parse = cyrs_syntax::parse(src);
-        let via_parse = lower::lower_parse(&parse);
-        let via_str = lower::lower_statement(src);
+        let via_parse = lower::lower_parse(&parse).expect("clean input lowers");
+        let via_str = lower::lower_statement(src).expect("clean input lowers");
         assert_eq!(via_parse.clauses.len(), via_str.clauses.len());
         assert_eq!(via_parse.bindings.len(), via_str.bindings.len());
         assert_eq!(via_parse.node_count(), via_str.node_count());

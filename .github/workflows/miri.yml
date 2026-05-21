@@ -42,6 +42,11 @@ env:
   # files at runtime; without it miri rejects `open` and the suites that use
   # insta corpora abort before any of our actual checks run.
   MIRIFLAGS: "-Zmiri-strict-provenance -Zmiri-disable-isolation"
+  # insta resolves the workspace root by shelling out to `cargo metadata`
+  # unless this is set; miri cannot spawn a subprocess (`fork`/`socketpair`),
+  # so the first snapshot assertion aborts the run. Pinning the root here
+  # keeps insta from spawning. See insta env.rs `get_cargo_workspace`.
+  INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
 
 jobs:
   miri:

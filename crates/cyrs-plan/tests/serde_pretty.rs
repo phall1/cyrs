@@ -35,6 +35,7 @@ fn read_plan(ops: Vec<ReadOp>) -> PlanStatement {
         ops,
         write_ops: vec![],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -44,6 +45,7 @@ fn write_plan(write_ops: Vec<WriteOp>) -> PlanStatement {
         ops: vec![],
         write_ops,
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     }
 }
 
@@ -266,6 +268,7 @@ fn json_snap_write_merge_with_on_create() {
     let plan = write_plan(vec![WriteOp::MergeNode {
         labels: vec!["Person".into()],
         props: Expr::Map(vec![("name".into(), Expr::String("Bob".into()))]),
+        key_props: vec!["name".into()],
         on_create: vec![WriteOp::SetProperty {
             target: VarId(0),
             prop: "created".into(),
@@ -329,6 +332,7 @@ fn roundtrip_empty_plan() {
         ops: vec![],
         write_ops: vec![],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     };
     assert_roundtrip_eq(&plan);
 }
@@ -631,6 +635,7 @@ fn pretty_snap_write_ops() {
             },
         ],
         var_map: IndexMap::new(),
+        params: IndexMap::new(),
     };
     insta::assert_snapshot!("pretty_write_ops", pretty(&plan));
 }
@@ -707,6 +712,7 @@ fn pretty_snap_merge_node() {
     let plan = write_plan(vec![WriteOp::MergeNode {
         labels: vec!["Person".into()],
         props: Expr::Map(vec![("name".into(), Expr::String("Carol".into()))]),
+        key_props: vec!["name".into()],
         on_create: vec![WriteOp::SetProperty {
             target: VarId(0),
             prop: "created_at".into(),

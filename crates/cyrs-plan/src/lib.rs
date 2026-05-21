@@ -331,6 +331,34 @@ pub enum ReadOp {
         /// always a fresh sub-tree introduced by `OPTIONAL MATCH`).
         pattern: Box<ReadOp>,
     },
+    /// Shortest-path search — finds the minimum-hop path(s) between two
+    /// already-bound nodes. Spec §6.4, §12.1 N14.
+    ///
+    /// Implements `MATCH p = shortestPath((a)-[*]->(b))` and the
+    /// `allShortestPaths(...)` variant. This is distinct from a plain
+    /// var-length [`ReadOp::Expand`]: an `Expand` enumerates *every*
+    /// matching path, whereas `ShortestPath` keeps only the shortest
+    /// — `all = false` keeps a single shortest path, `all = true` keeps
+    /// every path of minimum length. Consumers with a native path-finding
+    /// module dispatch to it here instead of post-filtering an exhaustive
+    /// expansion.
+    ShortestPath {
+        /// Source operator that provides the `from` (and `to`) variable.
+        input: OpId,
+        /// Variable holding the start node (the first endpoint).
+        from: VarId,
+        /// Relationship type / direction / length specification for the
+        /// var-length pattern between the endpoints. Mirrors the `rel`
+        /// field of [`ReadOp::Expand`].
+        rel: RelSpec,
+        /// Variable holding the end node (the second endpoint).
+        to: VarId,
+        /// Variable that receives the matched path value.
+        bind_path: VarId,
+        /// `false` for `shortestPath` (a single shortest path); `true`
+        /// for `allShortestPaths` (every minimum-length path).
+        all: bool,
+    },
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -384,6 +412,19 @@ pub enum WriteOp {
         labels: Vec<SmolStr>,
         /// Property predicate / initial values.
         props: Expr,
+        /// Property names of the `{k: ...}` map written inline in the MERGE
+        /// pattern, in source order.
+        ///
+        /// This is the structured key surface embedders need to compile a
+        /// MERGE to an upsert (e.g. an `INSERT ... ON CONFLICT (<key cols>)
+        /// DO UPDATE` statement): the conflict-target column list is
+        /// exactly these property names. It is derived from the sibling
+        /// `props` field during HIR→Plan lowering and mirrors its keys
+        /// whenever `props` is a literal [`Expr::Map`]. If the pattern's
+        /// properties are not a literal map (e.g. `MERGE (n:Person $param)`),
+        /// this is empty — keys cannot be statically determined and the
+        /// embedder must fall back to inspecting `props` itself.
+        key_props: Vec<SmolStr>,
         /// Write operations to apply when a new node is created.
         on_create: Vec<WriteOp>,
         /// Write operations to apply when an existing node is found.
@@ -405,6 +446,14 @@ pub enum WriteOp {
         rel_type: SmolStr,
         /// Property predicate / initial values.
         props: Expr,
+        /// Property names of the `{k: ...}` map written inline in the MERGE
+        /// pattern, in source order.
+        ///
+        /// Same contract as the `key_props` field of [`WriteOp::MergeNode`]:
+        /// derived from the sibling `props` field during HIR→Plan lowering,
+        /// mirrors its keys when `props` is a literal [`Expr::Map`], empty
+        /// otherwise.
+        key_props: Vec<SmolStr>,
         /// Write operations to apply when a new relationship is created.
         on_create: Vec<WriteOp>,
         /// Write operations to apply when an existing relationship is found.
@@ -695,6 +744,63 @@ pub enum UnaryOp {
     Not,
 }
 
+/// A scalar (non-collection, non-entity) value type for a query
+/// parameter. cy-7it (feat-request §2.4).
+///
+/// Mirrors the primitive variants of `cyrs_schema::PropertyType` at the
+/// plan layer so the schema crate is not leaked across the plan boundary
+/// (the crate graph forbids `cyrs-plan → cyrs-schema`; cf. the plan-local
+/// [`ListPredKind`] which mirrors `cyrs_hir::ListPredKind` for the same
+/// reason). A consumer holding a `cyrs_schema::PropertyType` can map its
+/// primitive variants onto these one-to-one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum ScalarType {
+    /// A string value (`cyrs_schema::PropertyType::String`).
+    String,
+    /// A 64-bit signed integer (`cyrs_schema::PropertyType::Int`).
+    Int,
+    /// A 64-bit IEEE-754 float (`cyrs_schema::PropertyType::Float`).
+    Float,
+    /// A boolean value (`cyrs_schema::PropertyType::Bool`).
+    Bool,
+}
+
+/// The best-effort inferred type of a query `$param` reference, as carried
+/// on [`lower::PlanStatement::params`]. cy-7it (feat-request §2.4).
+///
+/// Type inference during HIR→Plan lowering is *syntactic and best-effort*:
+/// a parameter compared against an integer literal infers
+/// `Scalar(ScalarType::Int)`, a parameter used as the iterable of `UNWIND`
+/// infers [`ParamType::List`], and so on. Where the lowering pass cannot
+/// constrain the parameter — it appears only in a bare projection, or as a
+/// function argument, or in conflicting contexts — the type is
+/// [`ParamType::Unknown`]. An embedder (e.g. pgGraph binding Postgres SPI
+/// parameters) must treat `Unknown` as "bind whatever the caller supplied".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum ParamType {
+    /// A scalar value of a known primitive type.
+    Scalar(ScalarType),
+    /// A list / array value.
+    List,
+    /// A map / object value.
+    Map,
+    /// A graph node value.
+    Node,
+    /// A graph relationship value.
+    Relationship,
+    /// A graph path value.
+    Path,
+    /// The parameter is unconstrained — the lowering pass could not infer
+    /// a type. Bind it as whatever the caller supplies.
+    Unknown,
+}
+
 /// Discriminant for [`Expr::ListPredicate`] (cy-8x5, spec §19 row
 /// "List predicates"). Mirrors `cyrs_hir::ListPredKind` at the plan
 /// layer so the HIR is not leaked across the plan boundary.
@@ -952,6 +1058,7 @@ mod tests {
         let op = WriteOp::MergeNode {
             labels: vec!["Person".into()],
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create,
             on_match,
             bind: Some(VarId(0)),
@@ -968,11 +1075,50 @@ mod tests {
             to: VarId(1),
             rel_type: "FOLLOWS".into(),
             props: Expr::Map(vec![]),
+            key_props: vec![],
             on_create: vec![],
             on_match: vec![],
             bind: None,
         };
         assert!(format!("{op:?}").contains("FOLLOWS"));
+    }
+
+    #[test]
+    fn write_op_merge_node_carries_key_props() {
+        let op = WriteOp::MergeNode {
+            labels: vec!["Person".into()],
+            props: Expr::Map(vec![("email".into(), Expr::Param { name: "e".into() })]),
+            key_props: vec!["email".into()],
+            on_create: vec![],
+            on_match: vec![],
+            bind: None,
+        };
+        match &op {
+            WriteOp::MergeNode { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["email"]);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn write_op_merge_rel_carries_key_props() {
+        let op = WriteOp::MergeRel {
+            from: VarId(0),
+            to: VarId(1),
+            rel_type: "FOLLOWS".into(),
+            props: Expr::Map(vec![("since".into(), Expr::Int(2020))]),
+            key_props: vec!["since".into()],
+            on_create: vec![],
+            on_match: vec![],
+            bind: None,
+        };
+        match &op {
+            WriteOp::MergeRel { key_props, .. } => {
+                assert_eq!(key_props.as_slice(), ["since"]);
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]

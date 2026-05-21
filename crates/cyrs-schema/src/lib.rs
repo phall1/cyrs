@@ -63,6 +63,33 @@ pub trait SchemaProvider: Send + Sync + 'static {
         self.relationship_types().iter().any(|r| r == name)
     }
 
+    /// Whether the schema's storage can hold a node carrying *all* of
+    /// `labels` at once (feat-request §2.3).
+    ///
+    /// `CREATE (n:A:B)` is only valid if labels `A` and `B` can
+    /// co-exist on a single node. For a relational embedder this is
+    /// whether the labels map to the same — or a join-compatible —
+    /// table; for a native graph store every combination is usually
+    /// fine.
+    ///
+    /// Return value:
+    ///
+    /// - `None` — the provider does not constrain this combination.
+    ///   This is the **permissive default**: the front-end accepts the
+    ///   label set. A provider that does not model multi-label storage
+    ///   should leave this method unimplemented.
+    /// - `Some(true)` — the combination is storable; accept.
+    /// - `Some(false)` — the combination cannot be stored together;
+    ///   the semantic pass rejects it with `E4023`.
+    ///
+    /// `labels` is the full label set under consideration. A slice of
+    /// length 0 or 1 is always trivially storable; providers may still
+    /// return `None` for it and the front-end will not reject.
+    fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+        let _ = labels;
+        None
+    }
+
     /// Properties declared on a node with this label.
     ///
     /// - `None` — the label is unknown.
@@ -80,6 +107,42 @@ pub trait SchemaProvider: Send + Sync + 'static {
     /// Declared inverse relationship type, if any. Consumers that model
     /// typed inverses return them here; others return `None`.
     fn inverse_of(&self, rel_type: &str) -> Option<SmolStr>;
+
+    /// Ordered property tuples that are guaranteed unique for this label.
+    ///
+    /// Each inner `Vec<SmolStr>` is one declared uniqueness constraint — an
+    /// ordered tuple of property names whose combined values are unique
+    /// across every node carrying `label`. A single-property constraint is
+    /// a one-element tuple. An empty outer `Vec` means the schema declares
+    /// no uniqueness for the label.
+    ///
+    /// The `cyrs-sema` schema-aware pass consults this to *prove* that a
+    /// `MERGE` node pattern keys on a declared uniqueness constraint rather
+    /// than guessing from pattern syntax (spec §7.5). Tuple order is not
+    /// semantic for that check — the property *set* is compared.
+    ///
+    /// Defaults to empty so existing [`SchemaProvider`] implementations
+    /// compile unchanged.
+    fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+        let _ = label;
+        Vec::new()
+    }
+
+    /// Ordered property tuples that are guaranteed unique for this
+    /// relationship type.
+    ///
+    /// The relationship-type analogue of [`label_unique_props`]. Used by
+    /// the `cyrs-sema` schema-aware pass to validate `MERGE` relationship
+    /// patterns.
+    ///
+    /// Defaults to empty so existing [`SchemaProvider`] implementations
+    /// compile unchanged.
+    ///
+    /// [`label_unique_props`]: SchemaProvider::label_unique_props
+    fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+        let _ = rel_type;
+        Vec::new()
+    }
 
     /// Look up a function signature. Used by typecheck and by completion.
     fn function(&self, name: &str) -> Option<FunctionSignature>;
@@ -406,7 +469,89 @@ mod tests {
         let s = EmptySchema;
         assert!(s.labels().is_empty());
         assert!(!s.has_label("Person"));
+        assert!(s.relationship_types().is_empty());
+        assert!(!s.has_relationship_type("KNOWS"));
+        assert!(s.node_properties("Person").is_none());
+        assert!(s.relationship_properties("KNOWS").is_none());
+        assert!(s.relationship_endpoints("KNOWS").is_empty());
+        assert!(s.inverse_of("KNOWS").is_none());
+        assert!(s.function("count").is_none());
+        assert!(s.procedure("db.labels").is_none());
         assert_eq!(s.schema_digest(), [0u8; 32]);
+    }
+
+    #[test]
+    fn labels_compatible_defaults_to_none() {
+        // The default implementation is permissive: `None` means the
+        // provider does not constrain the combination (feat-request §2.3).
+        let s = EmptySchema;
+        assert_eq!(s.labels_compatible(&[]), None);
+        assert_eq!(s.labels_compatible(&[SmolStr::new("A")]), None);
+        assert_eq!(
+            s.labels_compatible(&[SmolStr::new("A"), SmolStr::new("B")]),
+            None,
+        );
+    }
+
+    #[test]
+    fn unique_props_default_to_empty() {
+        // `label_unique_props` / `rel_type_unique_props` default to empty
+        // so pre-existing `SchemaProvider` impls compile unchanged — a
+        // provider that declares no uniqueness constraints (feat-request
+        // §2.2).
+        let s = EmptySchema;
+        assert!(s.label_unique_props("Person").is_empty());
+        assert!(s.rel_type_unique_props("KNOWS").is_empty());
+    }
+
+    #[test]
+    fn labels_compatible_provider_can_reject_a_combination() {
+        // A provider that forbids `A` + `B` co-existing on one node.
+        #[derive(Debug)]
+        struct ForbidsAB;
+        impl SchemaProvider for ForbidsAB {
+            fn labels(&self) -> Vec<SmolStr> {
+                vec![SmolStr::new("A"), SmolStr::new("B"), SmolStr::new("C")]
+            }
+            fn relationship_types(&self) -> Vec<SmolStr> {
+                Vec::new()
+            }
+            fn node_properties(&self, _: &str) -> Option<Vec<PropertyDecl>> {
+                None
+            }
+            fn relationship_properties(&self, _: &str) -> Option<Vec<PropertyDecl>> {
+                None
+            }
+            fn relationship_endpoints(&self, _: &str) -> Vec<EndpointDecl> {
+                Vec::new()
+            }
+            fn inverse_of(&self, _: &str) -> Option<SmolStr> {
+                None
+            }
+            fn function(&self, _: &str) -> Option<FunctionSignature> {
+                None
+            }
+            fn procedure(&self, _: &str) -> Option<ProcedureSignature> {
+                None
+            }
+            fn schema_digest(&self) -> [u8; 32] {
+                [3u8; 32]
+            }
+            fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+                let has = |n: &str| labels.iter().any(|l| l == n);
+                Some(!(has("A") && has("B")))
+            }
+        }
+
+        let s = ForbidsAB;
+        assert_eq!(
+            s.labels_compatible(&[SmolStr::new("A"), SmolStr::new("B")]),
+            Some(false),
+        );
+        assert_eq!(
+            s.labels_compatible(&[SmolStr::new("A"), SmolStr::new("C")]),
+            Some(true),
+        );
     }
 
     #[test]

@@ -710,6 +710,12 @@ impl<S: SchemaProvider> SchemaProvider for StandardLibrary<S> {
         self.inner.has_relationship_type(name)
     }
 
+    fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+        // Multi-label storage compatibility is a property of the
+        // wrapped schema; stdlib adds no labels of its own.
+        self.inner.labels_compatible(labels)
+    }
+
     fn node_properties(&self, label: &str) -> Option<Vec<PropertyDecl>> {
         self.inner.node_properties(label)
     }
@@ -724,6 +730,14 @@ impl<S: SchemaProvider> SchemaProvider for StandardLibrary<S> {
 
     fn inverse_of(&self, rel_type: &str) -> Option<SmolStr> {
         self.inner.inverse_of(rel_type)
+    }
+
+    fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+        self.inner.label_unique_props(label)
+    }
+
+    fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+        self.inner.rel_type_unique_props(rel_type)
     }
 
     fn function(&self, name: &str) -> Option<FunctionSignature> {
@@ -1015,6 +1029,25 @@ mod tests {
         fn schema_digest(&self) -> [u8; 32] {
             [1u8; 32]
         }
+        fn labels_compatible(&self, labels: &[SmolStr]) -> Option<bool> {
+            // `Person` and `Robot` cannot co-exist on one node.
+            let has = |n: &str| labels.iter().any(|l| l == n);
+            Some(!(has("Person") && has("Robot")))
+        }
+        fn label_unique_props(&self, label: &str) -> Vec<Vec<SmolStr>> {
+            if label == "Person" {
+                vec![vec![SmolStr::new("name")]]
+            } else {
+                Vec::new()
+            }
+        }
+        fn rel_type_unique_props(&self, rel_type: &str) -> Vec<Vec<SmolStr>> {
+            if rel_type == "KNOWS" {
+                vec![vec![SmolStr::new("since")]]
+            } else {
+                Vec::new()
+            }
+        }
     }
 
     #[test]
@@ -1031,6 +1064,29 @@ mod tests {
         assert!(s.relationship_properties("KNOWS").is_none());
         assert_eq!(s.relationship_endpoints("KNOWS").len(), 1);
         assert_eq!(s.schema_digest(), [1u8; 32]);
+    }
+
+    #[test]
+    fn wrap_delegates_schema_constraint_surface() {
+        // `labels_compatible` and `*_unique_props` are pure properties of
+        // the wrapped schema; `StandardLibrary` forwards them unchanged
+        // (feat-request §2.2 / §2.3).
+        let s = StandardLibrary::wrap(FakeSchema);
+        assert_eq!(
+            s.labels_compatible(&[SmolStr::new("Person"), SmolStr::new("Robot")]),
+            Some(false),
+        );
+        assert_eq!(s.labels_compatible(&[SmolStr::new("Person")]), Some(true));
+        assert_eq!(
+            s.label_unique_props("Person"),
+            vec![vec![SmolStr::new("name")]],
+        );
+        assert!(s.label_unique_props("Unknown").is_empty());
+        assert_eq!(
+            s.rel_type_unique_props("KNOWS"),
+            vec![vec![SmolStr::new("since")]],
+        );
+        assert!(s.rel_type_unique_props("UNKNOWN").is_empty());
     }
 
     #[test]

@@ -33,7 +33,9 @@ pub(crate) fn compute(
         return None;
     }
 
-    let stmt = cyrs_hir::lower::lower_statement(&source);
+    // Lower from the already-parsed CST (cy-cfi): reuses `parse` above
+    // and stays best-effort for buffers with syntax errors.
+    let stmt = cyrs_hir::lower::lower_parse(parse.parse()).expect("lower_parse is infallible");
     let binding = stmt
         .bindings
         .values()
