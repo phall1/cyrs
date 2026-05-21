@@ -20,6 +20,12 @@ path = "src/main.rs"
 cyrs-db     = { workspace = true }
 cyrs-diag   = { workspace = true }
 cyrs-fmt    = { workspace = true }
+# cy-4yy: the `cypher check --lints` flag runs the clippy-equivalent
+# lint pass directly (it is opt-in and not part of the memoised
+# `analyse` pipeline), so the CLI lowers HIR via `cyrs-hir` and runs
+# `cyrs_sema::run_lints` itself.
+cyrs-hir    = { workspace = true }
+cyrs-sema   = { workspace = true }
 # Spec 0002: the `schema load/check/diff` subcommands drive the TOML
 # loader, linter, and diff library. `file` enables the loader; `serde`
 # is transitively enabled so the diff report serialises to JSON.

@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/lints/redundant_match.rs
+assertion_line: 165
+expression: "run_one(check, \"MATCH (n:Person) MATCH (m:Company) RETURN n, m\",)"
+---
+query: MATCH (n:Person) MATCH (m:Company) RETURN n, m
+diagnostics: 0

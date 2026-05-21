@@ -1,0 +1,10 @@
+---
+source: crates/cyrs-sema/src/lints/wide_return_star.rs
+assertion_line: 101
+expression: "run(\"MATCH (a), (b), (c), (d), (e), (f) RETURN *\", 5,)"
+---
+query: MATCH (a), (b), (c), (d), (e), (f) RETURN *
+diagnostics: 1
+  W6015: `RETURN *` expands to 6 variables — prefer an explicit projection
+    note: replace `*` with the columns you need, e.g. `RETURN a, b, c, d, e, f`
+    help: expand `*` to the bound variables [cy-fix.expand-return-star]

@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/src/lints/redundant_match.rs
+assertion_line: 157
+expression: "run_one(check, \"MATCH (n:Person) MATCH (n:Person) RETURN n\",)"
+---
+query: MATCH (n:Person) MATCH (n:Person) RETURN n
+diagnostics: 1
+  W6012: redundant MATCH — this pattern is already matched by an earlier MATCH
+    note: delete this MATCH clause; it binds the same variables and adds no new constraint

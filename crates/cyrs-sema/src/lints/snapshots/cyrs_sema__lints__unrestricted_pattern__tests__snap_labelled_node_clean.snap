@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/lints/unrestricted_pattern.rs
+assertion_line: 169
+expression: "run(\"MATCH (n:Person) RETURN n\")"
+---
+query: MATCH (n:Person) RETURN n
+diagnostics: 0

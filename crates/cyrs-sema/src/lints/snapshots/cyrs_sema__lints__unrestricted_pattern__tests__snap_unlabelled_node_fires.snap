@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/src/lints/unrestricted_pattern.rs
+assertion_line: 164
+expression: "run(\"MATCH (n) RETURN n\")"
+---
+query: MATCH (n) RETURN n
+diagnostics: 1
+  W6013: node pattern `n` has no label — the pattern will scan every node
+    note: add a label (e.g. `(n:Label)`) to restrict the match to the intended node kind

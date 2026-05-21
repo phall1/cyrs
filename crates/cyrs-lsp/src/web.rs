@@ -261,8 +261,9 @@ fn pump(
 
         let transport = WebTransport::new(global.clone(), inbox.clone());
         match send_initialize_response(&transport, init_req) {
-            Ok((dialect, schema, debounce)) => {
-                let server = crate::Server::with_config_and_debounce(dialect, schema, debounce);
+            Ok((dialect, schema, debounce, lints_enabled)) => {
+                let server =
+                    crate::Server::with_full_config(dialect, schema, debounce, lints_enabled);
                 *server_cell.borrow_mut() = Some(WebLoopState { transport, server });
             }
             Err(e) => {
@@ -334,19 +335,20 @@ fn peek_initialize(inbox: &Inbox) -> Option<Message> {
     }
 }
 
-/// Resolved `initializationOptions` triple returned after the web
-/// handshake: the dialect, an optional schema provider, and the
-/// watched-files debounce window.  Declared as a type alias so the
-/// `Arc<dyn SchemaProvider>` doesn't trip clippy's complex-type lint
-/// inline.
+/// Resolved `initializationOptions` returned after the web handshake:
+/// the dialect, an optional schema provider, the watched-files debounce
+/// window, and the cy-4yy `lints` toggle.  Declared as a type alias so
+/// the `Arc<dyn SchemaProvider>` doesn't trip clippy's complex-type
+/// lint inline.
 type InitializeResolved = (
     cyrs_db::DialectMode,
     Option<std::sync::Arc<dyn cyrs_schema::SchemaProvider>>,
     Duration,
+    bool,
 );
 
 /// Parse the `initialize` params, ship the capabilities response, and
-/// return the resolved dialect / schema / debounce triple.
+/// return the resolved dialect / schema / debounce / lints tuple.
 ///
 /// Mirrors the logic in `serve` (lib.rs) — kept separate because we
 /// can't call `lsp_server::Connection::initialize` on the web path
@@ -364,5 +366,10 @@ fn send_initialize_response(transport: &WebTransport, req: Request) -> Result<In
     let init = crate::init_options::InitOptions::from_value(params.initialization_options.as_ref());
     let dialect = init.resolved_dialect();
     let schema = crate::init_options::load_schema(&init).ok().flatten();
-    Ok((dialect, schema, init.resolved_debounce()))
+    Ok((
+        dialect,
+        schema,
+        init.resolved_debounce(),
+        init.lints_enabled(),
+    ))
 }

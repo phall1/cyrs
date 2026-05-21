@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/src/lints/unused_var.rs
+assertion_line: 136
+expression: "run_one(check, \"MATCH (n:Person), (m:Company) WHERE n.age > 30 RETURN n\",)"
+---
+query: MATCH (n:Person), (m:Company) WHERE n.age > 30 RETURN n
+diagnostics: 1
+  W6011: node variable `m` is bound but never used
+    note: remove the unused binder — `m` is not referenced in any WHERE, RETURN, or other downstream clause

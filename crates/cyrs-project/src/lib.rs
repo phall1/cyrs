@@ -42,7 +42,7 @@ mod manifest;
 mod resolve;
 
 pub use error::ProjectLoadError;
-pub use lint::{LintLevel, REGISTERED_LINT_RULES, is_registered_lint_rule};
+pub use lint::{LintLevel, REGISTERED_LINT_RULES, is_registered_lint_rule, lint_rule_code};
 pub use manifest::{
     DialectConfig, DialectDefault, DialectPerFile, ProjectFile, ProjectManifest,
     load_from_toml_path, load_from_toml_str,

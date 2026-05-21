@@ -104,6 +104,9 @@ available as the [`cyrs-lang`](https://crates.io/crates/cyrs-lang) meta-crate.
   aggregation scopes, and pattern bindings.
 - **Schema-aware semantic analysis** — schema is a trait
   (`cyrs-schema::SchemaProvider`); no hard-coded assumptions.
+- **Clippy-equivalent lints** — a starter pack of 6 style / bug-shape
+  lints (`W6011`–`W6016`); opt-in via `cypher check --lints` and the
+  LSP `lints` option. See the [lint table](#lints) below.
 - **Stable diagnostic codes** — `E0001…`, `W6000…`, `N8000…`. See spec
   §10. Codes are SemVer — once assigned, meaning never changes.
 - **Idempotent formatter** — `fmt(fmt(x)) == fmt(x)`, round-trips through
@@ -171,6 +174,38 @@ transaction-control statements, catalog / authorisation statements
 the [`DialectMode`](./crates/cyrs-db/src/lib.rs) selector lives at the
 analysis layer and gates GQL-only / Cypher-only constructs via the
 `E4xxx` diagnostic codes (see [`crates/cyrs-sema/src/dialect.rs`](./crates/cyrs-sema/src/dialect.rs)).
+
+---
+
+## Lints
+
+Beyond the error-severity semantic checks, cyrs ships a
+**clippy-equivalent lint pack** — warning-severity diagnostics for
+queries that parse and analyse cleanly but are stylistically poor or
+likely a bug. Each lint carries a `note:` fix hint. Lints live in
+[`crates/cyrs-sema/src/lints/`](./crates/cyrs-sema/src/lints).
+
+Lints are **opt-in** (off by default until the pack stabilises):
+
+- CLI — `cypher check --lints` runs the pass and prints lints alongside
+  the analysis diagnostics. Lints never change the exit code.
+- LSP — set `initializationOptions.lints` to `true`; lints surface as
+  `Information`-severity diagnostics.
+- Manifest — each lint maps to a rule name in `cypher-project.toml`'s
+  lint registry (`cyrs-project`).
+
+| Code | Lint | Fires when | Rule name |
+| ----- | ---- | ---------- | --------- |
+| `W6011` | unused pattern variable | a `MATCH` binder is never referenced downstream | `unused-pattern-var` |
+| `W6012` | redundant `MATCH` | a `MATCH` exactly duplicates an earlier one | `redundant-match` |
+| `W6013` | unrestricted pattern | a node/relationship pattern has no label / type (schema-aware) | `unrestricted-pattern` |
+| `W6014` | implicit cartesian product | two `MATCH` clauses share no variable or join predicate | `cartesian-product` |
+| `W6015` | wide `RETURN *` | `RETURN *` in a statement binding more than N variables | `wildcard-return` |
+| `W6016` | `OPTIONAL MATCH` + `WHERE` on its binding | a trailing `WHERE` constrains the optional binding (defeats `OPTIONAL`) | `optional-match-where` |
+
+`W6012` (redundant `MATCH`) and `W6014` (cartesian product) are
+deliberately conservative — they fire only on unambiguous cases and
+prefer to miss the harder ones over warning wrongly.
 
 ---
 
