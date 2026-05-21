@@ -19,6 +19,13 @@
 //! The [`lower`] module provides the entry point [`lower::lower_statement`]
 //! which lowers a post-resolve, post-desugar HIR [`cyrs_hir::Statement`]
 //! into a [`lower::PlanStatement`] (spec §12, bead cy-foy).
+//!
+//! # Traversal
+//!
+//! The [`visit`] module offers an opt-in [`visit::Visitor`] trait — modelled
+//! on `syn::visit::Visit` — for embedders that want a default-traversing
+//! recursive walk over [`ReadOp`] / [`WriteOp`] without re-implementing
+//! traversal each time a `#[non_exhaustive]` operator variant is added.
 
 // Embedders: see ../../docs/integration-depth.md before depending on this surface.
 
@@ -28,6 +35,7 @@
 pub mod error;
 pub mod lower;
 pub mod pretty;
+pub mod visit;
 
 #[cfg(feature = "serde")]
 pub mod ser;
