@@ -77,7 +77,9 @@ use crate::{
 pub struct PlanStatement {
     /// Ordered flat arena of read operators. References use dense [`OpId`].
     pub ops: Vec<ReadOp>,
-    /// Write operators applied after each read-phase row.
+    /// Write operators applied, in vec order, once per read-phase row.
+    /// See the [`WriteOp`] type docs for the full per-row, ordered,
+    /// read-your-writes execution contract.
     pub write_ops: Vec<WriteOp>,
     /// Mapping from plan [`VarId`] → HIR [`HirVarId`]. Insertion-ordered
     /// for determinism (spec §17.14).

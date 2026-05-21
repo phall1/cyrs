@@ -276,6 +276,18 @@ pub enum Cardinality {
 /// variadic parameter can carry a name and default consistently with
 /// `params`. Only `variadic.ty` is semantically significant; `name` is
 /// diagnostic-only and `default` is unused.
+///
+/// # Push-down metadata
+///
+/// [`FunctionSignature::deterministic`] and
+/// [`FunctionSignature::null_propagating`] describe whether an embedder
+/// may push a call to this function down into an underlying engine (for
+/// example, SQL). A function that is *both* deterministic and
+/// null-propagating is safe to evaluate engine-side; a function that is
+/// non-deterministic (`rand`, `timestamp`, no-argument temporal
+/// constructors) or non-null-propagating (`coalesce`, `count(*)`-style
+/// aggregates) must be evaluated by the front-end so its observable
+/// semantics are preserved.
 pub struct FunctionSignature {
     /// Function name as it appears in a `count(…)` call.
     pub name: SmolStr,
@@ -287,6 +299,30 @@ pub struct FunctionSignature {
     pub return_ty: ReturnTy,
     /// Purity / determinism flags used by the sema purity checker.
     pub categories: FnCategories,
+    /// `true` iff identical argument values always produce the same
+    /// result regardless of evaluation time or context.
+    ///
+    /// Defaults to `true`: most builtins are deterministic. Functions
+    /// such as `rand`, `randomUUID`, `timestamp` and the no-argument
+    /// temporal constructors (`datetime()`, `date()`, …) set this
+    /// `false`. An embedder must not push a non-deterministic call into
+    /// a backing engine that would re-evaluate it.
+    ///
+    /// Note: this mirrors [`FnCategories::deterministic`] but lives on
+    /// the signature itself so embedders reasoning about SQL push-down
+    /// do not need to inspect `categories`.
+    pub deterministic: bool,
+    /// `true` iff the function returns `NULL` whenever any argument is
+    /// `NULL`.
+    ///
+    /// Defaults to `true`: most builtins propagate `NULL`. Functions
+    /// that deliberately observe `NULL` arguments — `coalesce`,
+    /// `exists`, `isEmpty`, and the `count`-style aggregates — set this
+    /// `false`. Combined with [`deterministic`](Self::deterministic) it
+    /// tells an embedder whether a call is safe to translate into a
+    /// plain SQL expression (SQL's `NULL` semantics match a
+    /// null-propagating, deterministic function).
+    pub null_propagating: bool,
 }
 
 impl core::fmt::Debug for FunctionSignature {
@@ -296,6 +332,8 @@ impl core::fmt::Debug for FunctionSignature {
             .field("params", &self.params)
             .field("variadic", &self.variadic)
             .field("categories", &self.categories)
+            .field("deterministic", &self.deterministic)
+            .field("null_propagating", &self.null_propagating)
             .finish_non_exhaustive()
     }
 }
@@ -311,6 +349,8 @@ impl Clone for FunctionSignature {
                 ReturnTy::Dynamic(_) => ReturnTy::Constant(PropertyType::Any),
             },
             categories: self.categories,
+            deterministic: self.deterministic,
+            null_propagating: self.null_propagating,
         }
     }
 }
@@ -672,11 +712,15 @@ mod tests {
                 aggregate: false,
                 deterministic: true,
             },
+            deterministic: true,
+            null_propagating: true,
         };
         let cloned = c.clone();
         assert_eq!(cloned.name, c.name);
         assert_eq!(cloned.params, c.params);
         assert_eq!(cloned.categories, c.categories);
+        assert_eq!(cloned.deterministic, c.deterministic);
+        assert_eq!(cloned.null_propagating, c.null_propagating);
         match cloned.return_ty {
             ReturnTy::Constant(PropertyType::Int) => {}
             _ => panic!("expected Constant(Int)"),
@@ -704,11 +748,15 @@ mod tests {
                 aggregate: false,
                 deterministic: true,
             },
+            deterministic: true,
+            null_propagating: false,
         };
         let cloned = d.clone();
         assert_eq!(cloned.params, d.params);
         assert_eq!(cloned.variadic, d.variadic);
         assert_eq!(cloned.categories, d.categories);
+        assert_eq!(cloned.deterministic, d.deterministic);
+        assert_eq!(cloned.null_propagating, d.null_propagating);
         match cloned.return_ty {
             ReturnTy::Constant(PropertyType::Any) => {}
             _ => panic!("Dynamic clone must collapse to Constant(Any)"),

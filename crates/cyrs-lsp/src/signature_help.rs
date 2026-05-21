@@ -245,6 +245,8 @@ mod tests {
                         aggregate: false,
                         deterministic: true,
                     },
+                    deterministic: true,
+                    null_propagating: true,
                 })
             } else {
                 None

@@ -162,6 +162,39 @@ pub enum VarKind {
     /// Bound by a relationship pattern (e.g. `-[r:KNOWS]->`).
     Relationship,
     /// Bound by a path assignment (e.g. `p = (a)-[]->(b)`).
+    ///
+    /// # Embedder note — path-variable representation
+    ///
+    /// A path-bound variable names the *whole* pattern part it is
+    /// assigned to, not any single node or relationship. Its value is
+    /// the ordered sequence of graph elements the part traverses —
+    /// node, relationship, node, relationship, …, node — always
+    /// starting and ending with a node and alternating thereafter.
+    /// `cyrs-sema` infers its type as `Type::Path`.
+    ///
+    /// **HIR contract.** The binder is recorded on
+    /// [`PatternPart::named_as`]; the element sequence is
+    /// [`PatternPart::elements`] in source order. The HIR does *not*
+    /// synthesise a separate "path value" node — an embedder
+    /// materialises the path by walking `elements`.
+    ///
+    /// **Plan contract — important asymmetry.** How `cyrs-plan`
+    /// surfaces the binder depends on the pattern part:
+    ///
+    /// - For a `shortestPath` / `allShortestPaths` part, the binder is
+    ///   threaded into `cyrs_plan::ReadOp::ShortestPath`'s `bind_path`
+    ///   field — a real plan `cyrs_plan::VarId` *produced* by that
+    ///   operator.
+    /// - For a **plain** named path (`MATCH p = (a)-[*]->(b)`), the
+    ///   plan lowering does **not** thread the binder into any
+    ///   producing operator. `RETURN p` still lowers `p` to an
+    ///   `Expr::Var(VarId)` in the `Project` items, but no
+    ///   `Source` / `Expand` operator carries that `VarId` as a
+    ///   `bind` / `bind_rel` / `bind_to`. The plan therefore does not
+    ///   tell the consumer how to assemble `p` from the bound
+    ///   node/relationship variables — the embedder must reconstruct
+    ///   the path itself from the `Source` + `Expand` chain. See
+    ///   `cyrs_plan::ReadOp::ShortestPath` for the contrast.
     Path,
     /// Bound by `UNWIND ... AS v`, `WITH expr AS v`, or `CALL ... YIELD v`.
     Value,
@@ -416,9 +449,23 @@ pub enum ShortestPath {
 
 /// One connected component of a [`Pattern`], optionally bound to a
 /// path variable (`p = (a)-[]->(b)`).
+///
+/// # Embedder note — named-path structure
+///
+/// When `named_as` is `Some`, the part is a *named path*: that
+/// [`VarId`] (kind [`VarKind::Path`]) names the whole part. The path
+/// value's structural contract is `elements` itself — an ordered,
+/// node-first, strictly alternating node/relationship sequence. There
+/// is no separate path node in the HIR; an embedder reads `elements`
+/// directly. See [`VarKind::Path`] for how (and whether) the plan
+/// layer surfaces the binder.
 #[derive(Debug, Clone)]
 pub struct PatternPart {
+    /// Path-variable binder for this part (`p` in `p = (a)-[]->(b)`),
+    /// or `None` for an unnamed part. Always [`VarKind::Path`].
     pub named_as: Option<VarId>,
+    /// The part's elements in source order: node, relationship, node,
+    /// … — always node-first and strictly alternating.
     pub elements: Vec<PatternElement>,
     /// Whether this component is wrapped in `shortestPath` /
     /// `allShortestPaths`. [`ShortestPath::No`] for a bare path.

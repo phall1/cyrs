@@ -463,6 +463,8 @@ impl SchemaProvider for AgentSchema {
                     aggregate: false,
                     deterministic: true,
                 },
+                deterministic: true,
+                null_propagating: true,
             }
         })
     }

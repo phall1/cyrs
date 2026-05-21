@@ -866,6 +866,8 @@ mod tests {
                         aggregate: false,
                         deterministic: true,
                     },
+                    deterministic: true,
+                    null_propagating: true,
                 }),
                 _ => None,
             }

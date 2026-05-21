@@ -767,6 +767,8 @@ impl SchemaProvider for JsonSchema {
                     aggregate: false,
                     deterministic: true,
                 },
+                deterministic: true,
+                null_propagating: true,
             }
         })
     }

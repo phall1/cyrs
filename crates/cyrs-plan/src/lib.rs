@@ -19,6 +19,13 @@
 //! The [`lower`] module provides the entry point [`lower::lower_statement`]
 //! which lowers a post-resolve, post-desugar HIR [`cyrs_hir::Statement`]
 //! into a [`lower::PlanStatement`] (spec §12, bead cy-foy).
+//!
+//! # Traversal
+//!
+//! The [`visit`] module offers an opt-in [`visit::Visitor`] trait — modelled
+//! on `syn::visit::Visit` — for embedders that want a default-traversing
+//! recursive walk over [`ReadOp`] / [`WriteOp`] without re-implementing
+//! traversal each time a `#[non_exhaustive]` operator variant is added.
 
 // Embedders: see ../../docs/integration-depth.md before depending on this surface.
 
@@ -28,6 +35,7 @@
 pub mod error;
 pub mod lower;
 pub mod pretty;
+pub mod visit;
 
 #[cfg(feature = "serde")]
 pub mod ser;
@@ -220,11 +228,26 @@ pub enum ReadOp {
     /// Predicate filter — keeps only rows where `predicate` is truthy.
     ///
     /// Implements `WHERE` and inline pattern predicates. Spec §12.1 N3.
+    ///
+    /// # 3-valued logic (SemVer-stable contract)
+    ///
+    /// `predicate` is evaluated under Cypher's three-valued logic, so it
+    /// may yield `true`, `false`, or `null`. A row passes the filter
+    /// **only** when the predicate evaluates to `true`; rows where it
+    /// evaluates to `false` **or** `null` are both dropped. There is no
+    /// third "keep on null" mode.
+    ///
+    /// This aligns Cypher `WHERE` with SQL `WHERE` (which likewise drops
+    /// `NULL`), so an embedder may push a `Filter` predicate verbatim
+    /// into a SQL `WHERE` clause without a null-handling wrapper. This
+    /// drop-`false`-and-`null` behaviour is a **stable contract** —
+    /// it will not change without a SemVer-major bump.
     Filter {
         /// Source operator.
         input: OpId,
-        /// Boolean expression; rows where it evaluates to `false` or `null`
-        /// are dropped.
+        /// Boolean expression. A row is kept only when this evaluates to
+        /// `true`; rows where it evaluates to `false` or `null` are both
+        /// dropped (see the variant docs).
         predicate: Expr,
     },
 
@@ -242,12 +265,32 @@ pub enum ReadOp {
     /// Aggregation — groups rows and applies aggregate functions.
     ///
     /// `keys` are the grouping expressions; `aggs` are the aggregate calls.
-    /// An empty `keys` vec aggregates the entire input into a single row.
     /// Spec §12.1 N5.
+    ///
+    /// # Empty-key aggregation on empty input (SemVer-stable contract)
+    ///
+    /// An empty `keys` vec aggregates the entire input into a **single
+    /// group**. That single output row is emitted **even when the input
+    /// is empty** — an empty-key `Aggregate` always produces exactly one
+    /// row. This is what makes `MATCH (n) RETURN count(n)` return one row
+    /// holding `0` (rather than zero rows) when the graph has no nodes.
+    ///
+    /// Note this differs from SQL `GROUP BY`: a SQL query *with* a
+    /// `GROUP BY` clause emits zero rows on empty input, whereas a SQL
+    /// query with bare aggregates and *no* `GROUP BY` emits one. An
+    /// embedder lowering an empty-key `Aggregate` to SQL must therefore
+    /// emit the bare-aggregate (no `GROUP BY`) form, not `GROUP BY ()`.
+    /// A **non-empty** `keys` vec emits one row per distinct group and
+    /// zero rows on empty input, matching SQL `GROUP BY`.
+    ///
+    /// This one-row-on-empty-input behaviour is a **stable contract** —
+    /// it will not change without a SemVer-major bump.
     Aggregate {
         /// Source operator.
         input: OpId,
-        /// Grouping expressions (the non-aggregate columns in the output).
+        /// Grouping expressions (the non-aggregate columns in the
+        /// output). Empty means a single whole-input group — see the
+        /// variant docs for the empty-input contract.
         keys: Vec<Expr>,
         /// Aggregate function calls.
         aggs: Vec<AggExpr>,
@@ -322,13 +365,34 @@ pub enum ReadOp {
 
     /// Optional join — left-outer-join a sub-plan. Spec §12.1 N13.
     ///
-    /// Implements `OPTIONAL MATCH`. Rows from `input` that have no match in
-    /// `pattern` are kept with `null`-bound variables.
+    /// Implements `OPTIONAL MATCH`.
+    ///
+    /// # Null-binding contract (SemVer-stable)
+    ///
+    /// Every row from `input` is preserved. For each such row:
+    ///
+    /// - If the `pattern` sub-tree yields at least one match, the join
+    ///   emits one output row per match, with the pattern's variables
+    ///   bound to the matched values.
+    /// - If the `pattern` sub-tree yields **no** match, the input row is
+    ///   still emitted exactly once, and **every variable introduced by
+    ///   an operator inside the `pattern` sub-tree binds to `null`**.
+    ///
+    /// "Variables introduced by the `pattern` sub-tree" means precisely
+    /// the variables that appear as a `bind` / `bind_rel` / `bind_to`
+    /// (etc.) field on some operator reachable within `pattern` — the
+    /// new nodes, relationships and path endpoints the `OPTIONAL MATCH`
+    /// would have bound. Variables already bound in `input` keep their
+    /// value and are never nulled. The plan does not carry an explicit
+    /// "nulled variable" list; the consumer derives it by walking the
+    /// `pattern` sub-tree's binding fields.
     OptionalJoin {
-        /// Outer source operator.
+        /// Outer source operator. Its rows are all preserved.
         input: OpId,
         /// Inner pattern (embedded tree, not an [`OpId`], because it is
-        /// always a fresh sub-tree introduced by `OPTIONAL MATCH`).
+        /// always a fresh sub-tree introduced by `OPTIONAL MATCH`). On a
+        /// non-match its bound variables are set to `null` (see the
+        /// variant docs).
         pattern: Box<ReadOp>,
     },
     /// Shortest-path search — finds the minimum-hop path(s) between two
@@ -342,6 +406,27 @@ pub enum ReadOp {
     /// every path of minimum length. Consumers with a native path-finding
     /// module dispatch to it here instead of post-filtering an exhaustive
     /// expansion.
+    ///
+    /// # Path-variable contract
+    ///
+    /// `ShortestPath` is the **only** read operator that produces a
+    /// path-typed variable: `bind_path` receives the matched path value.
+    /// A path value is the ordered, node-first, strictly alternating
+    /// sequence of nodes and relationships along the matched path; the
+    /// plan guarantees only that element sequence and leaves
+    /// materialisation (e.g. `nodes()` / `relationships()` / `length()`
+    /// accessor shapes) to the consumer. The plan IR has no `Path` type
+    /// — there is no `PlanType` enum at all — so `bind_path` is a bare
+    /// [`VarId`] with no carried type.
+    ///
+    /// **Plain named paths are not surfaced here.** A non-shortest named
+    /// path (`MATCH p = (a)-[*]->(b) RETURN p`) lowers to an ordinary
+    /// `Source` + `Expand` chain; the path binder `p` is *not* threaded
+    /// into any operator's binding field. `RETURN p` still references
+    /// `p` as an `Expr::Var` in the `Project` items, but no operator
+    /// *produces* that `VarId`, so the consumer must reconstruct the
+    /// path from the `Source` + `Expand` chain itself. See
+    /// [`cyrs_hir::VarKind::Path`] for the full path-variable contract.
     ShortestPath {
         /// Source operator that provides the `from` (and `to`) variable.
         input: OpId,
@@ -353,7 +438,10 @@ pub enum ReadOp {
         rel: RelSpec,
         /// Variable holding the end node (the second endpoint).
         to: VarId,
-        /// Variable that receives the matched path value.
+        /// Variable that receives the matched path value — an ordered,
+        /// node-first, strictly alternating node/relationship sequence.
+        /// This is the one place the plan binds a path-typed variable;
+        /// see the variant docs for the contract.
         bind_path: VarId,
         /// `false` for `shortestPath` (a single shortest path); `true`
         /// for `allShortestPaths` (every minimum-length path).
@@ -367,9 +455,32 @@ pub enum ReadOp {
 
 /// Logical write-plan operator. Spec §12.1.
 ///
-/// Write operators are applied sequentially after the read phase produces a
-/// row. Consumers own the sequencing and transactional semantics. This crate
-/// describes *what* to write, not *how*.
+/// This crate describes *what* to write, not *how*. Transactional
+/// semantics (atomicity, isolation, durability) remain entirely the
+/// consumer's responsibility — the plan imposes none.
+///
+/// # Execution model (SemVer-stable contract)
+///
+/// The write operators of a statement are collected into the ordered
+/// [`lower::PlanStatement::write_ops`] vec. Their execution contract is:
+///
+/// - **Per-row.** The whole `write_ops` list is applied once for *every*
+///   row the read phase ([`lower::PlanStatement::ops`]) produces. A
+///   statement with no read phase (e.g. a bare `CREATE`) runs the list
+///   exactly once, against a single empty row.
+/// - **Ordered.** Within one row, the operators run in `write_ops`
+///   vec order — index `0` first. This order is the source order of the
+///   originating write clauses (`CREATE`, `MERGE`, `SET`, `REMOVE`,
+///   `DELETE`).
+/// - **Intermediate writes are visible to later operators.** A `bind`
+///   produced by an earlier operator (e.g. the new node of a
+///   `CreateNode`) is available to every later operator in the same
+///   `write_ops` list, and the effect of an earlier write is observable
+///   by a later one within the same statement. Operators are not
+///   batched or reordered.
+///
+/// This per-row, ordered, read-your-writes execution model is a
+/// **stable contract** — it will not change without a SemVer-major bump.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum WriteOp {
