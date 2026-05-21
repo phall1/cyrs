@@ -217,6 +217,11 @@ pub trait Visitor: Sized {
         walk_shortest_path(self, plan, op);
     }
 
+    /// Visit a [`ReadOp::BindPath`] — a plain named-path binder.
+    fn visit_bind_path(&mut self, plan: &PlanStatement, op: &ReadOp) {
+        walk_bind_path(self, plan, op);
+    }
+
     /// Fallback for a [`ReadOp`] variant this `Visitor` does not recognise.
     ///
     /// With the current `cyrs-plan` enum definitions this is unreachable —
@@ -359,6 +364,7 @@ pub fn walk_read_op_node<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &ReadO
             v.visit_optional_join(plan, *input, pattern);
         }
         ReadOp::ShortestPath { .. } => v.visit_shortest_path(plan, op),
+        ReadOp::BindPath { .. } => v.visit_bind_path(plan, op),
         // Forward-compat: a future `#[non_exhaustive]` variant lands here.
         _ => v.visit_unknown_read_op(plan, op),
     }
@@ -548,6 +554,16 @@ pub fn walk_shortest_path<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &Read
     if let ReadOp::ShortestPath { input, rel, .. } = op {
         v.visit_read_op(plan, *input);
         walk_rel_spec(v, plan, rel);
+    }
+}
+
+/// Walk a [`ReadOp::BindPath`]: descend into `input`. The `elements` and
+/// `bind_path` fields are bare [`VarId`]s, not sub-expressions, so there is
+/// nothing further to recurse into. Default body of
+/// [`Visitor::visit_bind_path`].
+pub fn walk_bind_path<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &ReadOp) {
+    if let ReadOp::BindPath { input, .. } = op {
+        v.visit_read_op(plan, *input);
     }
 }
 
@@ -785,6 +801,7 @@ mod tests {
         set_props: usize,
         deletes: usize,
         exprs: usize,
+        bind_paths: usize,
         unknown_read: usize,
         unknown_write: usize,
     }
@@ -855,6 +872,11 @@ mod tests {
             walk_expr(self, plan, expr);
         }
 
+        fn visit_bind_path(&mut self, plan: &PlanStatement, op: &ReadOp) {
+            self.bind_paths += 1;
+            walk_bind_path(self, plan, op);
+        }
+
         fn visit_unknown_read_op(&mut self, _plan: &PlanStatement, _op: &ReadOp) {
             self.unknown_read += 1;
         }
@@ -872,6 +894,19 @@ mod tests {
 
         let plan = plan_from("MATCH (n:Person) WHERE n.age > 18 RETURN n.name");
         Noop.visit_plan(&plan);
+
+        // A plain named path exercises the default `visit_bind_path`
+        // (which delegates to `walk_bind_path`) on the un-overridden
+        // `Visitor` impl — cy-q7yq.
+        let path_plan = plan_from("MATCH p = (a)-[*1..3]->(b) RETURN p");
+        assert!(
+            path_plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::BindPath { .. })),
+            "the named-path plan should contain a BindPath op"
+        );
+        Noop.visit_plan(&path_plan);
     }
 
     #[test]
@@ -898,6 +933,22 @@ mod tests {
         assert_eq!(c.sources, 1, "one Source seeds the chain");
         assert_eq!(c.expands, 2, "two Expand operators");
         assert_eq!(c.read_ops, plan.ops.len());
+    }
+
+    #[test]
+    fn counts_bind_path_for_plain_named_path() {
+        // cy-q7yq: a plain named path lowers to a `BindPath` wrapping the
+        // `Source` + `Expand` chain; the visitor must dispatch to
+        // `visit_bind_path` and `walk_bind_path` must descend into `input`.
+        let plan = plan_from("MATCH p = (a)-[*1..3]->(b) RETURN p");
+        let mut c = Counter::default();
+        c.visit_plan(&plan);
+
+        assert_eq!(c.bind_paths, 1, "one BindPath operator visited");
+        assert_eq!(c.sources, 1, "BindPath descended into the Source");
+        assert_eq!(c.expands, 1, "BindPath descended into the Expand");
+        assert_eq!(c.read_ops, plan.ops.len(), "every arena op visited once");
+        assert_eq!(c.unknown_read, 0, "BindPath is a known variant");
     }
 
     #[test]

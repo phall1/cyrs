@@ -409,23 +409,22 @@ pub enum ReadOp {
     ///
     /// # Path-variable contract
     ///
-    /// `ShortestPath` is the **only** read operator that produces a
-    /// path-typed variable: `bind_path` receives the matched path value.
-    /// A path value is the ordered, node-first, strictly alternating
-    /// sequence of nodes and relationships along the matched path; the
-    /// plan guarantees only that element sequence and leaves
-    /// materialisation (e.g. `nodes()` / `relationships()` / `length()`
-    /// accessor shapes) to the consumer. The plan IR has no `Path` type
-    /// — there is no `PlanType` enum at all — so `bind_path` is a bare
-    /// [`VarId`] with no carried type.
+    /// `ShortestPath` produces a path-typed variable: `bind_path`
+    /// receives the matched path value. A path value is the ordered,
+    /// node-first, strictly alternating sequence of nodes and
+    /// relationships along the matched path; the plan guarantees only
+    /// that element sequence and leaves materialisation (e.g.
+    /// `nodes()` / `relationships()` / `length()` accessor shapes) to
+    /// the consumer. The plan IR has no `Path` type — there is no
+    /// `PlanType` enum at all — so `bind_path` is a bare [`VarId`] with
+    /// no carried type.
     ///
-    /// **Plain named paths are not surfaced here.** A non-shortest named
-    /// path (`MATCH p = (a)-[*]->(b) RETURN p`) lowers to an ordinary
-    /// `Source` + `Expand` chain; the path binder `p` is *not* threaded
-    /// into any operator's binding field. `RETURN p` still references
-    /// `p` as an `Expr::Var` in the `Project` items, but no operator
-    /// *produces* that `VarId`, so the consumer must reconstruct the
-    /// path from the `Source` + `Expand` chain itself. See
+    /// **Plain named paths use [`ReadOp::BindPath`].** A non-shortest
+    /// named path (`MATCH p = (a)-[*]->(b) RETURN p`) lowers to an
+    /// ordinary `Source` + `Expand` chain *wrapped* in a
+    /// [`ReadOp::BindPath`], which binds `p` to the ordered element
+    /// sequence the chain traverses. `ShortestPath` and `BindPath` are
+    /// therefore the two path-producing operators; see
     /// [`cyrs_hir::VarKind::Path`] for the full path-variable contract.
     ShortestPath {
         /// Source operator that provides the `from` (and `to`) variable.
@@ -446,6 +445,51 @@ pub enum ReadOp {
         /// `false` for `shortestPath` (a single shortest path); `true`
         /// for `allShortestPaths` (every minimum-length path).
         all: bool,
+    },
+
+    /// Bind a plain named path variable. Spec §6.4, §12.1 N15.
+    ///
+    /// Implements the path binder of a non-shortest named `MATCH`
+    /// (`MATCH p = (a)-[*1..3]->(b) RETURN p`). It is a pass-through
+    /// operator: it produces exactly the rows of `input` and adds one
+    /// new binding — `bind_path` — without filtering, reordering, or
+    /// otherwise changing the row set.
+    ///
+    /// # Path-variable contract
+    ///
+    /// `BindPath` is the path-producing operator for plain named paths,
+    /// the counterpart to [`ReadOp::ShortestPath`] for shortest paths.
+    /// `bind_path` receives the path value: the ordered, node-first,
+    /// strictly alternating sequence of nodes and relationships the
+    /// pattern part traverses. `elements` is exactly that sequence, as
+    /// plain [`VarId`]s already bound by operators in `input` — the
+    /// node-`bind`s of [`ReadOp::Source`] and the
+    /// `bind_rel` / `bind_to` of each [`ReadOp::Expand`], in source
+    /// order. It always has odd length ≥ 1 and alternates node, rel,
+    /// node, …, node. A single-node named path (`MATCH p = (a)`) yields
+    /// a one-element `elements` holding just the node var.
+    ///
+    /// The consumer materialises the path value by reading the bound
+    /// values of `elements` in order; the plan IR carries no `Path`
+    /// type (there is no `PlanType` enum), so `bind_path` is a bare
+    /// [`VarId`]. Every `VarId` in `elements` is *produced* by an
+    /// operator reachable from `input`, and `bind_path` is *produced*
+    /// by this operator — so a plain named path no longer leaves a
+    /// dangling `Expr::Var` reference in the `Project` items
+    /// (cy-q7yq).
+    BindPath {
+        /// Source operator — the root of the `Source` + `Expand` chain
+        /// that walks the named pattern part. Its rows pass through
+        /// unchanged.
+        input: OpId,
+        /// Variable that receives the assembled path value. This is the
+        /// `VarId` `RETURN p` references; it is bound here and nowhere
+        /// else.
+        bind_path: VarId,
+        /// The path's element variables in source order: node, rel,
+        /// node, …, node. Each is already bound by an operator in
+        /// `input`. Odd length ≥ 1. See the variant docs.
+        elements: Vec<VarId>,
     },
 }
 

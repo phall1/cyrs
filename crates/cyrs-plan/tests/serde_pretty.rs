@@ -791,3 +791,100 @@ fn json_serialisation_is_deterministic() {
     let j2 = serde_json::to_string(&plan).unwrap();
     assert_eq!(j1, j2, "JSON serialisation must be deterministic");
 }
+
+// ── BindPath — plain named path operator (cy-q7yq) ───────────────────────────
+
+#[test]
+fn roundtrip_bind_path() {
+    // MATCH p = (a)-[r*1..3]->(b): Source → Expand → BindPath.
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(0),
+        },
+        ReadOp::Expand {
+            input: OpId(0),
+            from: VarId(0),
+            rel: RelSpec {
+                types: vec![],
+                direction: Direction::Outgoing,
+                length: RelLength::Variable {
+                    min: Some(1),
+                    max: Some(3),
+                },
+                properties: None,
+            },
+            to: NodeSpec {
+                labels: LabelSet(vec![]),
+                properties: None,
+            },
+            bind_rel: VarId(1),
+            bind_to: VarId(2),
+        },
+        ReadOp::BindPath {
+            input: OpId(1),
+            bind_path: VarId(3),
+            elements: vec![VarId(0), VarId(1), VarId(2)],
+        },
+    ]);
+    assert_roundtrip_eq(&plan);
+}
+
+#[test]
+fn pretty_snap_bind_path() {
+    // BindPath $3 = [$0, $1, $2]
+    //   Expand ($0)-[* $1]->( AS $2)
+    //     Source (AS $0)
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(0),
+        },
+        ReadOp::Expand {
+            input: OpId(0),
+            from: VarId(0),
+            rel: RelSpec {
+                types: vec![],
+                direction: Direction::Outgoing,
+                length: RelLength::Variable {
+                    min: Some(1),
+                    max: Some(3),
+                },
+                properties: None,
+            },
+            to: NodeSpec {
+                labels: LabelSet(vec![]),
+                properties: None,
+            },
+            bind_rel: VarId(1),
+            bind_to: VarId(2),
+        },
+        ReadOp::BindPath {
+            input: OpId(1),
+            bind_path: VarId(3),
+            elements: vec![VarId(0), VarId(1), VarId(2)],
+        },
+    ]);
+    insta::assert_snapshot!("pretty_bind_path", pretty(&plan));
+}
+
+#[test]
+fn pretty_snap_bind_path_in_optional_join() {
+    // A BindPath nested in an OptionalJoin's embedded sub-tree exercises
+    // the standalone `print_op_tree` BindPath arm (cy-q7yq).
+    let plan = read_plan(vec![
+        ReadOp::Source {
+            label: None,
+            bind: VarId(0),
+        },
+        ReadOp::OptionalJoin {
+            input: OpId(0),
+            pattern: Box::new(ReadOp::BindPath {
+                input: OpId(0),
+                bind_path: VarId(1),
+                elements: vec![VarId(0)],
+            }),
+        },
+    ]);
+    insta::assert_snapshot!("pretty_bind_path_in_optional_join", pretty(&plan));
+}
