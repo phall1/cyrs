@@ -155,14 +155,20 @@ print_stderr            = "allow"
 # Patched dependencies. Tracks upstream PRs that aren't in a release yet.
 # ---------------------------------------------------------------------------
 #
-# rowan: pulls in rust-analyzer/rowan#211 (avrabe — promote GreenNodeData
-# to a DST + Arc/ThinArc raw-ptr refcounts) stacked with our own #212
-# (same treatment for GreenTokenData). Together these fix a 5-year-old
-# Stacked Borrows UB in NodeCache rehash that miri caught on cyrs CI
-# (cy-pom + cy-934). When upstream merges + cuts a release, drop this
-# patch and consume crates.io rowan directly.
+# rowan: phall1/rowan@fix/rowan-miri-complete stacks three fixes on top of
+# rust-analyzer/rowan#211 (Arc/ThinArc raw-ptr refcounts + cursor self_alloc
+# provenance):
+#   - GreenTokenData becomes a DST so retags widen past the slice tail;
+#   - cursor free()/sibling walks avoid a SharedReadWrite SB violation;
+#   - GreenNodeData/GreenTokenData::to_owned rebuild the node instead of
+#     forging a ThinArc from the shared `&self` ref (whose provenance does
+#     not cover the refcount).
+# Together these clear the longstanding ThinArc/NodeCache provenance UB miri
+# caught on cyrs CI (cy-pom + cy-934). Verified locally: `cargo +nightly
+# miri test --lib` passes under -Zmiri-strict-provenance for every
+# rowan-touching crate. Drop this patch once #211 merges upstream + ships.
 [patch.crates-io]
-rowan = { git = "https://github.com/phall1/rowan", branch = "fix/sb-node-cache-rehash" }
+rowan = { git = "https://github.com/phall1/rowan", branch = "fix/rowan-miri-complete" }
 
 [profile.release]
 lto           = "thin"
