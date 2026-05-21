@@ -124,6 +124,8 @@ impl MinimalSchema {
                     aggregate: false,
                     deterministic: true,
                 },
+                deterministic: true,
+                null_propagating: true,
             }],
             procedures: Vec::new(),
         }

@@ -6,6 +6,33 @@
 //! is independent of any consumer schema. Consumers wrap their own
 //! [`SchemaProvider`] with [`StandardLibrary::wrap`] to get the union.
 //!
+//! # Normative builtin enumeration (embedder-facing)
+//!
+//! This catalog is the **normative, SemVer-stable enumeration** of the
+//! openCypher v9 standard-library functions for embedders. An embedder
+//! can iterate every builtin and reason about it *without parsing cyrs
+//! source*:
+//!
+//! - [`StandardLibrary::builtin_names`] — sorted list of every builtin
+//!   name. Stable across patch/minor releases.
+//! - [`StandardLibrary::builtin_count`] — cardinality of that list.
+//! - [`StandardLibrary::builtin_signature`] — per-name lookup of the
+//!   full [`FunctionSignature`], including the
+//!   [`deterministic`](FunctionSignature::deterministic) /
+//!   [`null_propagating`](FunctionSignature::null_propagating)
+//!   push-down metadata.
+//!
+//! The catalog covers the openCypher v9 reference function set:
+//! predicate (`exists`), scalar (`coalesce`, `id`, `type`, `head`,
+//! `last`, `length`, `size`, `properties`, `startNode`, `endNode`,
+//! `timestamp`, the `to*` converters), aggregating (`count`, `sum`,
+//! `avg`, `min`, `max`, `collect`, `stDev`, `stDevP`, `percentileCont`,
+//! `percentileDisc`), list (`keys`, `labels`, `nodes`, `range`,
+//! `relationships`, `reverse`, `tail`, plus `values`), and the numeric /
+//! logarithmic / trigonometric math families. Adding or removing a name
+//! is a SemVer-relevant change; the `builtin_names`/`builtin_count`
+//! stability tests guard against accidental drift.
+//!
 //! # Composition
 //!
 //! - `StandardLibrary::new()` — stdlib only; useful for schema-free mode
@@ -44,6 +71,10 @@ struct BuiltIn {
     variadic: Option<PropertyType>,
     return_ty: BuiltInReturn,
     categories: FnCategories,
+    /// See [`FunctionSignature::deterministic`].
+    deterministic: bool,
+    /// See [`FunctionSignature::null_propagating`].
+    null_propagating: bool,
 }
 
 enum BuiltInReturn {
@@ -78,6 +109,8 @@ impl BuiltIn {
             variadic,
             return_ty,
             categories: self.categories,
+            deterministic: self.deterministic,
+            null_propagating: self.null_propagating,
         }
     }
 }
@@ -124,6 +157,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "type",
@@ -131,6 +166,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "labels",
@@ -138,6 +175,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::String))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             // openCypher: `keys(x)` — accepts a `NODE`, `RELATIONSHIP`,
@@ -151,6 +190,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::String))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             // openCypher: `values(map)` — returns the map's values as
@@ -161,6 +202,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::Any))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "properties",
@@ -168,6 +211,43 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Any),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9 scalar: `startNode(relationship)` — the
+            // relationship's source node. Typed `Any` because the
+            // schema layer has no node/relationship variant.
+            name: "startnode",
+            params: vec![("relationship", PropertyType::Any)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Any),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9 scalar: `endNode(relationship)`.
+            name: "endnode",
+            params: vec![("relationship", PropertyType::Any)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Any),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9 predicate: `exists(property)` — true when
+            // the property/identifier resolves to a non-null value.
+            // Always returns a BOOLEAN, never NULL, so it does not
+            // propagate NULL.
+            name: "exists",
+            params: vec![("x", PropertyType::Any)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Bool),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: false,
         },
         // ---- length / size family ---------------------------------------
         BuiltIn {
@@ -176,6 +256,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "size",
@@ -183,6 +265,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         // ---- coalesce (variadic; narrowest-supertype — see §21.2) -------
         BuiltIn {
@@ -202,6 +286,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            // `coalesce` deliberately returns its first non-null
+            // argument, so a NULL argument does not force a NULL
+            // result. Must be evaluated front-end side.
+            null_propagating: false,
         },
         // ---- string functions -------------------------------------------
         BuiltIn {
@@ -210,6 +299,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tolower",
@@ -217,6 +308,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "trim",
@@ -224,6 +317,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "ltrim",
@@ -231,6 +326,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "rtrim",
@@ -238,6 +335,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "reverse",
@@ -252,6 +351,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "substring",
@@ -262,6 +363,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: Some(PropertyType::Int),
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "replace",
@@ -273,6 +376,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "split",
@@ -283,6 +388,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::String))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "left",
@@ -293,6 +400,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "right",
@@ -303,6 +412,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tostring",
@@ -310,6 +421,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::String),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tointeger",
@@ -317,6 +430,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tofloat",
@@ -324,6 +439,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "toboolean",
@@ -331,6 +448,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Bool),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         // ---- collection functions ---------------------------------------
         BuiltIn {
@@ -344,6 +463,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "last",
@@ -356,6 +477,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tail",
@@ -368,6 +491,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "range",
@@ -375,6 +500,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: Some(PropertyType::Int),
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::Int))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "nodes",
@@ -382,6 +509,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::Any))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "relationships",
@@ -389,6 +518,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::List(Box::new(PropertyType::Any))),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         // ---- math functions ---------------------------------------------
         BuiltIn {
@@ -403,6 +534,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "sign",
@@ -410,6 +543,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "ceil",
@@ -417,6 +552,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "floor",
@@ -424,6 +561,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "round",
@@ -431,6 +570,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "sqrt",
@@ -438,6 +579,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "exp",
@@ -445,6 +588,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "log",
@@ -452,6 +597,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "log10",
@@ -459,6 +606,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "sin",
@@ -466,6 +615,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "cos",
@@ -473,6 +624,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "tan",
@@ -480,6 +633,74 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            name: "cot",
+            params: vec![("x", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            name: "asin",
+            params: vec![("x", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            name: "acos",
+            params: vec![("x", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            name: "atan",
+            params: vec![("x", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9: `atan2(y, x)` — two-argument arctangent.
+            name: "atan2",
+            params: vec![("y", PropertyType::Float), ("x", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9: `degrees(radians)` — radians to degrees.
+            name: "degrees",
+            params: vec![("radians", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9: `radians(degrees)` — degrees to radians.
+            name: "radians",
+            params: vec![("degrees", PropertyType::Float)],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Float),
+            categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "pi",
@@ -487,6 +708,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "e",
@@ -494,6 +717,8 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: pure(),
+            deterministic: true,
+            null_propagating: true,
         },
         BuiltIn {
             name: "rand",
@@ -501,6 +726,22 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: nondet(),
+            // `rand` produces a fresh value per call; never push-down.
+            deterministic: false,
+            null_propagating: true,
+        },
+        BuiltIn {
+            // openCypher v9 scalar: `timestamp()` — milliseconds since
+            // the Unix epoch. Reads wall-clock time, so two calls in
+            // the same query observe (potentially) different values;
+            // an embedder must evaluate it front-end side.
+            name: "timestamp",
+            params: vec![],
+            variadic: None,
+            return_ty: BuiltInReturn::Constant(PropertyType::Int),
+            categories: nondet(),
+            deterministic: false,
+            null_propagating: true,
         },
         // ---- aggregation functions --------------------------------------
         BuiltIn {
@@ -509,6 +750,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Int),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "sum",
@@ -522,6 +768,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "avg",
@@ -529,6 +780,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "min",
@@ -538,6 +794,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 Box::new(|tys: &[PropertyType]| tys.first().cloned().unwrap_or(PropertyType::Any))
             }),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "max",
@@ -547,6 +808,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 Box::new(|tys: &[PropertyType]| tys.first().cloned().unwrap_or(PropertyType::Any))
             }),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "collect",
@@ -559,6 +825,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 })
             }),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "stdev",
@@ -566,6 +837,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "stdevp",
@@ -573,6 +849,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "percentilecont",
@@ -583,6 +864,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
             variadic: None,
             return_ty: BuiltInReturn::Constant(PropertyType::Float),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
         BuiltIn {
             name: "percentiledisc",
@@ -595,6 +881,11 @@ static CATALOG: LazyLock<Vec<BuiltIn>> = LazyLock::new(|| {
                 Box::new(|tys: &[PropertyType]| tys.first().cloned().unwrap_or(PropertyType::Any))
             }),
             categories: agg(),
+            deterministic: true,
+            // Aggregates fold over a multiset and skip NULL inputs
+            // (`count` over NULLs yields 0, not NULL), so a NULL in
+            // one row does not force a NULL aggregate result.
+            null_propagating: false,
         },
     ]
 });
@@ -679,17 +970,42 @@ impl<S: SchemaProvider> StandardLibrary<S> {
         &self.inner
     }
 
-    /// All built-in function names, sorted. Stable across releases;
-    /// exposed for completion and documentation consumers.
+    /// All built-in function names, sorted (lower-case, ASCII).
+    ///
+    /// This is the normative enumeration of openCypher v9 standard-
+    /// library functions. The set is SemVer-stable: adding or removing
+    /// a name is a SemVer-relevant change. Embedders may iterate this
+    /// to discover the builtin surface without parsing cyrs source;
+    /// pair each name with [`builtin_signature`](Self::builtin_signature)
+    /// to obtain its push-down metadata.
     pub fn builtin_names() -> Vec<&'static str> {
         let mut v: Vec<&'static str> = CATALOG.iter().map(|b| b.name).collect();
         v.sort_unstable();
         v
     }
 
-    /// Number of built-ins in the catalog. Test-facing shape check.
+    /// Number of built-ins in the catalog. Equal to
+    /// `builtin_names().len()`; SemVer-stable shape check.
     pub fn builtin_count() -> usize {
         CATALOG.len()
+    }
+
+    /// Look up the [`FunctionSignature`] of a single builtin by name.
+    ///
+    /// Name matching is case-insensitive (ASCII), matching openCypher
+    /// function-name semantics. Returns `None` for names that are not
+    /// openCypher v9 standard-library builtins.
+    ///
+    /// This is the embedder-facing per-function accessor: combined with
+    /// [`builtin_names`](Self::builtin_names) it lets a consumer
+    /// enumerate the whole catalog and inspect each function's
+    /// [`deterministic`](FunctionSignature::deterministic) /
+    /// [`null_propagating`](FunctionSignature::null_propagating) flags
+    /// to decide SQL push-down, without constructing a
+    /// [`StandardLibrary`] instance or going through the
+    /// [`SchemaProvider`] trait.
+    pub fn builtin_signature(name: &str) -> Option<FunctionSignature> {
+        find_builtin(name).map(BuiltIn::to_signature)
     }
 }
 
@@ -963,6 +1279,251 @@ mod tests {
         assert_eq!(names, sorted);
     }
 
+    /// cy-mx5: the catalog is the normative openCypher v9 enumeration.
+    /// This snapshot of the sorted builtin names is SemVer-relevant —
+    /// a diff here means a builtin was added or removed and the change
+    /// must be intentional and reflected in the crate version.
+    #[test]
+    fn builtin_names_snapshot_is_stable() {
+        let names = StandardLibrary::<EmptySchema>::builtin_names();
+        let expected: &[&str] = &[
+            "abs",
+            "acos",
+            "asin",
+            "atan",
+            "atan2",
+            "avg",
+            "ceil",
+            "coalesce",
+            "collect",
+            "cos",
+            "cot",
+            "count",
+            "degrees",
+            "e",
+            "endnode",
+            "exists",
+            "exp",
+            "floor",
+            "head",
+            "id",
+            "keys",
+            "labels",
+            "last",
+            "left",
+            "length",
+            "log",
+            "log10",
+            "ltrim",
+            "max",
+            "min",
+            "nodes",
+            "percentilecont",
+            "percentiledisc",
+            "pi",
+            "properties",
+            "radians",
+            "rand",
+            "range",
+            "relationships",
+            "replace",
+            "reverse",
+            "right",
+            "round",
+            "rtrim",
+            "sign",
+            "sin",
+            "size",
+            "split",
+            "sqrt",
+            "startnode",
+            "stdev",
+            "stdevp",
+            "substring",
+            "sum",
+            "tail",
+            "tan",
+            "timestamp",
+            "toboolean",
+            "tofloat",
+            "tointeger",
+            "tolower",
+            "tostring",
+            "toupper",
+            "trim",
+            "type",
+            "values",
+        ];
+        assert_eq!(
+            names, expected,
+            "builtin catalog drifted; update the snapshot deliberately \
+             and bump the crate version (cy-mx5)"
+        );
+    }
+
+    /// cy-mx5: every openCypher v9 standard-library function the spec
+    /// names must be resolvable. Guards against a v9-required builtin
+    /// being dropped.
+    #[test]
+    fn catalog_covers_opencypher_v9_required_builtins() {
+        let s = StandardLibrary::new();
+        // openCypher 9 reference, function reference chapter.
+        let v9: &[&str] = &[
+            // predicate
+            "exists",
+            // scalar
+            "coalesce",
+            "endNode",
+            "head",
+            "id",
+            "last",
+            "length",
+            "properties",
+            "size",
+            "startNode",
+            "timestamp",
+            "toBoolean",
+            "toFloat",
+            "toInteger",
+            "type",
+            // aggregating
+            "avg",
+            "collect",
+            "count",
+            "max",
+            "min",
+            "percentileCont",
+            "percentileDisc",
+            "stDev",
+            "stDevP",
+            "sum",
+            // list
+            "keys",
+            "labels",
+            "nodes",
+            "range",
+            "relationships",
+            "reverse",
+            "tail",
+            // math - numeric
+            "abs",
+            "ceil",
+            "floor",
+            "rand",
+            "round",
+            "sign",
+            // math - logarithmic
+            "e",
+            "exp",
+            "log",
+            "log10",
+            "sqrt",
+            // math - trigonometric
+            "acos",
+            "asin",
+            "atan",
+            "atan2",
+            "cos",
+            "cot",
+            "degrees",
+            "pi",
+            "radians",
+            "sin",
+            "tan",
+            // string
+            "left",
+            "lTrim",
+            "replace",
+            "right",
+            "rTrim",
+            "split",
+            "substring",
+            "toLower",
+            "toString",
+            "toUpper",
+            "trim",
+        ];
+        for name in v9 {
+            assert!(
+                s.function(name).is_some(),
+                "openCypher v9 builtin missing from catalog: {name}",
+            );
+        }
+    }
+
+    /// cy-hzxl: push-down metadata is populated on every builtin and is
+    /// internally consistent — a function flagged as an aggregate must
+    /// not claim to propagate NULL, and a non-deterministic function
+    /// must agree with `categories.deterministic`.
+    #[test]
+    fn pushdown_metadata_is_populated_and_consistent() {
+        let s = StandardLibrary::new();
+        for name in StandardLibrary::<EmptySchema>::builtin_names() {
+            let sig = s.function(name).expect("listed builtin resolves");
+            // The signature-level flag mirrors the categories flag.
+            assert_eq!(
+                sig.deterministic, sig.categories.deterministic,
+                "{name}: deterministic flag disagrees with categories",
+            );
+            // Aggregates observe NULL specially, so none propagate NULL.
+            if sig.categories.aggregate {
+                assert!(
+                    !sig.null_propagating,
+                    "{name}: aggregate must not be null-propagating",
+                );
+            }
+        }
+    }
+
+    /// cy-hzxl: the specific functions the embedder needs to keep
+    /// front-end side are flagged correctly.
+    #[test]
+    fn non_deterministic_and_non_null_propagating_functions_are_flagged() {
+        let s = StandardLibrary::new();
+        // Non-deterministic builtins.
+        for name in ["rand", "timestamp"] {
+            let sig = s.function(name).unwrap();
+            assert!(!sig.deterministic, "{name} must be non-deterministic");
+        }
+        // Non-null-propagating builtins.
+        for name in [
+            "coalesce",
+            "exists",
+            "count",
+            "sum",
+            "avg",
+            "min",
+            "max",
+            "collect",
+            "stDev",
+            "stDevP",
+            "percentileCont",
+            "percentileDisc",
+        ] {
+            let sig = s.function(name).unwrap();
+            assert!(!sig.null_propagating, "{name} must not be null-propagating",);
+        }
+        // A representative deterministic + null-propagating builtin is
+        // safe to push down.
+        let abs = s.function("abs").unwrap();
+        assert!(abs.deterministic && abs.null_propagating);
+    }
+
+    /// cy-mx5: `builtin_signature` is the embedder-facing per-name
+    /// accessor and is case-insensitive.
+    #[test]
+    fn builtin_signature_lookup_is_public_and_case_insensitive() {
+        let lower = StandardLibrary::<EmptySchema>::builtin_signature("coalesce");
+        let mixed = StandardLibrary::<EmptySchema>::builtin_signature("CoAlEsCe");
+        assert!(lower.is_some() && mixed.is_some());
+        assert_eq!(lower.unwrap().name, mixed.unwrap().name);
+        assert!(StandardLibrary::<EmptySchema>::builtin_signature("nope").is_none());
+        // An embedder can enumerate + inspect without a SchemaProvider.
+        for name in StandardLibrary::<EmptySchema>::builtin_names() {
+            assert!(StandardLibrary::<EmptySchema>::builtin_signature(name).is_some());
+        }
+    }
+
     // ---- wrap(inner) composition -------------------------------------
 
     struct FakeSchema;
@@ -1009,6 +1570,8 @@ mod tests {
                     variadic: None,
                     return_ty: ReturnTy::Constant(PropertyType::Bool),
                     categories: pure(),
+                    deterministic: true,
+                    null_propagating: true,
                 })
             } else if name == "count" {
                 // Try to shadow a built-in; stdlib should win.
@@ -1018,6 +1581,8 @@ mod tests {
                     variadic: None,
                     return_ty: ReturnTy::Constant(PropertyType::Bool),
                     categories: pure(),
+                    deterministic: true,
+                    null_propagating: true,
                 })
             } else {
                 None
