@@ -6,16 +6,11 @@
 # because Miri requires a lib target.
 #
 # Policy (§17.12):
-#   - UB is a BLOCKING bug; continue-on-error is intentionally omitted —
-#     EXCEPT for the seven crates that exercise rowan's CST machinery at
-#     runtime, which trip a known longstanding stacked-borrows AND
-#     tree-borrows violation in `rowan::arc::ThinArc::drop`. Both aliasing
-#     models flag it; rowan 0.16 still has the bug; tree-borrows (the
-#     intended successor to stacked-borrows) does not exempt it.
-#     This is a deviation from §17.12 tracked in PR #2 body. Restore once
-#     rowan upstream fixes ThinArc or we migrate to a different CST library.
-#     cyrs-diag and cyrs-schema do NOT touch SyntaxNode lifecycles at
-#     runtime, so they remain strict.
+#   - UB is a BLOCKING bug. Every crate runs strict with no exemptions.
+#     The longstanding rowan `ThinArc::drop` stacked/tree-borrows violation
+#     that previously forced seven crates to run non-blocking is now fixed
+#     via the `[patch.crates-io]` rowan override in the workspace Cargo.toml
+#     (phall1/rowan@fix/rowan-miri-complete); all crates pass strict miri.
 #   - Runs nightly (06:00 UTC) and on every push / PR to main.
 #   - Uses a dedicated Swatinem/rust-cache@v2 key ("miri-nightly") to avoid
 #     poisoning the stable cache maintained by ci.yml.
@@ -52,26 +47,21 @@ jobs:
   miri:
     name: miri / ${{ matrix.crate }}
     runs-on: ubuntu-latest
-    # Per-crate continue-on-error: blocking by default (§17.12), but
-    # `rowan_thinarc_ub: true` rows are non-blocking until rowan upstream
-    # fixes the ThinArc UB (see file header).
-    continue-on-error: ${{ matrix.rowan_thinarc_ub == true }}
+    # Every crate is blocking: UB is a BLOCKING bug per §17.12 and there are
+    # no exemptions now that the rowan ThinArc UB is fixed upstream.
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Crates that touch rowan's SyntaxNode lifecycle at runtime —
-          # trip the rowan ThinArc UB on drop. Non-blocking until upstream fix.
-          - { crate: cyrs-syntax, rowan_thinarc_ub: true }
-          - { crate: cyrs-ast,    rowan_thinarc_ub: true }
-          - { crate: cyrs-hir,    rowan_thinarc_ub: true }
-          - { crate: cyrs-sema,   rowan_thinarc_ub: true }
-          - { crate: cyrs-plan,   rowan_thinarc_ub: true }
-          - { crate: cyrs-fmt,    rowan_thinarc_ub: true }
-          - { crate: cyrs-db,     rowan_thinarc_ub: true }
-          # Crates that don't drop SyntaxNode at runtime — strict §17.12.
-          - { crate: cyrs-schema, rowan_thinarc_ub: false }
-          - { crate: cyrs-diag,   rowan_thinarc_ub: false }
+          - { crate: cyrs-syntax }
+          - { crate: cyrs-ast }
+          - { crate: cyrs-hir }
+          - { crate: cyrs-sema }
+          - { crate: cyrs-plan }
+          - { crate: cyrs-fmt }
+          - { crate: cyrs-db }
+          - { crate: cyrs-schema }
+          - { crate: cyrs-diag }
 
     steps:
       - uses: actions/checkout@v4
