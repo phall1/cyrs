@@ -11,6 +11,7 @@
 Feature: SchemaTypes1 - Type assertions and named GQL types
 
   # ISO/IEC 39075:2024 §6.5.2 — `IS TYPED` predicate.
+  @covers:valueTypePredicate,valueTypePredicatePart2,whereClause,searchCondition,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [1] IS TYPED predicate
     Given an empty graph
     When executing query:
@@ -22,6 +23,7 @@ Feature: SchemaTypes1 - Type assertions and named GQL types
     Then no side effects
 
   # ISO/IEC 39075:2024 §6.5.2 — `::` typed-value shorthand.
+  @covers:whereClause,searchCondition,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [2] Double-colon type assertion
     Given an empty graph
     When executing query:
@@ -33,6 +35,7 @@ Feature: SchemaTypes1 - Type assertions and named GQL types
     Then no side effects
 
   # ISO/IEC 39075:2024 §6.2 — GQL `ZONED DATETIME` named type.
+  @covers:returnStatement,returnStatementBody,returnItemList,returnItem,returnItemAlias
   Scenario: [3] ZONED DATETIME literal in cast
     Given an empty graph
     When executing query:

@@ -12,6 +12,7 @@
 Feature: Return1 - RETURN clause GQL extensions
 
   # ISO/IEC 39075:2024 §14.13.2 — explicit `RETURN ALL` keyword.
+  @covers:returnStatement,returnStatementBody,returnItemList,returnItem,returnItemAlias,simpleMatchStatement,matchStatement
   Scenario: [1] RETURN ALL explicit multiset
     Given an empty graph
     When executing query:
@@ -22,6 +23,7 @@ Feature: Return1 - RETURN clause GQL extensions
     Then no side effects
 
   # ISO/IEC 39075:2024 §14.13.4 — `EXCLUDE` field projection.
+  @covers:returnStatement,returnStatementBody,returnItemList,returnItem,simpleMatchStatement,matchStatement
   Scenario: [2] RETURN with EXCLUDE field
     Given an empty graph
     When executing query:
@@ -32,6 +34,7 @@ Feature: Return1 - RETURN clause GQL extensions
     Then no side effects
 
   # ISO/IEC 39075:2024 §14.13.5 — `RETURN *` parity (also in openCypher).
+  @covers:returnStatement,returnStatementBody,simpleMatchStatement,matchStatement
   Scenario: [3] RETURN wildcard
     Given an empty graph
     When executing query:

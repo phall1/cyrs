@@ -12,6 +12,7 @@
 Feature: Filter1 - FILTER clause (GQL-distinct)
 
   # ISO/IEC 39075:2024 §14.10 — post-projection FILTER.
+  @covers:filterStatement,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [1] FILTER after RETURN-style projection
     Given an empty graph
     When executing query:
@@ -23,6 +24,7 @@ Feature: Filter1 - FILTER clause (GQL-distinct)
     Then no side effects
 
   # ISO/IEC 39075:2024 §14.10 — FILTER chained after WITH.
+  @covers:filterStatement,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [2] FILTER after WITH alias
     Given an empty graph
     When executing query:
