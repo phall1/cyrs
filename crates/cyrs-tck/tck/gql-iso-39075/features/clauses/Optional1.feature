@@ -12,6 +12,7 @@
 Feature: Optional1 - OPTIONAL qualifiers (GQL-distinct)
 
   # ISO/IEC 39075:2024 §14.11.3 — `OPTIONAL CALL` qualifier.
+  @covers:callProcedureStatement,callQueryStatement,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [1] OPTIONAL CALL of side-effect-free procedure
     Given an empty graph
     When executing query:
@@ -24,6 +25,7 @@ Feature: Optional1 - OPTIONAL qualifiers (GQL-distinct)
 
   # ISO/IEC 39075:2024 §14.7 — parity scenario; OPTIONAL MATCH spelled
   # the same way in both dialects.
+  @covers:optionalMatchStatement,optionalOperand,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [2] OPTIONAL MATCH parity
     Given an empty graph
     When executing query:

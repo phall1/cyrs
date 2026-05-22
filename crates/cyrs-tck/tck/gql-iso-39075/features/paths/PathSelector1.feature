@@ -12,6 +12,7 @@
 Feature: PathSelector1 - GQL path-selector syntax
 
   # ISO/IEC 39075:2024 §10.4.2 — `ANY SHORTEST` selector.
+  @covers:pathPattern,pathPatternPrefix,pathSearchPrefix,shortestPathSearch,anyShortestPathSearch,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [1] ANY SHORTEST selector
     Given an empty graph
     When executing query:
@@ -22,6 +23,7 @@ Feature: PathSelector1 - GQL path-selector syntax
     Then no side effects
 
   # ISO/IEC 39075:2024 §10.4.2 — `ALL SHORTEST` selector.
+  @covers:pathPattern,pathPatternPrefix,pathSearchPrefix,shortestPathSearch,allShortestPathSearch,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [2] ALL SHORTEST selector
     Given an empty graph
     When executing query:
@@ -32,6 +34,7 @@ Feature: PathSelector1 - GQL path-selector syntax
     Then no side effects
 
   # ISO/IEC 39075:2024 §10.4.2 — `SHORTEST k` selector.
+  @covers:pathPattern,pathPatternPrefix,pathSearchPrefix,shortestPathSearch,countedShortestPathSearch,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [3] SHORTEST k selector with k=3
     Given an empty graph
     When executing query:

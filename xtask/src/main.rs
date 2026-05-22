@@ -75,6 +75,17 @@ enum Cmd {
     /// runtime.
     #[command(name = "gql-rules")]
     GqlRules,
+    /// Regenerate the GQL ISO/IEC 39075:2024 conformance reports by
+    /// running the `gql-iso` harness (bead cy-1x7o).
+    ///
+    /// Thin wrapper around `cargo test -p cyrs-tck --features gql-iso
+    /// --test gql_iso`.  Rewrites both `tck/gql-iso-39075/baseline.md`
+    /// (parser-acceptance rate) and `…/coverage.md` (how many of the
+    /// 574 GQL.g4 parser productions a passing scenario reaches, plus
+    /// the uncovered worklist).  Fails if a scenario's `@covers:` tag
+    /// names an unknown production.
+    #[command(name = "gql-coverage")]
+    GqlCoverage,
     /// Tree-sitter grammar ↔ cyrs TCK v1 parity gate (bead cy-od5.1).
     ///
     /// Regenerates the grammar, runs `tree-sitter test`, and then diffs
@@ -136,6 +147,7 @@ fn main() -> Result<()> {
         Cmd::CheckRecoveryBudget => xtask::check_recovery_budget::run(),
         Cmd::Doc => doc(),
         Cmd::GqlRules => xtask::gql_rules::run(),
+        Cmd::GqlCoverage => gql_coverage(),
         Cmd::TreeSitterParity => xtask::tree_sitter_parity::run(),
         Cmd::WasmBuild => xtask::wasm::build(),
         Cmd::WasmSize => xtask::wasm::size(),
@@ -162,6 +174,29 @@ fn tck_baseline() -> Result<()> {
             "--test",
             "full",
             "tck_full_baseline",
+            "--",
+            "--nocapture",
+        ],
+    )
+}
+
+/// Regenerate the GQL ISO/IEC 39075:2024 conformance reports (bead
+/// cy-1x7o).  Runs the `gql_iso` integration test with the `gql-iso`
+/// Cargo feature enabled; the two tests write `baseline.md` and
+/// `coverage.md` as a side-effect.  The coverage test fails if a
+/// `@covers:` tag names a production absent from the GQL.g4 manifest.
+fn gql_coverage() -> Result<()> {
+    println!("==> cargo test -p cyrs-tck --features gql-iso --test gql_iso");
+    run(
+        "cargo",
+        &[
+            "test",
+            "-p",
+            "cyrs-tck",
+            "--features",
+            "gql-iso",
+            "--test",
+            "gql_iso",
             "--",
             "--nocapture",
         ],

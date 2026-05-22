@@ -28,6 +28,15 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   corpus via `tests/gql_iso.rs` and emits a per-area parser-acceptance
   baseline to `tck/gql-iso-39075/baseline.md`.  Compliance badge is
   separate from the openCypher TCK.
+- cy-1x7o (§17.5): GQL grammar-coverage harness.  Every scenario
+  carries a `@covers:` Gherkin tag naming the GQL.g4 parser
+  productions it exercises; `tests/gql_iso.rs` validates the tags
+  against `tck/opengql-grammar/rules.json` and emits
+  `tck/gql-iso-39075/coverage.md` — how many of the 574 parser
+  productions a passing scenario reaches, plus the uncovered-production
+  worklist.  Fails on an unknown or missing `@covers:` tag.
+- cy-1x7o (§17.5): `cargo xtask gql-coverage` convenience wrapper that
+  regenerates both `baseline.md` and `coverage.md`.
 
 ### Changed
 

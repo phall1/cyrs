@@ -12,6 +12,7 @@
 Feature: Insert1 - INSERT NODE form (GQL-distinct)
 
   # ISO/IEC 39075:2024 §13.4.1 — `INSERT NODE` keyword sequence.
+  @covers:insertStatement,insertGraphPattern,insertPathPattern,insertNodePattern,insertElementPatternFiller,labelAndPropertySetSpecification
   Scenario: [1] Single labelled node insertion
     Given an empty graph
     When executing query:
@@ -21,6 +22,7 @@ Feature: Insert1 - INSERT NODE form (GQL-distinct)
     Then no side effects
 
   # ISO/IEC 39075:2024 §13.4.1 — multiple labels with `:`-separated form.
+  @covers:insertStatement,insertGraphPattern,insertPathPattern,insertNodePattern,insertElementPatternFiller,labelAndPropertySetSpecification,labelSetSpecification
   Scenario: [2] Node insertion with multiple labels
     Given an empty graph
     When executing query:
@@ -30,6 +32,7 @@ Feature: Insert1 - INSERT NODE form (GQL-distinct)
     Then no side effects
 
   # ISO/IEC 39075:2024 §13.4.2 — `INSERT EDGE` directed form.
+  @covers:insertStatement,insertGraphPattern,insertPathPattern,insertEdgePattern,insertEdgePointingRight,insertNodePattern,simpleMatchStatement,matchStatement
   Scenario: [3] Directed edge insertion between matched nodes
     Given an empty graph
     When executing query:

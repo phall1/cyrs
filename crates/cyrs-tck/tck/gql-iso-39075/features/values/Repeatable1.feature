@@ -13,6 +13,7 @@
 Feature: Repeatable1 - REPEATABLE / DIFFERENT element semantics (GQL-distinct)
 
   # ISO/IEC 39075:2024 §10.6.3 — `REPEATABLE ELEMENTS` qualifier.
+  @covers:matchMode,repeatableElementsMatchMode,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [1] Variable-length path with REPEATABLE ELEMENTS
     Given an empty graph
     When executing query:
@@ -23,6 +24,7 @@ Feature: Repeatable1 - REPEATABLE / DIFFERENT element semantics (GQL-distinct)
     Then no side effects
 
   # ISO/IEC 39075:2024 §10.6.3 — `DIFFERENT EDGES` qualifier.
+  @covers:matchMode,differentEdgesMatchMode,simpleMatchStatement,matchStatement,returnStatement
   Scenario: [2] Variable-length path with DIFFERENT EDGES
     Given an empty graph
     When executing query:
