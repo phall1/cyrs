@@ -11,6 +11,13 @@ flurry of bug reports. The numeric IDs (`NNNN`) are stable and referenced
 from `TODO(cyrs-issue-NNNN)` comments in the embedder codebase — keep the
 IDs even if titles drift.
 
+> **See also:** `../../feat-request.md` collects a *second* embedder's
+> asks — pgGraph, a PostgreSQL extension integrating cyrs for a
+> `graph.cypher()` function. Those use a separate `§N.M` numbering (a
+> stable contract with pgGraph's own docs), not the `NNNN` scheme here.
+> All 13 of them shipped in cyrs 0.1.0; a few overlap issues
+> 0001/0003/0004/0005/0007/0008 and cross-link to them.
+
 ## Index
 
 | ID | Severity | Title |
