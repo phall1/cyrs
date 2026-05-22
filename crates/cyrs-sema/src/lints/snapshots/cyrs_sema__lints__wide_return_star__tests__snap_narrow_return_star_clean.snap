@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/lints/wide_return_star.rs
+assertion_line: 110
+expression: "run(\"MATCH (a), (b) RETURN *\", 5)"
+---
+query: MATCH (a), (b) RETURN *
+diagnostics: 0

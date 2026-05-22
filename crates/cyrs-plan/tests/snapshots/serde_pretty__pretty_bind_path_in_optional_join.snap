@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-plan/tests/serde_pretty.rs
+expression: pretty(&plan)
+---
+OptionalJoin
+  Source (AS $0)
+  BindPath $1 = [$0]

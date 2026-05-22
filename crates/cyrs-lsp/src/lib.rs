@@ -68,7 +68,6 @@ use lsp_types::{
 
 use cyrs_db::workspace::FileId;
 use cyrs_db::{Database, DialectMode};
-use cyrs_diag::to_lsp_all;
 use cyrs_syntax::LineIndex;
 
 // ---------------------------------------------------------------------------
@@ -180,13 +179,14 @@ pub fn serve(connection: &Connection) -> Result<()> {
         }
     };
     let debounce = init.resolved_debounce();
+    let lints_enabled = init.lints_enabled();
 
     // Adapter: wrap the `lsp_server::Connection` as a `Transport` so the
     // dispatch loop runs over the same trait both native and web builds
     // use (spec 0004 §7.2).  Zero behavioural change on stdio — the
     // adapter forwards every call to the crossbeam channels.
     let transport = StdioTransport::new(connection);
-    main_loop(&transport, dialect, schema, debounce)
+    main_loop(&transport, dialect, schema, debounce, lints_enabled)
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +221,12 @@ pub(crate) struct Server {
     ///
     /// [`watched_files`]: Self::watched_files
     pub(crate) watched_debounce: std::time::Duration,
+    /// Whether the clippy-equivalent lint pass runs on every
+    /// `publishDiagnostics` (spec 0003 §6, bead cy-4yy).  Set from
+    /// `initializationOptions.lints`; off by default.  When on, lints
+    /// (`W6011`–`W6016`) are appended as `Information`-severity
+    /// diagnostics.
+    pub(crate) lints_enabled: bool,
 }
 
 impl std::fmt::Debug for Server {
@@ -260,13 +266,28 @@ impl Server {
 
     /// Like [`with_config`] but takes an explicit watched-file debounce
     /// window.  Useful for tests that want to assert flush timing
-    /// without blocking a full 250 ms.
+    /// without blocking a full 250 ms. Lints are off (production goes
+    /// through [`with_full_config`]).
     ///
     /// [`with_config`]: Self::with_config
+    /// [`with_full_config`]: Self::with_full_config
+    #[cfg(test)]
     pub(crate) fn with_config_and_debounce(
         dialect: DialectMode,
         schema: Option<std::sync::Arc<dyn cyrs_schema::SchemaProvider>>,
         watched_debounce: std::time::Duration,
+    ) -> Self {
+        Self::with_full_config(dialect, schema, watched_debounce, false)
+    }
+
+    /// Full constructor — used by `serve` / `main_loop`. Carries every
+    /// `initializationOptions`-derived knob, including the cy-4yy
+    /// `lints` toggle.
+    pub(crate) fn with_full_config(
+        dialect: DialectMode,
+        schema: Option<std::sync::Arc<dyn cyrs_schema::SchemaProvider>>,
+        watched_debounce: std::time::Duration,
+        lints_enabled: bool,
     ) -> Self {
         let mut db = Database::new();
         if let Some(s) = schema {
@@ -280,6 +301,7 @@ impl Server {
             project_probed: std::collections::HashSet::new(),
             watched_files: watchers::WatchedFilesBuffer::default(),
             watched_debounce,
+            lints_enabled,
         }
     }
 }
@@ -368,8 +390,9 @@ fn main_loop(
     dialect: DialectMode,
     schema: Option<std::sync::Arc<dyn cyrs_schema::SchemaProvider>>,
     watched_debounce: std::time::Duration,
+    lints_enabled: bool,
 ) -> Result<()> {
-    let mut server = Server::with_config_and_debounce(dialect, schema, watched_debounce);
+    let mut server = Server::with_full_config(dialect, schema, watched_debounce, lints_enabled);
     dispatch(transport, &mut server)
 }
 
@@ -1494,6 +1517,27 @@ pub(crate) fn publish_diagnostics_for_watched(
     publish_diagnostics(transport, server, uri)
 }
 
+/// Run the clippy-equivalent lint pass (spec 0003 §6, bead cy-4yy) over
+/// `source`, returning the lint diagnostics.
+///
+/// Lints are *not* part of the memoised `all_diagnostics` query — they
+/// are opt-in (`initializationOptions.lints`). So we lower the HIR here
+/// and call [`cyrs_sema::run_lints`] directly. The database's schema (if
+/// any) is passed through so the schema-aware lint L3 (`W6013`) fires
+/// when the workspace declares one.
+fn lint_diagnostics(db: &Database, source: &str) -> Vec<cyrs_diag::Diagnostic> {
+    let parsed = cyrs_hir::parse_to_hir(source);
+    let schema = db.schema();
+    let mut sink = cyrs_diag::DiagnosticsSink::new();
+    cyrs_sema::run_lints(
+        &parsed.hir,
+        schema.as_deref(),
+        &cyrs_sema::LintOptions::default(),
+        &mut sink,
+    );
+    sink.into_sorted()
+}
+
 fn publish_diagnostics(transport: &dyn Transport, server: &mut Server, uri: &Uri) -> Result<()> {
     let uri_str = uri.to_string();
     let Some(&file_id) = server.open_files.get(&uri_str) else {
@@ -1504,7 +1548,17 @@ fn publish_diagnostics(transport: &dyn Transport, server: &mut Server, uri: &Uri
     let line_index = LineIndex::new(&source);
 
     let lsp_diags = match server.db.all_diagnostics(file_id) {
-        Ok(diags_out) => to_lsp_all(diags_out.diagnostics(), uri, &line_index),
+        Ok(diags_out) => {
+            let mut diags = diags_out.diagnostics().to_vec();
+            // cy-4yy: when lints are enabled, run the clippy-equivalent
+            // lint pass and append its diagnostics. They are surfaced
+            // as `Information` severity via `to_lsp_all_lints`.
+            if server.lints_enabled {
+                diags.extend(lint_diagnostics(&server.db, &source));
+                diags.sort_by_key(|d| (d.primary.range.start(), d.code));
+            }
+            cyrs_diag::to_lsp_all_lints(&diags, uri, &line_index)
+        }
         Err(e) => {
             tracing::warn!("diagnostics error: {e}");
             vec![]
@@ -1758,6 +1812,43 @@ mod tests {
             a_parse, b_parse,
             "recycled SourceFile must produce a fresh ParseOutput after eviction"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // cy-4yy: lint pass wiring
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn lint_diagnostics_emits_lints_for_a_lintable_query() {
+        // `m` is bound but never used → L1 / W6011.
+        let db = Database::new();
+        let diags = super::lint_diagnostics(&db, "MATCH (n), (m) RETURN n");
+        assert!(
+            diags.iter().any(|d| d.code == cyrs_diag::DiagCode::W6011),
+            "expected a W6011 lint, got {diags:?}",
+        );
+    }
+
+    #[test]
+    fn lint_diagnostics_is_silent_on_a_clean_query() {
+        let db = Database::new();
+        let diags = super::lint_diagnostics(&db, "MATCH (n) WHERE n.age > 1 RETURN n");
+        assert!(diags.is_empty(), "expected no lints, got {diags:?}");
+    }
+
+    #[test]
+    fn server_lints_toggle_defaults_off() {
+        // The default test constructor leaves lints disabled — the LSP
+        // only runs them when `initializationOptions.lints` is `true`.
+        let server = Server::new();
+        assert!(!server.lints_enabled);
+        let enabled = Server::with_full_config(
+            DialectMode::GqlAligned,
+            None,
+            std::time::Duration::from_millis(0),
+            true,
+        );
+        assert!(enabled.lints_enabled);
     }
 
     // -----------------------------------------------------------------------

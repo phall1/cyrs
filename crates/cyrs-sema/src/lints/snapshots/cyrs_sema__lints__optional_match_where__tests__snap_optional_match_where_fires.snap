@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/src/lints/optional_match_where.rs
+assertion_line: 139
+expression: "run_one(check,\n\"MATCH (n:Person) OPTIONAL MATCH (n)-[:KNOWS]->(m) WHERE m.age > 30 RETURN n, m\",)"
+---
+query: MATCH (n:Person) OPTIONAL MATCH (n)-[:KNOWS]->(m) WHERE m.age > 30 RETURN n, m
+diagnostics: 1
+  W6016: WHERE constrains the OPTIONAL MATCH binding `m` — this discards unmatched rows, defeating OPTIONAL
+    note: move the predicate into the OPTIONAL MATCH (`OPTIONAL MATCH (...) WHERE ...`) to keep unmatched rows, or drop OPTIONAL if a strict MATCH was intended

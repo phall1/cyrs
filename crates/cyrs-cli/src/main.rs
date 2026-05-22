@@ -57,7 +57,17 @@ enum Cmd {
     /// Parse a file and print its CST.
     Parse { file: Option<PathBuf> },
     /// Run all analysis passes; print diagnostics.
-    Check { file: Option<PathBuf> },
+    Check {
+        file: Option<PathBuf>,
+        /// Also run the clippy-equivalent lint pass (spec 0003 §6).
+        ///
+        /// Lints are warning-severity style / bug-shape diagnostics
+        /// (codes `W6011`–`W6016`). They are **off by default** until
+        /// stable; pass `--lints` to enable them. Lints never affect
+        /// the exit code — only `Error`-severity diagnostics do.
+        #[arg(long)]
+        lints: bool,
+    },
     /// Format a file.
     Fmt {
         /// Check only — do not rewrite the file; exit 1 on diff.
@@ -172,7 +182,7 @@ fn run(cli: &Cli) -> Result<u8> {
             println!("{:#?}", parse.parse().syntax());
             Ok(EXIT_OK)
         }
-        Cmd::Check { file } => {
+        Cmd::Check { file, lints } => {
             // `cypher check .` / `cypher check <dir>` / `cypher check path/to/project`
             // — if the argument is a directory we walk up to find a
             // `cypher-project.toml` and run in workspace mode. Spec 0003 §2.
@@ -192,15 +202,35 @@ fn run(cli: &Cli) -> Result<u8> {
                 .all_diagnostics(id)
                 .map_err(|e| anyhow::anyhow!("analysis failed: {e}"))?;
 
+            // Collect every diagnostic into one list so the output is a
+            // single stable, offset-sorted stream — analysis diagnostics
+            // plus, when `--lints` is set, the lint pass.
+            let mut all: Vec<cyrs_diag::Diagnostic> = diags.diagnostics().to_vec();
+            if *lints {
+                all.extend(run_lint_pass(&source_for_render));
+            }
+            all.sort_by_key(|d| (d.primary.range.start(), d.code));
+
             let mut had_errors = false;
-            for d in diags.diagnostics() {
+            let mut lint_count = 0usize;
+            for d in &all {
                 if d.severity == Severity::Error {
                     had_errors = true;
+                }
+                if is_lint_code(d.code) {
+                    lint_count += 1;
                 }
                 if let Err(e) = render_text_stderr(&label, &source_for_render, d) {
                     eprintln!("error: rendering diagnostic {code}: {e}", code = d.code);
                 }
             }
+            if *lints {
+                eprintln!(
+                    "lints: {lint_count} lint{} emitted (W6011–W6016)",
+                    if lint_count == 1 { "" } else { "s" }
+                );
+            }
+            // Lints are warning-severity — they never set the exit code.
             Ok(if had_errors {
                 EXIT_DIAGNOSTICS
             } else {
@@ -275,6 +305,32 @@ fn run(cli: &Cli) -> Result<u8> {
             } => index_scip(path, output.as_deref(), *stdout),
         },
     }
+}
+
+/// Run the clippy-equivalent lint pass (spec 0003 §6) over `src`.
+///
+/// Lints are intentionally *not* part of the memoised `analyse`
+/// pipeline (`db.all_diagnostics`) — they are opt-in via `cypher check
+/// --lints`. So the CLI lowers HIR itself and calls
+/// [`cyrs_sema::run_lints`] directly. The single-file `check` path
+/// supplies no schema, so the schema-aware lint L3 (`W6013`) does not
+/// fire here; it fires in workspace mode where a project schema exists.
+fn run_lint_pass(src: &str) -> Vec<cyrs_diag::Diagnostic> {
+    let parsed = cyrs_hir::parse_to_hir(src);
+    let mut sink = cyrs_diag::DiagnosticsSink::new();
+    cyrs_sema::run_lints(
+        &parsed.hir,
+        None,
+        &cyrs_sema::LintOptions::default(),
+        &mut sink,
+    );
+    sink.into_sorted()
+}
+
+/// Is `code` one of the cy-4yy lint codes (`W6011`–`W6016`)?
+fn is_lint_code(code: cyrs_diag::DiagCode) -> bool {
+    use cyrs_diag::DiagCode::{W6011, W6012, W6013, W6014, W6015, W6016};
+    matches!(code, W6011 | W6012 | W6013 | W6014 | W6015 | W6016)
 }
 
 /// `cypher index scip <path>` — emit a SCIP index covering every label,

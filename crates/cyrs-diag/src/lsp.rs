@@ -46,6 +46,44 @@ pub fn to_lsp_all(diags: &[Diagnostic], uri: &Uri, line_index: &LineIndex) -> Ve
     diags.iter().map(|d| to_lsp(d, uri, line_index)).collect()
 }
 
+/// Convert one [`Diagnostic`] to the LSP wire type, downgrading
+/// lint-range codes to `Information` severity.
+///
+/// The clippy-equivalent lint pack (`cyrs-sema`, codes `W6011`–`W6016`)
+/// produces `Warning`-severity diagnostics for CLI / batch use, but the
+/// LSP surfaces lints as `Information` so they read as advisory hints
+/// in the editor rather than competing visually with real warnings
+/// (bead cy-4yy). Non-lint diagnostics keep their natural severity.
+#[must_use]
+pub fn to_lsp_lint(diag: &Diagnostic, uri: &Uri, line_index: &LineIndex) -> LspDiagnostic {
+    let mut lsp = to_lsp(diag, uri, line_index);
+    if is_lint_code(diag.code) {
+        lsp.severity = Some(DiagnosticSeverity::INFORMATION);
+    }
+    lsp
+}
+
+/// Bulk [`to_lsp_lint`] — every lint-range diagnostic is downgraded to
+/// `Information`.
+#[must_use]
+pub fn to_lsp_all_lints(
+    diags: &[Diagnostic],
+    uri: &Uri,
+    line_index: &LineIndex,
+) -> Vec<LspDiagnostic> {
+    diags
+        .iter()
+        .map(|d| to_lsp_lint(d, uri, line_index))
+        .collect()
+}
+
+/// Is `code` one of the `cyrs-sema` lint codes (`W6011`–`W6016`,
+/// bead cy-4yy)?
+fn is_lint_code(code: crate::DiagCode) -> bool {
+    use crate::DiagCode::{W6011, W6012, W6013, W6014, W6015, W6016};
+    matches!(code, W6011 | W6012 | W6013 | W6014 | W6015 | W6016)
+}
+
 fn to_severity(s: Severity) -> DiagnosticSeverity {
     match s {
         Severity::Error => DiagnosticSeverity::ERROR,
@@ -110,4 +148,58 @@ fn related_vec(
             })
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{DiagCode, Diagnostic};
+
+    fn uri() -> Uri {
+        Uri::from_str("file:///q.cypher").unwrap()
+    }
+
+    fn at(start: u32, end: u32) -> TextRange {
+        TextRange::new(TextSize::new(start), TextSize::new(end))
+    }
+
+    #[test]
+    fn to_lsp_lint_downgrades_lint_codes_to_information() {
+        let idx = LineIndex::new("MATCH (n) RETURN n");
+        // A lint-range diagnostic is `Warning` severity natively …
+        let lint = Diagnostic::warning(DiagCode::W6011, at(7, 8), "unused");
+        assert_eq!(lint.severity, Severity::Warning);
+        // … but the LSP converter downgrades it to `Information`.
+        let lsp = to_lsp_lint(&lint, &uri(), &idx);
+        assert_eq!(lsp.severity, Some(DiagnosticSeverity::INFORMATION));
+    }
+
+    #[test]
+    fn to_lsp_lint_leaves_non_lint_severity_untouched() {
+        let idx = LineIndex::new("MATCH (n) RETURN n");
+        // A real warning (not in the W6011..=W6016 lint block) keeps
+        // `Warning`; an error keeps `Error`.
+        let warn = Diagnostic::warning(DiagCode::W6001, at(0, 5), "dead with");
+        assert_eq!(
+            to_lsp_lint(&warn, &uri(), &idx).severity,
+            Some(DiagnosticSeverity::WARNING),
+        );
+        let err = Diagnostic::error(DiagCode::E0001, at(0, 5), "syntax");
+        assert_eq!(
+            to_lsp_lint(&err, &uri(), &idx).severity,
+            Some(DiagnosticSeverity::ERROR),
+        );
+    }
+
+    #[test]
+    fn to_lsp_all_lints_downgrades_only_the_lint_entries() {
+        let idx = LineIndex::new("MATCH (n) RETURN n");
+        let diags = [
+            Diagnostic::error(DiagCode::E0001, at(0, 5), "syntax"),
+            Diagnostic::warning(DiagCode::W6013, at(7, 8), "no label"),
+        ];
+        let out = to_lsp_all_lints(&diags, &uri(), &idx);
+        assert_eq!(out[0].severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(out[1].severity, Some(DiagnosticSeverity::INFORMATION));
+    }
 }

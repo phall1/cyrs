@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/lints/cartesian.rs
+assertion_line: 193
+expression: "run_one(check,\n\"MATCH (a:Person) MATCH (b:Company) WHERE a.id = b.id RETURN a, b\",)"
+---
+query: MATCH (a:Person) MATCH (b:Company) WHERE a.id = b.id RETURN a, b
+diagnostics: 0

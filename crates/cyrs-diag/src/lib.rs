@@ -16,7 +16,7 @@ pub mod render;
 pub use codes::DiagCode;
 pub use json::{to_json, to_json_string, to_ndjson};
 #[cfg(feature = "lsp")]
-pub use lsp::{to_lsp, to_lsp_all};
+pub use lsp::{to_lsp, to_lsp_all, to_lsp_all_lints, to_lsp_lint};
 pub use render::{render_text, render_text_stderr, render_text_string};
 
 use cyrs_syntax::TextRange;

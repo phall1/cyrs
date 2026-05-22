@@ -45,6 +45,48 @@ fn check_bad_syntax_reports_error_and_exits_one() {
         .stderr(predicate::str::contains("error[E"));
 }
 
+/// Spec 0003 §6 (bead cy-4yy): `cypher check --lints` runs the
+/// clippy-equivalent lint pass and surfaces a `W6xxx` lint to stderr.
+/// `MATCH (n), (m) RETURN n` leaves `m` unused (L1 / W6011).
+#[test]
+fn check_lints_flag_emits_lint_diagnostics() {
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["check", "--lints", "-"])
+        .write_stdin("MATCH (n), (m) RETURN n")
+        .assert()
+        // Lints are warning-severity — they never set a non-zero exit.
+        .success()
+        .stderr(predicate::str::contains("W6011"))
+        .stderr(predicate::str::contains("lints:"));
+}
+
+/// Without `--lints`, the same query produces no lint output — lints
+/// are off by default (spec 0003 §6).
+#[test]
+fn check_without_lints_flag_is_silent() {
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["check", "-"])
+        .write_stdin("MATCH (n), (m) RETURN n")
+        .assert()
+        .success()
+        .stderr(predicate::str::is_empty());
+}
+
+/// `cypher check --lints` on a clean query reports zero lints and still
+/// exits 0.
+#[test]
+fn check_lints_flag_clean_query_reports_zero() {
+    Command::cargo_bin("cypher")
+        .expect("binary exists")
+        .args(["check", "--lints", "-"])
+        .write_stdin("MATCH (n) WHERE n.age > 1 RETURN n")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("0 lints emitted"));
+}
+
 /// Spec 0002 §12: `cypher schema load <path>` prints a one-line human-
 /// readable summary and exits 0.
 #[test]

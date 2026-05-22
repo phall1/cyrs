@@ -1,0 +1,7 @@
+---
+source: crates/cyrs-sema/src/lints/unused_var.rs
+assertion_line: 144
+expression: "run_one(check, \"MATCH (n:Person) WHERE n.age > 30 RETURN n\",)"
+---
+query: MATCH (n:Person) WHERE n.age > 30 RETURN n
+diagnostics: 0

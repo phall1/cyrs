@@ -1,0 +1,9 @@
+---
+source: crates/cyrs-sema/src/lints/cartesian.rs
+assertion_line: 184
+expression: "run_one(check, \"MATCH (a:Person) MATCH (b:Company) RETURN a, b\",)"
+---
+query: MATCH (a:Person) MATCH (b:Company) RETURN a, b
+diagnostics: 1
+  W6014: implicit cartesian product — this MATCH shares no variable or join predicate with an earlier MATCH
+    note: add a relationship pattern or a WHERE predicate relating the two MATCH clauses, or merge them into one pattern

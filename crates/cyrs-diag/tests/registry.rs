@@ -96,11 +96,11 @@ fn all_count_pinned() {
     //   10  schema-aware   (E3001–E3004, E3006–E3011, cy-36u + cy-0ek + cy-e45)
     //   14  dialect        (E4001 + E4010–E4023, cy-z49 + cy-v5u6 + cy-5js)
     //    4  type           (E5003, E5010, E5011, E5012, cy-c6g + cy-7s6.1 + cy-8x5 + cy-zo9.1)
-    //    8  style          (W6001–W6007, W6010, cy-0ek)
+    //   14  style          (W6001–W6007, W6010–W6016, cy-0ek + cy-4yy)
     //    4  perf           (W7001–W7004)
     //    3  notes          (N8001–N8003)
     //  ---
-    //  126  total
+    //  132  total
     //
     // cy-va1: removed unemitted dead codes E1003–E1005, E2001–E2006,
     //         E3005, E4002, E5001–E5002 (spec §10.2 — registry must
@@ -161,6 +161,13 @@ fn all_count_pinned() {
     // cy-5js: added E4023 (incompatible multi-label combination) for the
     //         `SchemaProvider::labels_compatible` check on `CREATE` node
     //         patterns and label-adding `SET` items (feat-request §2.3).
-    const EXPECTED: usize = 144;
+    // cy-4yy: added W6011–W6016 for the clippy-equivalent lint starter
+    //         pack (spec 0003 §6 / §20) — L1 unused pattern variable,
+    //         L2 redundant MATCH, L3 unrestricted pattern (schema-aware),
+    //         L4 implicit cartesian product, L5 wide `RETURN *`, L6
+    //         OPTIONAL MATCH with a WHERE on the optional binding.
+    //         Emitted by `cyrs-sema::lints`, opt-in via `cypher
+    //         check --lints`.
+    const EXPECTED: usize = 150;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

@@ -770,6 +770,11 @@ enum ReadOpSer {
         bind_path: VarId,
         all: bool,
     },
+    BindPath {
+        input: OpId,
+        bind_path: VarId,
+        elements: Vec<VarId>,
+    },
 }
 
 impl Serialize for ReadOp {
@@ -858,6 +863,15 @@ impl Serialize for ReadOp {
                 bind_path: *bind_path,
                 all: *all,
             },
+            ReadOp::BindPath {
+                input,
+                bind_path,
+                elements,
+            } => ReadOpSer::BindPath {
+                input: *input,
+                bind_path: *bind_path,
+                elements: elements.clone(),
+            },
         };
         proxy.serialize(s)
     }
@@ -916,6 +930,15 @@ impl<'de> Deserialize<'de> for ReadOp {
                 to,
                 bind_path,
                 all,
+            },
+            ReadOpSer::BindPath {
+                input,
+                bind_path,
+                elements,
+            } => ReadOp::BindPath {
+                input,
+                bind_path,
+                elements,
             },
         })
     }

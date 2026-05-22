@@ -771,6 +771,32 @@ pub enum DiagCode {
     /// Docs: `docs/errors/W6010.md`
     W6010 = 6010,
 
+    // --- lint starter pack (W6011..=W6016, cy-4yy) -------------------
+    //
+    // The clippy-equivalent lint pack (spec 0003 §6 / §20). Each lint is
+    // emitted by `cyrs-sema::lints` with `Severity::Warning` and carries
+    // a quick-fix hint. Lints are opt-in: the CLI gates them behind
+    // `cypher check --lints`; the LSP surfaces them as `Information`.
+    /// L1 — variable bound in a pattern but never referenced in a
+    /// `WHERE` predicate (or anywhere downstream). Style lint.
+    W6011 = 6011,
+    /// L2 — redundant `MATCH`: the clause re-matches a pattern already
+    /// covered verbatim by an earlier `MATCH` in the same statement.
+    W6012 = 6012,
+    /// L3 — node/relationship pattern with no label / relationship-type
+    /// restriction. Schema-aware: only fires when a schema is supplied.
+    W6013 = 6013,
+    /// L4 — implicit cartesian product: two `MATCH` clauses bind
+    /// disjoint variable sets with no joining predicate between them.
+    W6014 = 6014,
+    /// L5 — `RETURN *` in a statement that binds more than the
+    /// configured number of variables. Style lint.
+    W6015 = 6015,
+    /// L6 — `OPTIONAL MATCH` immediately followed by a `WHERE` that
+    /// constrains the optional binding — semantically a strict `MATCH`,
+    /// a common bug.
+    W6016 = 6016,
+
     // --- performance (7000..) ----------------------------------------
     /// Cartesian product between disconnected MATCH components.
     W7001 = 7001,
@@ -938,6 +964,12 @@ impl DiagCode {
             Self::W6006 => "W6006",
             Self::W6007 => "W6007",
             Self::W6010 => "W6010",
+            Self::W6011 => "W6011",
+            Self::W6012 => "W6012",
+            Self::W6013 => "W6013",
+            Self::W6014 => "W6014",
+            Self::W6015 => "W6015",
+            Self::W6016 => "W6016",
             Self::W7001 => "W7001",
             Self::W7002 => "W7002",
             Self::W7003 => "W7003",
@@ -1110,6 +1142,12 @@ impl DiagCode {
         Self::W6006,
         Self::W6007,
         Self::W6010,
+        Self::W6011,
+        Self::W6012,
+        Self::W6013,
+        Self::W6014,
+        Self::W6015,
+        Self::W6016,
         Self::W7001,
         Self::W7002,
         Self::W7003,

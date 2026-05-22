@@ -193,6 +193,19 @@ fn print_op(arena: &[ReadOp], idx: usize, depth: usize, out: &mut String) {
             .unwrap();
             print_op(arena, input.0 as usize, depth + 1, out);
         }
+        ReadOp::BindPath {
+            input,
+            bind_path,
+            elements,
+        } => {
+            let elems = elements
+                .iter()
+                .map(|v| format!("${}", v.0))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "{pfx}BindPath ${} = [{elems}]", bind_path.0).unwrap();
+            print_op(arena, input.0 as usize, depth + 1, out);
+        }
     }
 }
 
@@ -241,6 +254,18 @@ fn print_op_tree(op: &ReadOp, depth: usize, out: &mut String) {
             writeln!(out, "{pfx}OptionalJoin").unwrap();
             print_op_tree(pattern, depth + 1, out);
         }
+        ReadOp::BindPath {
+            bind_path,
+            elements,
+            input: _,
+        } => {
+            let elems = elements
+                .iter()
+                .map(|v| format!("${}", v.0))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "{pfx}BindPath ${} = [{elems}]", bind_path.0).unwrap();
+        }
         _ => {
             writeln!(out, "{pfx}{}", op_name(op)).unwrap();
         }
@@ -263,6 +288,7 @@ fn op_name(op: &ReadOp) -> &'static str {
         ReadOp::With { .. } => "With",
         ReadOp::OptionalJoin { .. } => "OptionalJoin",
         ReadOp::ShortestPath { .. } => "ShortestPath",
+        ReadOp::BindPath { .. } => "BindPath",
     }
 }
 

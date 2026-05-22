@@ -62,6 +62,12 @@ pub(crate) struct InitOptions {
     /// unset — tests override via `with_config_and_debounce`.
     #[serde(rename = "watchedFilesDebounceMs", default)]
     pub watched_files_debounce_ms: Option<u64>,
+    /// Enable the clippy-equivalent lint pass (spec 0003 §6, bead
+    /// cy-4yy).  When `true`, `publishDiagnostics` also surfaces lints
+    /// (`W6011`–`W6016`) as `Information`-severity diagnostics.  Off by
+    /// default — lints are opt-in until the pack stabilises.
+    #[serde(default)]
+    pub lints: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -109,6 +115,11 @@ impl InitOptions {
     /// Resolve the dialect with the default applied.
     pub(crate) fn resolved_dialect(&self) -> DialectMode {
         self.dialect.map_or(DialectMode::GqlAligned, Into::into)
+    }
+
+    /// Resolve the lint toggle with its default (off) applied.
+    pub(crate) fn lints_enabled(&self) -> bool {
+        self.lints.unwrap_or(false)
     }
 
     /// Resolve the watched-file debounce window with the default +
@@ -393,4 +404,31 @@ impl SchemaProvider for JsonSchema {
 struct SchemaDigestView<'a> {
     labels: &'a [String],
     rel_types: &'a [String],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lints_default_off_when_unset() {
+        // No `initializationOptions` at all → lints off.
+        let opts = InitOptions::from_value(None);
+        assert!(!opts.lints_enabled());
+        // An options object that omits `lints` → still off.
+        let opts = InitOptions::from_value(Some(&serde_json::json!({})));
+        assert!(!opts.lints_enabled());
+    }
+
+    #[test]
+    fn lints_enabled_when_explicitly_true() {
+        let opts = InitOptions::from_value(Some(&serde_json::json!({ "lints": true })));
+        assert!(opts.lints_enabled());
+    }
+
+    #[test]
+    fn lints_off_when_explicitly_false() {
+        let opts = InitOptions::from_value(Some(&serde_json::json!({ "lints": false })));
+        assert!(!opts.lints_enabled());
+    }
 }

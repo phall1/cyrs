@@ -726,6 +726,10 @@ impl<'s> LowerCtx<'s> {
         let mut last_op: Option<OpId> = None;
         let mut last_node_var: Option<VarId> = None;
         let mut last_rel: Option<&PatternElement> = None;
+        // The ordered node/rel `VarId`s this part traverses, source order:
+        // node, rel, node, …, node. Threaded into `ReadOp::BindPath`
+        // when the part is a plain named path (`p = …`); see cy-q7yq.
+        let mut path_elems: Vec<VarId> = Vec::new();
 
         for elem in &part.elements {
             match elem {
@@ -768,6 +772,10 @@ impl<'s> LowerCtx<'s> {
                             bind_rel,
                             bind_to,
                         });
+                        // Record the traversed rel then the reached node so
+                        // `path_elems` stays a node-first alternating run.
+                        path_elems.push(bind_rel);
+                        path_elems.push(bind_to);
                         last_node_var = Some(bind_to);
                         last_op = Some(op);
                     } else {
@@ -797,6 +805,7 @@ impl<'s> LowerCtx<'s> {
                         } else {
                             op
                         };
+                        path_elems.push(bind_var);
                         last_node_var = Some(bind_var);
                         last_op = Some(op);
                     }
@@ -812,7 +821,26 @@ impl<'s> LowerCtx<'s> {
         // (see `precheck_statement`, cy-f2t). If a consumer bypasses the
         // pre-scan and hands us a part with no Node, degrade to a degenerate
         // all-node Source so lowering still produces a valid plan.
-        last_op.unwrap_or_else(|| self.push_source_all())
+        let chain_root = last_op.unwrap_or_else(|| self.push_source_all());
+
+        // cy-q7yq: a plain named path (`p = (a)-[*]->(b)`) carries its path
+        // binder in `part.named_as`. Wrap the `Source` + `Expand` chain in a
+        // `ReadOp::BindPath` so the path `VarId` `RETURN p` references is
+        // *produced* by an operator — previously it was a dangling
+        // `Expr::Var` reference. `shortestPath` parts never reach here
+        // (they return early above), so their `bind_path` threading is
+        // untouched.
+        if let Some(path_hir_var) = part.named_as {
+            let bind_path = self.map_var(path_hir_var);
+            vars.push(bind_path);
+            return self.plan.push(ReadOp::BindPath {
+                input: chain_root,
+                bind_path,
+                elements: path_elems,
+            });
+        }
+
+        chain_root
     }
 
     /// Resolve an optional HIR binding to a plan [`VarId`].
@@ -1824,7 +1852,12 @@ fn note_param(params: &mut IndexMap<SmolStr, ParamType>, name: &SmolStr, ty: Par
 /// Collect parameters from a read operator and its inline expressions.
 fn collect_params_read_op(op: &ReadOp, params: &mut IndexMap<SmolStr, ParamType>) {
     match op {
-        ReadOp::Source { .. } | ReadOp::Distinct { .. } | ReadOp::Union { .. } => {}
+        // `BindPath` carries only `VarId`s — no inline expressions and so no
+        // parameters — so it joins the no-op group (cy-q7yq).
+        ReadOp::Source { .. }
+        | ReadOp::Distinct { .. }
+        | ReadOp::Union { .. }
+        | ReadOp::BindPath { .. } => {}
         ReadOp::Expand { rel, to, .. } => {
             if let Some(p) = &rel.properties {
                 collect_params_expr(p, ParamType::Unknown, params);
@@ -2178,6 +2211,16 @@ mod tests {
             } => format!(
                 "ShortestPath(input={}, from={}, to={}, bind_path={}, all={})",
                 input.0, from.0, to.0, bind_path.0, all
+            ),
+            ReadOp::BindPath {
+                input,
+                bind_path,
+                elements,
+            } => format!(
+                "BindPath(input={}, bind_path={}, elements={})",
+                input.0,
+                bind_path.0,
+                elements.len()
             ),
         }
     }
@@ -2659,6 +2702,248 @@ mod tests {
             render(&shortest),
             render(&plain),
             "shortest-path plan must differ from the plain Expand plan"
+        );
+    }
+
+    // ── Plain named path binding (cy-q7yq) ───────────────────────────────────
+
+    /// Collect every `VarId` that is *produced* by some operator in the plan
+    /// — i.e. appears as a `bind` / `bind_rel` / `bind_to` / `bind_path`
+    /// field, or in a `BindPath::elements` list.
+    fn bound_vars(plan: &PlanStatement) -> std::collections::HashSet<VarId> {
+        let mut set = std::collections::HashSet::new();
+        for op in &plan.ops {
+            match op {
+                ReadOp::Source { bind, .. } | ReadOp::Unwind { bind, .. } => {
+                    set.insert(*bind);
+                }
+                ReadOp::Expand {
+                    bind_rel, bind_to, ..
+                } => {
+                    set.insert(*bind_rel);
+                    set.insert(*bind_to);
+                }
+                ReadOp::ShortestPath {
+                    from,
+                    to,
+                    bind_path,
+                    ..
+                } => {
+                    set.insert(*from);
+                    set.insert(*to);
+                    set.insert(*bind_path);
+                }
+                ReadOp::BindPath {
+                    bind_path,
+                    elements,
+                    ..
+                } => {
+                    set.insert(*bind_path);
+                    set.extend(elements.iter().copied());
+                }
+                _ => {}
+            }
+        }
+        set
+    }
+
+    /// Collect every `VarId` referenced by an `Expr::Var` anywhere in the
+    /// plan's `Project` items.
+    fn projected_vars(plan: &PlanStatement) -> Vec<VarId> {
+        fn walk(e: &Expr, out: &mut Vec<VarId>) {
+            match e {
+                Expr::Var(v) => out.push(*v),
+                Expr::Prop { target, .. } => walk(target, out),
+                Expr::Index { target, index } => {
+                    walk(target, out);
+                    walk(index, out);
+                }
+                Expr::List(items) => items.iter().for_each(|i| walk(i, out)),
+                Expr::BinOp { lhs, rhs, .. } => {
+                    walk(lhs, out);
+                    walk(rhs, out);
+                }
+                Expr::Call { args, .. } => args.iter().for_each(|a| walk(a, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for op in &plan.ops {
+            if let ReadOp::Project { items, .. } = op {
+                for item in items {
+                    walk(&item.expr, &mut out);
+                }
+            }
+        }
+        out
+    }
+
+    /// Regression for cy-q7yq: `MATCH p = (a)-[*1..3]->(b) RETURN p` must
+    /// produce a plan where `p`'s `VarId` is *bound* by an operator — a
+    /// `ReadOp::BindPath` — rather than being a dangling `Expr::Var`
+    /// reference in the `Project` items.
+    #[test]
+    fn plain_named_path_binds_its_path_variable() {
+        let plan = plan_from("MATCH p = (a)-[*1..3]->(b) RETURN p");
+
+        // A `BindPath` operator must exist.
+        let bind_path = plan
+            .ops
+            .iter()
+            .find_map(|op| match op {
+                ReadOp::BindPath {
+                    bind_path,
+                    elements,
+                    ..
+                } => Some((*bind_path, elements.clone())),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected a BindPath op; ops={:?}",
+                    plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+                )
+            });
+
+        // Single segment: node, rel, node — an odd-length, node-first run.
+        assert_eq!(
+            bind_path.1.len(),
+            3,
+            "single-segment path should have 3 elements (node, rel, node)"
+        );
+
+        // `RETURN p` references `p` — and `p` is now bound by the plan.
+        let bound = bound_vars(&plan);
+        let projected = projected_vars(&plan);
+        assert!(
+            projected.contains(&bind_path.0),
+            "the BindPath path var must be the one RETURN p references"
+        );
+        for v in &projected {
+            assert!(
+                bound.contains(v),
+                "projected var {} is dangling — not bound by any operator; ops={:?}",
+                v.0,
+                plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// A multi-segment named path threads every traversed node/relationship
+    /// into `BindPath::elements` in node-first alternating order.
+    #[test]
+    fn multi_segment_named_path_collects_all_elements() {
+        let plan = plan_from("MATCH p = (a)-[r1]->(b)-[r2]->(c) RETURN p");
+
+        let elements = plan
+            .ops
+            .iter()
+            .find_map(|op| match op {
+                ReadOp::BindPath { elements, .. } => Some(elements.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected a BindPath op; ops={:?}",
+                    plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+                )
+            });
+
+        // node, rel, node, rel, node — 5 elements, odd, alternating.
+        assert_eq!(
+            elements.len(),
+            5,
+            "two-segment path should have 5 elements (n, r, n, r, n)"
+        );
+        // Every element is bound by some operator.
+        let bound = bound_vars(&plan);
+        for v in &elements {
+            assert!(
+                bound.contains(v),
+                "BindPath element {} is not produced by any operator",
+                v.0
+            );
+        }
+    }
+
+    /// A single-node named path (`MATCH p = (a)`) still binds `p`, with a
+    /// one-element `elements` holding just the node var.
+    #[test]
+    fn single_node_named_path_binds_path_variable() {
+        let plan = plan_from("MATCH p = (a) RETURN p");
+        let elements = plan
+            .ops
+            .iter()
+            .find_map(|op| match op {
+                ReadOp::BindPath { elements, .. } => Some(elements.clone()),
+                _ => None,
+            })
+            .expect("expected a BindPath op for a single-node named path");
+        assert_eq!(
+            elements.len(),
+            1,
+            "single-node path should have exactly one element"
+        );
+    }
+
+    /// `shortestPath` named paths must keep binding `p` via
+    /// `ShortestPath.bind_path` — `BindPath` must not be introduced for
+    /// them, and the path var stays non-dangling.
+    #[test]
+    fn shortest_path_named_path_still_binds_via_shortest_path_op() {
+        let plan = plan_from("MATCH p = shortestPath((a)-[*]->(b)) RETURN p");
+
+        // A ShortestPath op binds the path; no BindPath wrapper is added.
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ShortestPath { .. })),
+            "shortestPath must still lower to a ShortestPath op"
+        );
+        assert!(
+            !plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::BindPath { .. })),
+            "a shortestPath part must not be wrapped in BindPath; ops={:?}",
+            plan.ops.iter().map(op_tag).collect::<Vec<_>>()
+        );
+
+        // The projected path var is still bound (by ShortestPath.bind_path).
+        let bound = bound_vars(&plan);
+        for v in &projected_vars(&plan) {
+            assert!(
+                bound.contains(v),
+                "projected var {} is dangling in a shortestPath plan",
+                v.0
+            );
+        }
+    }
+
+    /// `allShortestPaths` likewise must not gain a `BindPath` wrapper.
+    #[test]
+    fn all_shortest_paths_named_path_not_wrapped_in_bind_path() {
+        let plan = plan_from("MATCH p = allShortestPaths((a)-[*]->(b)) RETURN p");
+        assert!(
+            !plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::BindPath { .. })),
+            "an allShortestPaths part must not be wrapped in BindPath"
+        );
+    }
+
+    /// An *unnamed* plain pattern part must not gain a `BindPath` wrapper —
+    /// `BindPath` is introduced only when `part.named_as` is `Some`.
+    #[test]
+    fn unnamed_plain_pattern_has_no_bind_path() {
+        let plan = plan_from("MATCH (a)-[*1..3]->(b) RETURN a");
+        assert!(
+            !plan
+                .ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::BindPath { .. })),
+            "an unnamed pattern part must not produce a BindPath op"
         );
     }
 

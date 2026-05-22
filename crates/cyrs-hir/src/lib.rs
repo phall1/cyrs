@@ -178,23 +178,24 @@ pub enum VarKind {
     /// synthesise a separate "path value" node — an embedder
     /// materialises the path by walking `elements`.
     ///
-    /// **Plan contract — important asymmetry.** How `cyrs-plan`
-    /// surfaces the binder depends on the pattern part:
+    /// **Plan contract.** `cyrs-plan` always surfaces the binder as a
+    /// real plan `cyrs_plan::VarId` *produced* by a path-producing
+    /// operator, regardless of the pattern part shape:
     ///
     /// - For a `shortestPath` / `allShortestPaths` part, the binder is
     ///   threaded into `cyrs_plan::ReadOp::ShortestPath`'s `bind_path`
-    ///   field — a real plan `cyrs_plan::VarId` *produced* by that
-    ///   operator.
+    ///   field.
     /// - For a **plain** named path (`MATCH p = (a)-[*]->(b)`), the
-    ///   plan lowering does **not** thread the binder into any
-    ///   producing operator. `RETURN p` still lowers `p` to an
-    ///   `Expr::Var(VarId)` in the `Project` items, but no
-    ///   `Source` / `Expand` operator carries that `VarId` as a
-    ///   `bind` / `bind_rel` / `bind_to`. The plan therefore does not
-    ///   tell the consumer how to assemble `p` from the bound
-    ///   node/relationship variables — the embedder must reconstruct
-    ///   the path itself from the `Source` + `Expand` chain. See
-    ///   `cyrs_plan::ReadOp::ShortestPath` for the contrast.
+    ///   `Source` + `Expand` chain is wrapped in a
+    ///   `cyrs_plan::ReadOp::BindPath`, whose `bind_path` field
+    ///   produces the binder and whose `elements` field lists the
+    ///   ordered node/relationship `VarId`s the path is assembled
+    ///   from. `RETURN p` therefore references a `VarId` that some
+    ///   operator genuinely produces — there is no dangling reference.
+    ///
+    /// In both cases the embedder materialises the path by reading the
+    /// element sequence; see `cyrs_plan::ReadOp::BindPath` and
+    /// `cyrs_plan::ReadOp::ShortestPath`.
     Path,
     /// Bound by `UNWIND ... AS v`, `WITH expr AS v`, or `CALL ... YIELD v`.
     Value,
