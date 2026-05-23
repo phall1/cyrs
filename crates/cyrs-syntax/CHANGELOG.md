@@ -18,6 +18,16 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   between EXCLUDE and ORDER BY.  Recovery codes `E0099`
   (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
   each have a UI fixture under `tests/ui/syntax/`.
+- cy-dwem (ISO/IEC 39075:2024 §20.1): parse `x IS [NOT] TRUE`,
+  `x IS [NOT] FALSE`, `x IS [NOT] UNKNOWN` (`truthValuePredicatePart2`
+  / `truthValue`).  New keyword `UNKNOWN_KW` (slot 202; `TRUE_KW` and
+  `FALSE_KW` were already reserved), new CST node
+  `TRUTH_VALUE_PREDICATE` (slot 421).  Wired into the postfix-IS
+  dispatch in `expression.rs` alongside `IS NULL` and `IS TYPED`.  No
+  new diagnostic codes are registered — the surrounding dispatch
+  recovers via the existing `E0025` (`EXPECTED_NULL_AFTER_IS`) path,
+  so the legacy diagnostic surface is preserved for queries that
+  simply forgot to spell `NULL`.
 
 ### Changed
 

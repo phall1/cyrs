@@ -48,6 +48,7 @@
 //   - ExistsPredicate: no `SyntaxKind::EXISTS_PREDICATE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - StringPatternExpr: no `SyntaxKind::STRING_PATTERN_EXPR` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - MembershipExpr: no `SyntaxKind::MEMBERSHIP_EXPR` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - TruthValuePredicate: no `SyntaxKind::TRUTH_VALUE_PREDICATE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - FloatLiteral: no `SyntaxKind::FLOAT_LITERAL` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - StringLiteral: no `SyntaxKind::STRING_LITERAL` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - BoolLiteral: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)

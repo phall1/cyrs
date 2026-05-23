@@ -252,6 +252,26 @@ pub enum SyntaxKind {
     GROUP_KW = 197,
     // --- end cy-71t0 ---
 
+    // --- cy-dwem truthValue predicate ---
+    // GQL-distinct `IS [NOT] UNKNOWN` truth-value tail
+    // (ISO/IEC 39075:2024 §20.1 `truthValuePredicatePart2 / truthValue`).
+    // `TRUE_KW` / `FALSE_KW` are already reserved at slots 151/152.
+    // Slot 202 is chosen deliberately above the LAST_KW = 201 reserved
+    // by sister bead cy-z0x8 (catalog DDL extensions); cy-z0x8 may not
+    // have landed in main yet, so this hops the reserved range and
+    // lets integration sort merge order without renumbering.
+    //
+    // The variant is RESERVED but the lexer does not currently emit
+    // it — `UNKNOWN` is recognised contextually in the IS-postfix
+    // dispatch (see `grammar/expression.rs`).  This preserves
+    // pre-existing fixtures that bind `unknown` as an ordinary
+    // identifier (e.g. cyrs-sema's `CALL unknown.procedure()` test).
+    // The slot is held for a future full-keyword promotion if and
+    // when the corpus is audited and the contextual recognition is
+    // no longer required.
+    UNKNOWN_KW = 202,
+    // --- end cy-dwem ---
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -510,6 +530,18 @@ pub enum SyntaxKind {
     GROUP_BY = 414,
     // --- end cy-71t0 ---
 
+    // --- cy-dwem truthValue predicate ---
+    // CST node for the truth-value predicate
+    // `<expr> IS [NOT] (TRUE | FALSE | UNKNOWN)`
+    // (ISO/IEC 39075:2024 §20.1 `truthValuePredicatePart2 / truthValue`).
+    // Sits at expression-postfix priority alongside `IS_NULL_EXPR` /
+    // `IS_TYPED_EXPR`.  Slot 421 is chosen above the 415..=420 range
+    // reserved by sister bead cy-z0x8 (catalog DDL CST additions /
+    // NULL_ORDERING).  cy-z0x8 may not have landed in main yet, so the
+    // hop preserves merge order.
+    TRUTH_VALUE_PREDICATE = 421,
+    // --- end cy-dwem ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -646,6 +678,9 @@ impl SyntaxKind {
             196 => Self::ZONE_KW,
             197 => Self::GROUP_KW,
             // --- end cy-9kzx ---
+            // --- cy-dwem truthValue ---
+            202 => Self::UNKNOWN_KW,
+            // --- end cy-dwem ---
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
             322 => Self::MATCH_CLAUSE,
@@ -747,6 +782,9 @@ impl SyntaxKind {
             413 => Self::EXISTS_SUBQUERY_EXPR,
             414 => Self::GROUP_BY,
             // --- end cy-p1u5 ---
+            // --- cy-dwem truthValue ---
+            421 => Self::TRUTH_VALUE_PREDICATE,
+            // --- end cy-dwem ---
             768 => Self::ERROR,
             769 => Self::EOF,
 
@@ -776,16 +814,17 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=ZONE_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=UNKNOWN_KW`).
     ///
-    /// `ZONE_KW` is the current upper bound (cy-9kzx SESSION SET; sits
-    /// at slot 196, above cy-rgqg's catalog-DDL keywords at 190..=194).
-    /// Internal slots may be unassigned — `from_u16` returns `None`
-    /// for those gaps, so they never round-trip into a keyword.
+    /// `UNKNOWN_KW` is the current upper bound (cy-dwem truthValue
+    /// predicate; sits at slot 202, above the 198..=201 range reserved
+    /// for sister bead cy-z0x8's catalog-DDL keywords).  Internal slots
+    /// may be unassigned — `from_u16` returns `None` for those gaps,
+    /// so they never round-trip into a keyword.
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::GROUP_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::UNKNOWN_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -861,6 +900,8 @@ mod tests {
             SyntaxKind::EXISTS_SUBQUERY_EXPR,
             SyntaxKind::GROUP_KW,
             SyntaxKind::GROUP_BY,
+            SyntaxKind::UNKNOWN_KW,
+            SyntaxKind::TRUTH_VALUE_PREDICATE,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

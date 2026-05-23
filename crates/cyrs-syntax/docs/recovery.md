@@ -244,6 +244,25 @@ invariant; the strategy will be fleshed out when the production lands.
   parser continues as if `BY` were present (mirroring the ORDER BY
   recovery shape); missing expression after `GROUP BY` emits `E0100`.
 
+### TruthValuePredicate
+
+GQL `truthValuePredicatePart2` (ISO/IEC 39075:2024 §20.1) — extends
+the existing IS-postfix dispatch in `expression.rs`.  The path-split
+after `IS [NOT]` now has three live arms: `NULL` → `IS_NULL_EXPR`,
+`TYPED <Type>` → `IS_TYPED_EXPR`, `TRUE|FALSE|UNKNOWN` →
+`TRUTH_VALUE_PREDICATE`.  No new diagnostic codes are registered:
+
+- Recovery is inherited from the surrounding IS-postfix dispatch.  An
+  `IS` not followed by `NULL`, `TYPED`, `TRUE`, `FALSE`, or `UNKNOWN`
+  continues to surface the existing `E0025`
+  (`EXPECTED_NULL_AFTER_IS`) — the legacy diagnostic surface is
+  preserved for queries that forgot to spell `NULL`.
+- The truthValue tail tokens (`TRUE_KW`, `FALSE_KW`, `UNKNOWN_KW`) are
+  reserved keywords at the lexer level; if any of them is the first
+  token after `IS [NOT]` the parser consumes it directly into the
+  `TRUTH_VALUE_PREDICATE` parent and closes the node.  Synchronisation
+  is whatever the outer Pratt loop uses (comparison-level).
+
 ### SortItem
 
 - Synchronisation set: `,`, `ASC`, `DESC`, `ASCENDING`, `DESCENDING`,

@@ -94,11 +94,15 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
             continue;
         }
 
-        // `IS [NOT] NULL` and `IS [NOT] TYPED <TypeName>` — postfix at
-        // priority 5 (comparison-level). The two forms share the leading
-        // `IS [NOT]` prefix and split on the next token:
-        //   `IS NULL`            → IS_NULL_EXPR  (existing path, cy-nom)
-        //   `IS TYPED <Type>`    → IS_TYPED_EXPR (cy-pnp, ISO 39075 §6.5.2)
+        // `IS [NOT] NULL`, `IS [NOT] TYPED <TypeName>`, and `IS [NOT]
+        // (TRUE|FALSE|UNKNOWN)` — postfix at priority 5 (comparison-
+        // level). The three forms share the leading `IS [NOT]` prefix
+        // and split on the next token:
+        //   `IS NULL`               → IS_NULL_EXPR  (existing path, cy-nom)
+        //   `IS TYPED <Type>`       → IS_TYPED_EXPR (cy-pnp, ISO 39075 §6.5.2)
+        //   `IS TRUE|FALSE|UNKNOWN` → TRUTH_VALUE_PREDICATE (cy-dwem,
+        //                              ISO 39075 §20.1
+        //                              `truthValuePredicatePart2`)
         // Anything else after `IS [NOT]` is treated as a missing-NULL
         // recovery so the legacy diagnostic surface (E0025) does not
         // change for queries that simply forgot to spell `NULL`.
@@ -121,6 +125,22 @@ fn expr_bp_depth(p: &mut Parser<'_>, min_bp: u8, depth: u32) -> Option<Completed
                     );
                 }
                 lhs = m.complete(p, SyntaxKind::IS_TYPED_EXPR);
+            } else if matches!(p.current(), SyntaxKind::TRUE_KW | SyntaxKind::FALSE_KW)
+                || p.at_contextual("UNKNOWN")
+            {
+                // cy-dwem: GQL truthValuePredicatePart2 (§20.1).  The
+                // truthValue tail is one of TRUE / FALSE / UNKNOWN.
+                // `TRUE_KW` / `FALSE_KW` are already reserved at the
+                // lexer level; `UNKNOWN` is recognised contextually
+                // (see `lexer.rs` for the rationale — pre-existing
+                // fixtures rely on `unknown` parsing as an ordinary
+                // identifier, e.g. `CALL unknown.procedure()` in
+                // cyrs-sema's E3008 fixture).  The CST emits the
+                // underlying token (`TRUE_KW` / `FALSE_KW` / `IDENT`)
+                // verbatim; the parent `TRUTH_VALUE_PREDICATE` node is
+                // the semantic marker.
+                p.bump_any();
+                lhs = m.complete(p, SyntaxKind::TRUTH_VALUE_PREDICATE);
             } else {
                 if !p.eat(SyntaxKind::NULL_KW) {
                     p.error_code(sc::EXPECTED_NULL_AFTER_IS, "expected NULL after IS");
@@ -1609,6 +1629,51 @@ mod tests {
     fn is_missing_null_errors() {
         let codes = parse_codes("RETURN n IS 42");
         assert!(!codes.is_empty());
+    }
+
+    // --- IS [NOT] TRUE / FALSE / UNKNOWN (cy-dwem, §20.1) -------
+
+    #[test]
+    fn is_true_predicate() {
+        let src = "RETURN n.flag IS TRUE";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::TRUTH_VALUE_PREDICATE));
+    }
+
+    #[test]
+    fn is_false_predicate() {
+        let src = "RETURN n.flag IS FALSE";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::TRUTH_VALUE_PREDICATE));
+    }
+
+    #[test]
+    fn is_unknown_predicate() {
+        let src = "RETURN n.flag IS UNKNOWN";
+        assert_clean(src);
+        assert!(has_kind(src, SyntaxKind::TRUTH_VALUE_PREDICATE));
+    }
+
+    #[test]
+    fn is_not_true_predicate() {
+        assert_clean("RETURN n.flag IS NOT TRUE");
+    }
+
+    #[test]
+    fn is_not_false_predicate() {
+        assert_clean("RETURN n.flag IS NOT FALSE");
+    }
+
+    #[test]
+    fn is_not_unknown_predicate() {
+        assert_clean("RETURN n.flag IS NOT UNKNOWN");
+    }
+
+    #[test]
+    fn truth_value_predicate_chains_with_and() {
+        // The predicate has comparison-level precedence so it composes
+        // with conjunctive operators in the surrounding WHERE.
+        assert_clean("MATCH (n) WHERE n.a IS TRUE AND n.b IS NOT FALSE RETURN n");
     }
 
     // --- List predicates (cy-8x5) --------------------------------

@@ -432,6 +432,18 @@ enum RawToken {
     Group,
     // --- end cy-71t0 ---
 
+    // --- cy-dwem truthValue predicate ---
+    // `UNKNOWN` is NOT lexed as a keyword.  It is recognised
+    // contextually in the postfix-IS dispatch (see `expression.rs`) so
+    // pre-existing fixtures that use `unknown` as an ordinary
+    // identifier (e.g. `CALL unknown.procedure()` in cyrs-sema's
+    // E3008 fixture, and the openCypher TCK comment-text scenarios)
+    // continue to parse.  `TRUE` / `FALSE` are already reserved at the
+    // lexer level (they are also boolean-literal atoms), so the
+    // truthValue tail handles those two by their existing
+    // `TRUE_KW` / `FALSE_KW` token kinds.
+    // --- end cy-dwem ---
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
