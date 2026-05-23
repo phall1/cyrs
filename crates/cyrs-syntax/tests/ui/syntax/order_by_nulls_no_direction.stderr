@@ -1,0 +1,3 @@
+error[E0104]: expected FIRST or LAST after NULLS
+ --> order_by_nulls_no_direction.cypher:352
+

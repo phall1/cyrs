@@ -48,6 +48,8 @@
 //! Exercised: E0077 — shortestPath / allShortestPaths missing `)` (cy-b5b), UI fixture `shortest_path_missing_rparen`.
 //! Exercised: E0099 — `GROUP` without trailing `BY` in a RETURN trailer (cy-71t0), UI fixture `group_by_missing_by`.
 //! Exercised: E0100 — `GROUP BY` with no expression (cy-71t0), UI fixture `group_by_missing_expr`.
+//! Exercised: E0104 — `NULLS` not followed by `FIRST` or `LAST` in an ORDER BY sort spec (cy-z0x8), UI fixture `order_by_nulls_no_direction`.
+//! Exercised: E0105 — `OFFSET` with no following expression (cy-z0x8), UI fixture `offset_missing_expr`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

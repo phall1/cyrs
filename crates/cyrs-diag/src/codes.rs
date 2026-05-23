@@ -749,6 +749,13 @@ pub enum DiagCode {
     /// Expected expression in `GROUP BY` (cy-71t0,
     /// `groupingElement`).
     E0100 = 100,
+    /// Expected `FIRST` or `LAST` after `NULLS` in a sort
+    /// specification's `nullOrdering` trailer (cy-z0x8, ISO/IEC
+    /// 39075:2024 §14.13.6).
+    E0104 = 104,
+    /// Expected expression after `OFFSET` (cy-z0x8, ISO/IEC
+    /// 39075:2024 §14.13.7 `offsetClause`).
+    E0105 = 105,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -920,6 +927,8 @@ impl DiagCode {
             Self::E0098 => "E0098",
             Self::E0099 => "E0099",
             Self::E0100 => "E0100",
+            Self::E0104 => "E0104",
+            Self::E0105 => "E0105",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -1102,6 +1111,8 @@ impl DiagCode {
         Self::E0098,
         Self::E0099,
         Self::E0100,
+        Self::E0104,
+        Self::E0105,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1340,6 +1351,8 @@ mod tests {
             DiagCode::E0098,
             DiagCode::E0099,
             DiagCode::E0100,
+            DiagCode::E0104,
+            DiagCode::E0105,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1420,16 +1433,19 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps: E0073..=E0077, E0085, E0087, E0101+.
+        // Gaps: E0073..=E0077, E0085, E0087, E0101..=E0103, E0106+.
         // E0083 INSERT, E0084 FILTER, E0086 EXCLUDE, E0088/E0089 TYPED,
         // E0090 path-mode, E0091–E0098 SESSION SET (cy-9kzx),
-        // E0099/E0100 GROUP BY (cy-71t0) are claimed.
+        // E0099/E0100 GROUP BY (cy-71t0), E0104/E0105 OFFSET + NULLS
+        // FIRST/LAST (cy-z0x8) are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
         assert_eq!(DiagCode::try_from_u16(101), None);
+        assert_eq!(DiagCode::try_from_u16(103), None);
+        assert_eq!(DiagCode::try_from_u16(106), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

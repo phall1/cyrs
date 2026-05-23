@@ -226,12 +226,26 @@ invariant; the strategy will be fleshed out when the production lands.
 
 ### OrderBy
 
-- Synchronisation set: `SKIP`, `LIMIT`, clause-start keywords, `;`, EOF.
+- Synchronisation set: `SKIP`, `OFFSET`, `LIMIT`, clause-start
+  keywords, `;`, EOF.  (`OFFSET` joins the set as an `offsetSynonym`
+  for `SKIP` — cy-z0x8.)
 - Skip-and-recover: malformed sort-items are wrapped in an `ORDER_ITEM`
   with an internal `ERROR` node; recovery continues at the next `,`
   or sync-set token.
 - Virtual insertion: missing `BY` after `ORDER` emits a diagnostic;
   parser continues as if `BY` were present.
+
+### NullOrdering
+
+- Synchronisation set: `,`, `SKIP`, `OFFSET`, `LIMIT`, clause-start
+  keywords, `;`, EOF.
+- Skip-and-recover: an isolated `NULLS` keyword still opens a
+  `NULL_ORDERING` node; recovery resumes at the next sync-set token
+  without consuming further input.
+- Virtual insertion: missing `FIRST` / `LAST` after `NULLS` in a sort
+  specification emits `E0104` and the `NULL_ORDERING` node still
+  closes so the outer `ORDER_ITEM` and the trailing `SKIP` / `OFFSET`
+  / `LIMIT` parse cleanly (cy-z0x8).
 
 ### GroupBy
 
@@ -276,6 +290,13 @@ after `IS [NOT]` now has three live arms: `NULL` → `IS_NULL_EXPR`,
 - Skip-and-recover: expression tokens until a sync-set token when the
   expression is missing.
 - Virtual insertion: none.
+- GQL surface: `SKIP` and `OFFSET` are surface synonyms
+  (`offsetSynonym`, ISO/IEC 39075:2024 §14.13.7).  Both reach the
+  same parser function and complete a `SKIP_SUBCLAUSE` CST node; the
+  contained keyword token records which spelling was used.  A bare
+  `OFFSET` with no following expression emits `E0105`
+  (`EXPECTED_OFFSET_EXPR`); the `SKIP` form keeps `E0040`
+  (`EXPECTED_SKIP_EXPR`).
 
 ### Limit
 

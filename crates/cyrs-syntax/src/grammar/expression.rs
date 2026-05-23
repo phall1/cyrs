@@ -237,7 +237,18 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
             typed_temporal_literal(p)
         }
         // --- end cy-51we ---
-        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+        // cy-z0x8: `OFFSET`, `NULLS`, `FIRST`, `LAST` are reserved at
+        // clause level (GQL §14.13.6 nullOrdering, §14.13.7
+        // offsetClause) but openCypher v9 routinely uses them as plain
+        // identifiers.  In expression position they decay back into
+        // variable references — the contextual reservation kicks in
+        // only at the trailer / sort-item level.
+        SyntaxKind::IDENT
+        | SyntaxKind::QUOTED_IDENT
+        | SyntaxKind::OFFSET_KW
+        | SyntaxKind::NULLS_KW
+        | SyntaxKind::FIRST_KW
+        | SyntaxKind::LAST_KW => {
             // Variable reference. A following `(` is handled as a postfix
             // function-call in the infix/postfix loop.
             let m = p.start();
@@ -502,7 +513,8 @@ fn map_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
 }
 
 fn map_entry(p: &mut Parser<'_>, depth: u32) {
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    // cy-z0x8: name-like keyword tokens accepted as map keys.
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_MAP_KEY, "expected key in map literal");
     }
     if !p.eat(SyntaxKind::COLON) {
@@ -1213,7 +1225,9 @@ fn apply_postfix(
         PostfixKind::Dot => {
             let m = lhs.precede(p);
             p.bump(SyntaxKind::DOT);
-            if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+            // cy-z0x8: name-like keyword tokens accepted as property
+            // keys after `.` (`n.first`, `n.last`, `m.offset`).
+            if !p.eat_name_like() {
                 p.error_code(
                     sc::EXPECTED_PROP_KEY_AFTER_DOT,
                     "expected property key after '.'",

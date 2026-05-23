@@ -23,6 +23,7 @@
 //   - QualifiedName: no `SyntaxKind::QUALIFIED_NAME` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - YieldClause: no `SyntaxKind::YIELD_CLAUSE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - SortItem: no `SyntaxKind::SORT_ITEM` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - NullOrdering: no `SyntaxKind::NULL_ORDERING` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - PropertyAssign: no `SyntaxKind::PROPERTY_ASSIGN` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - LabelAdd: no `SyntaxKind::LABEL_ADD` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - NodeReplace: no `SyntaxKind::NODE_REPLACE` variant in cyrs-syntax::kind (see cy-nom follow-ups)

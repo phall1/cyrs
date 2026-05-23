@@ -1,0 +1,3 @@
+error[E0105]: expected expression after OFFSET
+ --> offset_missing_expr.cypher:329
+

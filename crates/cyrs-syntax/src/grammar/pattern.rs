@@ -192,7 +192,7 @@ fn node_pattern(p: &mut Parser<'_>) {
     p.bump(SyntaxKind::L_PAREN);
 
     // Optional name binder.
-    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+    if p.at_name_like() {
         name_binder(p);
     }
     // Optional label list.
@@ -317,7 +317,7 @@ fn rel_detail(p: &mut Parser<'_>) {
     p.bump(SyntaxKind::L_BRACK);
 
     // Optional name binder.
-    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+    if p.at_name_like() {
         name_binder(p);
     }
     // Optional type expression: `:Type` (pipe disjunction deferred).
@@ -433,7 +433,10 @@ fn property_map(p: &mut Parser<'_>) {
 }
 
 fn property_kv(p: &mut Parser<'_>) {
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    // cy-z0x8: accept GQL clause-level keywords that openCypher uses as
+    // plain identifiers in property-key position (`{first: ...}` etc.).
+    // See `Parser::at_name_like` for the full list.
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_PROP_KEY, "expected property key");
     }
     if !p.eat(SyntaxKind::COLON) {
@@ -448,10 +451,12 @@ fn property_kv(p: &mut Parser<'_>) {
 }
 
 /// A plain `IDENT` / `QUOTED_IDENT` wrapped in a `NAME` node, for binders that
-/// live inside patterns.
+/// live inside patterns.  cy-z0x8: also accepts the four name-like GQL
+/// keywords (`OFFSET` / `NULLS` / `FIRST` / `LAST`) so openCypher-style
+/// queries that bind them as variable names keep parsing.
 fn name_binder(p: &mut Parser<'_>) {
     let m = p.start();
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_IDENT, "expected identifier");
     }
     m.complete(p, SyntaxKind::NAME);

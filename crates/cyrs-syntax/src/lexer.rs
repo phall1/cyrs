@@ -432,6 +432,25 @@ enum RawToken {
     Group,
     // --- end cy-71t0 ---
 
+    // --- cy-z0x8 OFFSET + NULLS FIRST/LAST ---
+    // GQL-distinct keywords for `offsetClause` (ISO/IEC 39075:2024
+    // §14.13.7 — `OFFSET` is an `offsetSynonym` for `SKIP`) and
+    // `nullOrdering` (§14.13.6 — `NULLS FIRST` / `NULLS LAST`).  All
+    // four are *soft* keywords at the parser layer — see the
+    // `at_name_like` / `eat_name_like` helpers in `parser.rs`, which
+    // accept these tokens in name position so openCypher TCK queries
+    // binding `first` / `last` / `nulls` / `offset` as aliases or
+    // property keys keep parsing.
+    #[token("OFFSET", ignore(case))]
+    Offset,
+    #[token("NULLS", ignore(case))]
+    Nulls,
+    #[token("FIRST", ignore(case))]
+    First,
+    #[token("LAST", ignore(case))]
+    Last,
+    // --- end cy-z0x8 ---
+
     // --- cy-dwem truthValue predicate ---
     // `UNKNOWN` is NOT lexed as a keyword.  It is recognised
     // contextually in the postfix-IS dispatch (see `expression.rs`) so
@@ -612,6 +631,10 @@ impl RawToken {
             Self::Session => SyntaxKind::SESSION_KW,
             Self::Zone => SyntaxKind::ZONE_KW,
             Self::Group => SyntaxKind::GROUP_KW,
+            Self::Offset => SyntaxKind::OFFSET_KW,
+            Self::Nulls => SyntaxKind::NULLS_KW,
+            Self::First => SyntaxKind::FIRST_KW,
+            Self::Last => SyntaxKind::LAST_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

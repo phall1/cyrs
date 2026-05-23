@@ -171,6 +171,11 @@ fn all_count_pinned() {
     // cy-71t0: added E0099 (`EXPECTED_BY_AFTER_GROUP`) and E0100
     //          (`EXPECTED_GROUPBY_EXPR`) for GQL `GROUP BY` parsing
     //          (ISO/IEC 39075:2024 §14.13.3). Bumped 150 → 152.
-    const EXPECTED: usize = 152;
+    // cy-z0x8: added E0104 (`EXPECTED_FIRST_OR_LAST_AFTER_NULLS`) and
+    //          E0105 (`EXPECTED_OFFSET_EXPR`) for GQL `OFFSET`
+    //          synonym + `NULLS FIRST / LAST` sort-spec trailer
+    //          (ISO/IEC 39075:2024 §14.13.6 / §14.13.7). Bumped
+    //          152 → 154.
+    const EXPECTED: usize = 154;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }
