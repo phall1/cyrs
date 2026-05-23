@@ -50,6 +50,9 @@
 //! Exercised: E0100 — `GROUP BY` with no expression (cy-71t0), UI fixture `group_by_missing_expr`.
 //! Exercised: E0104 — `NULLS` not followed by `FIRST` or `LAST` in an ORDER BY sort spec (cy-z0x8), UI fixture `order_by_nulls_no_direction`.
 //! Exercised: E0105 — `OFFSET` with no following expression (cy-z0x8), UI fixture `offset_missing_expr`.
+//! Exercised: E0101 — label-expression `!` with no primary (cy-p3cl, §16.4), UI fixture `label_expr_bang_missing_primary`.
+//! Exercised: E0102 — parenthesised label-expression missing `)` (cy-p3cl, §16.4), UI fixture `label_expr_unclosed_paren`.
+//! Exercised: E0103 — `:` followed by no label primary in node pattern (cy-p3cl, §16.4), UI fixture `label_expr_missing_primary`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

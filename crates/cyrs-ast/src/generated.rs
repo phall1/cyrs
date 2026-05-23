@@ -17,7 +17,6 @@
 //   - Skip: no `SyntaxKind::SKIP` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - Limit: no `SyntaxKind::LIMIT` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - ReturnExclude: no `SyntaxKind::RETURN_EXCLUDE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
-//   - GroupBy: no `SyntaxKind::GROUP_BY` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - NameRef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NameDef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - QualifiedName: no `SyntaxKind::QUALIFIED_NAME` variant in cyrs-syntax::kind (see cy-nom follow-ups)
@@ -201,6 +200,10 @@ impl ReturnClause {
 
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+
+    pub fn group_by(&self) -> Option<GroupBy> {
+        self.syntax.children().find_map(GroupBy::cast)
     }
 
     pub fn order_by(&self) -> Option<OrderBy> {
@@ -551,6 +554,32 @@ impl OrderBy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GroupBy {
+    syntax: SyntaxNode,
+}
+
+impl GroupBy {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::GROUP_BY).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn expr(&self) -> impl Iterator<Item = Expr> + '_ {
+        self.syntax.children().filter_map(Expr::cast)
+    }
+
+    pub fn by_token(&self) -> Option<SyntaxToken> {
+        self.syntax
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| t.kind() == SyntaxKind::BY_KW)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
     syntax: SyntaxNode,
 }
@@ -670,6 +699,10 @@ impl LabelExpr {
     pub fn syntax(&self) -> &SyntaxNode {
         &self.syntax
     }
+
+    pub fn label_inner(&self) -> Option<LabelInner> {
+        self.syntax.children().find_map(LabelInner::cast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -755,6 +788,97 @@ impl RelDetail {
 
     pub fn property_map(&self) -> Option<PropertyMap> {
         self.syntax.children().find_map(PropertyMap::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LabelDisjunctionExpr {
+    syntax: SyntaxNode,
+}
+
+impl LabelDisjunctionExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LABEL_DISJUNCTION_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn label_inner(&self) -> Option<LabelInner> {
+        self.syntax.children().find_map(LabelInner::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LabelConjunctionExpr {
+    syntax: SyntaxNode,
+}
+
+impl LabelConjunctionExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LABEL_CONJUNCTION_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn label_inner(&self) -> Option<LabelInner> {
+        self.syntax.children().find_map(LabelInner::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LabelNegationExpr {
+    syntax: SyntaxNode,
+}
+
+impl LabelNegationExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LABEL_NEGATION_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn label_inner(&self) -> Option<LabelInner> {
+        self.syntax.children().find_map(LabelInner::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LabelWildcardExpr {
+    syntax: SyntaxNode,
+}
+
+impl LabelWildcardExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LABEL_WILDCARD_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LabelParenExpr {
+    syntax: SyntaxNode,
+}
+
+impl LabelParenExpr {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        (syntax.kind() == SyntaxKind::LABEL_PAREN_EXPR).then_some(Self { syntax })
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        &self.syntax
+    }
+
+    pub fn label_inner(&self) -> Option<LabelInner> {
+        self.syntax.children().find_map(LabelInner::cast)
     }
 }
 
@@ -1461,6 +1585,46 @@ impl Expr {
             Self::UnaryExpr(inner) => inner.syntax(),
             Self::PatternPredicate(inner) => inner.syntax(),
             Self::ExistsSubqueryExpr(inner) => inner.syntax(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LabelInner {
+    LabelDisjunctionExpr(LabelDisjunctionExpr),
+    LabelConjunctionExpr(LabelConjunctionExpr),
+    LabelNegationExpr(LabelNegationExpr),
+    LabelWildcardExpr(LabelWildcardExpr),
+    LabelParenExpr(LabelParenExpr),
+}
+
+impl LabelInner {
+    pub fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if let Some(inner) = LabelDisjunctionExpr::cast(syntax.clone()) {
+            return Some(Self::LabelDisjunctionExpr(inner));
+        }
+        if let Some(inner) = LabelConjunctionExpr::cast(syntax.clone()) {
+            return Some(Self::LabelConjunctionExpr(inner));
+        }
+        if let Some(inner) = LabelNegationExpr::cast(syntax.clone()) {
+            return Some(Self::LabelNegationExpr(inner));
+        }
+        if let Some(inner) = LabelWildcardExpr::cast(syntax.clone()) {
+            return Some(Self::LabelWildcardExpr(inner));
+        }
+        if let Some(inner) = LabelParenExpr::cast(syntax) {
+            return Some(Self::LabelParenExpr(inner));
+        }
+        None
+    }
+
+    pub fn syntax(&self) -> &SyntaxNode {
+        match self {
+            Self::LabelDisjunctionExpr(inner) => inner.syntax(),
+            Self::LabelConjunctionExpr(inner) => inner.syntax(),
+            Self::LabelNegationExpr(inner) => inner.syntax(),
+            Self::LabelWildcardExpr(inner) => inner.syntax(),
+            Self::LabelParenExpr(inner) => inner.syntax(),
         }
     }
 }

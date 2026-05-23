@@ -755,6 +755,15 @@ pub(crate) mod syntax_codes {
     /// E0105 — expected expression after `OFFSET` (cy-z0x8, ISO/IEC
     /// 39075:2024 §14.13.7 `offsetClause`).
     pub(crate) const EXPECTED_OFFSET_EXPR: u16 = 105;
+    /// E0101 — expected a label expression after `!` in a label
+    /// negation (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_AFTER_BANG: u16 = 101;
+    /// E0102 — expected `)` to close a parenthesised label expression
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_RPAREN_LABEL: u16 = 102;
+    /// E0103 — expected a label expression (label name, `%`, `!`,
+    /// or `(`) (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_EXPR: u16 = 103;
     // ---- end cy-9kzx ---------------------------------------------------
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------

@@ -176,6 +176,12 @@ fn all_count_pinned() {
     //          synonym + `NULLS FIRST / LAST` sort-spec trailer
     //          (ISO/IEC 39075:2024 §14.13.6 / §14.13.7). Bumped
     //          152 → 154.
-    const EXPECTED: usize = 154;
+    // cy-p3cl: added E0101 (`EXPECTED_LABEL_AFTER_BANG`), E0102
+    //          (`EXPECTED_RPAREN_LABEL`), and E0103
+    //          (`EXPECTED_LABEL_EXPR`) for GQL compound label
+    //          expressions `(n:A&B)`, `(n:A|B)`, `(n:!A)`, `(n:%)`,
+    //          `(n:(A|B)&C)` (ISO/IEC 39075:2024 §16.4). Bumped 154 →
+    //          157.
+    const EXPECTED: usize = 157;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

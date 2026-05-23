@@ -42,6 +42,21 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   identifier keep parsing.  No new diagnostic codes are registered —
   surrounding dispatch recovers via the existing `E0025`
   (`EXPECTED_NULL_AFTER_IS`) path.
+- cy-p3cl (ISO/IEC 39075:2024 §16.4): parse the full GQL
+  `labelExpression` algebra in node patterns —
+  conjunction (`A & B`), disjunction (`A | B`), prefix negation
+  (`!A`), wildcard (`%`), and explicit parenthesisation
+  (`(A | B) & C`).  New CST nodes `LABEL_NEGATION_EXPR` (415),
+  `LABEL_CONJUNCTION_EXPR` (416), `LABEL_DISJUNCTION_EXPR` (417),
+  `LABEL_WILDCARD_EXPR` (418), and `LABEL_PAREN_EXPR` (419); the
+  classical multi-`:` shape `(n:A:B)` still emits a flat
+  `LABEL_EXPR` so existing CST snapshots and AST accessors stay
+  bit-for-bit identical.  The rel-type parser is intentionally
+  untouched, so `-[:KNOWS|FOLLOWS]->` rel-type disjunction stays on
+  its own worklist bead.  Recovery codes `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`), `E0102` (`EXPECTED_RPAREN_LABEL`),
+  and `E0103` (`EXPECTED_LABEL_EXPR`) each have a UI fixture under
+  `tests/ui/syntax/`.
 
 ### Changed
 

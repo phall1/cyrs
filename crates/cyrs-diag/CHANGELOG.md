@@ -29,6 +29,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   postfix-IS dispatch in cyrs-syntax; queries that pre-existed and
   used `IS <something-else>` continue to surface the existing
   `E0025` (`EXPECTED_NULL_AFTER_IS`), so no new emit site was added.
+- cy-p3cl (ISO/IEC 39075:2024 §16.4): register `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`), `E0102` (`EXPECTED_RPAREN_LABEL`),
+  and `E0103` (`EXPECTED_LABEL_EXPR`) for the new GQL compound
+  `labelExpression` parser in cyrs-syntax (`(n:A&B)`, `(n:A|B)`,
+  `(n:!A)`, `(n:%)`, `(n:(A|B)&C)`).  Registry count 152 → 155.
 
 ### Changed
 

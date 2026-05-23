@@ -1,0 +1,6 @@
+error[E0102]: expected ')' to close label expression
+ --> label_expr_unclosed_paren.cypher:249
+
+error[E0011]: expected ')' to close node pattern
+ --> label_expr_unclosed_paren.cypher:249
+

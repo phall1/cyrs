@@ -1,0 +1,6 @@
+error[E0103]: expected label expression (label name, '%', '!', or '(')
+ --> label_expr_bang_missing_primary.cypher:273
+
+error[E0101]: expected label expression after '!'
+ --> label_expr_bang_missing_primary.cypher:273
+

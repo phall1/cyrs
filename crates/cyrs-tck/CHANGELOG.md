@@ -59,6 +59,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   enumerated in `tck/opengql-grammar/rules.json` (the OpenGQL ANTLR
   grammar inlines them into `predicate`) so the `@covers:` tag set
   ends at `truthValue`.
+- cy-p3cl (§17.5, ISO/IEC 39075:2024 §16.4): `LabelExpr1.feature`
+  scenarios for the GQL `labelExpression` operator algebra
+  (`&`, `|`, `!`, `%`, parentheses) alongside the new parser
+  support in cyrs-syntax.  Adds `labelExpression` to the
+  covered-productions set.
 
 ### Changed
 
