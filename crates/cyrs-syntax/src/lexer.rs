@@ -432,6 +432,20 @@ enum RawToken {
     Group,
     // --- end cy-71t0 ---
 
+    // --- cy-z0x8 OFFSET + NULLS FIRST/LAST ---
+    // GQL-distinct keywords for `offsetClause` (ISO/IEC 39075:2024
+    // §14.13.7 — `OFFSET` is an `offsetSynonym` for `SKIP`) and
+    // `nullOrdering` (§14.13.6 — `NULLS FIRST` / `NULLS LAST`).
+    #[token("OFFSET", ignore(case))]
+    Offset,
+    #[token("NULLS", ignore(case))]
+    Nulls,
+    #[token("FIRST", ignore(case))]
+    First,
+    #[token("LAST", ignore(case))]
+    Last,
+    // --- end cy-z0x8 ---
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
@@ -600,6 +614,10 @@ impl RawToken {
             Self::Session => SyntaxKind::SESSION_KW,
             Self::Zone => SyntaxKind::ZONE_KW,
             Self::Group => SyntaxKind::GROUP_KW,
+            Self::Offset => SyntaxKind::OFFSET_KW,
+            Self::Nulls => SyntaxKind::NULLS_KW,
+            Self::First => SyntaxKind::FIRST_KW,
+            Self::Last => SyntaxKind::LAST_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,

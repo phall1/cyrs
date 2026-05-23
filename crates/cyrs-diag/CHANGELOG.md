@@ -19,6 +19,10 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 - cy-71t0 (ISO/IEC 39075:2024 §14.13.3): register `E0099`
   (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
   for the new GQL `GROUP BY` parser in cyrs-syntax.
+- cy-z0x8 (ISO/IEC 39075:2024 §14.13.6 / §14.13.7): register `E0104`
+  (`EXPECTED_FIRST_OR_LAST_AFTER_NULLS`) and `E0105`
+  (`EXPECTED_OFFSET_EXPR`) for the new GQL `OFFSET` synonym +
+  `NULLS FIRST / LAST` sort-spec trailer parser in cyrs-syntax.
 
 ### Changed
 

@@ -187,10 +187,13 @@ fn unwind_clause(p: &mut Parser<'_>) {
 }
 
 /// A plain `IDENT` / `QUOTED_IDENT` wrapped in a `NAME` node — used for
-/// bind positions (UNWIND target, etc.) that mirror `NodePattern`'s binder.
+/// bind positions (UNWIND target, etc.) that mirror `NodePattern`'s
+/// binder.  cy-z0x8: also accepts the four name-like GQL keywords
+/// (`OFFSET` / `NULLS` / `FIRST` / `LAST`) so openCypher queries that
+/// bind them as variable names keep parsing (`UNWIND xs AS first`).
 fn name_binder(p: &mut Parser<'_>) {
     let m = p.start();
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_IDENT, "expected identifier");
     }
     m.complete(p, SyntaxKind::NAME);
@@ -479,7 +482,12 @@ fn with_clause(p: &mut Parser<'_>) {
     if p.at(SyntaxKind::ORDER_KW) {
         order_by(p);
     }
-    if p.at(SyntaxKind::SKIP_KW) {
+    // GQL `offsetClause` (§14.13.7) admits `SKIP` and `OFFSET` as
+    // surface synonyms (`offsetSynonym`).  Both are recognised in the
+    // same slot here; the CST node stays `SKIP_SUBCLAUSE` because the
+    // contained keyword token already records which spelling was used.
+    // cy-z0x8.
+    if p.at(SyntaxKind::SKIP_KW) || p.at(SyntaxKind::OFFSET_KW) {
         skip_subclause(p);
     }
     if p.at(SyntaxKind::LIMIT_KW) {
@@ -556,7 +564,9 @@ fn return_clause(p: &mut Parser<'_>) {
     if p.at(SyntaxKind::ORDER_KW) {
         order_by(p);
     }
-    if p.at(SyntaxKind::SKIP_KW) {
+    // GQL `offsetClause` synonym pair (§14.13.7): `SKIP` and `OFFSET`
+    // both reach `skip_subclause`.  cy-z0x8.
+    if p.at(SyntaxKind::SKIP_KW) || p.at(SyntaxKind::OFFSET_KW) {
         skip_subclause(p);
     }
     if p.at(SyntaxKind::LIMIT_KW) {
@@ -610,7 +620,10 @@ fn return_item(p: &mut Parser<'_>) {
     }
     if p.eat(SyntaxKind::AS_KW) {
         // Alias: IDENT or QUOTED_IDENT (the `NameDef` variants).
-        if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+        // cy-z0x8: also accept the four GQL clause-level keywords as
+        // name-like aliases so openCypher TCK queries that bind
+        // `AS first` / `AS last` keep parsing.
+        if !p.eat_name_like() {
             p.error_code(sc::EXPECTED_IDENT_AFTER_AS, "expected identifier after AS");
         }
     }
@@ -672,15 +685,58 @@ fn order_item(p: &mut Parser<'_>) {
         | SyntaxKind::DESCENDING_KW => p.bump_any(),
         _ => {}
     }
+    // GQL `nullOrdering` (ISO/IEC 39075:2024 §14.13.6) — optional
+    // `NULLS FIRST` / `NULLS LAST` trailer on a sort specification.
+    // cy-z0x8.
+    if p.at(SyntaxKind::NULLS_KW) {
+        null_ordering(p);
+    }
     m.complete(p, SyntaxKind::ORDER_ITEM);
 }
 
-fn skip_subclause(p: &mut Parser<'_>) {
-    debug_assert!(p.at(SyntaxKind::SKIP_KW));
+/// `NullOrdering = 'NULLS' ('FIRST' | 'LAST')` — GQL §14.13.6
+/// `nullOrdering`.  Always wrapped in a `NULL_ORDERING` CST node so the
+/// downstream AST accessor can address it directly; on a missing
+/// FIRST/LAST trailer the parser emits `E0104` and the node still
+/// closes (the `NULLS` keyword stays inside).  cy-z0x8.
+fn null_ordering(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::NULLS_KW));
     let m = p.start();
-    p.bump(SyntaxKind::SKIP_KW);
+    p.bump(SyntaxKind::NULLS_KW);
+    match p.current() {
+        SyntaxKind::FIRST_KW | SyntaxKind::LAST_KW => p.bump_any(),
+        _ => {
+            p.error_code(
+                sc::EXPECTED_FIRST_OR_LAST_AFTER_NULLS,
+                "expected FIRST or LAST after NULLS",
+            );
+        }
+    }
+    m.complete(p, SyntaxKind::NULL_ORDERING);
+}
+
+/// `SkipSubclause` — GQL `offsetClause` (ISO/IEC 39075:2024 §14.13.7).
+/// The `offsetSynonym` production admits both `SKIP` and `OFFSET` as
+/// surface spellings; both reach this function.  The CST node stays
+/// `SKIP_SUBCLAUSE` for both shapes — the contained keyword token
+/// records which spelling was used so HIR lowering can preserve it for
+/// round-trip / unparse.  cy-z0x8 extends this from the historical
+/// SKIP-only form.
+fn skip_subclause(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::SKIP_KW) || p.at(SyntaxKind::OFFSET_KW));
+    let m = p.start();
+    let was_offset = p.at(SyntaxKind::OFFSET_KW);
+    if was_offset {
+        p.bump(SyntaxKind::OFFSET_KW);
+    } else {
+        p.bump(SyntaxKind::SKIP_KW);
+    }
     if expression::expr(p).is_none() {
-        p.error_code(sc::EXPECTED_SKIP_EXPR, "expected expression after SKIP");
+        if was_offset {
+            p.error_code(sc::EXPECTED_OFFSET_EXPR, "expected expression after OFFSET");
+        } else {
+            p.error_code(sc::EXPECTED_SKIP_EXPR, "expected expression after SKIP");
+        }
     }
     m.complete(p, SyntaxKind::SKIP_SUBCLAUSE);
 }
@@ -775,12 +831,14 @@ fn yield_subclause(p: &mut Parser<'_>) {
 /// `YieldItem = IDENT ('AS' IDENT)?`
 fn yield_item(p: &mut Parser<'_>) {
     let m = p.start();
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    // cy-z0x8: name-like keyword tokens accepted in YIELD-item name
+    // and alias positions.
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_YIELD_ITEM, "expected identifier in YIELD item");
         m.complete(p, SyntaxKind::YIELD_ITEM);
         return;
     }
-    if p.eat(SyntaxKind::AS_KW) && !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if p.eat(SyntaxKind::AS_KW) && !p.eat_name_like() {
         p.error_code(sc::EXPECTED_IDENT_AFTER_AS, "expected identifier after AS");
     }
     m.complete(p, SyntaxKind::YIELD_ITEM);

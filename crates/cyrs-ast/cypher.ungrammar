@@ -164,11 +164,23 @@ WhereClause =
 OrderBy =
   'ORDER' 'BY' SortItem (',' SortItem)*
 
+// GQL §14.13.6 `sortSpecification` — an optional `orderingSpecification`
+// (`ASC` / `DESC`) and an optional `nullOrdering` trailer.  The
+// `nullOrdering` is GQL-distinct (openCypher v9 has no surface for it).
+// cy-z0x8.
 SortItem =
-  Expr ('ASC' | 'DESC')?
+  Expr ('ASC' | 'DESC')? NullOrdering?
 
+// GQL §14.13.6 `nullOrdering` — `NULLS FIRST` or `NULLS LAST`.
+NullOrdering =
+  'NULLS' ('FIRST' | 'LAST')
+
+// GQL §14.13.7 `offsetClause` — `SKIP` and `OFFSET` are surface
+// synonyms (`offsetSynonym`).  The CST node is the same for both
+// spellings; the contained keyword token records the surface form.
+// cy-z0x8 added the `OFFSET` arm.
 Skip =
-  'SKIP' Expr
+  ('SKIP' | 'OFFSET') Expr
 
 Limit =
   'LIMIT' Expr

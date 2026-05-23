@@ -45,6 +45,12 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   scenarios for `RETURN ... GROUP BY` alongside the new parser support
   in cyrs-syntax.  Adds `groupByClause`, `groupingElementList`,
   `groupingElement` to the covered-productions set.
+- cy-z0x8 (§17.5, ISO/IEC 39075:2024 §14.13.6 / §14.13.7):
+  `Page2.feature` scenarios for the GQL `OFFSET` synonym + `NULLS
+  FIRST / LAST` sort-spec trailer alongside the new parser support in
+  cyrs-syntax.  Adds `nullOrdering` to the covered-productions set
+  and extends coverage for `offsetClause` / `offsetSynonym` to the
+  explicit `OFFSET k` spelling.
 
 ### Changed
 
