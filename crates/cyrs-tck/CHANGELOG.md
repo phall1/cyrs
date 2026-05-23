@@ -45,6 +45,14 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   scenarios for `RETURN ... GROUP BY` alongside the new parser support
   in cyrs-syntax.  Adds `groupByClause`, `groupingElementList`,
   `groupingElement` to the covered-productions set.
+- cy-dwem (§17.5, ISO/IEC 39075:2024 §20.1): `TruthValue1.feature`
+  scenarios for `IS [NOT] TRUE / FALSE / UNKNOWN` (`truthValue` /
+  `truthValuePredicatePart2`) alongside the new postfix-IS dispatch in
+  cyrs-syntax.  Adds `truthValue` to the covered-productions set;
+  ISO's `truthValuePredicate` / `truthValuePredicatePart2` are not
+  enumerated in `tck/opengql-grammar/rules.json` (the OpenGQL ANTLR
+  grammar inlines them into `predicate`) so the `@covers:` tag set
+  ends at `truthValue`.
 
 ### Changed
 

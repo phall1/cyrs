@@ -19,6 +19,13 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 - cy-71t0 (ISO/IEC 39075:2024 §14.13.3): register `E0099`
   (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
   for the new GQL `GROUP BY` parser in cyrs-syntax.
+- cy-dwem (ISO/IEC 39075:2024 §20.1): no new diagnostic codes
+  registered.  The GQL truth-value predicate
+  (`IS [NOT] TRUE/FALSE/UNKNOWN`) lands as a new arm of the
+  postfix-IS dispatch in cyrs-syntax; queries that pre-existed and
+  used `IS <something-else>` continue to surface the existing
+  `E0025` (`EXPECTED_NULL_AFTER_IS`), so no new emit site was added
+  and no code was reserved.  Slot range E0101+ remains unclaimed.
 
 ### Changed
 
