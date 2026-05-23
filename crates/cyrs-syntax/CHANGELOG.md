@@ -12,6 +12,13 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 
 ### Added
 
+- cy-71t0 (ISO/IEC 39075:2024 §14.13.3): parse `GROUP BY <expr-list>`
+  in `RETURN_CLAUSE`.  New keyword `GROUP_KW` (slot 197), new CST node
+  `GROUP_BY` (slot 414), new parser function `group_by()` slotting
+  between EXCLUDE and ORDER BY.  Recovery codes `E0099`
+  (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
+  each have a UI fixture under `tests/ui/syntax/`.
+
 ### Changed
 
 ### Deprecated

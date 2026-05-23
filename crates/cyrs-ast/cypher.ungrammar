@@ -88,10 +88,18 @@ WithClause =
 //   - `ReturnExclude` is the GQL-distinct field-exclusion trailer
 //     (§14.13.4); openCypher has no analogue.
 ReturnClause =
-  'RETURN' ('DISTINCT' | 'ALL')? ReturnItems ReturnExclude? OrderBy? Skip? Limit?
+  'RETURN' ('DISTINCT' | 'ALL')? ReturnItems ReturnExclude? GroupBy? OrderBy? Skip? Limit?
 
 ReturnExclude =
   'EXCLUDE' NameRef (',' NameRef)*
+
+// GQL `groupByClause` (§14.13.3) — slots between EXCLUDE and ORDER BY
+// in the return-body trailer.  The grouping-element list is a plain
+// comma-separated `Expr` list; ISO's empty grouping `()` and
+// `GROUPING SETS / ROLLUP / CUBE` extensions are deferred (cy-71t0
+// follow-ups).
+GroupBy =
+  'GROUP' 'BY' Expr (',' Expr)*
 
 UnwindClause =
   'UNWIND' expr:Expr 'AS' bind:NameDef

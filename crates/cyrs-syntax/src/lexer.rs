@@ -425,6 +425,13 @@ enum RawToken {
     Zone,
     // --- end cy-9kzx ---
 
+    // --- cy-71t0 GROUP BY ---
+    // GQL-distinct `GROUP BY` clause (ISO/IEC 39075:2024 §14.13.3,
+    // `groupByClause`). `BY` reuses the existing `By` token.
+    #[token("GROUP", ignore(case))]
+    Group,
+    // --- end cy-71t0 ---
+
     // ---- identifiers & parameters ------------------------------------
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", priority = 1)]
     Ident,
@@ -592,6 +599,7 @@ impl RawToken {
             Self::Next => SyntaxKind::NEXT_KW,
             Self::Session => SyntaxKind::SESSION_KW,
             Self::Zone => SyntaxKind::ZONE_KW,
+            Self::Group => SyntaxKind::GROUP_KW,
 
             Self::Ident => SyntaxKind::IDENT,
             Self::QuotedIdent => SyntaxKind::QUOTED_IDENT,
