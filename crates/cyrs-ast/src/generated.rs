@@ -17,6 +17,7 @@
 //   - Skip: no `SyntaxKind::SKIP` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - Limit: no `SyntaxKind::LIMIT` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - ReturnExclude: no `SyntaxKind::RETURN_EXCLUDE` variant in cyrs-syntax::kind (see cy-nom follow-ups)
+//   - GroupBy: no `SyntaxKind::GROUP_BY` variant in cyrs-syntax::kind (see cy-nom follow-ups)
 //   - NameRef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - NameDef: alternation contains a token arm (sum-type-over-tokens emitter not in cy-pbx scope)
 //   - QualifiedName: no `SyntaxKind::QUALIFIED_NAME` variant in cyrs-syntax::kind (see cy-nom follow-ups)

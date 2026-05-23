@@ -168,6 +168,9 @@ fn all_count_pinned() {
     //         OPTIONAL MATCH with a WHERE on the optional binding.
     //         Emitted by `cyrs-sema::lints`, opt-in via `cypher
     //         check --lints`.
-    const EXPECTED: usize = 150;
+    // cy-71t0: added E0099 (`EXPECTED_BY_AFTER_GROUP`) and E0100
+    //          (`EXPECTED_GROUPBY_EXPR`) for GQL `GROUP BY` parsing
+    //          (ISO/IEC 39075:2024 §14.13.3). Bumped 150 → 152.
+    const EXPECTED: usize = 152;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

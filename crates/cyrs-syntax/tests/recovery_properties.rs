@@ -46,6 +46,8 @@
 //! Exercised: E0072 — EXISTS(<pattern>) missing ')' (cy-lve), UI fixture `exists_pattern_missing_rparen`.
 //! Exercised: E0073..=E0075 — CALL <proc> YIELD recovery (cy-4mg), covered by random prefixes of `CALL ns.proc(1, 2) YIELD x AS xx, y` and the unit tests in `crates/cyrs-syntax/tests/call_yield.rs`.
 //! Exercised: E0077 — shortestPath / allShortestPaths missing `)` (cy-b5b), UI fixture `shortest_path_missing_rparen`.
+//! Exercised: E0099 — `GROUP` without trailing `BY` in a RETURN trailer (cy-71t0), UI fixture `group_by_missing_by`.
+//! Exercised: E0100 — `GROUP BY` with no expression (cy-71t0), UI fixture `group_by_missing_expr`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

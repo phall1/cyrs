@@ -233,6 +233,17 @@ invariant; the strategy will be fleshed out when the production lands.
 - Virtual insertion: missing `BY` after `ORDER` emits a diagnostic;
   parser continues as if `BY` were present.
 
+### GroupBy
+
+- Synchronisation set: `ORDER`, `SKIP`, `LIMIT`, clause-start keywords,
+  `;`, EOF.
+- Skip-and-recover: malformed grouping-element expressions are skipped
+  to the next `,` or sync-set token; the parent `GROUP_BY` node still
+  closes so the `ORDER BY` / `SKIP` / `LIMIT` trailers parse cleanly.
+- Virtual insertion: missing `BY` after `GROUP` emits `E0099` and the
+  parser continues as if `BY` were present (mirroring the ORDER BY
+  recovery shape); missing expression after `GROUP BY` emits `E0100`.
+
 ### SortItem
 
 - Synchronisation set: `,`, `ASC`, `DESC`, `ASCENDING`, `DESCENDING`,

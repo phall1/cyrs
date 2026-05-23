@@ -709,6 +709,10 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_EQ_IN_SESSION_VALUE: u16 = 97;
     /// E0098 — expected expression after `=` in `SESSION SET VALUE` (cy-9kzx).
     pub(crate) const EXPECTED_SESSION_VALUE_EXPR: u16 = 98;
+    /// E0099 — expected `BY` after `GROUP` (cy-71t0).
+    pub(crate) const EXPECTED_BY_AFTER_GROUP: u16 = 99;
+    /// E0100 — expected expression in `GROUP BY` (cy-71t0).
+    pub(crate) const EXPECTED_GROUPBY_EXPR: u16 = 100;
     // ---- end cy-9kzx ---------------------------------------------------
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------

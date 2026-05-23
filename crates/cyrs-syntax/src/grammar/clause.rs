@@ -547,6 +547,12 @@ fn return_clause(p: &mut Parser<'_>) {
     if p.at(SyntaxKind::EXCLUDE_KW) {
         return_exclude(p);
     }
+    // GQL `groupByClause` (§14.13.3) slots between the items/EXCLUDE
+    // trailer and ORDER BY.  cy-71t0.  Lexed only here at clause
+    // level — `GROUP` in expression position stays an identifier.
+    if p.at(SyntaxKind::GROUP_KW) {
+        group_by(p);
+    }
     if p.at(SyntaxKind::ORDER_KW) {
         order_by(p);
     }
@@ -609,6 +615,33 @@ fn return_item(p: &mut Parser<'_>) {
         }
     }
     m.complete(p, SyntaxKind::RETURN_ITEM);
+}
+
+/// `GroupBy = 'GROUP' 'BY' Expr (',' Expr)*` — GQL §14.13.3
+/// `groupByClause / groupingElementList`. The grouping element list is
+/// a comma-separated list of expressions; `groupingElement` itself
+/// reduces to an expression in cyrs (the ISO standard's empty grouping
+/// `()` and `GROUPING SETS` / `ROLLUP` / `CUBE` extensions are out of
+/// scope — they live on the uncovered worklist for follow-up beads).
+/// cy-71t0.
+fn group_by(p: &mut Parser<'_>) {
+    debug_assert!(p.at(SyntaxKind::GROUP_KW));
+    let m = p.start();
+    p.bump(SyntaxKind::GROUP_KW);
+    if !p.eat(SyntaxKind::BY_KW) {
+        p.error_code(sc::EXPECTED_BY_AFTER_GROUP, "expected BY after GROUP");
+    }
+    if expression::expr(p).is_none() {
+        p.error_code(sc::EXPECTED_GROUPBY_EXPR, "expected expression in GROUP BY");
+    }
+    while p.at(SyntaxKind::COMMA) {
+        p.bump(SyntaxKind::COMMA);
+        if expression::expr(p).is_none() {
+            p.error_code(sc::EXPECTED_GROUPBY_EXPR, "expected expression in GROUP BY");
+            break;
+        }
+    }
+    m.complete(p, SyntaxKind::GROUP_BY);
 }
 
 fn order_by(p: &mut Parser<'_>) {

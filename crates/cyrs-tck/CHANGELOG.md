@@ -37,6 +37,14 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   worklist.  Fails on an unknown or missing `@covers:` tag.
 - cy-1x7o (§17.5): `cargo xtask gql-coverage` convenience wrapper that
   regenerates both `baseline.md` and `coverage.md`.
+- cy-a6ci / cy-gxda / cy-inah (§17.5): corpus growth batch —
+  expressions, query composition, and graph-patterns areas (16 new
+  feature files, 85 scenarios).  Grammar coverage 35/574 → 128/574
+  (6.1% → 22.3%).
+- cy-71t0 (§17.5, ISO/IEC 39075:2024 §14.13.3): `GroupBy1.feature`
+  scenarios for `RETURN ... GROUP BY` alongside the new parser support
+  in cyrs-syntax.  Adds `groupByClause`, `groupingElementList`,
+  `groupingElement` to the covered-productions set.
 
 ### Changed
 

@@ -242,6 +242,16 @@ pub enum SyntaxKind {
     ZONE_KW = 196,
     // --- end cy-9kzx ---
 
+    // --- cy-71t0 GROUP BY ---
+    // GQL-distinct `GROUP BY` keyword (ISO/IEC 39075:2024 §14.13.3,
+    // `groupByClause`). The `BY` half reuses the existing `BY_KW`
+    // (introduced for ORDER BY in cy-nom). `GROUP` is accepted only at
+    // clause level inside `RETURN_CLAUSE`; in expression position it
+    // remains an ordinary identifier so existing fixtures that bind
+    // `group` as a variable name keep parsing.  Slot 197.
+    GROUP_KW = 197,
+    // --- end cy-71t0 ---
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -489,6 +499,17 @@ pub enum SyntaxKind {
     EXISTS_SUBQUERY_EXPR = 413,
     // --- end cy-p1u5 ---
 
+    // --- cy-71t0 GROUP BY ---
+    // CST node for `GROUP BY <expr-list>` inside `RETURN_CLAUSE`
+    // (ISO/IEC 39075:2024 §14.13.3 `returnStatementBody groupByClause?`).
+    // GQL-distinct: openCypher v9 uses implicit grouping.  The node
+    // appears between `RETURN_EXCLUDE` and `ORDER_BY` in the return-body
+    // trailer; HIR/sema lowering is light-touch (the children round-trip
+    // through the AST accessor but the planner does not yet honour them —
+    // see `cyrs-plan` follow-up).  Slot 414.
+    GROUP_BY = 414,
+    // --- end cy-71t0 ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -623,6 +644,7 @@ impl SyntaxKind {
             // --- cy-9kzx SESSION SET ---
             195 => Self::SESSION_KW,
             196 => Self::ZONE_KW,
+            197 => Self::GROUP_KW,
             // --- end cy-9kzx ---
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
@@ -723,6 +745,7 @@ impl SyntaxKind {
 
             // --- cy-p1u5 EXISTS parser-only ---
             413 => Self::EXISTS_SUBQUERY_EXPR,
+            414 => Self::GROUP_BY,
             // --- end cy-p1u5 ---
             768 => Self::ERROR,
             769 => Self::EOF,
@@ -762,7 +785,7 @@ impl SyntaxKind {
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::ZONE_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::GROUP_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -836,6 +859,8 @@ mod tests {
             SyntaxKind::CATALOG_CREATE_SCHEMA_STMT,
             SyntaxKind::GRAPH_TYPE_REF,
             SyntaxKind::EXISTS_SUBQUERY_EXPR,
+            SyntaxKind::GROUP_KW,
+            SyntaxKind::GROUP_BY,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];
