@@ -749,6 +749,15 @@ pub enum DiagCode {
     /// Expected expression in `GROUP BY` (cy-71t0,
     /// `groupingElement`).
     E0100 = 100,
+    /// Expected a label expression after `!` in a label negation
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4 `labelExpression`).
+    E0101 = 101,
+    /// Expected `)` to close a parenthesised label expression
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    E0102 = 102,
+    /// Expected a label expression — a label name, `%`, `!`, or `(`
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    E0103 = 103,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -920,6 +929,9 @@ impl DiagCode {
             Self::E0098 => "E0098",
             Self::E0099 => "E0099",
             Self::E0100 => "E0100",
+            Self::E0101 => "E0101",
+            Self::E0102 => "E0102",
+            Self::E0103 => "E0103",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -1102,6 +1114,9 @@ impl DiagCode {
         Self::E0098,
         Self::E0099,
         Self::E0100,
+        Self::E0101,
+        Self::E0102,
+        Self::E0103,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1340,6 +1355,9 @@ mod tests {
             DiagCode::E0098,
             DiagCode::E0099,
             DiagCode::E0100,
+            DiagCode::E0101,
+            DiagCode::E0102,
+            DiagCode::E0103,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1420,16 +1438,17 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps: E0073..=E0077, E0085, E0087, E0101+.
+        // Gaps: E0073..=E0077, E0085, E0087, E0104+.
         // E0083 INSERT, E0084 FILTER, E0086 EXCLUDE, E0088/E0089 TYPED,
         // E0090 path-mode, E0091–E0098 SESSION SET (cy-9kzx),
-        // E0099/E0100 GROUP BY (cy-71t0) are claimed.
+        // E0099/E0100 GROUP BY (cy-71t0), E0101–E0103 label-expression
+        // operators (cy-p3cl) are claimed.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
-        assert_eq!(DiagCode::try_from_u16(101), None);
+        assert_eq!(DiagCode::try_from_u16(104), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

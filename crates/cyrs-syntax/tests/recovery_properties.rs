@@ -48,6 +48,9 @@
 //! Exercised: E0077 — shortestPath / allShortestPaths missing `)` (cy-b5b), UI fixture `shortest_path_missing_rparen`.
 //! Exercised: E0099 — `GROUP` without trailing `BY` in a RETURN trailer (cy-71t0), UI fixture `group_by_missing_by`.
 //! Exercised: E0100 — `GROUP BY` with no expression (cy-71t0), UI fixture `group_by_missing_expr`.
+//! Exercised: E0101 — label-expression `!` with no primary (cy-p3cl, §16.4), UI fixture `label_expr_bang_missing_primary`.
+//! Exercised: E0102 — parenthesised label-expression missing `)` (cy-p3cl, §16.4), UI fixture `label_expr_unclosed_paren`.
+//! Exercised: E0103 — `:` followed by no label primary in node pattern (cy-p3cl, §16.4), UI fixture `label_expr_missing_primary`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

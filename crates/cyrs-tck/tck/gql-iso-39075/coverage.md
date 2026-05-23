@@ -22,8 +22,8 @@ candidate for a new ISO-§-cited scenario.
 | GQL.g4 parser productions | **574** |
 | Covered (≥1 passing scenario) | **131** (22.8 %) |
 | Uncovered | **443** (77.2 %) |
-| Feature files | **24** |
-| Scenarios (passing / total) | **107 / 107** |
+| Feature files | **25** |
+| Scenarios (passing / total) | **113 / 113** |
 
 ## Covered productions
 
@@ -48,8 +48,8 @@ candidate for a new ISO-§-cited scenario.
 | `countedShortestPathSearch` | paths/PathSelector1.feature |
 | `differentEdgesMatchMode` | values/Repeatable1.feature |
 | `edgePattern` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
-| `elementPattern` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature |
-| `elementPatternFiller` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
+| `elementPattern` | patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature |
+| `elementPatternFiller` | patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `elementPatternPredicate` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
 | `elementPropertySpecification` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
 | `elementVariable` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
@@ -82,7 +82,7 @@ candidate for a new ISO-§-cited scenario.
 | `isLabelExpression` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `isOrColon` | patterns/NodePattern1.feature |
 | `labelAndPropertySetSpecification` | clauses/Insert1.feature |
-| `labelExpression` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
+| `labelExpression` | patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `labelName` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `labelSetSpecification` | clauses/Insert1.feature |
 | `limitClause` | composition/GroupBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature |
@@ -93,8 +93,8 @@ candidate for a new ISO-§-cited scenario.
 | `listValueConstructorByEnumeration` | expressions/Lists1.feature |
 | `lowerBound` | patterns/Quantifier1.feature |
 | `matchMode` | values/Repeatable1.feature |
-| `matchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
-| `nodePattern` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `matchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `nodePattern` | patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `nonNegativeIntegerSpecification` | composition/Page1.feature |
 | `nullLiteral` | expressions/Literals1.feature |
 | `nullPredicate` | expressions/Predicates1.feature |
@@ -131,7 +131,7 @@ candidate for a new ISO-§-cited scenario.
 | `returnItem` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
 | `returnItemAlias` | clauses/Return1.feature, composition/GroupBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
 | `returnItemList` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
-| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
 | `returnStatementBody` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
 | `searchCondition` | composition/LinearQuery1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, types/SchemaTypes1.feature |
 | `searchedCase` | expressions/CaseAndAgg1.feature |
@@ -141,7 +141,7 @@ candidate for a new ISO-§-cited scenario.
 | `shortestPathSearch` | paths/PathSelector1.feature |
 | `simpleCase` | expressions/CaseAndAgg1.feature |
 | `simpleLinearQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
-| `simpleMatchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `simpleMatchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
 | `simpleQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
 | `simpleWhenClause` | expressions/CaseAndAgg1.feature |
 | `sortKey` | composition/OrderBy1.feature |

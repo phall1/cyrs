@@ -244,6 +244,66 @@ invariant; the strategy will be fleshed out when the production lands.
   parser continues as if `BY` were present (mirroring the ORDER BY
   recovery shape); missing expression after `GROUP BY` emits `E0100`.
 
+### LabelInner
+
+Internal sum production over the compound label-expression operator
+nodes — see the operator-specific sections below. cy-p3cl.
+
+### LabelNegationExpr
+
+Prefix `!` negation in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `&`, `|`, `)` (label-paren / node-pattern close),
+  `{` (property map), `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: when the primary after `!` is missing, no further
+  input is consumed; the negation node still closes so the outer
+  conjunction / disjunction parse continues.
+- Virtual insertion: missing primary after `!` emits `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`).
+
+### LabelConjunctionExpr
+
+Binary `&` conjunction in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `|`, `)` (label-paren / node-pattern close),
+  `{`, `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing right operand surfaces as `E0103` and
+  terminates the binary loop; the conjunction node still closes.
+- Virtual insertion: none beyond the shared `E0103`
+  (`EXPECTED_LABEL_EXPR`).
+
+### LabelDisjunctionExpr
+
+Binary `|` disjunction in a §16.4 `labelExpression` (node-pattern
+position only — the rel-type parser keeps its own `|` separator).
+cy-p3cl.
+
+- Synchronisation set: `)` (label-paren / node-pattern close),
+  `{`, `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing right operand surfaces as `E0103` and
+  terminates the binary loop; the disjunction node still closes.
+- Virtual insertion: none beyond the shared `E0103`.
+
+### LabelWildcardExpr
+
+`%` wildcard (any label) in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: inherited from the surrounding operator.
+- Skip-and-recover: none — the wildcard is a single token.
+- Virtual insertion: none.
+
+### LabelParenExpr
+
+Explicit parenthesisation in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `)` (label-paren close), `{`, `,`,
+  clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing closing `)` is reported but no further
+  input is consumed; the paren node closes virtually, leaving the
+  outer node-pattern close (`E0011`) to flag the residual `)`.
+- Virtual insertion: missing closing `)` emits `E0102`
+  (`EXPECTED_RPAREN_LABEL`).
+
 ### SortItem
 
 - Synchronisation set: `,`, `ASC`, `DESC`, `ASCENDING`, `DESCENDING`,

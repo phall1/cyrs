@@ -19,6 +19,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
 - cy-71t0 (ISO/IEC 39075:2024 §14.13.3): register `E0099`
   (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
   for the new GQL `GROUP BY` parser in cyrs-syntax.
+- cy-p3cl (ISO/IEC 39075:2024 §16.4): register `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`), `E0102` (`EXPECTED_RPAREN_LABEL`),
+  and `E0103` (`EXPECTED_LABEL_EXPR`) for the new GQL compound
+  `labelExpression` parser in cyrs-syntax (`(n:A&B)`, `(n:A|B)`,
+  `(n:!A)`, `(n:%)`, `(n:(A|B)&C)`).  Registry count 152 → 155.
 
 ### Changed
 

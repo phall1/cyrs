@@ -510,6 +510,23 @@ pub enum SyntaxKind {
     GROUP_BY = 414,
     // --- end cy-71t0 ---
 
+    // --- cy-p3cl label-expression operators ---
+    // CST nodes for ISO/IEC 39075:2024 §16.4 `labelExpression`.
+    // The classical Cypher form `(n:A:B)` (colon-conjunction) is still
+    // produced as a flat `LABEL_EXPR`; the new compound operators wrap
+    // sub-expressions as dedicated nodes so HIR / sema can pattern-match
+    // on the operator without re-walking tokens.  Conjunction (`&`),
+    // disjunction (`|`), negation (`!`), wildcard (`%`), and the
+    // explicit parenthesised form are all admitted only after the
+    // leading `:` of a `NODE_PATTERN` — rel-type expressions continue
+    // to consume `|` as their own type-disjunction separator.
+    LABEL_NEGATION_EXPR = 415,
+    LABEL_CONJUNCTION_EXPR = 416,
+    LABEL_DISJUNCTION_EXPR = 417,
+    LABEL_WILDCARD_EXPR = 418,
+    LABEL_PAREN_EXPR = 419,
+    // --- end cy-p3cl ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -747,6 +764,13 @@ impl SyntaxKind {
             413 => Self::EXISTS_SUBQUERY_EXPR,
             414 => Self::GROUP_BY,
             // --- end cy-p1u5 ---
+            // --- cy-p3cl label-expression operators ---
+            415 => Self::LABEL_NEGATION_EXPR,
+            416 => Self::LABEL_CONJUNCTION_EXPR,
+            417 => Self::LABEL_DISJUNCTION_EXPR,
+            418 => Self::LABEL_WILDCARD_EXPR,
+            419 => Self::LABEL_PAREN_EXPR,
+            // --- end cy-p3cl ---
             768 => Self::ERROR,
             769 => Self::EOF,
 
@@ -861,6 +885,11 @@ mod tests {
             SyntaxKind::EXISTS_SUBQUERY_EXPR,
             SyntaxKind::GROUP_KW,
             SyntaxKind::GROUP_BY,
+            SyntaxKind::LABEL_NEGATION_EXPR,
+            SyntaxKind::LABEL_CONJUNCTION_EXPR,
+            SyntaxKind::LABEL_DISJUNCTION_EXPR,
+            SyntaxKind::LABEL_WILDCARD_EXPR,
+            SyntaxKind::LABEL_PAREN_EXPR,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

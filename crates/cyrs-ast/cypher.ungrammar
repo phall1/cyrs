@@ -260,11 +260,48 @@ RangeHops =
 
 // v1 label usage is a simple colon-separated list on nodes, and a
 // `|`-separated disjunction on relationships (spec §19 row
-// "Pattern: relationship type disjunction"). Richer GQL label-expr
-// algebra (`!`, `&`, parenthesised) tracks §9.2 and lives behind the
-// dialect gate — the ungrammar lists only the v1 surface.
+// "Pattern: relationship type disjunction"). cy-p3cl extends the
+// node-pattern surface to the full §16.4 `labelExpression`:
+// conjunction `&`, disjunction `|`, prefix negation `!`, wildcard `%`,
+// and explicit parenthesisation. The classical multi-`:` form is
+// preserved as the first arm so existing CST/AST consumers continue
+// to see bare label-name tokens directly under `LABEL_EXPR` — the
+// compound nodes only appear once the GQL operator surface fires.
+// LabelExpr admits either the classical multi-`:` form
+// (one or more `:Label`s — the canonical Cypher surface) OR a single
+// `:` followed by a compound §16.4 `labelExpression` subtree. The
+// ungrammar can't easily encode the "either/or" at one production
+// without an `Alt` arm (which would turn LabelExpr into an enum and
+// strip its struct wrapper), so we model the union as a sequence:
+// `':' Label` introduces the head term, the optional `LabelInner`
+// child carries the compound surface, and additional `:Label` repeats
+// are admitted as a trailing tail (the parser preserves the existing
+// CST flat-list shape when no compound is present).
 LabelExpr =
-  (':' Label)+
+  ':' Label (':' Label)* LabelInner?
+
+LabelInner =
+  LabelDisjunctionExpr
+| LabelConjunctionExpr
+| LabelNegationExpr
+| LabelWildcardExpr
+| LabelParenExpr
+| Label
+
+LabelDisjunctionExpr =
+  LabelInner '|' LabelInner
+
+LabelConjunctionExpr =
+  LabelInner '&' LabelInner
+
+LabelNegationExpr =
+  '!' LabelInner
+
+LabelWildcardExpr =
+  '%'
+
+LabelParenExpr =
+  '(' LabelInner ')'
 
 TypeExpr =
   ':' RelType ('|' RelType)*

@@ -171,6 +171,12 @@ fn all_count_pinned() {
     // cy-71t0: added E0099 (`EXPECTED_BY_AFTER_GROUP`) and E0100
     //          (`EXPECTED_GROUPBY_EXPR`) for GQL `GROUP BY` parsing
     //          (ISO/IEC 39075:2024 §14.13.3). Bumped 150 → 152.
-    const EXPECTED: usize = 152;
+    // cy-p3cl: added E0101 (`EXPECTED_LABEL_AFTER_BANG`), E0102
+    //          (`EXPECTED_RPAREN_LABEL`), and E0103
+    //          (`EXPECTED_LABEL_EXPR`) for GQL compound label
+    //          expressions `(n:A&B)`, `(n:A|B)`, `(n:!A)`, `(n:%)`,
+    //          `(n:(A|B)&C)` (ISO/IEC 39075:2024 §16.4). Bumped 152 →
+    //          155.
+    const EXPECTED: usize = 155;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

@@ -713,6 +713,15 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_BY_AFTER_GROUP: u16 = 99;
     /// E0100 — expected expression in `GROUP BY` (cy-71t0).
     pub(crate) const EXPECTED_GROUPBY_EXPR: u16 = 100;
+    /// E0101 — expected a label expression after `!` in a label
+    /// negation (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_AFTER_BANG: u16 = 101;
+    /// E0102 — expected `)` to close a parenthesised label expression
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_RPAREN_LABEL: u16 = 102;
+    /// E0103 — expected a label expression (label name, `%`, `!`,
+    /// or `(`) (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_EXPR: u16 = 103;
     // ---- end cy-9kzx ---------------------------------------------------
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------

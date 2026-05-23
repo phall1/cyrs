@@ -45,6 +45,11 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   scenarios for `RETURN ... GROUP BY` alongside the new parser support
   in cyrs-syntax.  Adds `groupByClause`, `groupingElementList`,
   `groupingElement` to the covered-productions set.
+- cy-p3cl (§17.5, ISO/IEC 39075:2024 §16.4): `LabelExpr1.feature`
+  scenarios for the GQL `labelExpression` operator algebra
+  (`&`, `|`, `!`, `%`, parentheses) alongside the new parser
+  support in cyrs-syntax.  Adds `labelExpression` to the
+  covered-productions set.
 
 ### Changed
 
