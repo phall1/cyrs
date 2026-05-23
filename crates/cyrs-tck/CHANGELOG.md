@@ -45,6 +45,25 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   scenarios for `RETURN ... GROUP BY` alongside the new parser support
   in cyrs-syntax.  Adds `groupByClause`, `groupingElementList`,
   `groupingElement` to the covered-productions set.
+- cy-z0x8 (§17.5, ISO/IEC 39075:2024 §14.13.6 / §14.13.7):
+  `Page2.feature` scenarios for the GQL `OFFSET` synonym + `NULLS
+  FIRST / LAST` sort-spec trailer alongside the new parser support in
+  cyrs-syntax.  Adds `nullOrdering` to the covered-productions set
+  and extends coverage for `offsetClause` / `offsetSynonym` to the
+  explicit `OFFSET k` spelling.
+- cy-dwem (§17.5, ISO/IEC 39075:2024 §20.1): `TruthValue1.feature`
+  scenarios for `IS [NOT] TRUE / FALSE / UNKNOWN` (`truthValue` /
+  `truthValuePredicatePart2`) alongside the new postfix-IS dispatch in
+  cyrs-syntax.  Adds `truthValue` to the covered-productions set;
+  ISO's `truthValuePredicate` / `truthValuePredicatePart2` are not
+  enumerated in `tck/opengql-grammar/rules.json` (the OpenGQL ANTLR
+  grammar inlines them into `predicate`) so the `@covers:` tag set
+  ends at `truthValue`.
+- cy-p3cl (§17.5, ISO/IEC 39075:2024 §16.4): `LabelExpr1.feature`
+  scenarios for the GQL `labelExpression` operator algebra
+  (`&`, `|`, `!`, `%`, parentheses) alongside the new parser
+  support in cyrs-syntax.  Adds `labelExpression` to the
+  covered-productions set.
 
 ### Changed
 

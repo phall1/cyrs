@@ -1,0 +1,3 @@
+error[E0103]: expected label expression (label name, '%', '!', or '(')
+ --> label_expr_missing_primary.cypher:307
+

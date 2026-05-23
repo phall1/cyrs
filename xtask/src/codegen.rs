@@ -1038,6 +1038,20 @@ fn known_syntax_node_kinds() -> BTreeSet<&'static str> {
         // sema-deferred via E4017 (spec §0 amendment 2026-05-19).
         "EXISTS_SUBQUERY_EXPR",
         // --- end cy-p1u5 ---
+        // --- cy-71t0 GROUP BY ---
+        "GROUP_BY",
+        // --- end cy-71t0 ---
+        // --- cy-p3cl label-expression operators ---
+        // ISO/IEC 39075:2024 §16.4 `labelExpression`. The classical
+        // `(n:A:B)` shape is still produced as a flat `LABEL_EXPR`;
+        // the compound nodes below appear only when the GQL operator
+        // surface is exercised (`&`, `|`, `!`, `%`, parens).
+        "LABEL_NEGATION_EXPR",
+        "LABEL_CONJUNCTION_EXPR",
+        "LABEL_DISJUNCTION_EXPR",
+        "LABEL_WILDCARD_EXPR",
+        "LABEL_PAREN_EXPR",
+        // --- end cy-p3cl ---
     ]
     .into_iter()
     .collect()

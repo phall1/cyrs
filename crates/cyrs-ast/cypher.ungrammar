@@ -164,11 +164,23 @@ WhereClause =
 OrderBy =
   'ORDER' 'BY' SortItem (',' SortItem)*
 
+// GQL §14.13.6 `sortSpecification` — an optional `orderingSpecification`
+// (`ASC` / `DESC`) and an optional `nullOrdering` trailer.  The
+// `nullOrdering` is GQL-distinct (openCypher v9 has no surface for it).
+// cy-z0x8.
 SortItem =
-  Expr ('ASC' | 'DESC')?
+  Expr ('ASC' | 'DESC')? NullOrdering?
 
+// GQL §14.13.6 `nullOrdering` — `NULLS FIRST` or `NULLS LAST`.
+NullOrdering =
+  'NULLS' ('FIRST' | 'LAST')
+
+// GQL §14.13.7 `offsetClause` — `SKIP` and `OFFSET` are surface
+// synonyms (`offsetSynonym`).  The CST node is the same for both
+// spellings; the contained keyword token records the surface form.
+// cy-z0x8 added the `OFFSET` arm.
 Skip =
-  'SKIP' Expr
+  ('SKIP' | 'OFFSET') Expr
 
 Limit =
   'LIMIT' Expr
@@ -260,11 +272,48 @@ RangeHops =
 
 // v1 label usage is a simple colon-separated list on nodes, and a
 // `|`-separated disjunction on relationships (spec §19 row
-// "Pattern: relationship type disjunction"). Richer GQL label-expr
-// algebra (`!`, `&`, parenthesised) tracks §9.2 and lives behind the
-// dialect gate — the ungrammar lists only the v1 surface.
+// "Pattern: relationship type disjunction"). cy-p3cl extends the
+// node-pattern surface to the full §16.4 `labelExpression`:
+// conjunction `&`, disjunction `|`, prefix negation `!`, wildcard `%`,
+// and explicit parenthesisation. The classical multi-`:` form is
+// preserved as the first arm so existing CST/AST consumers continue
+// to see bare label-name tokens directly under `LABEL_EXPR` — the
+// compound nodes only appear once the GQL operator surface fires.
+// LabelExpr admits either the classical multi-`:` form
+// (one or more `:Label`s — the canonical Cypher surface) OR a single
+// `:` followed by a compound §16.4 `labelExpression` subtree. The
+// ungrammar can't easily encode the "either/or" at one production
+// without an `Alt` arm (which would turn LabelExpr into an enum and
+// strip its struct wrapper), so we model the union as a sequence:
+// `':' Label` introduces the head term, the optional `LabelInner`
+// child carries the compound surface, and additional `:Label` repeats
+// are admitted as a trailing tail (the parser preserves the existing
+// CST flat-list shape when no compound is present).
 LabelExpr =
-  (':' Label)+
+  ':' Label (':' Label)* LabelInner?
+
+LabelInner =
+  LabelDisjunctionExpr
+| LabelConjunctionExpr
+| LabelNegationExpr
+| LabelWildcardExpr
+| LabelParenExpr
+| Label
+
+LabelDisjunctionExpr =
+  LabelInner '|' LabelInner
+
+LabelConjunctionExpr =
+  LabelInner '&' LabelInner
+
+LabelNegationExpr =
+  '!' LabelInner
+
+LabelWildcardExpr =
+  '%'
+
+LabelParenExpr =
+  '(' LabelInner ')'
 
 TypeExpr =
   ':' RelType ('|' RelType)*
@@ -313,6 +362,9 @@ Expr =
 // --- cy-p1u5 EXISTS parser-only ---
 | ExistsSubqueryExpr
 // --- end cy-p1u5 ---
+// --- cy-dwem truthValue predicate ---
+| TruthValuePredicate
+// --- end cy-dwem ---
 
 // DEFERRED: `COUNT { ... }` expression forms — spec §19 / §20 D1.
 //
@@ -440,6 +492,13 @@ NullCheck =
 // `((n.age) :: INTEGER) > 18`.
 IsTypedExpr =
   operand:Expr 'IS' 'NOT'? 'TYPED' ty:TypeName
+
+// GQL truthValuePredicatePart2 (cy-dwem, ISO/IEC 39075:2024 §20.1).
+// The truth-value tail is one of the three keyword tokens TRUE / FALSE
+// / UNKNOWN; the CST emits TRUE_KW / FALSE_KW / UNKNOWN_KW directly so
+// downstream code can inspect the token kind without an enum wrapper.
+TruthValuePredicate =
+  operand:Expr 'IS' 'NOT'? ('TRUE' | 'FALSE' | 'UNKNOWN')
 
 TypeCastExpr =
   operand:Expr '::' ty:TypeName

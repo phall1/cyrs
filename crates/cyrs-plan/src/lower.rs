@@ -2407,7 +2407,13 @@ mod tests {
     // 10b. Multi-key MERGE node preserves source order of the map keys.
     #[test]
     fn merge_node_key_props_multi_key_in_order() {
-        let plan = plan_from("MERGE (n:Person {first: $f, last: $l})");
+        // cy-z0x8: `first` / `last` were promoted to reserved keywords
+        // when GQL `NULLS FIRST` / `NULLS LAST` sort-spec trailers
+        // landed (ISO/IEC 39075:2024 §14.13.6).  Use neutral identifier
+        // spellings for the property keys here so the test exercises
+        // multi-key MERGE ordering without colliding with the new
+        // keyword zone.
+        let plan = plan_from("MERGE (n:Person {given: $f, family: $l})");
         let merge = plan
             .write_ops
             .iter()
@@ -2415,7 +2421,7 @@ mod tests {
             .expect("expected a MergeNode write op");
         match merge {
             WriteOp::MergeNode { key_props, .. } => {
-                assert_eq!(key_props.as_slice(), ["first", "last"]);
+                assert_eq!(key_props.as_slice(), ["given", "family"]);
             }
             _ => unreachable!(),
         }

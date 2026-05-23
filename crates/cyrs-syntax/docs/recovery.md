@@ -226,12 +226,26 @@ invariant; the strategy will be fleshed out when the production lands.
 
 ### OrderBy
 
-- Synchronisation set: `SKIP`, `LIMIT`, clause-start keywords, `;`, EOF.
+- Synchronisation set: `SKIP`, `OFFSET`, `LIMIT`, clause-start
+  keywords, `;`, EOF.  (`OFFSET` joins the set as an `offsetSynonym`
+  for `SKIP` — cy-z0x8.)
 - Skip-and-recover: malformed sort-items are wrapped in an `ORDER_ITEM`
   with an internal `ERROR` node; recovery continues at the next `,`
   or sync-set token.
 - Virtual insertion: missing `BY` after `ORDER` emits a diagnostic;
   parser continues as if `BY` were present.
+
+### NullOrdering
+
+- Synchronisation set: `,`, `SKIP`, `OFFSET`, `LIMIT`, clause-start
+  keywords, `;`, EOF.
+- Skip-and-recover: an isolated `NULLS` keyword still opens a
+  `NULL_ORDERING` node; recovery resumes at the next sync-set token
+  without consuming further input.
+- Virtual insertion: missing `FIRST` / `LAST` after `NULLS` in a sort
+  specification emits `E0104` and the `NULL_ORDERING` node still
+  closes so the outer `ORDER_ITEM` and the trailing `SKIP` / `OFFSET`
+  / `LIMIT` parse cleanly (cy-z0x8).
 
 ### GroupBy
 
@@ -243,6 +257,84 @@ invariant; the strategy will be fleshed out when the production lands.
 - Virtual insertion: missing `BY` after `GROUP` emits `E0099` and the
   parser continues as if `BY` were present (mirroring the ORDER BY
   recovery shape); missing expression after `GROUP BY` emits `E0100`.
+
+### TruthValuePredicate
+
+GQL `truthValuePredicatePart2` (ISO/IEC 39075:2024 §20.1) — extends
+the existing IS-postfix dispatch in `expression.rs`.  The path-split
+after `IS [NOT]` now has three live arms: `NULL` → `IS_NULL_EXPR`,
+`TYPED <Type>` → `IS_TYPED_EXPR`, `TRUE|FALSE|UNKNOWN` →
+`TRUTH_VALUE_PREDICATE`.  No new diagnostic codes are registered:
+
+- Recovery is inherited from the surrounding IS-postfix dispatch.  An
+  `IS` not followed by `NULL`, `TYPED`, `TRUE`, `FALSE`, or `UNKNOWN`
+  continues to surface the existing `E0025`
+  (`EXPECTED_NULL_AFTER_IS`) — the legacy diagnostic surface is
+  preserved for queries that forgot to spell `NULL`.
+- The truthValue tail tokens (`TRUE_KW`, `FALSE_KW`, `UNKNOWN_KW`) are
+  reserved keywords at the lexer level; if any of them is the first
+  token after `IS [NOT]` the parser consumes it directly into the
+  `TRUTH_VALUE_PREDICATE` parent and closes the node.  Synchronisation
+  is whatever the outer Pratt loop uses (comparison-level).
+### LabelInner
+
+Internal sum production over the compound label-expression operator
+nodes — see the operator-specific sections below. cy-p3cl.
+
+### LabelNegationExpr
+
+Prefix `!` negation in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `&`, `|`, `)` (label-paren / node-pattern close),
+  `{` (property map), `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: when the primary after `!` is missing, no further
+  input is consumed; the negation node still closes so the outer
+  conjunction / disjunction parse continues.
+- Virtual insertion: missing primary after `!` emits `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`).
+
+### LabelConjunctionExpr
+
+Binary `&` conjunction in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `|`, `)` (label-paren / node-pattern close),
+  `{`, `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing right operand surfaces as `E0103` and
+  terminates the binary loop; the conjunction node still closes.
+- Virtual insertion: none beyond the shared `E0103`
+  (`EXPECTED_LABEL_EXPR`).
+
+### LabelDisjunctionExpr
+
+Binary `|` disjunction in a §16.4 `labelExpression` (node-pattern
+position only — the rel-type parser keeps its own `|` separator).
+cy-p3cl.
+
+- Synchronisation set: `)` (label-paren / node-pattern close),
+  `{`, `,`, clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing right operand surfaces as `E0103` and
+  terminates the binary loop; the disjunction node still closes.
+- Virtual insertion: none beyond the shared `E0103`.
+
+### LabelWildcardExpr
+
+`%` wildcard (any label) in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: inherited from the surrounding operator.
+- Skip-and-recover: none — the wildcard is a single token.
+- Virtual insertion: none.
+
+### LabelParenExpr
+
+Explicit parenthesisation in a §16.4 `labelExpression`. cy-p3cl.
+
+- Synchronisation set: `)` (label-paren close), `{`, `,`,
+  clause-start keywords, `;`, EOF.
+- Skip-and-recover: a missing closing `)` is reported but no further
+  input is consumed; the paren node closes virtually, leaving the
+  outer node-pattern close (`E0011`) to flag the residual `)`.
+- Virtual insertion: missing closing `)` emits `E0102`
+  (`EXPECTED_RPAREN_LABEL`).
 
 ### SortItem
 
@@ -257,6 +349,13 @@ invariant; the strategy will be fleshed out when the production lands.
 - Skip-and-recover: expression tokens until a sync-set token when the
   expression is missing.
 - Virtual insertion: none.
+- GQL surface: `SKIP` and `OFFSET` are surface synonyms
+  (`offsetSynonym`, ISO/IEC 39075:2024 §14.13.7).  Both reach the
+  same parser function and complete a `SKIP_SUBCLAUSE` CST node; the
+  contained keyword token records which spelling was used.  A bare
+  `OFFSET` with no following expression emits `E0105`
+  (`EXPECTED_OFFSET_EXPR`); the `SKIP` form keeps `E0040`
+  (`EXPECTED_SKIP_EXPR`).
 
 ### Limit
 

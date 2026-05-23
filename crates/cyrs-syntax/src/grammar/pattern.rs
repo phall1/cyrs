@@ -192,7 +192,7 @@ fn node_pattern(p: &mut Parser<'_>) {
     p.bump(SyntaxKind::L_PAREN);
 
     // Optional name binder.
-    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+    if p.at_name_like() {
         name_binder(p);
     }
     // Optional label list.
@@ -317,7 +317,7 @@ fn rel_detail(p: &mut Parser<'_>) {
     p.bump(SyntaxKind::L_BRACK);
 
     // Optional name binder.
-    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) {
+    if p.at_name_like() {
         name_binder(p);
     }
     // Optional type expression: `:Type` (pipe disjunction deferred).
@@ -357,18 +357,138 @@ fn eat_label_or_type_name(p: &mut Parser<'_>) -> bool {
     false
 }
 
-/// `(':' IDENT)+`
+/// `LabelExpr` — node-pattern label list.
+///
+/// Backwards-compatible classical form: `(':' IDENT)+` (colon-conjunction,
+/// emitted as a single flat `LABEL_EXPR` whose direct children are
+/// COLON tokens and bare label-name tokens — the CST shape that
+/// pre-cy-p3cl consumers depend on).  When the first label is followed
+/// by a GQL §16.4 `labelExpression` operator (`&`, `|`), or the body
+/// starts with a non-classical primary (`!`, `%`, `(`), the parser
+/// switches to a precedence-climbing form that wraps sub-expressions in
+/// dedicated `LABEL_DISJUNCTION_EXPR` / `LABEL_CONJUNCTION_EXPR` /
+/// `LABEL_NEGATION_EXPR` / `LABEL_WILDCARD_EXPR` / `LABEL_PAREN_EXPR`
+/// nodes.  The outer `LABEL_EXPR` always wraps the result so existing
+/// AST accessors continue to find a `LABEL_EXPR` child on
+/// `NODE_PATTERN`.  cy-p3cl.
 fn label_expr(p: &mut Parser<'_>) {
     debug_assert!(p.at(SyntaxKind::COLON));
     let m = p.start();
-    while p.at(SyntaxKind::COLON) {
-        p.bump(SyntaxKind::COLON);
-        if !eat_label_or_type_name(p) {
-            p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
-            break;
+
+    // Consume the introducing `:`.
+    p.bump(SyntaxKind::COLON);
+
+    // Decide which surface form to parse.  The classical multi-`:`
+    // shape `(n:A:B)` is preserved bit-for-bit so existing CST
+    // snapshots and AST consumers do not drift; cy-p3cl only diverges
+    // when the body begins with a non-classical primary (`!`, `%`,
+    // `(`) or when an operator (`&`, `|`) appears after the head label.
+    if matches!(
+        p.current(),
+        SyntaxKind::BANG | SyntaxKind::PERCENT | SyntaxKind::L_PAREN
+    ) {
+        // §16.4 surface starting with `!`, `%`, or `(`.
+        label_disjunction(p);
+    } else if (p.current() == SyntaxKind::IDENT
+        || p.current() == SyntaxKind::QUOTED_IDENT
+        || p.current().is_keyword())
+        && matches!(p.nth(1), SyntaxKind::AMP | SyntaxKind::PIPE)
+    {
+        // Bare label followed by an operator — switch to §16.4 parser.
+        label_disjunction(p);
+    } else if eat_label_or_type_name(p) {
+        // Classical Cypher: `:Label (: Label)*`.
+        while p.at(SyntaxKind::COLON) {
+            p.bump(SyntaxKind::COLON);
+            if !eat_label_or_type_name(p) {
+                p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
+                break;
+            }
         }
+    } else {
+        p.error_code(sc::EXPECTED_LABEL, "expected label after ':'");
     }
+
     m.complete(p, SyntaxKind::LABEL_EXPR);
+}
+
+/// Disjunction: `<conj> ('|' <conj>)*` — lowest precedence in §16.4.
+/// Left-associative; we re-parent via `CompletedMarker::precede` so the
+/// CST shape matches the grammar's left-recursive `labelExpression`.
+fn label_disjunction(p: &mut Parser<'_>) {
+    let Some(mut lhs) = label_conjunction(p) else {
+        return;
+    };
+    while p.at(SyntaxKind::PIPE) {
+        let outer = lhs.precede(p);
+        p.bump(SyntaxKind::PIPE);
+        let _ = label_conjunction(p);
+        lhs = outer.complete(p, SyntaxKind::LABEL_DISJUNCTION_EXPR);
+    }
+}
+
+/// Conjunction: `<neg> ('&' <neg>)*` — middle precedence.
+fn label_conjunction(p: &mut Parser<'_>) -> Option<crate::parser::CompletedMarker> {
+    let mut lhs = label_negation(p)?;
+    while p.at(SyntaxKind::AMP) {
+        let outer = lhs.precede(p);
+        p.bump(SyntaxKind::AMP);
+        let _ = label_negation(p);
+        lhs = outer.complete(p, SyntaxKind::LABEL_CONJUNCTION_EXPR);
+    }
+    Some(lhs)
+}
+
+/// Negation: `'!' <neg>` | `<primary>` — highest precedence among the
+/// operators. Right-associative (`!!A` parses as `!(!A)`).
+fn label_negation(p: &mut Parser<'_>) -> Option<crate::parser::CompletedMarker> {
+    if p.at(SyntaxKind::BANG) {
+        let m = p.start();
+        p.bump(SyntaxKind::BANG);
+        if label_negation(p).is_none() {
+            p.error_code(
+                sc::EXPECTED_LABEL_AFTER_BANG,
+                "expected label expression after '!'",
+            );
+        }
+        return Some(m.complete(p, SyntaxKind::LABEL_NEGATION_EXPR));
+    }
+    label_primary(p)
+}
+
+/// Primary: label name, wildcard `%`, or parenthesised sub-expression.
+/// Returns `None` (with a diagnostic) when nothing primary-shaped is
+/// at the cursor — the caller decides whether to break a binary loop.
+fn label_primary(p: &mut Parser<'_>) -> Option<crate::parser::CompletedMarker> {
+    if p.at(SyntaxKind::PERCENT) {
+        let m = p.start();
+        p.bump(SyntaxKind::PERCENT);
+        return Some(m.complete(p, SyntaxKind::LABEL_WILDCARD_EXPR));
+    }
+    if p.at(SyntaxKind::L_PAREN) {
+        let m = p.start();
+        p.bump(SyntaxKind::L_PAREN);
+        label_disjunction(p);
+        if !p.eat(SyntaxKind::R_PAREN) {
+            p.error_code(
+                sc::EXPECTED_RPAREN_LABEL,
+                "expected ')' to close label expression",
+            );
+        }
+        return Some(m.complete(p, SyntaxKind::LABEL_PAREN_EXPR));
+    }
+    // Bare label name — IDENT / quoted ident / any keyword spelling.
+    // Wrap in a `NAME` node so consumers see a uniform handle.
+    if p.at(SyntaxKind::IDENT) || p.at(SyntaxKind::QUOTED_IDENT) || p.current().is_keyword() {
+        let m = p.start();
+        let _ = eat_label_or_type_name(p);
+        return Some(m.complete(p, SyntaxKind::NAME));
+    }
+    p.error_code(
+        sc::EXPECTED_LABEL_EXPR,
+        "expected label expression (label name, '%', '!', or '(')",
+    );
+    None
 }
 
 /// `RangeHops = '*' (IntLiteral ('..' IntLiteral?)?)? | '*' '..' IntLiteral`
@@ -433,7 +553,10 @@ fn property_map(p: &mut Parser<'_>) {
 }
 
 fn property_kv(p: &mut Parser<'_>) {
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    // cy-z0x8: accept GQL clause-level keywords that openCypher uses as
+    // plain identifiers in property-key position (`{first: ...}` etc.).
+    // See `Parser::at_name_like` for the full list.
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_PROP_KEY, "expected property key");
     }
     if !p.eat(SyntaxKind::COLON) {
@@ -448,10 +571,12 @@ fn property_kv(p: &mut Parser<'_>) {
 }
 
 /// A plain `IDENT` / `QUOTED_IDENT` wrapped in a `NAME` node, for binders that
-/// live inside patterns.
+/// live inside patterns.  cy-z0x8: also accepts the four name-like GQL
+/// keywords (`OFFSET` / `NULLS` / `FIRST` / `LAST`) so openCypher-style
+/// queries that bind them as variable names keep parsing.
 fn name_binder(p: &mut Parser<'_>) {
     let m = p.start();
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if !p.eat_name_like() {
         p.error_code(sc::EXPECTED_IDENT, "expected identifier");
     }
     m.complete(p, SyntaxKind::NAME);

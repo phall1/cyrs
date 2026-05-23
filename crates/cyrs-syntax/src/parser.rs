@@ -305,6 +305,41 @@ impl<'a> Parser<'a> {
                 .is_some_and(|t| t.text.eq_ignore_ascii_case(ident))
     }
 
+    /// Returns `true` if the current token can stand in for an
+    /// identifier in name-position (variable refs, property keys,
+    /// aliases, etc.).  This covers the plain `IDENT` / `QUOTED_IDENT`
+    /// pair plus the small set of GQL-distinct keywords that openCypher
+    /// v9 routinely uses as ordinary identifiers — `OFFSET`, `NULLS`,
+    /// `FIRST`, `LAST` (cy-z0x8, ISO/IEC 39075:2024 §14.13.6 / §14.13.7).
+    /// In GQL these are reserved at clause level (sort-spec
+    /// `nullOrdering`, `offsetSynonym`); outside those positions the
+    /// parser folds them back into name position so openCypher TCK
+    /// queries like `WITH … AS first, … AS last` keep parsing.
+    pub(crate) fn at_name_like(&self) -> bool {
+        matches!(
+            self.current(),
+            SyntaxKind::IDENT
+                | SyntaxKind::QUOTED_IDENT
+                | SyntaxKind::OFFSET_KW
+                | SyntaxKind::NULLS_KW
+                | SyntaxKind::FIRST_KW
+                | SyntaxKind::LAST_KW
+        )
+    }
+
+    /// Consume the current token if it is name-like ([`at_name_like`]).
+    /// Returns `true` if a token was eaten.  The token's `SyntaxKind`
+    /// is preserved in the CST so downstream passes can still recover
+    /// the surface spelling.
+    pub(crate) fn eat_name_like(&mut self) -> bool {
+        if self.at_name_like() {
+            self.bump_any();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Byte offset of the current token (or end-of-input if exhausted).
     fn current_offset(&self) -> text_size::TextSize {
         self.tokens.get(self.pos).map_or_else(
@@ -713,6 +748,22 @@ pub(crate) mod syntax_codes {
     pub(crate) const EXPECTED_BY_AFTER_GROUP: u16 = 99;
     /// E0100 — expected expression in `GROUP BY` (cy-71t0).
     pub(crate) const EXPECTED_GROUPBY_EXPR: u16 = 100;
+    /// E0104 — expected `FIRST` or `LAST` after `NULLS` in a sort
+    /// specification's `nullOrdering` trailer (cy-z0x8, ISO/IEC
+    /// 39075:2024 §14.13.6).
+    pub(crate) const EXPECTED_FIRST_OR_LAST_AFTER_NULLS: u16 = 104;
+    /// E0105 — expected expression after `OFFSET` (cy-z0x8, ISO/IEC
+    /// 39075:2024 §14.13.7 `offsetClause`).
+    pub(crate) const EXPECTED_OFFSET_EXPR: u16 = 105;
+    /// E0101 — expected a label expression after `!` in a label
+    /// negation (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_AFTER_BANG: u16 = 101;
+    /// E0102 — expected `)` to close a parenthesised label expression
+    /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_RPAREN_LABEL: u16 = 102;
+    /// E0103 — expected a label expression (label name, `%`, `!`,
+    /// or `(`) (cy-p3cl, ISO/IEC 39075:2024 §16.4).
+    pub(crate) const EXPECTED_LABEL_EXPR: u16 = 103;
     // ---- end cy-9kzx ---------------------------------------------------
 
     // ---- dialect gates (E4xxx, shared with cyrs-diag::codes) -----------

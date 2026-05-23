@@ -252,6 +252,35 @@ pub enum SyntaxKind {
     GROUP_KW = 197,
     // --- end cy-71t0 ---
 
+    // --- cy-z0x8 OFFSET + NULLS FIRST/LAST ---
+    // GQL-distinct keywords for the `offsetClause` synonym of `SKIP`
+    // (ISO/IEC 39075:2024 §14.13.7) and the `nullOrdering` trailer of a
+    // sort specification (ISO §14.13.6). All four words appear only at
+    // clause level (inside RETURN/WITH trailers or inside an ORDER BY
+    // sort item); they stay as ordinary identifiers in expression
+    // position so existing fixtures binding `offset` / `nulls` / `first`
+    // / `last` as variable names keep parsing.  Slots 198..=201.
+    OFFSET_KW = 198,
+    NULLS_KW = 199,
+    FIRST_KW = 200,
+    LAST_KW = 201,
+    // --- end cy-z0x8 ---
+
+    // --- cy-dwem truthValue predicate ---
+    // GQL-distinct `IS [NOT] UNKNOWN` truth-value tail
+    // (ISO/IEC 39075:2024 §20.1 `truthValuePredicatePart2 / truthValue`).
+    // `TRUE_KW` / `FALSE_KW` are already reserved at slots 151/152.
+    // The variant is RESERVED but the lexer does not currently emit
+    // it — `UNKNOWN` is recognised contextually in the IS-postfix
+    // dispatch (see `grammar/expression.rs`).  This preserves
+    // pre-existing fixtures that bind `unknown` as an ordinary
+    // identifier (e.g. cyrs-sema's `CALL unknown.procedure()` test).
+    // The slot is held for a future full-keyword promotion if and
+    // when the corpus is audited and the contextual recognition is
+    // no longer required.
+    UNKNOWN_KW = 202,
+    // --- end cy-dwem ---
+
     // =====================================================================
     // Syntax nodes (320..768)
     // =====================================================================
@@ -510,6 +539,41 @@ pub enum SyntaxKind {
     GROUP_BY = 414,
     // --- end cy-71t0 ---
 
+    // --- cy-z0x8 OFFSET + NULLS FIRST/LAST ---
+    // CST node for `NULLS FIRST` / `NULLS LAST` (ISO/IEC 39075:2024
+    // §14.13.6 `nullOrdering`) appearing inside an `ORDER_ITEM` after
+    // the optional `ASC` / `DESC` direction.  GQL-distinct: openCypher
+    // v9 has no nulls-ordering surface.  The discriminant between
+    // FIRST / LAST is the second keyword child token (FIRST_KW /
+    // LAST_KW); the leading NULLS_KW is the introducer.  Slot 420.
+    NULL_ORDERING = 420,
+    // --- end cy-z0x8 ---
+
+    // --- cy-dwem truthValue predicate ---
+    // CST node for the truth-value predicate
+    // `<expr> IS [NOT] (TRUE | FALSE | UNKNOWN)`
+    // (ISO/IEC 39075:2024 §20.1 `truthValuePredicatePart2 / truthValue`).
+    // Sits at expression-postfix priority alongside `IS_NULL_EXPR` /
+    // `IS_TYPED_EXPR`.  Slot 421.
+    TRUTH_VALUE_PREDICATE = 421,
+    // --- end cy-dwem ---
+    // --- cy-p3cl label-expression operators ---
+    // CST nodes for ISO/IEC 39075:2024 §16.4 `labelExpression`.
+    // The classical Cypher form `(n:A:B)` (colon-conjunction) is still
+    // produced as a flat `LABEL_EXPR`; the new compound operators wrap
+    // sub-expressions as dedicated nodes so HIR / sema can pattern-match
+    // on the operator without re-walking tokens.  Conjunction (`&`),
+    // disjunction (`|`), negation (`!`), wildcard (`%`), and the
+    // explicit parenthesised form are all admitted only after the
+    // leading `:` of a `NODE_PATTERN` — rel-type expressions continue
+    // to consume `|` as their own type-disjunction separator.
+    LABEL_NEGATION_EXPR = 415,
+    LABEL_CONJUNCTION_EXPR = 416,
+    LABEL_DISJUNCTION_EXPR = 417,
+    LABEL_WILDCARD_EXPR = 418,
+    LABEL_PAREN_EXPR = 419,
+    // --- end cy-p3cl ---
+
     // =====================================================================
     // Errors & EOF (768..1024)
     // =====================================================================
@@ -646,6 +710,15 @@ impl SyntaxKind {
             196 => Self::ZONE_KW,
             197 => Self::GROUP_KW,
             // --- end cy-9kzx ---
+            // --- cy-z0x8 OFFSET + NULLS FIRST/LAST ---
+            198 => Self::OFFSET_KW,
+            199 => Self::NULLS_KW,
+            200 => Self::FIRST_KW,
+            201 => Self::LAST_KW,
+            // --- end cy-z0x8 ---
+            // --- cy-dwem truthValue ---
+            202 => Self::UNKNOWN_KW,
+            // --- end cy-dwem ---
             320 => Self::SOURCE_FILE,
             321 => Self::STATEMENT,
             322 => Self::MATCH_CLAUSE,
@@ -747,6 +820,19 @@ impl SyntaxKind {
             413 => Self::EXISTS_SUBQUERY_EXPR,
             414 => Self::GROUP_BY,
             // --- end cy-p1u5 ---
+            // --- cy-z0x8 NULL_ORDERING ---
+            420 => Self::NULL_ORDERING,
+            // --- end cy-z0x8 ---
+            // --- cy-dwem truthValue ---
+            421 => Self::TRUTH_VALUE_PREDICATE,
+            // --- end cy-dwem ---
+            // --- cy-p3cl label-expression operators ---
+            415 => Self::LABEL_NEGATION_EXPR,
+            416 => Self::LABEL_CONJUNCTION_EXPR,
+            417 => Self::LABEL_DISJUNCTION_EXPR,
+            418 => Self::LABEL_WILDCARD_EXPR,
+            419 => Self::LABEL_PAREN_EXPR,
+            // --- end cy-p3cl ---
             768 => Self::ERROR,
             769 => Self::EOF,
 
@@ -776,16 +862,18 @@ impl SyntaxKind {
         )
     }
 
-    /// Returns `true` for the keyword zone (`MATCH_KW..=ZONE_KW`).
+    /// Returns `true` for the keyword zone (`MATCH_KW..=UNKNOWN_KW`).
     ///
-    /// `ZONE_KW` is the current upper bound (cy-9kzx SESSION SET; sits
-    /// at slot 196, above cy-rgqg's catalog-DDL keywords at 190..=194).
-    /// Internal slots may be unassigned — `from_u16` returns `None`
-    /// for those gaps, so they never round-trip into a keyword.
+    /// `UNKNOWN_KW` (slot 202, cy-dwem truthValue predicate) is the
+    /// current upper bound — it sits above cy-z0x8's `LAST_KW = 201`
+    /// (OFFSET + NULLS FIRST/LAST) which itself sits above cy-71t0's
+    /// `GROUP_KW = 197`.  Internal slots may be unassigned — `from_u16`
+    /// returns `None` for those gaps, so they never round-trip into a
+    /// keyword.
     #[must_use]
     pub const fn is_keyword(self) -> bool {
         let k = self as u16;
-        k >= Self::MATCH_KW as u16 && k <= Self::GROUP_KW as u16
+        k >= Self::MATCH_KW as u16 && k <= Self::UNKNOWN_KW as u16
     }
 
     /// Returns `true` for the punctuation zone (`L_PAREN..=AMP`).
@@ -861,6 +949,20 @@ mod tests {
             SyntaxKind::EXISTS_SUBQUERY_EXPR,
             SyntaxKind::GROUP_KW,
             SyntaxKind::GROUP_BY,
+            // cy-z0x8 OFFSET + NULLS FIRST/LAST spot-checks.
+            SyntaxKind::OFFSET_KW,
+            SyntaxKind::NULLS_KW,
+            SyntaxKind::FIRST_KW,
+            SyntaxKind::LAST_KW,
+            SyntaxKind::NULL_ORDERING,
+            // cy-dwem truthValue spot-checks.
+            SyntaxKind::UNKNOWN_KW,
+            SyntaxKind::TRUTH_VALUE_PREDICATE,
+            SyntaxKind::LABEL_NEGATION_EXPR,
+            SyntaxKind::LABEL_CONJUNCTION_EXPR,
+            SyntaxKind::LABEL_DISJUNCTION_EXPR,
+            SyntaxKind::LABEL_WILDCARD_EXPR,
+            SyntaxKind::LABEL_PAREN_EXPR,
             SyntaxKind::ERROR,
             SyntaxKind::EOF,
         ];

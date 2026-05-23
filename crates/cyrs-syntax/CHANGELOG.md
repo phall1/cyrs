@@ -18,6 +18,45 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   between EXCLUDE and ORDER BY.  Recovery codes `E0099`
   (`EXPECTED_BY_AFTER_GROUP`) and `E0100` (`EXPECTED_GROUPBY_EXPR`)
   each have a UI fixture under `tests/ui/syntax/`.
+- cy-z0x8 (ISO/IEC 39075:2024 §14.13.6 / §14.13.7): parse `OFFSET` as
+  an `offsetSynonym` for `SKIP` in `RETURN_CLAUSE` / `WITH_CLAUSE`
+  trailers, and parse `NULLS FIRST` / `NULLS LAST` as an optional
+  `nullOrdering` trailer on an ORDER BY sort specification.  New
+  keywords `OFFSET_KW` (slot 198), `NULLS_KW` (199), `FIRST_KW` (200),
+  `LAST_KW` (201).  New CST node `NULL_ORDERING` (slot 420).  The
+  CST node for `OFFSET k` stays `SKIP_SUBCLAUSE` — the contained
+  keyword token records which spelling was used.  Recovery codes
+  `E0104` (`EXPECTED_FIRST_OR_LAST_AFTER_NULLS`) and `E0105`
+  (`EXPECTED_OFFSET_EXPR`) each have a UI fixture.  The four new
+  keywords are *soft* at the parser layer (`at_name_like` /
+  `eat_name_like` helpers) so they remain usable as identifiers in
+  name position — the openCypher TCK baseline stays unchanged.
+- cy-dwem (ISO/IEC 39075:2024 §20.1): parse `x IS [NOT] TRUE`,
+  `x IS [NOT] FALSE`, `x IS [NOT] UNKNOWN` (`truthValuePredicatePart2`
+  / `truthValue`).  New keyword slot `UNKNOWN_KW` (202; `TRUE_KW` and
+  `FALSE_KW` were already reserved); new CST node
+  `TRUTH_VALUE_PREDICATE` (slot 421).  `UNKNOWN` is recognised
+  *contextually* (not lexed as a hard keyword) inside the postfix-IS
+  dispatch in `expression.rs`, alongside `IS NULL` and `IS TYPED`, so
+  pre-existing fixtures that bind `unknown` as an ordinary
+  identifier keep parsing.  No new diagnostic codes are registered —
+  surrounding dispatch recovers via the existing `E0025`
+  (`EXPECTED_NULL_AFTER_IS`) path.
+- cy-p3cl (ISO/IEC 39075:2024 §16.4): parse the full GQL
+  `labelExpression` algebra in node patterns —
+  conjunction (`A & B`), disjunction (`A | B`), prefix negation
+  (`!A`), wildcard (`%`), and explicit parenthesisation
+  (`(A | B) & C`).  New CST nodes `LABEL_NEGATION_EXPR` (415),
+  `LABEL_CONJUNCTION_EXPR` (416), `LABEL_DISJUNCTION_EXPR` (417),
+  `LABEL_WILDCARD_EXPR` (418), and `LABEL_PAREN_EXPR` (419); the
+  classical multi-`:` shape `(n:A:B)` still emits a flat
+  `LABEL_EXPR` so existing CST snapshots and AST accessors stay
+  bit-for-bit identical.  The rel-type parser is intentionally
+  untouched, so `-[:KNOWS|FOLLOWS]->` rel-type disjunction stays on
+  its own worklist bead.  Recovery codes `E0101`
+  (`EXPECTED_LABEL_AFTER_BANG`), `E0102` (`EXPECTED_RPAREN_LABEL`),
+  and `E0103` (`EXPECTED_LABEL_EXPR`) each have a UI fixture under
+  `tests/ui/syntax/`.
 
 ### Changed
 
