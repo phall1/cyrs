@@ -20,22 +20,55 @@ candidate for a new ISO-§-cited scenario.
 | Metric | Value |
 |---|---|
 | GQL.g4 parser productions | **574** |
-| Covered (≥1 passing scenario) | **35** (6.1 %) |
-| Uncovered | **539** (93.9 %) |
-| Feature files | **7** |
-| Scenarios (passing / total) | **18 / 18** |
+| Covered (≥1 passing scenario) | **128** (22.3 %) |
+| Uncovered | **446** (77.7 %) |
+| Feature files | **23** |
+| Scenarios (passing / total) | **103 / 103** |
 
 ## Covered productions
 
 | Production | Covered by |
 |---|---|
+| `abbreviatedEdgePattern` | patterns/EdgePattern1.feature, patterns/PathPattern1.feature |
+| `absoluteValueExpression` | expressions/Arithmetic1.feature |
+| `aggregateFunction` | expressions/CaseAndAgg1.feature |
+| `aggregatingValueExpression` | composition/OrderBy1.feature |
 | `allShortestPathSearch` | paths/PathSelector1.feature |
 | `anyShortestPathSearch` | paths/PathSelector1.feature |
+| `approximateNumericLiteral` | expressions/Literals1.feature |
 | `callProcedureStatement` | clauses/Optional1.feature |
 | `callQueryStatement` | clauses/Optional1.feature |
+| `caseExpression` | expressions/CaseAndAgg1.feature |
+| `caseOperand` | expressions/CaseAndAgg1.feature |
+| `characterStringLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
+| `compOp` | expressions/Booleans1.feature, expressions/Predicates1.feature |
+| `compositeQueryExpression` | composition/Composite1.feature |
+| `compositeQueryPrimary` | composition/Composite1.feature |
+| `compositeQueryStatement` | composition/Composite1.feature |
 | `countedShortestPathSearch` | paths/PathSelector1.feature |
 | `differentEdgesMatchMode` | values/Repeatable1.feature |
+| `edgePattern` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `elementPattern` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature |
+| `elementPatternFiller` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
+| `elementPatternPredicate` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `elementPropertySpecification` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `elementVariable` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `elementVariableDeclaration` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `elseClause` | expressions/CaseAndAgg1.feature |
+| `exactNumericLiteral` | expressions/Literals1.feature |
+| `existsPredicate` | expressions/Predicates1.feature |
 | `filterStatement` | clauses/Filter1.feature |
+| `fixedQuantifier` | patterns/Quantifier1.feature |
+| `fullEdgePattern` | patterns/EdgePattern1.feature, patterns/Quantifier1.feature |
+| `fullEdgePointingLeft` | patterns/EdgePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `fullEdgePointingRight` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `fullEdgeUndirected` | patterns/EdgePattern1.feature, patterns/Quantifier1.feature |
+| `generalLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
+| `generalQuantifier` | patterns/Quantifier1.feature |
+| `generalSetFunction` | expressions/CaseAndAgg1.feature |
+| `generalSetFunctionType` | expressions/CaseAndAgg1.feature |
+| `graphPattern` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `graphPatternQuantifier` | patterns/Quantifier1.feature |
 | `insertEdgePattern` | clauses/Insert1.feature |
 | `insertEdgePointingRight` | clauses/Insert1.feature |
 | `insertElementPatternFiller` | clauses/Insert1.feature |
@@ -43,61 +76,117 @@ candidate for a new ISO-§-cited scenario.
 | `insertNodePattern` | clauses/Insert1.feature |
 | `insertPathPattern` | clauses/Insert1.feature |
 | `insertStatement` | clauses/Insert1.feature |
+| `isLabelExpression` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
+| `isOrColon` | patterns/NodePattern1.feature |
 | `labelAndPropertySetSpecification` | clauses/Insert1.feature |
+| `labelExpression` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
+| `labelName` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `labelSetSpecification` | clauses/Insert1.feature |
+| `limitClause` | composition/Page1.feature, composition/SetQuantifier1.feature |
+| `linearQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
+| `listElement` | expressions/Lists1.feature |
+| `listElementList` | expressions/Lists1.feature |
+| `listLiteral` | expressions/Lists1.feature |
+| `listValueConstructorByEnumeration` | expressions/Lists1.feature |
+| `lowerBound` | patterns/Quantifier1.feature |
 | `matchMode` | values/Repeatable1.feature |
-| `matchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, paths/PathSelector1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
-| `optionalMatchStatement` | clauses/Optional1.feature |
-| `optionalOperand` | clauses/Optional1.feature |
-| `pathPattern` | paths/PathSelector1.feature |
+| `matchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `nodePattern` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `nonNegativeIntegerSpecification` | composition/Page1.feature |
+| `nullLiteral` | expressions/Literals1.feature |
+| `nullPredicate` | expressions/Predicates1.feature |
+| `nullPredicatePart2` | expressions/Predicates1.feature |
+| `numericValueFunction` | expressions/Arithmetic1.feature |
+| `offsetClause` | composition/Page1.feature |
+| `offsetSynonym` | composition/Page1.feature |
+| `optionalMatchStatement` | clauses/Optional1.feature, composition/LinearQuery1.feature |
+| `optionalOperand` | clauses/Optional1.feature, composition/LinearQuery1.feature |
+| `orderByAndPageStatement` | composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature |
+| `orderByClause` | composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature |
+| `orderingSpecification` | composition/OrderBy1.feature |
+| `parenthesizedValueExpression` | expressions/Arithmetic1.feature, expressions/Booleans1.feature |
+| `pathFactor` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `pathPattern` | paths/PathSelector1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `pathPatternExpression` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `pathPatternList` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `pathPatternPrefix` | paths/PathSelector1.feature |
+| `pathPrimary` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `pathSearchPrefix` | paths/PathSelector1.feature |
+| `pathTerm` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `pathVariable` | patterns/NamedPath1.feature |
+| `pathVariableDeclaration` | patterns/NamedPath1.feature |
+| `predicate` | expressions/Predicates1.feature |
+| `primitiveQueryStatement` | composition/LinearQuery1.feature |
+| `primitiveResultStatement` | composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature |
+| `propertyKeyValuePair` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `propertyKeyValuePairList` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `propertyName` | patterns/EdgePattern1.feature, patterns/NodePattern1.feature |
+| `queryConjunction` | composition/Composite1.feature |
 | `repeatableElementsMatchMode` | values/Repeatable1.feature |
-| `returnItem` | clauses/Return1.feature, types/SchemaTypes1.feature |
-| `returnItemAlias` | clauses/Return1.feature, types/SchemaTypes1.feature |
-| `returnItemList` | clauses/Return1.feature, types/SchemaTypes1.feature |
-| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, paths/PathSelector1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
-| `returnStatementBody` | clauses/Return1.feature, types/SchemaTypes1.feature |
-| `searchCondition` | types/SchemaTypes1.feature |
+| `result` | expressions/CaseAndAgg1.feature |
+| `resultExpression` | expressions/CaseAndAgg1.feature |
+| `returnItem` | clauses/Return1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
+| `returnItemAlias` | clauses/Return1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
+| `returnItemList` | clauses/Return1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
+| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `returnStatementBody` | clauses/Return1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
+| `searchCondition` | composition/LinearQuery1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, types/SchemaTypes1.feature |
+| `searchedCase` | expressions/CaseAndAgg1.feature |
+| `searchedWhenClause` | expressions/CaseAndAgg1.feature |
+| `setOperator` | composition/Composite1.feature |
+| `setQuantifier` | composition/Composite1.feature, composition/SetQuantifier1.feature, expressions/CaseAndAgg1.feature |
 | `shortestPathSearch` | paths/PathSelector1.feature |
-| `simpleMatchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, paths/PathSelector1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `simpleCase` | expressions/CaseAndAgg1.feature |
+| `simpleLinearQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
+| `simpleMatchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `simpleQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
+| `simpleWhenClause` | expressions/CaseAndAgg1.feature |
+| `sortKey` | composition/OrderBy1.feature |
+| `sortSpecification` | composition/OrderBy1.feature, composition/Page1.feature, composition/SetQuantifier1.feature |
+| `sortSpecificationList` | composition/OrderBy1.feature, composition/Page1.feature |
+| `unsignedDecimalInteger` | expressions/Literals1.feature |
+| `unsignedInteger` | expressions/Literals1.feature |
+| `unsignedLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
+| `unsignedNumericLiteral` | expressions/Literals1.feature |
+| `upperBound` | patterns/Quantifier1.feature |
+| `valueExpression` | expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature |
+| `valueExpressionPrimary` | expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature |
+| `valueFunction` | expressions/Arithmetic1.feature |
 | `valueTypePredicate` | types/SchemaTypes1.feature |
 | `valueTypePredicatePart2` | types/SchemaTypes1.feature |
-| `whereClause` | types/SchemaTypes1.feature |
+| `whenOperand` | expressions/CaseAndAgg1.feature |
+| `whenOperandList` | expressions/CaseAndAgg1.feature |
+| `whereClause` | composition/LinearQuery1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, types/SchemaTypes1.feature |
 
 ## Uncovered productions (worklist)
 
-539 parser productions are not yet reached by any passing
+446 parser productions are not yet reached by any passing
 scenario.  Each is a candidate for a new ISO-§-cited
 `.feature` scenario tagged `@covers:<production>`.
 
 ```
-abbreviatedEdgePattern, absoluteCatalogSchemaReference, 
-absoluteDirectoryPath, absoluteValueExpression, aggregateFunction, 
-aggregatingValueExpression, allPathSearch, all_differentPredicate, 
-ambientLinearDataModifyingStatement, 
+absoluteCatalogSchemaReference, absoluteDirectoryPath, allPathSearch, 
+all_differentPredicate, ambientLinearDataModifyingStatement, 
 ambientLinearDataModifyingStatementBody, ambientLinearQueryStatement, 
-anyPathSearch, approximateNumericLiteral, approximateNumericType, 
-arcTypePointingLeft, arcTypePointingRight, arcTypeUndirected, 
-atSchemaClause, binaryExactNumericType, binarySetFunction, 
-binarySetFunctionType, bindingTableExpression, bindingTableInitializer, 
-bindingTableName, bindingTableReference, bindingTableReferenceValueType, 
-bindingTableType, bindingTableVariableDefinition, bindingVariable, 
-bindingVariableDefinition, bindingVariableDefinitionBlock, 
-bindingVariableReference, bindingVariableReferenceList, booleanType, 
-booleanValueExpression, byteLengthExpression, byteStringType, 
-byteStringValueExpression, callCatalogModifyingProcedureStatement, 
+anyPathSearch, approximateNumericType, arcTypePointingLeft, 
+arcTypePointingRight, arcTypeUndirected, atSchemaClause, 
+binaryExactNumericType, binarySetFunction, binarySetFunctionType, 
+bindingTableExpression, bindingTableInitializer, bindingTableName, 
+bindingTableReference, bindingTableReferenceValueType, bindingTableType, 
+bindingTableVariableDefinition, bindingVariable, bindingVariableDefinition, 
+bindingVariableDefinitionBlock, bindingVariableReference, 
+bindingVariableReferenceList, booleanType, booleanValueExpression, 
+byteLengthExpression, byteStringType, byteStringValueExpression, 
+callCatalogModifyingProcedureStatement, 
 callDataModifyingProcedureStatement, cardinalityExpression, 
-cardinalityExpressionArgument, caseAbbreviation, caseExpression, 
-caseOperand, caseSpecification, castOperand, castSpecification, castTarget, 
-catalogGraphParentAndName, catalogGraphTypeParentAndName, 
-catalogObjectParentReference, catalogProcedureParentAndName, 
-catalogSchemaParentAndName, ceilingFunction, charLengthExpression, 
-characterOrByteStringFunction, characterStringLiteral, characterStringType, 
+cardinalityExpressionArgument, caseAbbreviation, caseSpecification, 
+castOperand, castSpecification, castTarget, catalogGraphParentAndName, 
+catalogGraphTypeParentAndName, catalogObjectParentReference, 
+catalogProcedureParentAndName, catalogSchemaParentAndName, ceilingFunction, 
+charLengthExpression, characterOrByteStringFunction, characterStringType, 
 characterStringValueExpression, closedEdgeReferenceValueType, 
 closedGraphReferenceValueType, closedNodeReferenceValueType, commitCommand, 
-commonLogarithm, compOp, compositeQueryExpression, compositeQueryPrimary, 
-compositeQueryStatement, connectorPointingRight, connectorUndirected, 
+commonLogarithm, connectorPointingRight, connectorUndirected, 
 copyOfGraphType, countedShortestGroupSearch, createGraphStatement, 
 createGraphTypeStatement, createSchemaStatement, currentGraph, 
 dateFunction, dateFunctionParameters, dateLiteral, dateString, dateType, 
@@ -112,24 +201,21 @@ directedPredicatePart2, directoryName, dropGraphStatement,
 dropGraphTypeStatement, dropSchemaStatement, durationFunction, 
 durationFunctionParameters, durationLiteral, durationString, 
 durationValueExpression, durationValueFunction, 
-dynamicParameterSpecification, edgeBindingsOrEdges, edgeKind, edgePattern, 
+dynamicParameterSpecification, edgeBindingsOrEdges, edgeKind, 
 edgeReference, edgeReferenceValueExpression, edgeReferenceValueType, 
 edgeSynonym, edgeTypeFiller, edgeTypeImpliedContent, edgeTypeKeyLabelSet, 
 edgeTypeLabelSet, edgeTypeName, edgeTypePattern, edgeTypePatternDirected, 
 edgeTypePatternPointingLeft, edgeTypePatternPointingRight, 
 edgeTypePatternUndirected, edgeTypePhrase, edgeTypePhraseFiller, 
 edgeTypePropertyTypes, edgeTypeSpecification, edgesSynonym, 
-elementBindingsOrElements, elementPattern, elementPatternFiller, 
-elementPatternPredicate, elementPatternWhereClause, 
-elementPropertySpecification, elementTypeList, elementTypeSpecification, 
-elementVariable, elementVariableDeclaration, elementVariableReference, 
-element_idFunction, elementsFunction, elseClause, emptyGroupingSet, 
-emptyType, endTransactionCommand, endpointPair, endpointPairDirected, 
-endpointPairPhrase, endpointPairPointingLeft, endpointPairPointingRight, 
-endpointPairUndirected, exactNumericLiteral, exactNumericType, 
-existsPredicate, exponentialFunction, field, fieldList, fieldName, 
-fieldType, fieldTypeList, fieldTypesSpecification, fieldsSpecification, 
-fixedLength, fixedQuantifier, floorFunction, 
+elementBindingsOrElements, elementPatternWhereClause, elementTypeList, 
+elementTypeSpecification, elementVariableReference, element_idFunction, 
+elementsFunction, emptyGroupingSet, emptyType, endTransactionCommand, 
+endpointPair, endpointPairDirected, endpointPairPhrase, 
+endpointPairPointingLeft, endpointPairPointingRight, 
+endpointPairUndirected, exactNumericType, exponentialFunction, field, 
+fieldList, fieldName, fieldType, fieldTypeList, fieldTypesSpecification, 
+fieldsSpecification, fixedLength, floorFunction, 
 focusedLinearDataModifyingStatement, 
 focusedLinearDataModifyingStatementBody, 
 focusedLinearQueryAndPrimitiveResultStatementPart, 
@@ -138,13 +224,10 @@ focusedNestedDataModifyingProcedureSpecification,
 focusedNestedQuerySpecification, focusedPrimitiveResultStatement, 
 foldCharacterString, forItem, forItemAlias, forItemSource, 
 forOrdinalityOrOffset, forStatement, fullEdgeAnyDirection, 
-fullEdgeLeftOrRight, fullEdgeLeftOrUndirected, fullEdgePattern, 
-fullEdgePointingLeft, fullEdgePointingRight, fullEdgeUndirected, 
-fullEdgeUndirectedOrRight, generalLiteral, generalLogarithmArgument, 
-generalLogarithmBase, generalLogarithmFunction, generalQuantifier, 
-generalSetFunction, generalSetFunctionType, generalValueSpecification, 
-gqlProgram, graphExpression, graphInitializer, graphName, graphPattern, 
-graphPatternBindingTable, graphPatternQuantifier, graphPatternWhereClause, 
+fullEdgeLeftOrRight, fullEdgeLeftOrUndirected, fullEdgeUndirectedOrRight, 
+generalLogarithmArgument, generalLogarithmBase, generalLogarithmFunction, 
+generalValueSpecification, gqlProgram, graphExpression, graphInitializer, 
+graphName, graphPatternBindingTable, graphPatternWhereClause, 
 graphPatternYieldClause, graphPatternYieldItem, graphPatternYieldItemList, 
 graphReference, graphReferenceValueType, graphSource, graphTypeLikeGraph, 
 graphTypeName, graphTypeReference, graphTypeSource, 
@@ -152,103 +235,84 @@ graphTypeSpecificationBody, graphVariableDefinition, groupByClause,
 groupingElement, groupingElementList, havingClause, homeGraph, identifier, 
 immaterialValueType, independentValueExpression, inlineProcedureCall, 
 insertEdgePointingLeft, insertEdgeUndirected, insertPathPatternList, 
-isLabelExpression, isLabeledOrColon, isOrColon, keepClause, 
-labelExpression, labelName, labelSetPhrase, labeledPredicate, 
+isLabeledOrColon, keepClause, labelSetPhrase, labeledPredicate, 
 labeledPredicatePart2, lengthExpression, letStatement, letValueExpression, 
-letVariableDefinition, letVariableDefinitionList, limitClause, 
+letVariableDefinition, letVariableDefinitionList, 
 linearCatalogModifyingStatement, linearDataModifyingStatement, 
-linearQueryStatement, listElement, listElementList, listLiteral, 
-listValueConstructor, listValueConstructorByEnumeration, 
-listValueExpression, listValueFunction, listValueTypeName, 
-listValueTypeNameSynonym, localNodeTypeAlias, localdatetimeFunction, 
-localdatetimeType, localtimeFunction, localtimeType, lowerBound, 
+listValueConstructor, listValueExpression, listValueFunction, 
+listValueTypeName, listValueTypeNameSynonym, localNodeTypeAlias, 
+localdatetimeFunction, localdatetimeType, localtimeFunction, localtimeType, 
 matchStatementBlock, maxLength, minLength, modulusExpression, 
 namedProcedureCall, naturalLogarithm, nestedBindingTableQuerySpecification, 
 nestedDataModifyingProcedureSpecification, nestedGraphTypeSpecification, 
 nestedProcedureSpecification, nestedQuerySpecification, nextStatement, 
-nodePattern, nodeReference, nodeReferenceValueExpression, 
-nodeReferenceValueType, nodeSynonym, nodeTypeFiller, 
-nodeTypeImpliedContent, nodeTypeKeyLabelSet, nodeTypeLabelSet, 
-nodeTypeName, nodeTypePattern, nodeTypePhrase, nodeTypePhraseFiller, 
-nodeTypePropertyTypes, nodeTypeSpecification, 
-nonNegativeIntegerSpecification, nonParenthesizedValueExpressionPrimary, 
+nodeReference, nodeReferenceValueExpression, nodeReferenceValueType, 
+nodeSynonym, nodeTypeFiller, nodeTypeImpliedContent, nodeTypeKeyLabelSet, 
+nodeTypeLabelSet, nodeTypeName, nodeTypePattern, nodeTypePhrase, 
+nodeTypePhraseFiller, nodeTypePropertyTypes, nodeTypeSpecification, 
+nonParenthesizedValueExpressionPrimary, 
 nonParenthesizedValueExpressionPrimarySpecialCase, nonReservedWords, 
 normalForm, normalizeCharacterString, normalizedPredicatePart2, notNull, 
-nullLiteral, nullOrdering, nullPredicate, nullPredicatePart2, nullType, 
-numberOfGroups, numberOfPaths, numericType, numericValueExpression, 
-numericValueExpressionBase, numericValueExpressionDividend, 
-numericValueExpressionDivisor, numericValueExpressionExponent, 
-numericValueFunction, objectExpressionPrimary, objectName, 
-objectNameOrBindingVariable, ofGraphType, offsetClause, offsetSynonym, 
-openEdgeReferenceValueType, openGraphReferenceValueType, openGraphType, 
-openNodeReferenceValueType, optTypedBindingTableInitializer, 
-optTypedGraphInitializer, optTypedValueInitializer, 
-orderByAndPageStatement, orderByClause, orderingSpecification, 
-parenthesizedPathPatternExpression, parenthesizedPathPatternWhereClause, 
-parenthesizedValueExpression, pathElementList, pathElementListStart, 
-pathElementListStep, pathFactor, pathLengthExpression, pathMode, 
-pathModePrefix, pathOrPaths, pathPatternExpression, pathPatternList, 
-pathPrimary, pathTerm, pathValueConstructor, 
-pathValueConstructorByEnumeration, pathValueExpression, pathValueType, 
-pathVariable, pathVariableDeclaration, pathVariableReference, 
-powerFunction, precision, predefinedSchemaReference, predefinedType, 
-predicate, primitiveCatalogModifyingStatement, 
-primitiveDataModifyingStatement, primitiveQueryStatement, 
-primitiveResultStatement, procedureArgument, procedureArgumentList, 
-procedureBody, procedureCall, procedureName, procedureReference, 
-procedureSpecification, programActivity, propertyKeyValuePair, 
-propertyKeyValuePairList, propertyName, propertyType, propertyTypeList, 
-propertyTypesSpecification, propertyValueType, property_existsPredicate, 
-queryConjunction, recordConstructor, recordLiteral, recordType, 
-referenceParameterSpecification, referenceValueType, regularIdentifier, 
-relativeCatalogSchemaReference, relativeDirectoryPath, removeItem, 
-removeItemList, removeLabelItem, removePropertyItem, removeStatement, 
-result, resultExpression, rollbackCommand, samePredicate, scale, 
-schemaName, schemaReference, searchedCase, searchedWhenClause, 
-selectGraphMatch, selectGraphMatchList, selectItem, selectItemAlias, 
-selectItemList, selectQuerySpecification, selectStatement, 
-selectStatementBody, sessionActivity, sessionCloseCommand, 
+nullOrdering, nullType, numberOfGroups, numberOfPaths, numericType, 
+numericValueExpression, numericValueExpressionBase, 
+numericValueExpressionDividend, numericValueExpressionDivisor, 
+numericValueExpressionExponent, objectExpressionPrimary, objectName, 
+objectNameOrBindingVariable, ofGraphType, openEdgeReferenceValueType, 
+openGraphReferenceValueType, openGraphType, openNodeReferenceValueType, 
+optTypedBindingTableInitializer, optTypedGraphInitializer, 
+optTypedValueInitializer, parenthesizedPathPatternExpression, 
+parenthesizedPathPatternWhereClause, pathElementList, pathElementListStart, 
+pathElementListStep, pathLengthExpression, pathMode, pathModePrefix, 
+pathOrPaths, pathValueConstructor, pathValueConstructorByEnumeration, 
+pathValueExpression, pathValueType, pathVariableReference, powerFunction, 
+precision, predefinedSchemaReference, predefinedType, 
+primitiveCatalogModifyingStatement, primitiveDataModifyingStatement, 
+procedureArgument, procedureArgumentList, procedureBody, procedureCall, 
+procedureName, procedureReference, procedureSpecification, programActivity, 
+propertyType, propertyTypeList, propertyTypesSpecification, 
+propertyValueType, property_existsPredicate, recordConstructor, 
+recordLiteral, recordType, referenceParameterSpecification, 
+referenceValueType, regularIdentifier, relativeCatalogSchemaReference, 
+relativeDirectoryPath, removeItem, removeItemList, removeLabelItem, 
+removePropertyItem, removeStatement, rollbackCommand, samePredicate, scale, 
+schemaName, schemaReference, selectGraphMatch, selectGraphMatchList, 
+selectItem, selectItemAlias, selectItemList, selectQuerySpecification, 
+selectStatement, selectStatementBody, sessionActivity, sessionCloseCommand, 
 sessionParameterSpecification, sessionResetArguments, sessionResetCommand, 
 sessionSetBindingTableParameterClause, sessionSetCommand, 
 sessionSetGraphClause, sessionSetGraphParameterClause, 
 sessionSetParameterClause, sessionSetParameterName, sessionSetSchemaClause, 
 sessionSetTimeZoneClause, sessionSetValueParameterClause, 
-setAllPropertiesItem, setItem, setItemList, setLabelItem, setOperator, 
-setPropertyItem, setQuantifier, setStatement, setTimeZoneValue, 
-signedBinaryExactNumericType, simpleCase, simpleCatalogModifyingStatement, 
-simpleDataAccessingStatement, simpleDataModifyingStatement, 
-simpleDirectoryPath, simpleLinearDataAccessingStatement, 
-simpleLinearQueryStatement, simpleQueryStatement, simpleWhenClause, 
-simplifiedContents, simplifiedDefaultingAnyDirection, 
-simplifiedDefaultingLeft, simplifiedDefaultingLeftOrRight, 
-simplifiedDefaultingLeftOrUndirected, simplifiedDefaultingRight, 
-simplifiedDefaultingUndirected, simplifiedDefaultingUndirectedOrRight, 
-simplifiedDirectionOverride, simplifiedFactorHigh, simplifiedFactorLow, 
-simplifiedMultisetAlternation, simplifiedNegation, 
-simplifiedOverrideAnyDirection, simplifiedOverrideLeft, 
+setAllPropertiesItem, setItem, setItemList, setLabelItem, setPropertyItem, 
+setStatement, setTimeZoneValue, signedBinaryExactNumericType, 
+simpleCatalogModifyingStatement, simpleDataAccessingStatement, 
+simpleDataModifyingStatement, simpleDirectoryPath, 
+simpleLinearDataAccessingStatement, simplifiedContents, 
+simplifiedDefaultingAnyDirection, simplifiedDefaultingLeft, 
+simplifiedDefaultingLeftOrRight, simplifiedDefaultingLeftOrUndirected, 
+simplifiedDefaultingRight, simplifiedDefaultingUndirected, 
+simplifiedDefaultingUndirectedOrRight, simplifiedDirectionOverride, 
+simplifiedFactorHigh, simplifiedFactorLow, simplifiedMultisetAlternation, 
+simplifiedNegation, simplifiedOverrideAnyDirection, simplifiedOverrideLeft, 
 simplifiedOverrideLeftOrRight, simplifiedOverrideLeftOrUndirected, 
 simplifiedOverrideRight, simplifiedOverrideUndirected, 
 simplifiedOverrideUndirectedOrRight, simplifiedPathPatternExpression, 
 simplifiedPathUnion, simplifiedPrimary, simplifiedQuantified, 
 simplifiedQuestioned, simplifiedSecondary, simplifiedTerm, 
-simplifiedTertiary, sortKey, sortSpecification, sortSpecificationList, 
-sourceDestinationPredicate, sourceNodeTypeAlias, sourceNodeTypeReference, 
-sourcePredicatePart2, squareRoot, startTransactionCommand, statement, 
-statementBlock, stringLength, subCharacterOrByteString, subpathVariable, 
-subpathVariableDeclaration, temporalDurationQualifier, 
-temporalDurationType, temporalInstantType, temporalLiteral, temporalType, 
-timeFunction, timeFunctionParameters, timeLiteral, timeString, timeType, 
-timeZoneString, transactionAccessMode, transactionActivity, 
-transactionCharacteristics, transactionMode, trigonometricFunction, 
-trigonometricFunctionName, trimCharacterOrByteString, 
-trimCharacterOrByteStringSource, trimListFunction, 
-trimMultiCharacterCharacterString, trimOperands, 
+simplifiedTertiary, sourceDestinationPredicate, sourceNodeTypeAlias, 
+sourceNodeTypeReference, sourcePredicatePart2, squareRoot, 
+startTransactionCommand, statement, statementBlock, stringLength, 
+subCharacterOrByteString, subpathVariable, subpathVariableDeclaration, 
+temporalDurationQualifier, temporalDurationType, temporalInstantType, 
+temporalLiteral, temporalType, timeFunction, timeFunctionParameters, 
+timeLiteral, timeString, timeType, timeZoneString, transactionAccessMode, 
+transactionActivity, transactionCharacteristics, transactionMode, 
+trigonometricFunction, trigonometricFunctionName, 
+trimCharacterOrByteString, trimCharacterOrByteStringSource, 
+trimListFunction, trimMultiCharacterCharacterString, trimOperands, 
 trimSingleCharacterOrByteString, trimSpecification, truthValue, typed, 
-unsignedBinaryExactNumericType, unsignedDecimalInteger, unsignedInteger, 
-unsignedLiteral, unsignedNumericLiteral, unsignedValueSpecification, 
-upperBound, useGraphClause, valueExpression, valueExpressionPrimary, 
-valueFunction, valueInitializer, valueQueryExpression, valueType, 
-valueVariableDefinition, variableScopeClause, 
-verboseBinaryExactNumericType, whenOperand, whenOperandList, yieldClause, 
-yieldItem, yieldItemAlias, yieldItemList, yieldItemName
+unsignedBinaryExactNumericType, unsignedValueSpecification, useGraphClause, 
+valueInitializer, valueQueryExpression, valueType, valueVariableDefinition, 
+variableScopeClause, verboseBinaryExactNumericType, yieldClause, yieldItem, 
+yieldItemAlias, yieldItemList, yieldItemName
 ```
