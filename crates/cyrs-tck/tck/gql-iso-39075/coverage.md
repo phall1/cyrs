@@ -20,10 +20,10 @@ candidate for a new ISO-§-cited scenario.
 | Metric | Value |
 |---|---|
 | GQL.g4 parser productions | **574** |
-| Covered (≥1 passing scenario) | **133** (23.2 %) |
-| Uncovered | **441** (76.8 %) |
-| Feature files | **27** |
-| Scenarios (passing / total) | **124 / 124** |
+| Covered (≥1 passing scenario) | **153** (26.7 %) |
+| Uncovered | **421** (73.3 %) |
+| Feature files | **28** |
+| Scenarios (passing / total) | **140 / 140** |
 
 ## Covered productions
 
@@ -36,11 +36,17 @@ candidate for a new ISO-§-cited scenario.
 | `allShortestPathSearch` | paths/PathSelector1.feature |
 | `anyShortestPathSearch` | paths/PathSelector1.feature |
 | `approximateNumericLiteral` | expressions/Literals1.feature |
+| `byteLengthExpression` | expressions/NumericFunctions1.feature |
 | `callProcedureStatement` | clauses/Optional1.feature |
 | `callQueryStatement` | clauses/Optional1.feature |
+| `cardinalityExpression` | expressions/NumericFunctions1.feature |
+| `cardinalityExpressionArgument` | expressions/NumericFunctions1.feature |
 | `caseExpression` | expressions/CaseAndAgg1.feature |
 | `caseOperand` | expressions/CaseAndAgg1.feature |
+| `ceilingFunction` | expressions/NumericFunctions1.feature |
+| `charLengthExpression` | expressions/NumericFunctions1.feature |
 | `characterStringLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
+| `commonLogarithm` | expressions/NumericFunctions1.feature |
 | `compOp` | expressions/Booleans1.feature, expressions/Predicates1.feature |
 | `compositeQueryExpression` | composition/Composite1.feature |
 | `compositeQueryPrimary` | composition/Composite1.feature |
@@ -57,13 +63,18 @@ candidate for a new ISO-§-cited scenario.
 | `elseClause` | expressions/CaseAndAgg1.feature |
 | `exactNumericLiteral` | expressions/Literals1.feature |
 | `existsPredicate` | expressions/Predicates1.feature |
+| `exponentialFunction` | expressions/NumericFunctions1.feature |
 | `filterStatement` | clauses/Filter1.feature |
 | `fixedQuantifier` | patterns/Quantifier1.feature |
+| `floorFunction` | expressions/NumericFunctions1.feature |
 | `fullEdgePattern` | patterns/EdgePattern1.feature, patterns/Quantifier1.feature |
 | `fullEdgePointingLeft` | patterns/EdgePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `fullEdgePointingRight` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `fullEdgeUndirected` | patterns/EdgePattern1.feature, patterns/Quantifier1.feature |
 | `generalLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
+| `generalLogarithmArgument` | expressions/NumericFunctions1.feature |
+| `generalLogarithmBase` | expressions/NumericFunctions1.feature |
+| `generalLogarithmFunction` | expressions/NumericFunctions1.feature |
 | `generalQuantifier` | patterns/Quantifier1.feature |
 | `generalSetFunction` | expressions/CaseAndAgg1.feature |
 | `generalSetFunctionType` | expressions/CaseAndAgg1.feature |
@@ -85,6 +96,7 @@ candidate for a new ISO-§-cited scenario.
 | `labelExpression` | patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `labelName` | patterns/EdgePattern1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature |
 | `labelSetSpecification` | clauses/Insert1.feature |
+| `lengthExpression` | expressions/NumericFunctions1.feature |
 | `limitClause` | composition/GroupBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature |
 | `linearQueryStatement` | composition/Composite1.feature, composition/LinearQuery1.feature |
 | `listElement` | expressions/Lists1.feature |
@@ -94,13 +106,16 @@ candidate for a new ISO-§-cited scenario.
 | `lowerBound` | patterns/Quantifier1.feature |
 | `matchMode` | values/Repeatable1.feature |
 | `matchStatement` | clauses/Filter1.feature, clauses/Insert1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, expressions/TruthValue1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `naturalLogarithm` | expressions/NumericFunctions1.feature |
 | `nodePattern` | patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `nonNegativeIntegerSpecification` | composition/Page1.feature, composition/Page2.feature |
 | `nullLiteral` | expressions/Literals1.feature |
 | `nullOrdering` | composition/Page2.feature |
 | `nullPredicate` | expressions/Predicates1.feature |
 | `nullPredicatePart2` | expressions/Predicates1.feature |
-| `numericValueFunction` | expressions/Arithmetic1.feature |
+| `numericValueExpressionBase` | expressions/NumericFunctions1.feature |
+| `numericValueExpressionExponent` | expressions/NumericFunctions1.feature |
+| `numericValueFunction` | expressions/Arithmetic1.feature, expressions/NumericFunctions1.feature |
 | `offsetClause` | composition/Page1.feature, composition/Page2.feature |
 | `offsetSynonym` | composition/Page1.feature, composition/Page2.feature |
 | `optionalMatchStatement` | clauses/Optional1.feature, composition/LinearQuery1.feature |
@@ -110,6 +125,7 @@ candidate for a new ISO-§-cited scenario.
 | `orderingSpecification` | composition/OrderBy1.feature, composition/Page2.feature |
 | `parenthesizedValueExpression` | expressions/Arithmetic1.feature, expressions/Booleans1.feature |
 | `pathFactor` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
+| `pathLengthExpression` | expressions/NumericFunctions1.feature |
 | `pathPattern` | paths/PathSelector1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `pathPatternExpression` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `pathPatternList` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
@@ -119,6 +135,7 @@ candidate for a new ISO-§-cited scenario.
 | `pathTerm` | patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature |
 | `pathVariable` | patterns/NamedPath1.feature |
 | `pathVariableDeclaration` | patterns/NamedPath1.feature |
+| `powerFunction` | expressions/NumericFunctions1.feature |
 | `predicate` | expressions/Predicates1.feature |
 | `primitiveQueryStatement` | composition/LinearQuery1.feature |
 | `primitiveResultStatement` | composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature |
@@ -129,11 +146,11 @@ candidate for a new ISO-§-cited scenario.
 | `repeatableElementsMatchMode` | values/Repeatable1.feature |
 | `result` | expressions/CaseAndAgg1.feature |
 | `resultExpression` | expressions/CaseAndAgg1.feature |
-| `returnItem` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
-| `returnItemAlias` | clauses/Return1.feature, composition/GroupBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, types/SchemaTypes1.feature |
-| `returnItemList` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
-| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/Predicates1.feature, expressions/TruthValue1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
-| `returnStatementBody` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
+| `returnItem` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/NumericFunctions1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
+| `returnItemAlias` | clauses/Return1.feature, composition/GroupBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/NumericFunctions1.feature, types/SchemaTypes1.feature |
+| `returnItemList` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/NumericFunctions1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
+| `returnStatement` | clauses/Filter1.feature, clauses/Optional1.feature, clauses/Return1.feature, composition/Composite1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/NumericFunctions1.feature, expressions/Predicates1.feature, expressions/TruthValue1.feature, paths/PathSelector1.feature, patterns/EdgePattern1.feature, patterns/LabelExpr1.feature, patterns/NamedPath1.feature, patterns/NodePattern1.feature, patterns/PathPattern1.feature, patterns/Quantifier1.feature, types/SchemaTypes1.feature, values/Repeatable1.feature |
+| `returnStatementBody` | clauses/Return1.feature, composition/GroupBy1.feature, composition/LinearQuery1.feature, composition/OrderBy1.feature, composition/SetQuantifier1.feature, expressions/Arithmetic1.feature, expressions/CaseAndAgg1.feature, expressions/Lists1.feature, expressions/Literals1.feature, expressions/NumericFunctions1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
 | `searchCondition` | composition/LinearQuery1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature, expressions/TruthValue1.feature, types/SchemaTypes1.feature |
 | `searchedCase` | expressions/CaseAndAgg1.feature |
 | `searchedWhenClause` | expressions/CaseAndAgg1.feature |
@@ -148,15 +165,18 @@ candidate for a new ISO-§-cited scenario.
 | `sortKey` | composition/OrderBy1.feature, composition/Page2.feature |
 | `sortSpecification` | composition/GroupBy1.feature, composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature, composition/SetQuantifier1.feature |
 | `sortSpecificationList` | composition/OrderBy1.feature, composition/Page1.feature, composition/Page2.feature |
+| `squareRoot` | expressions/NumericFunctions1.feature |
+| `trigonometricFunction` | expressions/NumericFunctions1.feature |
+| `trigonometricFunctionName` | expressions/NumericFunctions1.feature |
 | `truthValue` | expressions/TruthValue1.feature |
 | `unsignedDecimalInteger` | expressions/Literals1.feature |
 | `unsignedInteger` | expressions/Literals1.feature |
 | `unsignedLiteral` | expressions/Lists1.feature, expressions/Literals1.feature |
 | `unsignedNumericLiteral` | expressions/Literals1.feature |
 | `upperBound` | patterns/Quantifier1.feature |
-| `valueExpression` | expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/Predicates1.feature |
+| `valueExpression` | expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/NumericFunctions1.feature, expressions/Predicates1.feature |
 | `valueExpressionPrimary` | expressions/Arithmetic1.feature, expressions/Booleans1.feature, expressions/CaseAndAgg1.feature |
-| `valueFunction` | expressions/Arithmetic1.feature |
+| `valueFunction` | expressions/Arithmetic1.feature, expressions/NumericFunctions1.feature |
 | `valueTypePredicate` | types/SchemaTypes1.feature |
 | `valueTypePredicatePart2` | types/SchemaTypes1.feature |
 | `whenOperand` | expressions/CaseAndAgg1.feature |
@@ -165,7 +185,7 @@ candidate for a new ISO-§-cited scenario.
 
 ## Uncovered productions (worklist)
 
-441 parser productions are not yet reached by any passing
+421 parser productions are not yet reached by any passing
 scenario.  Each is a candidate for a new ISO-§-cited
 `.feature` scenario tagged `@covers:<production>`.
 
@@ -181,23 +201,22 @@ bindingTableReference, bindingTableReferenceValueType, bindingTableType,
 bindingTableVariableDefinition, bindingVariable, bindingVariableDefinition, 
 bindingVariableDefinitionBlock, bindingVariableReference, 
 bindingVariableReferenceList, booleanType, booleanValueExpression, 
-byteLengthExpression, byteStringType, byteStringValueExpression, 
+byteStringType, byteStringValueExpression, 
 callCatalogModifyingProcedureStatement, 
-callDataModifyingProcedureStatement, cardinalityExpression, 
-cardinalityExpressionArgument, caseAbbreviation, caseSpecification, 
+callDataModifyingProcedureStatement, caseAbbreviation, caseSpecification, 
 castOperand, castSpecification, castTarget, catalogGraphParentAndName, 
 catalogGraphTypeParentAndName, catalogObjectParentReference, 
-catalogProcedureParentAndName, catalogSchemaParentAndName, ceilingFunction, 
-charLengthExpression, characterOrByteStringFunction, characterStringType, 
+catalogProcedureParentAndName, catalogSchemaParentAndName, 
+characterOrByteStringFunction, characterStringType, 
 characterStringValueExpression, closedEdgeReferenceValueType, 
 closedGraphReferenceValueType, closedNodeReferenceValueType, commitCommand, 
-commonLogarithm, connectorPointingRight, connectorUndirected, 
-copyOfGraphType, countedShortestGroupSearch, createGraphStatement, 
-createGraphTypeStatement, createSchemaStatement, currentGraph, 
-dateFunction, dateFunctionParameters, dateLiteral, dateString, dateType, 
-datetimeFunction, datetimeFunctionParameters, datetimeLiteral, 
-datetimeString, datetimeSubtraction, datetimeSubtractionParameters, 
-datetimeType, datetimeValueExpression, datetimeValueExpression1, 
+connectorPointingRight, connectorUndirected, copyOfGraphType, 
+countedShortestGroupSearch, createGraphStatement, createGraphTypeStatement, 
+createSchemaStatement, currentGraph, dateFunction, dateFunctionParameters, 
+dateLiteral, dateString, dateType, datetimeFunction, 
+datetimeFunctionParameters, datetimeLiteral, datetimeString, 
+datetimeSubtraction, datetimeSubtractionParameters, datetimeType, 
+datetimeValueExpression, datetimeValueExpression1, 
 datetimeValueExpression2, datetimeValueFunction, decimalExactNumericType, 
 deleteItem, deleteItemList, deleteStatement, delimitedBindingTableName, 
 delimitedGraphName, dependentValueExpression, destinationNodeTypeAlias, 
@@ -218,10 +237,9 @@ elementTypeSpecification, elementVariableReference, element_idFunction,
 elementsFunction, emptyGroupingSet, emptyType, endTransactionCommand, 
 endpointPair, endpointPairDirected, endpointPairPhrase, 
 endpointPairPointingLeft, endpointPairPointingRight, 
-endpointPairUndirected, exactNumericType, exponentialFunction, field, 
-fieldList, fieldName, fieldType, fieldTypeList, fieldTypesSpecification, 
-fieldsSpecification, fixedLength, floorFunction, 
-focusedLinearDataModifyingStatement, 
+endpointPairUndirected, exactNumericType, field, fieldList, fieldName, 
+fieldType, fieldTypeList, fieldTypesSpecification, fieldsSpecification, 
+fixedLength, focusedLinearDataModifyingStatement, 
 focusedLinearDataModifyingStatementBody, 
 focusedLinearQueryAndPrimitiveResultStatementPart, 
 focusedLinearQueryStatement, focusedLinearQueryStatementPart, 
@@ -230,7 +248,6 @@ focusedNestedQuerySpecification, focusedPrimitiveResultStatement,
 foldCharacterString, forItem, forItemAlias, forItemSource, 
 forOrdinalityOrOffset, forStatement, fullEdgeAnyDirection, 
 fullEdgeLeftOrRight, fullEdgeLeftOrUndirected, fullEdgeUndirectedOrRight, 
-generalLogarithmArgument, generalLogarithmBase, generalLogarithmFunction, 
 generalValueSpecification, gqlProgram, graphExpression, graphInitializer, 
 graphName, graphPatternBindingTable, graphPatternWhereClause, 
 graphPatternYieldClause, graphPatternYieldItem, graphPatternYieldItemList, 
@@ -240,14 +257,14 @@ graphTypeSpecificationBody, graphVariableDefinition, havingClause,
 homeGraph, identifier, immaterialValueType, independentValueExpression, 
 inlineProcedureCall, insertEdgePointingLeft, insertEdgeUndirected, 
 insertPathPatternList, isLabeledOrColon, keepClause, labelSetPhrase, 
-labeledPredicate, labeledPredicatePart2, lengthExpression, letStatement, 
-letValueExpression, letVariableDefinition, letVariableDefinitionList, 
+labeledPredicate, labeledPredicatePart2, letStatement, letValueExpression, 
+letVariableDefinition, letVariableDefinitionList, 
 linearCatalogModifyingStatement, linearDataModifyingStatement, 
 listValueConstructor, listValueExpression, listValueFunction, 
 listValueTypeName, listValueTypeNameSynonym, localNodeTypeAlias, 
 localdatetimeFunction, localdatetimeType, localtimeFunction, localtimeType, 
 matchStatementBlock, maxLength, minLength, modulusExpression, 
-namedProcedureCall, naturalLogarithm, nestedBindingTableQuerySpecification, 
+namedProcedureCall, nestedBindingTableQuerySpecification, 
 nestedDataModifyingProcedureSpecification, nestedGraphTypeSpecification, 
 nestedProcedureSpecification, nestedQuerySpecification, nextStatement, 
 nodeReference, nodeReferenceValueExpression, nodeReferenceValueType, 
@@ -258,18 +275,17 @@ nonParenthesizedValueExpressionPrimary,
 nonParenthesizedValueExpressionPrimarySpecialCase, nonReservedWords, 
 normalForm, normalizeCharacterString, normalizedPredicatePart2, notNull, 
 nullType, numberOfGroups, numberOfPaths, numericType, 
-numericValueExpression, numericValueExpressionBase, 
-numericValueExpressionDividend, numericValueExpressionDivisor, 
-numericValueExpressionExponent, objectExpressionPrimary, objectName, 
+numericValueExpression, numericValueExpressionDividend, 
+numericValueExpressionDivisor, objectExpressionPrimary, objectName, 
 objectNameOrBindingVariable, ofGraphType, openEdgeReferenceValueType, 
 openGraphReferenceValueType, openGraphType, openNodeReferenceValueType, 
 optTypedBindingTableInitializer, optTypedGraphInitializer, 
 optTypedValueInitializer, parenthesizedPathPatternExpression, 
 parenthesizedPathPatternWhereClause, pathElementList, pathElementListStart, 
-pathElementListStep, pathLengthExpression, pathMode, pathModePrefix, 
-pathOrPaths, pathValueConstructor, pathValueConstructorByEnumeration, 
-pathValueExpression, pathValueType, pathVariableReference, powerFunction, 
-precision, predefinedSchemaReference, predefinedType, 
+pathElementListStep, pathMode, pathModePrefix, pathOrPaths, 
+pathValueConstructor, pathValueConstructorByEnumeration, 
+pathValueExpression, pathValueType, pathVariableReference, precision, 
+predefinedSchemaReference, predefinedType, 
 primitiveCatalogModifyingStatement, primitiveDataModifyingStatement, 
 procedureArgument, procedureArgumentList, procedureBody, procedureCall, 
 procedureName, procedureReference, procedureSpecification, programActivity, 
@@ -304,16 +320,15 @@ simplifiedOverrideUndirectedOrRight, simplifiedPathPatternExpression,
 simplifiedPathUnion, simplifiedPrimary, simplifiedQuantified, 
 simplifiedQuestioned, simplifiedSecondary, simplifiedTerm, 
 simplifiedTertiary, sourceDestinationPredicate, sourceNodeTypeAlias, 
-sourceNodeTypeReference, sourcePredicatePart2, squareRoot, 
-startTransactionCommand, statement, statementBlock, stringLength, 
-subCharacterOrByteString, subpathVariable, subpathVariableDeclaration, 
-temporalDurationQualifier, temporalDurationType, temporalInstantType, 
-temporalLiteral, temporalType, timeFunction, timeFunctionParameters, 
-timeLiteral, timeString, timeType, timeZoneString, transactionAccessMode, 
-transactionActivity, transactionCharacteristics, transactionMode, 
-trigonometricFunction, trigonometricFunctionName, 
-trimCharacterOrByteString, trimCharacterOrByteStringSource, 
-trimListFunction, trimMultiCharacterCharacterString, trimOperands, 
+sourceNodeTypeReference, sourcePredicatePart2, startTransactionCommand, 
+statement, statementBlock, stringLength, subCharacterOrByteString, 
+subpathVariable, subpathVariableDeclaration, temporalDurationQualifier, 
+temporalDurationType, temporalInstantType, temporalLiteral, temporalType, 
+timeFunction, timeFunctionParameters, timeLiteral, timeString, timeType, 
+timeZoneString, transactionAccessMode, transactionActivity, 
+transactionCharacteristics, transactionMode, trimCharacterOrByteString, 
+trimCharacterOrByteStringSource, trimListFunction, 
+trimMultiCharacterCharacterString, trimOperands, 
 trimSingleCharacterOrByteString, trimSpecification, typed, 
 unsignedBinaryExactNumericType, unsignedValueSpecification, useGraphClause, 
 valueInitializer, valueQueryExpression, valueType, valueVariableDefinition, 

@@ -23,9 +23,9 @@ parser productions a passing scenario reaches) see the sibling
 
 | Metric | Value |
 |---|---|
-| Feature files scanned | **27** |
-| Scenario cases (outline rows expanded) | **124** |
-| Accepted by parser | **124** (100.0 %) |
+| Feature files scanned | **28** |
+| Scenario cases (outline rows expanded) | **140** |
+| Accepted by parser | **140** (100.0 %) |
 | Rejected by parser | **0** (0.0 %) |
 
 ## Per-area pass counts
@@ -34,7 +34,7 @@ parser productions a passing scenario reaches) see the sibling
 |---|---|---|---|
 | `clauses` | 10 | 10 | 100.0 % |
 | `composition` | 28 | 28 | 100.0 % |
-| `expressions` | 40 | 40 | 100.0 % |
+| `expressions` | 56 | 56 | 100.0 % |
 | `paths` | 3 | 3 | 100.0 % |
 | `patterns` | 38 | 38 | 100.0 % |
 | `types` | 3 | 3 | 100.0 % |

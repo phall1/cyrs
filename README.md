@@ -32,8 +32,9 @@ As a language server: `cyrs-lsp` — see [`demo/`](./demo).
 ## Coverage
 
 openCypher v9 TCK: 3 632 / 3 897 scenarios accepted (93.2 %).
-GQL ISO/IEC 39075:2024 bootstrap: 18 / 18 (100 %).
-Both numbers measure parser acceptance, not runtime conformance.
+GQL ISO/IEC 39075:2024 bootstrap: 140 / 140 scenarios accepted
+(100 %); 153 of 574 grammar productions reached (26.7 %).
+All numbers measure parser acceptance, not runtime conformance.
 Breakdown: [`docs/coverage.md`](./docs/coverage.md).
 
 ## Docs

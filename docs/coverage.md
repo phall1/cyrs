@@ -8,7 +8,7 @@ not aspirational targets.
 | Surface | Corpus | Result | Source |
 | ------- | ------ | ------ | ------ |
 | openCypher v9 | upstream openCypher TCK `2024.3` (220 feature files, 3 897 expanded scenarios) | **3 632 / 3 897 accepted (93.2 %)** | [`crates/cyrs-tck/tck/full-baseline.md`](../crates/cyrs-tck/tck/full-baseline.md) |
-| GQL ISO/IEC 39075:2024 | hand-authored §-cited bootstrap (7 feature files, 18 expanded scenarios) | **18 / 18 accepted (100 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](../crates/cyrs-tck/tck/gql-iso-39075/baseline.md) |
+| GQL ISO/IEC 39075:2024 | hand-authored §-cited bootstrap (28 feature files, 140 expanded scenarios) | **140 / 140 accepted (100 %); 153 / 574 grammar productions reached (26.7 %)** | [`crates/cyrs-tck/tck/gql-iso-39075/baseline.md`](../crates/cyrs-tck/tck/gql-iso-39075/baseline.md), [`coverage.md`](../crates/cyrs-tck/tck/gql-iso-39075/coverage.md) |
 | GQL ISO/IEC 39075:2024 (upstream samples) | OpenGQL `opengql/grammar` samples (14 files) | **14 / 14 accepted (100 %)** | [`crates/cyrs-tck/tck/opengql-samples/baseline.md`](../crates/cyrs-tck/tck/opengql-samples/baseline.md) |
 
 ## What the numbers mean
@@ -22,12 +22,15 @@ runtime semantics: the front-end performs no execution
   upstream TCK. `Expected::Error` scenarios are still untriaged and
   surface as `Expected::Ignored`; the baseline file's preamble lists
   the open items.
-- **GQL 100 %.** Measured against a hand-authored bootstrap of 18
-  scenarios that pin the GQL-distinct surface — one feature file per
-  area, each scenario citing its ISO/IEC 39075:2024 section. ISO does
-  not publish a public conformance test corpus for GQL, so the
-  bootstrap *is* the corpus. Going beyond 18 scenarios is corpus
-  growth, not parser work.
+- **GQL 100 %.** Measured against a hand-authored bootstrap that
+  pins the GQL-distinct surface — feature files grouped by area, each
+  scenario citing its ISO/IEC 39075:2024 section. ISO does not publish
+  a public conformance test corpus for GQL, so the bootstrap *is* the
+  corpus. The companion file
+  [`coverage.md`](../crates/cyrs-tck/tck/gql-iso-39075/coverage.md)
+  reports how many of the 574 GQL.g4 parser productions are reached
+  by at least one passing scenario, plus the uncovered-production
+  worklist that drives further corpus growth.
 
 ## GQL bootstrap coverage
 
