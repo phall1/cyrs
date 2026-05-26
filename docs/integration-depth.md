@@ -1,14 +1,16 @@
-# Choosing your integration depth
+# Integration depth
 
-> **What layer should I consume?** cyrs is a layered front-end: the same
-> input passes through five plausible consumption surfaces (CST, AST,
-> HIR, Plan, agent JSON), each preserving more or less of the original
-> structure than the next. The spec ([0001 §3]) is exhaustive about
-> *what* each layer is; this document is normative about *which* layer
-> an embedder should depend on. Pick the shallowest layer that answers
-> your question — every layer above your chosen one is paid for whether
-> you use it or not, and every layer below is missing detail you can
-> never reconstruct.
+cyrs is a layered compiler front-end: the same input passes through six
+plausible consumption surfaces (CST, AST, HIR, sema, Plan, agent JSON),
+each carrying progressively more semantic information and progressively
+less of the original text.
+
+The spec ([0001 §3]) is exhaustive about *what* each layer is. This
+document is normative about *which* layer an embedder should depend on.
+The rule of thumb: depend on the shallowest layer that answers the
+question. Every layer above the chosen one is paid for whether it is
+used or not, and every layer below carries detail that cannot be
+reconstructed.
 
 [0001 §3]: ./specs/0001-cypher-frontend.md
 
@@ -23,23 +25,23 @@
 | Just a parser bench   | Parse only        | Don't pay for HIR if you don't need it.                            |
 | Out-of-process agent  | Agent JSON        | Cross-language, sandboxed; one stdin-line per request.             |
 
-If your use case is missing or sits between two rows, prefer the
-shallower layer — it is cheaper to add a layer above than to peel one
-off.
+Use cases missing from the table or sitting between two rows resolve
+to the shallower layer: adding a layer above is cheaper than peeling
+one off.
 
 ## Layer reference
 
-Six surfaces, ordered from cheapest-to-richest. Each entry lists the
-type signature you consume, what is preserved, what is lost, the
-public type to import, the `cargo add` line, and a five-line snippet
-showing the entry point.
+Six surfaces, ordered cheapest-to-richest. Each entry lists the
+consumed type signature, what is preserved, what is lost, the public
+type to import, the `cargo add` line, and a five-line entry-point
+snippet.
 
 ### 1. Parse (`cyrs-syntax`) — the lossless tree
 
 - **Consume:** [`cyrs_syntax::Parse`] (root) and [`SyntaxNode`] for
   walks. The tree is a `rowan` green/red graph parameterised by
-  [`Lang`]; every byte of input — including whitespace, comments, and
-  fragments the parser couldn't make sense of — is in there
+  [`Lang`]; every byte of input — whitespace, comments, and fragments
+  the parser could not make sense of — is present
   ([spec §4.4][s44]).
 - **Preserved:** trivia, exact byte spans, recovery `ERROR` nodes,
   round-trip identity (`parse(src).syntax().to_string() == src`).
@@ -108,8 +110,7 @@ for stmt in file.statements() { /* typed walk */ }
   (`Node`, `Relationship`, `Path`, `Value`, [spec §6.3][s63]).
 - **Lost:** trivia (HIR is owned, not a tree of `SyntaxNode`s).
   Spans survive only via the `HirId → SyntaxNode` map. Source
-  formatting cannot be reconstructed from HIR alone — fall back to
-  the AST/CST for that.
+  formatting is unreachable from HIR alone; the AST and CST hold it.
 - **Public type:** `cyrs_hir::Statement`, `cyrs_hir::Clause`,
   `cyrs_hir::Expr`, `cyrs_hir::VarId`, `cyrs_hir::HirId`.
 
@@ -139,8 +140,8 @@ for clause in &stmt.clauses { /* walk owned HIR */ }
   `W6000…`, `N8000…` per [spec §10.2][s102]) and a span anchored back
   to the CST through HIR.
 - **Lost:** sema does not retain the HIR; it consumes one and emits
-  diagnostics + a type map. Re-run with the same HIR if you need to
-  re-type after a rewrite.
+  diagnostics + a type map. Re-typing after a rewrite requires
+  re-running sema against the new HIR.
 - **Public type:** `cyrs_sema::ty::Type`, `cyrs_sema::DialectMode`,
   the analyses in `cyrs_sema` (currently coupled with `cyrs-diag`).
 
@@ -150,11 +151,11 @@ cargo add cyrs-hir cyrs-sema cyrs-schema cyrs-diag
 
 ```rust
 use cyrs_hir::lower::lower_statement;
-// Compose your own `SchemaProvider` impl, then run analyses
-// from `cyrs-sema`. (The exact public entry point depends on
-// the in-progress sema surface — see crate docs.)
+// A `SchemaProvider` impl feeds the sema analyses in `cyrs-sema`.
+// The public entry point depends on the in-progress sema surface
+// (see crate docs).
 let stmt = lower_statement("MATCH (a) RETURN a.unknown");
-// hand `stmt` plus your schema to the sema analyses…
+// pass `stmt` and the schema to the sema analyses…
 ```
 
 [s71]: ./specs/0001-cypher-frontend.md#71-two-modes-one-pipeline
@@ -166,13 +167,13 @@ let stmt = lower_statement("MATCH (a) RETURN a.unknown");
   acyclic graph of [`ReadOp`] / [`WriteOp`] nodes with typed columns.
   Logical only: no cost model, no cardinality, no physical operator
   selection ([spec §12.1][s121]). Variable identities are
-  plan-scoped (`VarId`), not HIR-scoped — a plan can outlive the HIR
+  plan-scoped (`VarId`), not HIR-scoped, so a plan outlives the HIR
   it was lowered from ([spec §12.3][s123]).
 - **Preserved:** fully resolved expression IR, parameter discipline,
   read/write split.
-- **Lost:** spans (you keep a `VarMap` back to source), trivia,
-  any source formatting. Sema diagnostics are *upstream* of plan;
-  if your input does not type-check, do not lower.
+- **Lost:** spans (a `VarMap` carries the back-reference to source),
+  trivia, any source formatting. Sema diagnostics are *upstream* of
+  plan; input that fails sema must not be lowered.
 - **Public type:** `cyrs_plan::ReadOp`, `cyrs_plan::WriteOp`,
   `cyrs_plan::Expr`, `cyrs_plan::OpId`, `cyrs_plan::VarId`,
   `cyrs_plan::lower::PlanStatement`.
@@ -198,15 +199,15 @@ let plan = plan_lower(&hir).expect("HIR was sema-clean");
 - **Consume:** stdin/stdout JSON Lines, one request per line. Ten
   ops: `parse`, `check`, `complete`, `hover`, `format`, `rewrite`,
   `plan`, `explain`, `schema_set`, `schema_clear`, `shutdown`
-  ([spec §15.2][s152]). Sandbox-safe: no network, no subprocess, no
-  filesystem writes from the binary.
+  ([spec §15.2][s152]). Sandbox-safe: the binary makes no network
+  calls, spawns no subprocesses, performs no filesystem writes.
 - **Preserved:** wire-stable op names + required-field semantics
   (see [`docs/stability.md`][stab]); diagnostic codes match the
   in-process Rust API.
 - **Lost:** structural typing — the wire format is JSON, not Rust
   types. Cross-language overhead per request. No interactive `&Parse`
-  borrowing; you re-send text on every call (the LSP server is the
-  stateful equivalent if that hurts).
+  borrowing; text is re-sent on every call. The LSP server is the
+  stateful equivalent where per-call cost matters.
 - **Public type:** the binary itself; speak JSON Lines on its
   stdin/stdout.
 
@@ -247,13 +248,12 @@ expected to change before 1.0.
 
 ## Where to go next
 
-- The crate graph (who may depend on whom) is normative in
-  [`docs/specs/0001-cypher-frontend.md`][0001 §3] §3 — do not import
-  past your layer's allowed edges.
+- Crate graph and allowed import edges: normative in
+  [`docs/specs/0001-cypher-frontend.md`][0001 §3] §3.
 - Per-surface stability (diagnostic codes, agent wire protocol,
-  schema file format, HIR / Plan IR shape, 1.0 cutover plan) lives in
+  schema file format, HIR / Plan IR shape, 1.0 cutover plan):
   [`docs/stability.md`][stab].
-- Operating context for agents that work *on* cyrs (not on top of it)
-  is in `AGENTS.md` — start at §3.
+- Context for agents working *on* cyrs (not on top of it): `AGENTS.md`,
+  §3 onward.
 
 [//]: # (Bead: cy-emb9 — document the AST-vs-HIR consumption contract.)
