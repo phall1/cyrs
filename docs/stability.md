@@ -1,22 +1,21 @@
-# Cyrs Stability Policy
+# Stability policy
 
-> **Status:** pre-1.0 (workspace ships at `0.0.x`).  Everything in this
-> workspace can still change.  This document describes what we *intend*
-> to keep stable as we approach 1.0 so that downstream consumers can
-> plan against an explicit contract rather than guess from the change
-> log.
+**Status:** pre-1.0 (workspace ships at `0.0.x`). Every surface in this
+workspace can still change. This document is the explicit contract for
+what is intended to remain stable through 1.0 — a baseline downstream
+consumers can depend on rather than reverse-engineer from the changelog.
 
-Cyrs is a compiler front-end — the SemVer contract that matters to
-consumers is the public Rust API of the fifteen `cypher-*` crates, plus
-two on-the-wire protocols (agent JSON + LSP) and the schema file
-format.  This document enumerates each surface and tags it as
-**stable**, **unstable**, or **internal**.
+cyrs is a compiler front-end; the SemVer contract that matters to
+consumers is the public Rust API of the fifteen `cypher-*` crates,
+plus two on-the-wire protocols (agent JSON + LSP) and the schema file
+format. Each surface below is tagged **stable**, **unstable**, or
+**internal**.
 
 ## Stable surfaces
 
 These surfaces will not change in breaking ways across minor version
-bumps once 1.0 lands.  Pre-1.0 we already avoid gratuitous churn here
-and track changes in `CHANGELOG.md`:
+bumps once 1.0 lands. Pre-1.0 churn is avoided here and tracked in
+`CHANGELOG.md`:
 
 - **Diagnostic codes and their messages.**  The registry in
   `crates/cyrs-diag/src/codes.rs` (AGENTS.md §7, spec §10.2) is
@@ -139,9 +138,9 @@ attributed** because they are matched exhaustively across the workspace
 `cyrs-lang-services` / `cyrs-lsp`).  Adding `#[non_exhaustive]`
 would force a wildcard arm at every cross-crate match site — 28+
 sites in `cyrs-sema` alone for `HirExpr` / `Clause` / `SetItem` etc.
-We prefer to land the attribute in a follow-up bead that performs the
-mechanical match-arm churn in one focused commit rather than
-piggyback it on the SemVer gating work:
+The attribute lands in a follow-up bead that performs the mechanical
+match-arm churn in one focused commit, rather than piggybacking on
+the SemVer gating work:
 
 - `cyrs_hir::{VarKind, Clause, PatternElement, Expr, SetItem,
   RemoveItem, MapProjectionItem, BinOp, UnaryOp}`
@@ -170,8 +169,8 @@ The CI gate below is effectively advisory until the first crates.io
 release; after that, each PR's diff is checked against the baseline
 branch (`main`) rather than against a published version.
 
-If a future bead requires a breaking change we cannot attribute
-around, it must be logged here with:
+A future bead requiring an un-attributable breaking change is logged
+here with:
 
 1. Date + bead id
 2. The affected public type / function
@@ -195,9 +194,9 @@ re-enabling it is a one-line change once any of the following holds:
 
 1. **First crates.io publish ships** — any of the 16 crates at
    `>= 0.0.1` with a real registry baseline.
-2. **Baseline-rev migration** — the action grows (or we switch to)
+2. **Baseline-rev migration** — the action grows (or is switched to)
    an input that resolves the baseline from a git revision rather
-   than the registry, and we verify it green against `main`.
+   than the registry, verified green against `main`.
 
 Either path swaps `if: false` back to
 `if: github.event_name == 'pull_request'`.  Until then the SemVer

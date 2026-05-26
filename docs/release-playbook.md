@@ -1,13 +1,14 @@
-# Cyrs Release Playbook
+# Release playbook
 
-> **Audience:** the human operator.  Nothing in this playbook runs
-> automatically — every step is explicit, every artifact is inspected
-> before it ships.
->
-> **Pre-reads:** spec 0001 §17.17 (release gating), §18 (versioning,
-> MSRV), `docs/stability.md` (surface-by-surface stability contract).
+**Audience:** the human operator. No step in this playbook runs
+automatically — every step is explicit and every artifact is inspected
+before ship.
 
-Cyrs ships as nineteen crates (the `cyrs-*` layers + the `cyrs-lang`
+**Pre-reads:** spec 0001 §17.17 (release gating), §18 (versioning,
+MSRV); [`stability.md`](./stability.md) (surface-by-surface stability
+contract).
+
+cyrs ships as nineteen crates (the `cyrs-*` layers + the `cyrs-lang`
 meta-crate) from a single workspace.  Versions are bumped together:
 every release is a coordinated roll across all publishable crates.
 `cyrs-testkit`, `xtask`, and `tests/canary` carry `publish = false`
@@ -48,8 +49,8 @@ Done once, before v0.1.0.  Skip for subsequent releases.
 2. **Protected branch `main`.**  Require PR reviews; enable the
    `ci / lint`, `ci / test (stable)`, and `semver-checks` status
    checks as required.
-3. **Release-plz config.**  Default config is fine for pre-1.0; create
-   `release-plz.toml` at repo root only when we need per-crate
+3. **Release-plz config.**  Default config is fine for pre-1.0;
+   `release-plz.toml` at repo root is added only for per-crate
    overrides (e.g. excluding `cyrs-testkit` from the publish pass,
    which Cargo already enforces via `publish = false`).
 4. **`cargo-cyclonedx` installed on the CI runner.**  `sign-release.yml`

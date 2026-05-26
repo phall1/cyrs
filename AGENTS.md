@@ -1,23 +1,23 @@
-# AGENTS.md — operating manual for the `cypher/` workspace
+# AGENTS.md
 
-> Re-read this file at the start of every session and after every context
-> compaction. It is short on purpose.
+Operating manual for the `cypher/` workspace. Read at session start and
+after context compaction.
 
-This file tells an agent — human or model — how to operate inside the
-`cypher/` Rust workspace without breaking its invariants. It is not the
-design doc. The design doc is `docs/specs/0001-cypher-frontend.md` and is
-**locked**; twenty-three numbered sections, referenced throughout this
-file as `§N`. When in doubt, the spec wins. When the spec is silent,
-rust-analyzer / Biome / ruff house style wins (§23).
+Audience: agents — human or model — working inside the Rust workspace
+without breaking its invariants. This is the operations manual, not the
+design doc. The design doc is `docs/specs/0001-cypher-frontend.md`,
+**locked**; twenty-three numbered sections, referenced throughout as
+`§N`. The spec wins on architectural questions; rust-analyzer / Biome /
+ruff house style wins where the spec is silent (§23).
 
 ---
 
-## 0. Rule 0: the operator overrides everything
+## 0. Operator overrides everything
 
 Explicit instructions from the human operator in the current session
-override this file, AGENTS.md conventions, and even the spec. If an
-operator instruction conflicts with the spec, surface the conflict, then
-follow the operator. If you are unsure, ask.
+override this file, AGENTS.md conventions, and the spec. An operator
+instruction that conflicts with the spec is followed after the conflict
+is surfaced. Ambiguity is resolved by asking.
 
 ---
 
@@ -34,23 +34,23 @@ bar (§17).
 
 - An executor. No storage, no runtime, no plan execution. Consumers own
   that (§1.3 N1, §12.5).
-- Coupled to anything other project
-- A place for domain concepts. No reserved downstream vocabulary. CI
+- Coupled to any other project.
+- A place for domain concepts. No reserved downstream vocabulary; CI
   greps for the denylist (§2.C2).
 - An "overlay crate" host. Domain extensions live in consumer
-  repositories and plug in via the traits in §8. No overlay crate is
-  permitted in this workspace, ever (§2.C3).
+  repositories and plug in via the traits in §8. Overlay crates are
+  not permitted in this workspace (§2.C3).
 
-If a task asks you to add a domain concept, an executor, or another dependency
-dependency, **stop** and ask the operator — it is almost
-certainly out of scope.
+Tasks asking for a domain concept, an executor, or an unrelated
+dependency are almost certainly out of scope. Stop and ask the operator
+before proceeding.
 
 ---
 
 ## 2. Non-coupling contract (§2, load-bearing)
 
-Hard invariants. CI enforces them. Violating any of these is a blocking
-bug even if tests pass.
+Hard invariants enforced by CI. A violation is a blocking bug even with
+green tests.
 
 - **C2.2 — no domain names.** The denylist is enforced by CI. Greps run
   across all `.rs` files minus `tests/` fixtures. One-off fixture strings
@@ -66,8 +66,8 @@ bug even if tests pass.
 
 ## 3. Crate graph (§3, authoritative)
 
-Dependency edges below are **allowed**. Anything else is forbidden —
-there is no "it's convenient" exception.
+The edges below are the only allowed dependencies. No "convenience"
+exceptions.
 
 ```
 cyrs-syntax        → (external only: rowan, logos, smol_str, text-size, drop_bomb)
@@ -109,15 +109,13 @@ cypher               → all non-binary crates above
 - **`cyrs-testkit` is dev-only.** Never re-exported from `cypher`.
 
 **Pointing embedders at the right layer.** The crate graph above is
-who-may-depend-on-whom *inside* the workspace. For an external
-consumer asking which layer to depend on (CST? AST? HIR? Plan? agent
-JSON?), the normative answer lives in
-[`docs/integration-depth.md`](docs/integration-depth.md): a decision
-table by embedder kind, per-layer entry-point snippets, and a
-stability-promise matrix per surface. When a bead, a PR review, or an
-issue triages a question of the form *"which layer should X consume?"*,
-link that doc rather than restating the spec — it is the single
-source of truth on integration depth.
+internal — who may depend on whom *inside* the workspace. The
+external-consumer question ("which layer should I depend on?") is
+answered by [`docs/integration-depth.md`](docs/integration-depth.md):
+decision table by embedder kind, per-layer entry-point snippets,
+stability-promise matrix per surface. Beads, PR reviews, and issues
+triaging "which layer should X consume?" link that doc rather than
+restating the spec.
 
 ---
 
@@ -125,21 +123,21 @@ source of truth on integration depth.
 
 ### 4.1 Branch & commit policy
 
-- The orchestrator may dispatch beads in parallel via git worktrees
-  (one worktree + branch per bead). Each worktree branches off `main`
-  named `bead/<id>-<slug>`; the implementing agent commits inside its
-  worktree, and the orchestrator fast-forwards / merges branches back
-  to `main` serially. Solo work still goes directly on `main`.
-- Small, frequent commits. Each commit compiles and passes
+- Parallel-bead dispatch goes through git worktrees: one worktree per
+  bead, branch named `bead/<id>-<slug>` off `main`. The implementing
+  agent commits inside its worktree; the orchestrator fast-forwards /
+  merges branches into `main` serially. Solo work goes directly on
+  `main`.
+- Small, frequent commits. Every commit compiles and passes
   `cargo check -p <touched crate>`.
-- Push after every commit when collaborating with other agents —
-  unpushed commits are invisible.
-- Never: `git reset --hard`, `git clean -fd`, `git checkout -- <file>`,
-  `git push --force`. If you need to drop work, `git stash` and surface
-  the situation.
-- Never stash, revert, or overwrite another agent's uncommitted work. If
-  you find someone else's changes in the tree, treat them as your own
-  (pull, rebase gently, or leave them alone).
+- Push after every commit when collaborating — unpushed commits are
+  invisible to other agents.
+- Forbidden without explicit operator instruction: `git reset --hard`,
+  `git clean -fd`, `git checkout -- <file>`, `git push --force`. To drop
+  work, `git stash` and report the situation.
+- Another agent's uncommitted work is never stashed, reverted, or
+  overwritten. Changes encountered in the tree are treated as belonging
+  to whoever was working there (pull, rebase gently, or leave alone).
 
 ### 4.2 Multi-agent coordination
 
@@ -165,31 +163,30 @@ source of truth on integration depth.
 
 #### 4.2.1 Worktree isolation rules (load-bearing — read before fanning out)
 
-Parallel-agent fan-out has destroyed work before. The post-mortem of
-the cy-0hj GQL bootstrap (2026-05-19) lost three of six agents'
-commits to cross-contamination. The rules below codify the fix.
+Parallel-agent fan-out has destroyed work before. The cy-0hj GQL
+bootstrap post-mortem (2026-05-19) lost three of six agents' commits
+to cross-contamination. The rules below codify the fix.
 
-**Where worktrees live.** Always under `/tmp/cyrs-<bead-id>/`. **Never**
+**Where worktrees live.** Always under `/tmp/cyrs-<bead-id>/`. Not
 under `.claude/worktrees/`, `crates/.../.claude/`, or anywhere inside
 the main checkout. The Claude Code Agent tool's `isolation: "worktree"`
-flag puts worktrees at `.claude/worktrees/<id>/` by default — that is
-the wrong path. Either:
+flag defaults to `.claude/worktrees/<id>/`; that path is wrong. Two
+options:
 
-- Pre-create the worktree yourself before invoking the agent:
+- Pre-create the worktree before invoking the agent:
   ```sh
   git worktree add -b cy-<bead> /tmp/cyrs-cy-<bead> main
   ```
-  and pass `/tmp/cyrs-cy-<bead>` to the agent as its working directory; **or**
-- Use `isolation: "worktree"` only for single-agent tasks where you
-  control the entire run.
+  and pass `/tmp/cyrs-cy-<bead>` as the agent's working directory; **or**
+- Use `isolation: "worktree"` only for single-agent tasks under
+  direct supervision.
 
-**Why `.claude/worktrees/` fails.** Git worktrees share `.git/`. When
-two worktrees live under the same parent (the main checkout in our
-case), agents tend to `cd /Users/<you>/workspace/cyrs` thinking that
-is "their" tree — and silently start writing to `main`'s working
-copy. The shared index also turns one agent's `git stash` into every
-agent's `git stash`, which is how unrelated stashes land in main mid-
-session.
+**Why `.claude/worktrees/` fails.** Git worktrees share `.git/`. Two
+worktrees under the same parent (the main checkout) cause agents to
+`cd /Users/<you>/workspace/cyrs` expecting "their" tree, and write to
+`main`'s working copy. The shared index also turns one agent's
+`git stash` into every agent's `git stash` — the mechanism by which
+unrelated stashes land in main mid-session.
 
 **Hard rules for every implementing agent prompt.** Include all five
 verbatim when fanning out:
@@ -206,41 +203,41 @@ verbatim when fanning out:
    you the pre-commit gate is broken for an unrelated reason
    (typically a `cargo deny` lockfile issue). Otherwise `--no-verify`
    is forbidden."
-5. "Operate only on the files listed in your prompt. If you discover
-   you need to edit a shared file (`crates/cyrs-syntax/src/kind.rs`,
-   `lexer.rs`, `parser.rs`, `cypher.ungrammar`, `diag/codes.rs`,
-   `diag/tests/registry.rs`) that another in-flight bead also touches,
-   stop and report. The orchestrator pre-allocates SyntaxKind raw u16
-   values and `DiagCode` slots; respect those reservations exactly."
+5. "Operate only on the files listed in your prompt. A shared file
+   (`crates/cyrs-syntax/src/kind.rs`, `lexer.rs`, `parser.rs`,
+   `cypher.ungrammar`, `diag/codes.rs`, `diag/tests/registry.rs`)
+   touched by another in-flight bead is a stop-and-report case. The
+   orchestrator pre-allocates SyntaxKind raw u16 values and `DiagCode`
+   slots; reservations are followed exactly."
 
 **Pre-allocation discipline for shared-file work.** When fanning out
 beads that all add to `kind.rs` / `lexer.rs` / `cypher.ungrammar`, the
-orchestrator MUST pre-allocate in the dispatch prompt:
+orchestrator pre-allocates in the dispatch prompt:
 
 - `SyntaxKind` raw `u16` values (e.g. `INSERT_KW = 181`, `FILTER_KW =
   182` — leave explicit gaps for reservations).
 - `DiagCode` slots (`E0083`, `E0084`, …) — also with explicit gaps.
 
-Agents declare their kinds with `= <pinned>` discriminants, never bare
-appends. This lets parallel branches merge with deterministic ordering
-and zero numeric drift.
+Kinds are declared with `= <pinned>` discriminants, never bare
+appends. This gives parallel branches deterministic merge ordering and
+zero numeric drift.
 
-**Honesty rule for parallel fan-out.** Six agents all touching the
-same five files is integration hell regardless of isolation. If the
-work shape is "every bead edits kind.rs + lexer.rs + parser.rs",
-sequential is faster than parallel-plus-merge. Reserve parallel
-fan-out for genuinely disjoint surfaces (one bead per crate, one bead
-per parser subsystem with no shared SyntaxKind additions).
+**Parallel fan-out sanity check.** Six agents touching the same five
+files is integration hell regardless of isolation. Work shaped as
+"every bead edits kind.rs + lexer.rs + parser.rs" runs faster
+sequentially than parallel-plus-merge. Parallel fan-out is reserved
+for genuinely disjoint surfaces (one bead per crate, one bead per
+parser subsystem with no shared SyntaxKind additions).
 
 ### 4.3 Pre-commit gate (§17)
 
-Before every commit, run — or let the hook run:
+Every commit runs (the hook will do it):
 
 ```
 cargo xtask gate
 ```
 
-which invokes, in order, on the crates you touched:
+which invokes, in order, on the touched crates:
 
 1. `cargo fmt --check`
 2. `cargo clippy --all-targets -- -D warnings`
@@ -249,10 +246,10 @@ which invokes, in order, on the crates you touched:
 5. Non-coupling greps (§2 denylist)
 6. Diagnostic-code registry lint (§10.2, codes are stable, no dupes)
 
-A failing gate blocks the commit. Never `--no-verify`. If a gate is
-genuinely broken, fix the gate in a dedicated commit; do not bypass it.
+A failing gate blocks the commit. `--no-verify` is not the answer.
+A genuinely broken gate gets fixed in a dedicated commit, not bypassed.
 
-Heavier gates run in CI nightly, not pre-commit: fuzz (5-min PR, 24h
+Heavier gates run nightly in CI, not pre-commit: fuzz (5-min PR, 24h
 nightly), `cargo mutants`, Miri, coverage. See §17.4–17.12.
 
 ---
@@ -274,26 +271,26 @@ br show <id>           # full bead detail
 br update <id> --status in_progress    # claim before editing
 ```
 
-If you have `bv` (beads viewer) installed, prefer `bv --robot-triage`
-for dependency-aware routing. Never launch the bare `bv` TUI in an
-agent session — it blocks.
+With `bv` (beads viewer) installed, `bv --robot-triage` gives
+dependency-aware routing. The bare `bv` TUI blocks in an agent session
+and is not used.
 
 ### 5.2 Completing a bead
 
-- Every acceptance criterion in the bead must be met.
-- The test gates named in the bead must be green.
-- The bead must cite the spec section it implements in its commit
-  message (e.g. `spec §7.3: aggregation scope`).
-- Close with `br close <id>` only after the gate passes and the commit
-  lands.
+- All acceptance criteria are met.
+- Every test gate named in the bead is green.
+- The commit message cites the spec section the bead implements
+  (e.g. `spec §7.3: aggregation scope`).
+- `br close <id>` runs only after the gate passes and the commit lands.
 
 ### 5.3 Creating a bead
 
-- One responsibility per bead. If the title has "and" in it, split.
+- One responsibility per bead. A title with "and" in it splits into two
+  beads.
 - Dependencies are explicit (`br dep add <child> <parent>`). No
-  implicit ordering via priority.
+  implicit ordering through priority.
 - Acceptance criteria cite spec numbers. "Implements §7.3" is
-  sufficient; do not restate the spec.
+  sufficient; the spec text is not restated.
 - Tests live in the same bead as the code they exercise — no "tests
   later" beads.
 
@@ -303,11 +300,12 @@ agent session — it blocks.
 
 - Every non-trivial design decision lives in a numbered spec under
   `docs/specs/`. Spec 0001 is locked; further specs (0002…) are the
-  only way to evolve v1 scope.
-- Open questions go in the spec's §21, not in scattered comments.
-- Deferred work goes in §20 of the relevant spec, not in TODOs.
-- If implementation reveals that the spec is wrong, stop, raise it with
-  the operator, and amend the spec. Do not silently diverge.
+  only mechanism for evolving v1 scope.
+- Open questions live in the spec's §21, not in scattered comments.
+- Deferred work lives in §20 of the relevant spec, not in TODOs.
+- An implementation that contradicts the spec is a stop-and-amend
+  situation: raise it with the operator and amend the spec, not
+  silently diverge.
 
 ---
 
@@ -342,8 +340,8 @@ agent session — it blocks.
 
 ## 8. Testing expectations (§17)
 
-Rust-compiler-grade is the bar. Do not ship a bead that lowers any of
-these.
+The bar is rust-compiler-grade. A bead lowering any of these does not
+ship.
 
 - **Unit tests** per crate, covering the public API and internal
   modules that have branching logic.
@@ -367,21 +365,21 @@ these.
   Use `BTreeMap` or `IndexMap` for anything that crosses the public
   API.
 
-Coverage minimums per crate are in §17.9. Do not ship a bead that
-drops a crate below its floor.
+Coverage minimums per crate are in §17.9. Beads that drop a crate
+below its floor do not land.
 
 ---
 
 ## 9. Dialect gates (§9)
 
 Every construct that differs between `GqlAligned` and `OpenCypherV9`
-goes through `DialectGate`. Do not scatter `if dialect == ...`
-checks across the codebase; every gate is a named constant with its
-own diagnostic code in the `E4000–E4999` range.
+goes through `DialectGate`. `if dialect == …` checks scattered across
+the codebase are not the pattern; every gate is a named constant with
+its own diagnostic code in the `E4000–E4999` range.
 
-`Neo4jCurrent` is not in v1 (§9.3). If a bead asks for APOC, `EXISTS {}`
-subqueries, `CALL { ... }`, `LOAD CSV`, `SHOW`, or `CYPHER` prefixes,
-it is out of scope — reject the bead and point at §19 / §20.
+`Neo4jCurrent` is not in v1 (§9.3). Beads asking for APOC, `EXISTS {}`
+subqueries, `CALL { ... }`, `LOAD CSV`, `SHOW`, or `CYPHER` prefixes
+are out of scope — rejected with a pointer to §19 / §20.
 
 ---
 
@@ -401,8 +399,8 @@ it is out of scope — reject the bead and point at §19 / §20.
 ## 11. Tools on hand
 
 - **`cargo`** with stable/nightly as pinned. No manual toolchain
-  switching inside a bead — if a task needs nightly (fuzz, mutants,
-  Miri), it runs in CI or an `xtask` subcommand.
+  switching inside a bead — tasks needing nightly (fuzz, mutants,
+  Miri) run in CI or via an `xtask` subcommand.
 - **`br`** — beads CLI for task state.
   `cargo install --git https://github.com/Dicklesworthstone/beads_rust.git`.
 - **`cargo xtask`** — the project's developer-task hub. Subcommands:
@@ -421,42 +419,42 @@ run with network disabled where the harness allows.
 
 ## 12. Destructive-command policy
 
-Never, without explicit operator instruction in this session:
+Forbidden without explicit operator instruction in this session:
 
-- `rm -rf` any path inside the workspace
+- `rm -rf` of any path inside the workspace
 - `git reset --hard`, `git clean -fd`, `git checkout -- <file>`
-- `git push --force` (use `--force-with-lease` if truly necessary)
-- Delete files that another agent has touched recently without
-  checking Agent Mail / the recent commit log
-- Overwrite `Cargo.lock`, `rust-toolchain.toml`, `LICENSE-*`, spec
-  files
+- `git push --force` (`--force-with-lease` is preferred when truly
+  necessary)
+- Deleting files another agent recently touched, without checking
+  Agent Mail / the recent commit log
+- Overwriting `Cargo.lock`, `rust-toolchain.toml`, `LICENSE-*`, or
+  spec files
 
-If you need to back out a change, prefer `git revert` over destructive
+Backing out a change uses `git revert` rather than destructive
 rewriting.
 
 ---
 
-## 13. When you are stuck
+## 13. When stuck
 
 Order of attack:
 
-1. **Reread the bead.** Acceptance criteria answer most questions.
-2. **Reread the relevant spec section.** Every bead cites one.
-3. **Look at rust-analyzer / Biome / ruff** for the same problem in
-   neighbouring code. The spec explicitly defers to their house style
-   (§23).
-4. **Ask the operator.** Do not improvise architecture; do not add
-   scope "while you are there". The architecture is locked.
+1. **The bead.** Acceptance criteria answer most questions.
+2. **The relevant spec section.** Every bead cites one.
+3. **rust-analyzer / Biome / ruff** for the same problem in neighbouring
+   code. The spec defers to their house style (§23).
+4. **The operator.** Architecture is locked — no improvising, no
+   scope-creep "while you're there".
 
 ---
 
 ## 14. Reminders
 
-- Re-read this file after every context compaction.
+- This file is re-read after every context compaction.
 - Commit messages cite spec sections.
 - Bead IDs appear in commit messages (`br-0042: implement §7.3`).
-- Output text is for humans who cannot see your tool calls — say what
-  you are doing, briefly, before you do it.
+- Output text is for humans who cannot see tool calls — a brief
+  one-line update before each action is enough.
 
 ---
 
