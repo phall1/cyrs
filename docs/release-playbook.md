@@ -8,20 +8,28 @@ before ship.
 MSRV); [`stability.md`](./stability.md) (surface-by-surface stability
 contract).
 
-cyrs ships as nineteen crates (the `cyrs-*` layers + the `cyrs-lang`
-meta-crate) from a single workspace.  Versions are bumped together:
-every release is a coordinated roll across all publishable crates.
-`cyrs-testkit`, `xtask`, and `tests/canary` carry `publish = false`
-and are skipped.
+cyrs ships as sixteen crates to crates.io (the `cyrs-*` library layers +
+binaries + the `cyrs-lang` meta-crate) from a single workspace.  Versions
+are bumped together: every release is a coordinated roll across all
+publishable crates.  The single source of truth is
+`[workspace.package].version` in the root `Cargo.toml`; every crate
+inherits via `version = { workspace = true }`.
 
-The publishable set (19 crates):
+The publishable set (16 crates):
 
 ```
 cyrs-syntax  cyrs-ast       cyrs-hir      cyrs-sema      cyrs-schema
 cyrs-project cyrs-diag      cyrs-plan     cyrs-fmt       cyrs-db
-cyrs-lang-services           cyrs-tck     cyrs-lsp       cyrs-agent
-cyrs-cli     cyrs-ffi       cyrs-py       cyrs-wasm      cyrs-lang
+cyrs-lang-services           cyrs-lsp     cyrs-agent     cyrs-cli
+cyrs-ffi     cyrs-lang
 ```
+
+These carry `publish = false` and are skipped:
+
+- `cyrs-testkit`, `xtask`, `tests/canary` — internal infra.
+- `cyrs-tck` — TCK conformance harness with vendored corpus; CI-only.
+- `cyrs-py` — PyO3 bindings; ship to PyPI via `python-wheels.yml`.
+- `cyrs-wasm` — wasm-bindgen bindings; ship to npm via `wasm-pack`.
 
 This document covers the three things the automated workflows
 deliberately leave to the operator:
@@ -148,26 +156,13 @@ Before flipping the publish workflow live, package the whole
 workspace locally to confirm tarballs build and embed sane metadata:
 
 ```sh
-cargo package --workspace --allow-dirty \
-  --exclude cyrs-canary --exclude xtask \
-  --exclude cyrs-testkit --exclude cyrs-py
+cargo package --workspace --allow-dirty
 ```
 
-`cyrs-py` is excluded from the verify pass because the `pyo3`
-`extension-module` feature unresolves CPython symbols at link time
-unless a libpython is on the link line; the wheel is built by
-`maturin` in CI, not by bare `cargo publish`.  To confirm cyrs-py's
-*manifest* is publish-clean, run:
-
-```sh
-cargo package -p cyrs-py --no-verify --allow-dirty
-```
-
-For the actual publish, use `--no-verify` for cyrs-py only:
-
-```sh
-cargo publish -p cyrs-py --no-verify
-```
+`cargo package` honours every crate's `publish = false`, so the
+unpublished members (`cyrs-py`, `cyrs-wasm`, `cyrs-tck`,
+`cyrs-testkit`, `xtask`, `tests/canary`) are skipped automatically —
+no manual `--exclude` flags needed.
 
 Note: `cargo publish --dry-run -p <crate>` for non-leaf crates
 fails locally with "no matching package named `cyrs-syntax` found"
@@ -191,7 +186,7 @@ The same command can be run from the operator's machine if needed:
 export CARGO_REGISTRY_TOKEN=<redacted>
 
 # Dry-run first. `cargo release` walks the workspace in dependency
-# order and respects `publish = false` in cyrs-testkit / xtask.
+# order and respects `publish = false` on all unpublished members.
 cargo install cargo-release --locked
 cargo release publish --workspace --no-confirm --dry-run
 
@@ -216,17 +211,17 @@ cargo publish -p cyrs-plan
 cargo publish -p cyrs-fmt
 cargo publish -p cyrs-db
 cargo publish -p cyrs-lang-services
-cargo publish -p cyrs-wasm
 cargo publish -p cyrs-ffi
-cargo publish -p cyrs-py --no-verify   # PyO3 extension; libpython unresolved at verify
-cargo publish -p cyrs-tck
 cargo publish -p cyrs-lsp
 cargo publish -p cyrs-agent
 cargo publish -p cyrs-cli
 cargo publish -p cyrs-lang   # meta-crate goes last
 ```
 
-Never publish `cyrs-testkit` (it is `publish = false`).
+Never publish the `publish = false` crates: `cyrs-testkit`,
+`cyrs-tck`, `cyrs-py`, `cyrs-wasm`, `xtask`, `tests/canary`.
+`cyrs-py` ships to PyPI via `python-wheels.yml`; `cyrs-wasm` ships to
+npm via `wasm-pack` (operator-driven, not yet automated).
 
 ---
 

@@ -11,6 +11,7 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "WebAssembly binding (wasm-bindgen) that exposes the Cypher / GQL frontend agent op surface as JavaScript callables (spec 0004 §4)."
+publish      = false
 
 [lib]
 name = "cyrs_wasm"

@@ -11,7 +11,7 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "Python (PyO3) bindings for the Cypher / GQL frontend (cyrs-lang-services + cyrs-db + cyrs-diag + cyrs-fmt).  Packaged as a maturin-built abi3 wheel; spec 0004 §6."
-publish      = true
+publish      = false
 
 # `cdylib` is required by PyO3's `extension-module` feature — the wheel
 # is a shared library Python's import machinery dlopens.  Spec 0004 §6.1.

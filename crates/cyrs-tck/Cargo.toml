@@ -11,6 +11,7 @@ readme       = "README.md"
 categories   = { workspace = true }
 keywords     = { workspace = true }
 description  = "openCypher TCK v1 conformance harness for the cyrs frontend (spec 0001 §17.5)."
+publish      = false
 
 [lib]
 name = "cyrs_tck"
