@@ -40,8 +40,8 @@ which covers a representative spectrum of openCypher write clauses.
 | 6  | `MERGE (a)-[r:T]->(b)` | `MergeRel` (+ leading `MergeNode`s for unbound endpoints) | full | Tests: `corpus_pretty_merge_rel`, `corpus_json_merge_rel_with_on_create`. |
 | 7  | `SET n.p = expr` | `SetProperty` | full | Test: `corpus_pretty_set_multiple_props`. |
 | 8  | `SET n:L1:L2` | `SetLabels` | full | Test: `corpus_pretty_set_labels`. |
-| 9  | `SET n = {…}` (whole-map replace) | *placeholder* — emits `SetLabels { labels: [] }` | placeholder | `lower::lower_set_item` for `SetItem::AssignMap` deliberately emits an empty-label `SetLabels` as a documented no-op (see `lower.rs:976`); the IR cannot today represent "replace every property of `n`". Consumers needing whole-map assignment must intercept it at the cyrs-db layer. **Embedder gap.** |
-| 10 | `SET n += {…}` (map merge / `+=`) | *placeholder* — same as row 9 | placeholder | Same lowering arm; the `replace` flag on `SetItem::AssignMap` is dropped. **Embedder gap.** |
+| 9  | `SET n = {…}` (whole-map replace) | `SetMap { replace: true }` | full | Spec 0005 §3. `replace` distinguishes this from row 10. |
+| 10 | `SET n += {…}` (map merge / `+=`) | `SetMap { replace: false }` | full | The parser accepts `+=` as `PLUS` + `EQ`. HIR `SetItem::AssignMap.replace` is `false`. |
 | 11 | `REMOVE n.p` | `RemoveProperty` | full | Test: `corpus_pretty_remove_prop_and_label`. |
 | 12 | `REMOVE n:L` | `RemoveLabels` | full | Test: `corpus_pretty_remove_prop_and_label`. |
 | 13 | `DELETE n` / `DELETE r` | `Delete { detach: false }` | full | Multi-target supported (`targets: Vec<Expr>`). Tests: `corpus_pretty_delete_multiple`, `corpus_json_full_delete_detach`. |
@@ -51,20 +51,17 @@ which covers a representative spectrum of openCypher write clauses.
 | 17 | `UNWIND $xs AS x MERGE (n {k: x})` | `ReadOp::Unwind` → `WriteOp::MergeNode` | full | Same composition as row 16, terminating in the row-3 path (with the same unique-key caveat). |
 | 18 | `FOREACH (x IN $xs \| CREATE …)` | — | not lowered | `Clause::Foreach` does **not** exist in `cyrs-hir::Clause`. The parser surfaces `FOREACH` as a syntactic structure, but it never reaches the Plan layer — there is no `WriteOp` for it and no lowering arm. **Embedder gap; biggest single hole.** Workaround: rewrite as `UNWIND … CREATE/MERGE/SET` (rows 16/17), which the plan covers. |
 | 19 | Unique-key MERGE for natural-keyed nodes | — | not lowered | The IR carries no notion of which property in `MergeNode { props }` is the unique key. Consumers must consult `cyrs-schema` to compute the lookup key themselves. See row 3. |
-| 20 | `CALL { … }` subquery writes | — | not lowered | Spec §19/§20 explicitly defers `CALL` subqueries; `Clause::Call` is parsed but skipped during lowering (`lower.rs:536`). Out of v1 scope. |
+| 20 | `CALL { … }` subquery writes | — | not lowered | Spec 0005 sequences subqueries after procedure calls. `CALL proc() YIELD …` lowers to `ReadOp::ProcedureCall` (spec 0005 §3). The block form is still absent from HIR. |
 
 ## Tally
 
 - 20 rows total.
-- **Full coverage:** 13 rows (1, 2, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17 — i.e. CREATE node, CREATE rel, MERGE ON CREATE/MATCH on both nodes and rels, SET property, SET labels, REMOVE property, REMOVE labels, DELETE, DETACH DELETE, UNWIND read-side, UNWIND→CREATE, UNWIND→MERGE).
+- **Full coverage:** 16 rows (1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17). Rows 9 and 10 are `WriteOp::SetMap`.
 - **Partial:** 1 row (3 — MERGE node without unique-key flagging).
-- **Placeholder (recognised but not faithful):** 2 rows (9, 10 — whole-map and `+=` assignment).
-- **Not lowered:** 3 rows (18, 19, 20 — FOREACH, unique-key MERGE, CALL subquery writes).
+- **Placeholder:** none.
+- **Not lowered:** 3 rows (18, 19, 20 — FOREACH, unique-key MERGE, `CALL { }` subquery writes).
 
-So the headline number for the embedder migration: **~14 of 20 representative
-constructs (≈70%) are losslessly covered today**, plus 1 partial; the
-remaining ~25% (rows 9, 10, 18, 19, 20) are the candidates for the
-embedder's hand-rolled write planner to keep owning during stage 2.
+Procedure `CALL` is a read operator (`ReadOp::ProcedureCall`) and is not one of these write rows.
 
 ## Where each row lowers
 

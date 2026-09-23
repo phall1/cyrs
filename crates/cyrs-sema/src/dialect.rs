@@ -589,6 +589,7 @@ mod tests {
             procedure: SmolStr::new(procedure),
             args: vec![],
             yields: vec![],
+            optional: false,
             span: zero_range(),
         });
         stmt

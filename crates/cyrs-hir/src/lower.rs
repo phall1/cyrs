@@ -31,7 +31,7 @@ use cyrs_syntax::{Parse, SyntaxElement, SyntaxKind, SyntaxNode, TextRange, parse
 use crate::{
     BinOp, Binding, Clause, Direction, Expr, HirId, HirLowerError, ListPredKind, MapProjectionItem,
     OrderItem, Pattern, PatternElement, PatternPart, Projection, RelLength, RemoveItem, SetItem,
-    ShortestPath, Statement, UnaryOp, VarId, VarKind,
+    ShortestPath, Statement, UnaryOp, VarId, VarKind, YieldItem,
 };
 
 // ---------------------------------------------------------------------------
@@ -460,6 +460,9 @@ impl LowerCtx {
                 let items = self.lower_remove_items(&node);
                 Some(Clause::Remove { id, items, span })
             }
+            SyntaxKind::CALL_CLAUSE | SyntaxKind::OPTIONAL_CALL_CLAUSE => {
+                Some(self.lower_call_clause(node))
+            }
             SyntaxKind::DELETE_CLAUSE => {
                 let id = self.alloc_hir(node.clone());
                 let detach = has_token(&node, SyntaxKind::DETACH_KW);
@@ -785,13 +788,72 @@ impl LowerCtx {
                 .filter_map(|n| self.try_lower_expr(n))
                 .nth(1)
                 .unwrap_or(Expr::Null);
+            // `SET n += expr` carries a `PLUS` token; `SET n = expr` does not.
+            let replace = !has_token(item, SyntaxKind::PLUS);
             return Some(SetItem::AssignMap {
                 target: target_var,
                 map,
-                replace: true,
+                replace,
             });
         }
         None
+    }
+
+    /// `CALL proc(args) YIELD …` and `OPTIONAL CALL`. Spec 0005 §3.
+    ///
+    /// The procedure name is the dotted `PROCEDURE_NAME` token sequence.
+    /// Argument expressions are direct children of the clause (the parser
+    /// does not wrap them). Each `YIELD` column is bound here so a later
+    /// `RETURN` resolves to the same [`VarId`].
+    fn lower_call_clause(&mut self, node: SyntaxNode) -> Clause {
+        let span = node.text_range();
+        let id = self.alloc_hir(node.clone());
+        let optional = node.kind() == SyntaxKind::OPTIONAL_CALL_CLAUSE;
+        let procedure = node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::PROCEDURE_NAME)
+            .map(|n| procedure_name_text(&n))
+            .unwrap_or_default();
+        let args = node
+            .children()
+            .filter_map(|n| self.try_lower_expr(n))
+            .collect();
+        let yields = self.lower_yield_items(&node);
+        Clause::Call {
+            id,
+            procedure,
+            args,
+            yields,
+            optional,
+            span,
+        }
+    }
+
+    fn lower_yield_items(&mut self, clause: &SyntaxNode) -> Vec<YieldItem> {
+        let Some(sub) = clause
+            .children()
+            .find(|n| n.kind() == SyntaxKind::YIELD_SUBCLAUSE)
+        else {
+            return Vec::new();
+        };
+        sub.children()
+            .filter(|n| n.kind() == SyntaxKind::YIELD_ITEM)
+            .map(|item| {
+                let idents: Vec<SmolStr> = item
+                    .children_with_tokens()
+                    .filter_map(SyntaxElement::into_token)
+                    .filter(|t| {
+                        t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT
+                    })
+                    .map(|t| SmolStr::new(t.text()))
+                    .collect();
+                let name = idents.first().cloned().unwrap_or_default();
+                let alias = idents.get(1).cloned();
+                let bound = alias.clone().unwrap_or_else(|| name.clone());
+                let var = self.bind_var(&bound, VarKind::Value, item.text_range());
+                YieldItem { name, alias, var }
+            })
+            .collect()
     }
 
     fn lower_remove_items(&mut self, clause: &SyntaxNode) -> Vec<RemoveItem> {
@@ -1585,6 +1647,18 @@ fn shortest_path_kind(node: &SyntaxNode) -> ShortestPath {
     } else {
         ShortestPath::Shortest
     }
+}
+
+/// Dotted procedure name: the `IDENT` tokens of a `PROCEDURE_NAME` node,
+/// joined with `.`.
+fn procedure_name_text(node: &SyntaxNode) -> SmolStr {
+    let parts: Vec<String> = node
+        .children_with_tokens()
+        .filter_map(SyntaxElement::into_token)
+        .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+        .map(|t| t.text().to_string())
+        .collect();
+    SmolStr::new(parts.join("."))
 }
 
 /// Extract the text of the first `IDENT` or `QUOTED_IDENT` token that is a

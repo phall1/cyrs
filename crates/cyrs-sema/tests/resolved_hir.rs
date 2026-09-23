@@ -953,7 +953,9 @@ fn snap_23_call_yield() {
         yields: vec![YieldItem {
             name: SmolStr::new("name"),
             alias: None,
+            var: col,
         }],
+        optional: false,
         span: zero_range(),
     });
     let rid = alloc(&mut stmt);

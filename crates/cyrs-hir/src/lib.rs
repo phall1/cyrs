@@ -381,6 +381,10 @@ pub enum Clause {
         procedure: SmolStr,
         args: Vec<Expr>,
         yields: Vec<YieldItem>,
+        /// `true` for GQL `OPTIONAL CALL` (ISO/IEC 39075:2024 §14.11.3).
+        /// A failed optional call yields one empty row. A failed plain
+        /// call fails the query. Spec 0005 §3.
+        optional: bool,
         span: TextRange,
     },
 }
@@ -586,8 +590,12 @@ pub enum RemoveItem {
 /// A single `YIELD` binding on a `CALL` clause.
 #[derive(Debug, Clone)]
 pub struct YieldItem {
+    /// Procedure output column, as written after `YIELD`.
     pub name: SmolStr,
+    /// `YIELD name AS alias`. `None` when the column name is the binding.
     pub alias: Option<SmolStr>,
+    /// Variable bound to this column. Allocated by HIR lowering.
+    pub var: VarId,
 }
 
 /// HIR expression. Fully resolved: every [`Expr::Var`] carries its

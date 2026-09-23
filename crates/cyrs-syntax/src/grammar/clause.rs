@@ -319,6 +319,14 @@ fn set_item(p: &mut Parser<'_>) {
         if expression::expr(p).is_none() {
             p.error_code(sc::EXPECTED_PROP_VALUE, "expected expression for SET value");
         }
+    } else if p.at(SyntaxKind::PLUS) && p.nth(1) == SyntaxKind::EQ {
+        // `SET n += map` — property merge. `+=` is two tokens; the CST
+        // keeps both so HIR can tell merge apart from `SET n = map`.
+        p.bump(SyntaxKind::PLUS);
+        p.bump(SyntaxKind::EQ);
+        if expression::expr(p).is_none() {
+            p.error_code(sc::EXPECTED_PROP_VALUE, "expected expression for SET value");
+        }
     } else {
         p.error_code(
             sc::EXPECTED_SET_ITEM,

@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 use crate::{
-    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, Projection,
-    ReadOp, RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId, WriteOp,
+    AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey,
+    ProcedureYield, Projection, ReadOp, RelLength, RelSpec, SortDir, UnaryOp, UnionKind, VarId,
+    WriteOp,
 };
 
 // ── VarId / OpId ─────────────────────────────────────────────────────────────
@@ -775,6 +776,14 @@ enum ReadOpSer {
         bind_path: VarId,
         elements: Vec<VarId>,
     },
+    ProcedureCall {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input: Option<OpId>,
+        name: SmolStr,
+        args: Vec<Expr>,
+        yields: Vec<ProcedureYield>,
+        optional: bool,
+    },
 }
 
 impl Serialize for ReadOp {
@@ -872,6 +881,19 @@ impl Serialize for ReadOp {
                 bind_path: *bind_path,
                 elements: elements.clone(),
             },
+            ReadOp::ProcedureCall {
+                input,
+                name,
+                args,
+                yields,
+                optional,
+            } => ReadOpSer::ProcedureCall {
+                input: *input,
+                name: name.clone(),
+                args: args.clone(),
+                yields: yields.clone(),
+                optional: *optional,
+            },
         };
         proxy.serialize(s)
     }
@@ -940,6 +962,19 @@ impl<'de> Deserialize<'de> for ReadOp {
                 bind_path,
                 elements,
             },
+            ReadOpSer::ProcedureCall {
+                input,
+                name,
+                args,
+                yields,
+                optional,
+            } => ReadOp::ProcedureCall {
+                input,
+                name,
+                args,
+                yields,
+                optional,
+            },
         })
     }
 }
@@ -1001,6 +1036,11 @@ enum WriteOpSer {
     RemoveLabels {
         target: VarId,
         labels: Vec<SmolStr>,
+    },
+    SetMap {
+        target: VarId,
+        map: Expr,
+        replace: bool,
     },
     Delete {
         targets: Vec<Expr>,
@@ -1088,6 +1128,15 @@ impl Serialize for WriteOp {
                 target: *target,
                 labels: labels.clone(),
             },
+            WriteOp::SetMap {
+                target,
+                map,
+                replace,
+            } => WriteOpSer::SetMap {
+                target: *target,
+                map: map.clone(),
+                replace: *replace,
+            },
             WriteOp::Delete { targets, detach } => WriteOpSer::Delete {
                 targets: targets.clone(),
                 detach: *detach,
@@ -1169,6 +1218,15 @@ impl<'de> Deserialize<'de> for WriteOp {
             WriteOpSer::SetLabels { target, labels } => WriteOp::SetLabels { target, labels },
             WriteOpSer::RemoveProperty { target, prop } => WriteOp::RemoveProperty { target, prop },
             WriteOpSer::RemoveLabels { target, labels } => WriteOp::RemoveLabels { target, labels },
+            WriteOpSer::SetMap {
+                target,
+                map,
+                replace,
+            } => WriteOp::SetMap {
+                target,
+                map,
+                replace,
+            },
             WriteOpSer::Delete { targets, detach } => WriteOp::Delete { targets, detach },
         })
     }

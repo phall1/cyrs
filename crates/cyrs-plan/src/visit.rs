@@ -222,6 +222,11 @@ pub trait Visitor: Sized {
         walk_bind_path(self, plan, op);
     }
 
+    /// Visit a [`ReadOp::ProcedureCall`].
+    fn visit_procedure_call(&mut self, plan: &PlanStatement, op: &ReadOp) {
+        walk_procedure_call(self, plan, op);
+    }
+
     /// Fallback for a [`ReadOp`] variant this `Visitor` does not recognise.
     ///
     /// With the current `cyrs-plan` enum definitions this is unreachable —
@@ -275,6 +280,11 @@ pub trait Visitor: Sized {
     /// Visit a [`WriteOp::RemoveLabels`].
     fn visit_remove_labels(&mut self, plan: &PlanStatement, op: &WriteOp) {
         walk_remove_labels(self, plan, op);
+    }
+
+    /// Visit a [`WriteOp::SetMap`].
+    fn visit_set_map(&mut self, plan: &PlanStatement, op: &WriteOp) {
+        walk_set_map(self, plan, op);
     }
 
     /// Visit a [`WriteOp::Delete`].
@@ -365,6 +375,7 @@ pub fn walk_read_op_node<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &ReadO
         }
         ReadOp::ShortestPath { .. } => v.visit_shortest_path(plan, op),
         ReadOp::BindPath { .. } => v.visit_bind_path(plan, op),
+        ReadOp::ProcedureCall { .. } => v.visit_procedure_call(plan, op),
         // Forward-compat: a future `#[non_exhaustive]` variant lands here.
         _ => v.visit_unknown_read_op(plan, op),
     }
@@ -389,6 +400,7 @@ pub fn walk_write_op<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &WriteOp) 
         WriteOp::SetLabels { .. } => v.visit_set_labels(plan, op),
         WriteOp::RemoveProperty { .. } => v.visit_remove_property(plan, op),
         WriteOp::RemoveLabels { .. } => v.visit_remove_labels(plan, op),
+        WriteOp::SetMap { .. } => v.visit_set_map(plan, op),
         WriteOp::Delete { .. } => v.visit_delete(plan, op),
         // Forward-compat: a future `#[non_exhaustive]` variant lands here.
         _ => v.visit_unknown_write_op(plan, op),
@@ -567,6 +579,20 @@ pub fn walk_bind_path<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &ReadOp) 
     }
 }
 
+/// Walk a [`ReadOp::ProcedureCall`]: descend into `input` when the call
+/// is not the source, then into each argument. Default body of
+/// [`Visitor::visit_procedure_call`].
+pub fn walk_procedure_call<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &ReadOp) {
+    if let ReadOp::ProcedureCall { input, args, .. } = op {
+        if let Some(input) = input {
+            v.visit_read_op(plan, *input);
+        }
+        for arg in args {
+            v.visit_expr(plan, arg);
+        }
+    }
+}
+
 /// Walk the optional inline property predicate of a [`RelSpec`].
 fn walk_rel_spec<V: Visitor>(v: &mut V, plan: &PlanStatement, rel: &RelSpec) {
     if let Some(props) = &rel.properties {
@@ -658,6 +684,14 @@ pub fn walk_remove_property<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &Wr
 /// Default body of [`Visitor::visit_remove_labels`].
 pub fn walk_remove_labels<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &WriteOp) {
     let _ = (v, plan, op);
+}
+
+/// Walk a [`WriteOp::SetMap`]: descend into the map expression. Default
+/// body of [`Visitor::visit_set_map`].
+pub fn walk_set_map<V: Visitor>(v: &mut V, plan: &PlanStatement, op: &WriteOp) {
+    if let WriteOp::SetMap { map, .. } = op {
+        v.visit_expr(plan, map);
+    }
 }
 
 /// Walk a [`WriteOp::Delete`]: descend into every target expression. Default

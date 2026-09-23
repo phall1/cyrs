@@ -47,8 +47,8 @@ use cyrs_hir::{
 
 use crate::{
     AggExpr, BinOp, Direction, Expr, LabelSet, ListPredKind, NodeSpec, OpId, OrderKey, ParamType,
-    PlanLowerError, Projection as PlanProj, ReadOp, RelLength, RelSpec, ScalarType, SortDir,
-    UnaryOp, UnionKind, VarId, WriteOp,
+    PlanLowerError, ProcedureYield, Projection as PlanProj, ReadOp, RelLength, RelSpec, ScalarType,
+    SortDir, UnaryOp, UnionKind, VarId, WriteOp,
 };
 
 // ── Public output type ────────────────────────────────────────────────────────
@@ -625,9 +625,29 @@ impl<'s> LowerCtx<'s> {
                         detach: *detach,
                     });
                 }
-                Clause::Call { .. } => {
-                    // CALL subquery / procedure call is out of v1 scope (spec §19/§20).
-                    // Leave current_op unchanged.
+                Clause::Call {
+                    procedure,
+                    args,
+                    yields,
+                    optional,
+                    ..
+                } => {
+                    let args = args.iter().map(|e| self.lower_expr(e)).collect();
+                    let yields = yields
+                        .iter()
+                        .map(|y| ProcedureYield {
+                            name: y.name.clone(),
+                            var: self.map_var(y.var),
+                        })
+                        .collect();
+                    let op = self.plan.push(ReadOp::ProcedureCall {
+                        input: current_op,
+                        name: procedure.clone(),
+                        args,
+                        yields,
+                        optional: *optional,
+                    });
+                    current_op = Some(op);
                 }
             }
             i += 1;
@@ -1268,18 +1288,13 @@ impl<'s> LowerCtx<'s> {
             }
             SetItem::AssignMap {
                 target,
-                map: _,
-                replace: _,
+                map,
+                replace,
             } => {
-                // Whole-map assignment (`n = {…}` or `n += {…}`) is not
-                // representable as a single WriteOp in v1; emit SetLabels
-                // with empty labels as a no-op placeholder. Consumers that
-                // need full map assignment should handle this at the
-                // cyrs-db layer.
-                let target_var = self.map_var(*target);
-                vec![WriteOp::SetLabels {
-                    target: target_var,
-                    labels: vec![],
+                vec![WriteOp::SetMap {
+                    target: self.map_var(*target),
+                    map: self.lower_expr(map),
+                    replace: *replace,
                 }]
             }
         }
@@ -1913,6 +1928,11 @@ fn collect_params_read_op(op: &ReadOp, params: &mut IndexMap<SmolStr, ParamType>
         ReadOp::OptionalJoin { pattern, .. } => {
             collect_params_read_op(pattern, params);
         }
+        ReadOp::ProcedureCall { args, .. } => {
+            for arg in args {
+                collect_params_expr(arg, ParamType::Unknown, params);
+            }
+        }
     }
 }
 
@@ -1942,6 +1962,9 @@ fn collect_params_write_op(op: &WriteOp, params: &mut IndexMap<SmolStr, ParamTyp
         }
         WriteOp::SetProperty { value, .. } => {
             collect_params_expr(value, ParamType::Unknown, params);
+        }
+        WriteOp::SetMap { map, .. } => {
+            collect_params_expr(map, ParamType::Map, params);
         }
         WriteOp::Delete { targets, .. } => {
             for t in targets {
@@ -2222,6 +2245,16 @@ mod tests {
                 bind_path.0,
                 elements.len()
             ),
+            ReadOp::ProcedureCall {
+                input,
+                name,
+                yields,
+                optional,
+                ..
+            } => format!(
+                "ProcedureCall(input={input:?}, name={name}, yields={}, optional={optional})",
+                yields.len()
+            ),
         }
     }
 
@@ -2259,6 +2292,9 @@ mod tests {
             WriteOp::RemoveLabels { target, labels } => {
                 format!("RemoveLabels(target={}, labels={:?})", target.0, labels)
             }
+            WriteOp::SetMap {
+                target, replace, ..
+            } => format!("SetMap(target={}, replace={replace})", target.0),
             WriteOp::Delete { detach, targets } => {
                 format!("Delete(detach={detach}, targets={})", targets.len())
             }
@@ -2266,6 +2302,70 @@ mod tests {
     }
 
     // ── Snapshot tests (15+) ─────────────────────────────────────────────────
+
+    #[test]
+    fn set_equals_map_lowers_to_set_map_replace() {
+        let plan = plan_from("MATCH (n) SET n = {a: 1}");
+        assert!(
+            plan.write_ops
+                .iter()
+                .any(|w| matches!(w, WriteOp::SetMap { replace: true, .. })),
+            "write ops: {:?}",
+            plan.write_ops
+        );
+    }
+
+    #[test]
+    fn set_plus_equals_map_lowers_to_set_map_merge() {
+        let plan = plan_from("MATCH (n) SET n += {a: 1}");
+        assert!(
+            plan.write_ops
+                .iter()
+                .any(|w| matches!(w, WriteOp::SetMap { replace: false, .. })),
+            "write ops: {:?}",
+            plan.write_ops
+        );
+    }
+
+    #[test]
+    fn call_yield_lowers_to_procedure_call() {
+        let plan = plan_from("CALL db.labels() YIELD label RETURN label");
+        let call = plan.ops.iter().find_map(|op| match op {
+            ReadOp::ProcedureCall {
+                name,
+                input,
+                optional,
+                yields,
+                ..
+            } => Some((name.as_str(), *input, *optional, yields.clone())),
+            _ => None,
+        });
+        let (name, input, optional, yields) = call.expect("procedure call in plan");
+        assert_eq!(name, "db.labels");
+        assert_eq!(input, None);
+        assert!(!optional);
+        assert_eq!(yields.len(), 1);
+        assert_eq!(yields[0].name.as_str(), "label");
+        let yield_var = yields[0].var;
+        assert!(
+            plan.ops.iter().any(|op| match op {
+                ReadOp::Project { items, .. } =>
+                    items.iter().any(|item| item.expr == Expr::Var(yield_var)),
+                _ => false,
+            }),
+            "RETURN label should reference the yielded variable"
+        );
+    }
+
+    #[test]
+    fn optional_call_is_flagged() {
+        let plan = plan_from("OPTIONAL CALL db.labels() YIELD label RETURN label");
+        assert!(
+            plan.ops
+                .iter()
+                .any(|op| matches!(op, ReadOp::ProcedureCall { optional: true, .. }))
+        );
+    }
 
     // 1. Single MATCH
     #[test]

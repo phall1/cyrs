@@ -1415,6 +1415,7 @@ mod tests {
             procedure: SmolStr::new("no.such.proc"),
             args: vec![],
             yields: vec![],
+            optional: false,
             span: zero_range(),
         });
         let schema = test_schema();
@@ -1436,7 +1437,9 @@ mod tests {
             yields: vec![YieldItem {
                 name: SmolStr::new("ok"),
                 alias: None,
+                var: cyrs_hir::VarId(0),
             }],
+            optional: false,
             span: zero_range(),
         });
         let schema = test_schema();

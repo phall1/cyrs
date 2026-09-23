@@ -189,16 +189,11 @@ impl ResolveCtx<'_> {
                     .add_scope_with_span(ScopeKind::Call, Some(current), *span);
                 for yi in yields {
                     let col_name: SmolStr = yi.alias.clone().unwrap_or_else(|| yi.name.clone());
-                    // Find the VarId for this yield column — it must have
-                    // been allocated by the lowerer.  Locate by name.
-                    if let Some((&var, _)) = self
-                        .bindings
-                        .iter()
-                        .find(|(_, b)| b.name == col_name && b.kind == VarKind::Value)
-                        && self
-                            .graph
-                            .bind(scope, col_name.clone(), var, VarKind::Value)
-                            .is_some()
+                    // The lowerer allocated `yi.var` when it bound the column.
+                    if self
+                        .graph
+                        .bind(scope, col_name.clone(), yi.var, VarKind::Value)
+                        .is_some()
                         && self.warn_shadowing
                     {
                         sink.push(Diagnostic::warning(

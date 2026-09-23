@@ -491,6 +491,43 @@ pub enum ReadOp {
         /// `input`. Odd length ≥ 1. See the variant docs.
         elements: Vec<VarId>,
     },
+
+    /// Invoke a procedure. Spec 0005 §3.
+    ///
+    /// Implements `CALL proc(args) YIELD col` and GQL `OPTIONAL CALL`.
+    /// This is a read operator: it produces rows. When `input` is
+    /// `None` the call is the source of the plan (a leading `CALL`).
+    /// When `input` is `Some` the call runs once per incoming row, the
+    /// way a `CALL` after `MATCH` does.
+    ///
+    /// `optional` is `true` for `OPTIONAL CALL`. A failed optional call
+    /// yields one row whose yield columns are null. A failed plain call
+    /// fails the query. Side effects of the procedure are the
+    /// consumer's concern; the plan records the call, not a read/write
+    /// classification.
+    ProcedureCall {
+        /// Preceding operator, or `None` when the call is the source.
+        input: Option<OpId>,
+        /// Dotted procedure name (`db.labels`).
+        name: SmolStr,
+        /// Argument expressions, in source order.
+        args: Vec<Expr>,
+        /// `YIELD` columns. Empty when the call has no `YIELD`.
+        yields: Vec<ProcedureYield>,
+        /// `true` for `OPTIONAL CALL`.
+        optional: bool,
+    },
+}
+
+/// One `YIELD` column of a [`ReadOp::ProcedureCall`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ProcedureYield {
+    /// Procedure output column, as written after `YIELD`.
+    pub name: SmolStr,
+    /// Plan variable that receives the column. This is the alias when
+    /// the source says `YIELD name AS alias`.
+    pub var: VarId,
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -649,6 +686,20 @@ pub enum WriteOp {
         target: VarId,
         /// Labels to remove.
         labels: Vec<SmolStr>,
+    },
+
+    /// Replace or merge every property of a node or relationship.
+    ///
+    /// `replace` is `true` for `SET n = map` (the entity's properties
+    /// become exactly the keys of `map`) and `false` for `SET n += map`
+    /// (keys in `map` are written, other properties stay). Spec 0005 §3.
+    SetMap {
+        /// Variable holding the target entity.
+        target: VarId,
+        /// Expression that must evaluate to a map.
+        map: Expr,
+        /// `true` to replace the property set; `false` to merge keys.
+        replace: bool,
     },
 
     /// Delete nodes or relationships. Spec §12.1 W9.

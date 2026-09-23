@@ -206,6 +206,29 @@ fn print_op(arena: &[ReadOp], idx: usize, depth: usize, out: &mut String) {
             writeln!(out, "{pfx}BindPath ${} = [{elems}]", bind_path.0).unwrap();
             print_op(arena, input.0 as usize, depth + 1, out);
         }
+        ReadOp::ProcedureCall {
+            input,
+            name,
+            args,
+            yields,
+            optional,
+        } => {
+            let kw = if *optional {
+                "OptionalProcedureCall"
+            } else {
+                "ProcedureCall"
+            };
+            let arg_s = args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
+            let yield_s = yields
+                .iter()
+                .map(|y| format!("{} AS ${}", y.name, y.var.0))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "{pfx}{kw} {name}({arg_s}) YIELD {yield_s}").unwrap();
+            if let Some(input) = input {
+                print_op(arena, input.0 as usize, depth + 1, out);
+            }
+        }
     }
 }
 
@@ -289,6 +312,7 @@ fn op_name(op: &ReadOp) -> &'static str {
         ReadOp::OptionalJoin { .. } => "OptionalJoin",
         ReadOp::ShortestPath { .. } => "ShortestPath",
         ReadOp::BindPath { .. } => "BindPath",
+        ReadOp::ProcedureCall { .. } => "ProcedureCall",
     }
 }
 
@@ -428,6 +452,14 @@ fn print_write_op(op: &WriteOp, depth: usize, out: &mut String) {
                 format_labels(labels),
             )
             .unwrap();
+        }
+        WriteOp::SetMap {
+            target,
+            map,
+            replace,
+        } => {
+            let op = if *replace { "=" } else { "+=" };
+            writeln!(out, "{pfx}SetMap ${} {op} {}", target.0, format_expr(map),).unwrap();
         }
         WriteOp::Delete { targets, detach } => {
             let verb = if *detach { "DetachDelete" } else { "Delete" };
