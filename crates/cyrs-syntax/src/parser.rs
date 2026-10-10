@@ -282,6 +282,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Significant (non-trivia) token kinds from the cursor onward, then
+    /// `EOF` forever. For unbounded lookahead scans, where repeated
+    /// [`Self::nth`] calls would be quadratic.
+    pub(crate) fn lookahead(&self) -> impl Iterator<Item = SyntaxKind> + '_ {
+        self.tokens[self.pos.min(self.tokens.len())..]
+            .iter()
+            .map(|t| t.kind)
+            .filter(|k| !k.is_trivia())
+            .chain(std::iter::repeat(SyntaxKind::EOF))
+    }
+
     pub(crate) fn at(&self, kind: SyntaxKind) -> bool {
         self.current() == kind
     }
@@ -761,6 +772,9 @@ pub(crate) mod syntax_codes {
     /// E0102 — expected `)` to close a parenthesised label expression
     /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
     pub(crate) const EXPECTED_RPAREN_LABEL: u16 = 102;
+    /// E0106 — expected `|` before the projection of a pattern
+    /// comprehension (`[(a)-->(b) WHERE p | e]`).
+    pub(crate) const EXPECTED_PIPE_PATTERN_COMP: u16 = 106;
     /// E0103 — expected a label expression (label name, `%`, `!`,
     /// or `(`) (cy-p3cl, ISO/IEC 39075:2024 §16.4).
     pub(crate) const EXPECTED_LABEL_EXPR: u16 = 103;

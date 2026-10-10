@@ -68,6 +68,10 @@ pub enum ScopeKind {
     WithBarrier { projected: Vec<(SmolStr, VarId)> },
     /// RETURN clause — terminal output scope.
     Return,
+    /// Pattern comprehension `[(a)-->(b) WHERE p | e]` — child of the
+    /// enclosing clause's scope. Holds the names the pattern binds for
+    /// the first time; they are visible only inside the comprehension.
+    PatternComprehension,
 }
 
 /// A single node in the scope forest.

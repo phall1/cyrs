@@ -34,6 +34,9 @@ for workspace-wide notes and coordinated releases (spec 0001 §18).
   and `E0103` (`EXPECTED_LABEL_EXPR`) for the new GQL compound
   `labelExpression` parser in cyrs-syntax (`(n:A&B)`, `(n:A|B)`,
   `(n:!A)`, `(n:%)`, `(n:(A|B)&C)`).  Registry count 152 → 155.
+- Pattern comprehensions: register `E0106`
+  (`EXPECTED_PIPE_PATTERN_COMP`) for a pattern comprehension missing
+  its mandatory `|` projection.  Registry count 157 → 158.
 
 ### Changed
 

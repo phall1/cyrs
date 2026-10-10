@@ -1,0 +1,52 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (a) RETURN [(a)-->(b) WHERE b.x]\")"
+---
+SOURCE_FILE@0..38
+  STATEMENT@0..38
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..38
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..38
+        RETURN_ITEMS@16..38
+          RETURN_ITEM@16..38
+            PATTERN_COMPREHENSION@16..38
+              WHITESPACE@16..17 " "
+              L_BRACK@17..18 "["
+              PATTERN@18..27
+                PATTERN_PART@18..27
+                  NODE_PATTERN@18..21
+                    L_PAREN@18..19 "("
+                    NAME@19..20
+                      IDENT@19..20 "a"
+                    R_PAREN@20..21 ")"
+                  REL_PATTERN@21..24
+                    MINUS@21..22 "-"
+                    ARROW_R@22..24 "->"
+                  NODE_PATTERN@24..27
+                    L_PAREN@24..25 "("
+                    NAME@25..26
+                      IDENT@25..26 "b"
+                    R_PAREN@26..27 ")"
+              WHERE_CLAUSE@27..37
+                WHITESPACE@27..28 " "
+                WHERE_KW@28..33 "WHERE"
+                PROP_ACCESS_EXPR@33..37
+                  VAR_EXPR@33..35
+                    WHITESPACE@33..34 " "
+                    IDENT@34..35 "b"
+                  DOT@35..36 "."
+                  IDENT@36..37 "x"
+              R_BRACK@37..38 "]"
+---errors---
+@37: expected `|` and a projection in pattern comprehension

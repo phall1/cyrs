@@ -732,10 +732,15 @@ Explicit parenthesisation in a §16.4 `labelExpression`. cy-p3cl.
 
 ### PatternComprehension
 
-- Status: **DEFERRED** — grammar not yet implemented (see cy-nom scope / follow-up bead).
+- Status: **LIVE** — `[ (p =)? <pattern> (WHERE <expr>)? | <expr> ]`.
+  Entered from the list-literal dispatch only when a depth-0 `|` or
+  `WHERE` follows a node-pattern-shaped group, so `[(a)-->(b)]` stays a
+  list literal holding a pattern predicate.
 - Synchronisation set: clause-level keywords + `;` + EOF (default).
-- Skip-and-recover: default per spec §4.3.
-- Virtual insertion: none planned until production lands.
+- Skip-and-recover: a missing `|` emits E0106 and continues at `]`;
+  a missing predicate after `WHERE` emits E0043, a missing projection
+  after `|` emits E0026, and a missing `]` emits E0048. The pattern itself recovers through the `Pattern` production.
+- Virtual insertion: `]` (E0048).
 
 ### CaseExpr
 

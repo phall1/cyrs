@@ -1,0 +1,23 @@
+---
+source: crates/cyrs-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (a) RETURN [p = (a)-->() | length(p)]\")"
+---
+Statement {
+  span: 0..43
+  bindings: [
+    Var(0) 0: a (Node) @7..8
+    Var(1) 1: p (Path) @18..19
+  ]
+  clauses: [
+    Match @0..9 {
+      Pattern {
+        part[0] [
+          Node(a[bind:Var(0)←Node@7..8]) @5..9
+        ]
+      }
+    }
+    Return(distinct=false) @9..43 {
+      proj[0]: PatternComp[p[bind:Var(1)←Path@18..19] = (a[bind:Var(0)←Node@7..8])->[_]() | length(Var(1)[p←Path@18..19])]
+    }
+  ]
+}

@@ -367,6 +367,62 @@ impl OverlayCtx<'_> {
 
     // --- pattern helpers ----------------------------------------------------
 
+    /// One-line rendering of a pattern used in expression position
+    /// (pattern predicates and pattern comprehensions).
+    fn fmt_inline_pattern(&self, pat: &Pattern) -> String {
+        let parts: Vec<_> = pat
+            .parts
+            .iter()
+            .map(|p| {
+                let elems: Vec<_> = p
+                    .elements
+                    .iter()
+                    .map(|e| match e {
+                        PatternElement::Node { bind, labels, .. } => {
+                            let b = bind.map_or_else(
+                                || "()".to_string(),
+                                |v| format!("({})", self.fmt_var_bind(v)),
+                            );
+                            let l = if labels.is_empty() {
+                                String::new()
+                            } else {
+                                format!(":{}", labels.join(":"))
+                            };
+                            format!("{b}{l}")
+                        }
+                        PatternElement::Rel {
+                            bind,
+                            types,
+                            direction,
+                            ..
+                        } => {
+                            let b = bind.map_or_else(
+                                || "[_]".to_string(),
+                                |v| format!("[{}]", self.fmt_var_bind(v)),
+                            );
+                            let t = if types.is_empty() {
+                                String::new()
+                            } else {
+                                format!(":{}", types.join("|"))
+                            };
+                            let d = match direction {
+                                Direction::Outgoing => "->",
+                                Direction::Incoming => "<-",
+                                Direction::Undirected => "--",
+                            };
+                            format!("{d}{b}{t}")
+                        }
+                    })
+                    .collect();
+                match p.named_as {
+                    Some(v) => format!("{} = {}", self.fmt_var_bind(v), elems.join("")),
+                    None => elems.join(""),
+                }
+            })
+            .collect();
+        parts.join(", ")
+    }
+
     fn print_pattern(&self, pattern: &Pattern, out: &mut String, indent: usize) {
         let pad = "  ".repeat(indent);
         writeln!(out, "{pad}Pattern {{").unwrap();
@@ -624,54 +680,22 @@ impl OverlayCtx<'_> {
                 format!("CASE{s} {}{else_str} END", arm_strs.join(" "))
             }
             Expr::PatternPredicate(pat) => {
-                let parts: Vec<_> = pat
-                    .parts
-                    .iter()
-                    .map(|p| {
-                        let elems: Vec<_> = p
-                            .elements
-                            .iter()
-                            .map(|e| match e {
-                                PatternElement::Node { bind, labels, .. } => {
-                                    let b = bind.map_or_else(
-                                        || "()".to_string(),
-                                        |v| format!("({})", self.fmt_var_bind(v)),
-                                    );
-                                    let l = if labels.is_empty() {
-                                        String::new()
-                                    } else {
-                                        format!(":{}", labels.join(":"))
-                                    };
-                                    format!("{b}{l}")
-                                }
-                                PatternElement::Rel {
-                                    bind,
-                                    types,
-                                    direction,
-                                    ..
-                                } => {
-                                    let b = bind.map_or_else(
-                                        || "[_]".to_string(),
-                                        |v| format!("[{}]", self.fmt_var_bind(v)),
-                                    );
-                                    let t = if types.is_empty() {
-                                        String::new()
-                                    } else {
-                                        format!(":{}", types.join("|"))
-                                    };
-                                    let d = match direction {
-                                        Direction::Outgoing => "->",
-                                        Direction::Incoming => "<-",
-                                        Direction::Undirected => "--",
-                                    };
-                                    format!("{d}{b}{t}")
-                                }
-                            })
-                            .collect();
-                        elems.join("")
-                    })
-                    .collect();
-                format!("PatternPred({})", parts.join(", "))
+                format!("PatternPred({})", self.fmt_inline_pattern(pat))
+            }
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                ..
+            } => {
+                let filter_str = filter
+                    .as_ref()
+                    .map_or_else(String::new, |f| format!(" WHERE {}", self.fmt_expr(f, 0)));
+                format!(
+                    "PatternComp[{}{filter_str} | {}]",
+                    self.fmt_inline_pattern(pattern),
+                    self.fmt_expr(map_expr, 0)
+                )
             }
             Expr::ListComprehension {
                 filter_var,

@@ -372,6 +372,25 @@ impl InferCtx<'_> {
             }
 
             // ---------------------------------------------------------------
+            // Pattern comprehension — result is List(map_expr_type); the
+            // optional predicate must be Bool, as for list comprehensions.
+            // ---------------------------------------------------------------
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                ..
+            } => {
+                self.check_pattern(pattern);
+                if let Some(f) = filter {
+                    let ft = self.infer_expr(f);
+                    self.require_bool(&ft, dummy_span());
+                }
+                let elem_ty = self.infer_expr(map_expr);
+                Type::List(Box::new(elem_ty))
+            }
+
+            // ---------------------------------------------------------------
             // List comprehension — result is List(map_expr_type). The
             // optional predicate must be Bool; non-bool predicates fall
             // under the usual boolean-operator diagnostic (E2011),

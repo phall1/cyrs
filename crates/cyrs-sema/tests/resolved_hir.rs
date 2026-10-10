@@ -38,6 +38,8 @@
 //!  21  map projection with `VarShorthand`
 //!  22  CREATE binds Node var
 //!  23  CALL … YIELD … binds Value vars
+//!  24  pattern comprehension: outer join var + local binders
+//!  25  pattern comprehension with a path binder
 
 #![allow(clippy::too_many_lines)]
 
@@ -974,4 +976,23 @@ fn snap_23_call_yield() {
     });
 
     insta::assert_snapshot!("23_call_yield", pipeline_stmt(stmt, false));
+}
+
+// ---------------------------------------------------------------------------
+// 24–25: Pattern comprehension — outer `a` joins, `r` / `b` / `p` are local
+// ---------------------------------------------------------------------------
+#[test]
+fn snap_24_pattern_comprehension() {
+    insta::assert_snapshot!(
+        "24_pattern_comprehension",
+        pipeline("MATCH (a) RETURN [(a)-[r:KNOWS]->(b:Person) WHERE b.age > 30 | b.name]")
+    );
+}
+
+#[test]
+fn snap_25_pattern_comprehension_path() {
+    insta::assert_snapshot!(
+        "25_pattern_comprehension_path",
+        pipeline("MATCH (a) RETURN [p = (a)-->() | length(p)]")
+    );
 }

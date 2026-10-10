@@ -1,0 +1,3 @@
+error[E0106]: expected `|` and a projection in pattern comprehension
+ --> pattern_comprehension_missing_pipe.cypher:224
+

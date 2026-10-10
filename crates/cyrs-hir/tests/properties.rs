@@ -163,6 +163,24 @@ fn sig_expr(e: &Expr, out: &mut String) {
             sig_pattern(pat, out);
             out.push(')');
         }
+        Expr::PatternComprehension {
+            pattern,
+            filter,
+            map_expr,
+            ..
+        } => {
+            out.push_str("PatComp(");
+            sig_pattern(pattern, out);
+            out.push(',');
+            if let Some(f) = filter {
+                sig_expr(f, out);
+            } else {
+                out.push('_');
+            }
+            out.push(',');
+            sig_expr(map_expr, out);
+            out.push(')');
+        }
         Expr::ListComprehension {
             filter_var: VarId(fv),
             iterable,
