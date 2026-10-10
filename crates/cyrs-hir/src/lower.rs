@@ -684,9 +684,7 @@ impl LowerCtx {
                 // REL_TYPE_EXPR contains COLON + IDENT.
                 rte.children_with_tokens()
                     .filter_map(SyntaxElement::into_token)
-                    .filter(|t| {
-                        t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT
-                    })
+                    .filter(|t| is_name_kind(t.kind()))
                     .map(|t| SmolStr::new(t.text()))
                     .collect::<Vec<_>>()
             })
@@ -763,7 +761,7 @@ impl LowerCtx {
             let prop = prop_node
                 .children_with_tokens()
                 .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .find(|t| is_name_kind(t.kind()))
                 .map(|t| SmolStr::new(t.text()))
                 .unwrap_or_default();
             let value = item
@@ -842,9 +840,7 @@ impl LowerCtx {
                 let idents: Vec<SmolStr> = item
                     .children_with_tokens()
                     .filter_map(SyntaxElement::into_token)
-                    .filter(|t| {
-                        t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT
-                    })
+                    .filter(|t| is_name_kind(t.kind()))
                     .map(|t| SmolStr::new(t.text()))
                     .collect();
                 let name = idents.first().cloned().unwrap_or_default();
@@ -884,7 +880,7 @@ impl LowerCtx {
                 let prop = prop_node
                     .children_with_tokens()
                     .filter_map(SyntaxElement::into_token)
-                    .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                    .find(|t| is_name_kind(t.kind()))
                     .map(|t| SmolStr::new(t.text()))
                     .unwrap_or_default();
                 out.push(RemoveItem::Property { target, prop });
@@ -934,7 +930,7 @@ impl LowerCtx {
         let alias = if has_token(&node, SyntaxKind::AS_KW) {
             node.children_with_tokens()
                 .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .find(|t| is_name_kind(t.kind()))
                 .map(|t| SmolStr::new(t.text()))
         } else {
             None
@@ -1063,7 +1059,7 @@ impl LowerCtx {
         let prop = node
             .children_with_tokens()
             .filter_map(SyntaxElement::into_token)
-            .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+            .find(|t| is_name_kind(t.kind()))
             .map(|t| SmolStr::new(t.text()))
             .unwrap_or_default();
         Expr::Prop {
@@ -1151,25 +1147,26 @@ impl LowerCtx {
 
     fn lower_function_call(&mut self, node: SyntaxNode) -> Expr {
         // FUNCTION_CALL: lhs VAR_EXPR holds the name, ARG_LIST holds args.
-        // `count` is a reserved keyword (COUNT_KW) so it doesn't tokenise as
-        // IDENT — treat it as a function name when it appears in head
-        // position. Other aggregates (sum/avg/min/max/collect) are plain
-        // identifiers and round-trip via IDENT.
-        let name = node
-            .children_with_tokens()
-            .filter_map(SyntaxElement::into_token)
-            .find(|t| {
-                matches!(
-                    t.kind(),
-                    SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT | SyntaxKind::COUNT_KW
-                )
-            })
-            .map(|t| SmolStr::new(t.text().to_ascii_lowercase()))
+        // The name may be a keyword token the parser accepts in head
+        // position (`count`, `exists`, `last`, …); those are lowercased to
+        // the canonical catalog spelling. Identifiers keep their text.
+        let name_token = |n: &SyntaxNode| {
+            n.children_with_tokens()
+                .filter_map(SyntaxElement::into_token)
+                .find(|t| is_name_kind(t.kind()))
+        };
+        let name = name_token(&node)
             .or_else(|| {
                 node.children()
                     .find(|n| n.kind() == SyntaxKind::VAR_EXPR)
-                    .and_then(|v| ident_text(&v))
-                    .map(SmolStr::new)
+                    .and_then(|v| name_token(&v))
+            })
+            .map(|t| {
+                if matches!(t.kind(), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT) {
+                    SmolStr::new(t.text())
+                } else {
+                    SmolStr::new(t.text().to_ascii_lowercase())
+                }
             });
 
         let distinct = has_token(&node, SyntaxKind::DISTINCT_KW);
@@ -1303,7 +1300,7 @@ impl LowerCtx {
         for element in node.children_with_tokens() {
             match element {
                 SyntaxElement::Token(t) => {
-                    if t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT {
+                    if is_name_kind(t.kind()) {
                         pending_key = Some(SmolStr::new(t.text()));
                     }
                     // COLON / COMMA / braces are skipped.
@@ -1548,7 +1545,7 @@ impl LowerCtx {
             let prop = node
                 .children_with_tokens()
                 .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .find(|t| is_name_kind(t.kind()))
                 .map(|t| SmolStr::new(t.text()))
                 .unwrap_or_default();
             MapProjectionItem::PropCopy { prop }
@@ -1557,7 +1554,7 @@ impl LowerCtx {
             let key = node
                 .children_with_tokens()
                 .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .find(|t| is_name_kind(t.kind()))
                 .map(|t| SmolStr::new(t.text()))
                 .unwrap_or_default();
             let value = node
@@ -1570,7 +1567,7 @@ impl LowerCtx {
             let name = node
                 .children_with_tokens()
                 .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+                .find(|t| is_name_kind(t.kind()))
                 .map(|t| SmolStr::new(t.text()))
                 .unwrap_or_default();
             let var = self
@@ -1655,49 +1652,49 @@ fn procedure_name_text(node: &SyntaxNode) -> SmolStr {
     let parts: Vec<String> = node
         .children_with_tokens()
         .filter_map(SyntaxElement::into_token)
-        .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+        .filter(|t| is_name_kind(t.kind()))
         .map(|t| t.text().to_string())
         .collect();
     SmolStr::new(parts.join("."))
 }
 
-/// Extract the text of the first `IDENT` or `QUOTED_IDENT` token that is a
-/// direct token descendant of `node`, or inside a `NAME` child.
+/// Whether a token of this kind is read as a name (variable, alias,
+/// property key, label, function name).
+///
+/// Besides identifiers this covers keywords the parser accepts in
+/// identifier position: the GQL soft keywords `OFFSET` / `NULLS` /
+/// `FIRST` / `LAST` (cy-z0x8), which stay usable as plain names, and
+/// `COUNT` / `EXISTS` in function-call position (`count(n)`,
+/// `exists(n.prop)`).
+fn is_name_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::IDENT
+            | SyntaxKind::QUOTED_IDENT
+            | SyntaxKind::OFFSET_KW
+            | SyntaxKind::NULLS_KW
+            | SyntaxKind::FIRST_KW
+            | SyntaxKind::LAST_KW
+            | SyntaxKind::COUNT_KW
+            | SyntaxKind::EXISTS_KW
+    )
+}
+
+/// Extract the text of the first name token (see [`is_name_kind`]) that
+/// is a direct token child of `node`, or inside a `NAME` child.
 fn ident_text(node: &SyntaxNode) -> Option<String> {
-    // Walk tokens shallowly (direct children_with_tokens). `COUNT_KW` is a
-    // reserved keyword token but can stand in for an identifier in expression
-    // position (`count(n)`); the parser wraps it in a `VAR_EXPR` so it shows
-    // up here when we're chasing a function name. Lowercase so the rest of
-    // the pipeline sees the canonical aggregate-catalog form.
-    let direct = node
-        .children_with_tokens()
-        .filter_map(SyntaxElement::into_token)
-        .find(|t| {
-            matches!(
-                t.kind(),
-                SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT | SyntaxKind::COUNT_KW
-            )
-        })
-        .map(|t| {
-            if t.kind() == SyntaxKind::COUNT_KW {
-                t.text().to_ascii_lowercase()
-            } else {
-                t.text().to_string()
-            }
-        });
-    if direct.is_some() {
-        return direct;
-    }
-    // If wrapped in a NAME node, descend one level.
-    node.children()
-        .find(|n| n.kind() == SyntaxKind::NAME)
-        .and_then(|name_node| {
-            name_node
-                .children_with_tokens()
-                .filter_map(SyntaxElement::into_token)
-                .find(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
-                .map(|t| t.text().to_string())
-        })
+    let first_name = |n: &SyntaxNode| {
+        n.children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .find(|t| is_name_kind(t.kind()))
+            .map(|t| t.text().to_string())
+    };
+    first_name(node).or_else(|| {
+        // If wrapped in a NAME node, descend one level.
+        node.children()
+            .find(|n| n.kind() == SyntaxKind::NAME)
+            .and_then(|name_node| first_name(&name_node))
+    })
 }
 
 /// Lower a `REL_LENGTH` node into [`RelLength::Variable`]. The node
@@ -1748,7 +1745,7 @@ fn lower_rel_length(node: &SyntaxNode) -> RelLength {
 fn collect_label_idents(node: &SyntaxNode) -> Vec<SmolStr> {
     node.children_with_tokens()
         .filter_map(SyntaxElement::into_token)
-        .filter(|t| t.kind() == SyntaxKind::IDENT || t.kind() == SyntaxKind::QUOTED_IDENT)
+        .filter(|t| is_name_kind(t.kind()))
         .map(|t| SmolStr::new(t.text()))
         .collect()
 }
@@ -2381,5 +2378,81 @@ mod tests {
         let via_parse = super::lower_parse(&parse(src)).expect("clean input lowers");
         assert_eq!(via_str.clauses.len(), via_parse.clauses.len());
         assert_eq!(via_str.bindings.len(), via_parse.bindings.len());
+    }
+
+    // --- soft keywords read as names ---
+
+    fn return_exprs(stmt: &Statement) -> Vec<&Expr> {
+        let Some(Clause::Return { projections, .. }) = stmt.clauses.last() else {
+            panic!("expected trailing Return");
+        };
+        projections.iter().map(|p| &p.expr).collect()
+    }
+
+    #[test]
+    fn soft_keyword_function_names() {
+        let stmt = lower_statement(
+            "MATCH (n) RETURN last([1]), FIRST([1]), offset(1), nulls(1), exists(n.name), Count(n)",
+        );
+        let names: Vec<&str> = return_exprs(&stmt)
+            .into_iter()
+            .map(|e| match e {
+                Expr::Call { name, .. } => name.as_str(),
+                other => panic!("expected Call, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            names,
+            vec!["last", "first", "offset", "nulls", "exists", "count"]
+        );
+    }
+
+    #[test]
+    fn identifier_function_names_keep_their_case() {
+        let stmt = lower_statement("RETURN toString(1)");
+        assert!(matches!(return_exprs(&stmt)[0], Expr::Call { name, .. } if name == "toString"));
+    }
+
+    #[test]
+    fn soft_keyword_variables_bind_and_resolve() {
+        for (src, name) in [
+            ("MATCH (first) RETURN first", "first"),
+            ("UNWIND [1] AS offset RETURN offset", "offset"),
+        ] {
+            let stmt = lower_statement(src);
+            let names: Vec<&str> = stmt.bindings.values().map(|b| b.name.as_str()).collect();
+            assert_eq!(names, vec![name], "{src}");
+            assert!(
+                matches!(return_exprs(&stmt)[0], Expr::Var(_)),
+                "{src}: {:?}",
+                return_exprs(&stmt)[0]
+            );
+        }
+    }
+
+    #[test]
+    fn soft_keyword_projection_alias() {
+        let stmt = lower_statement("RETURN 1 AS last");
+        let Some(Clause::Return { projections, .. }) = stmt.clauses.last() else {
+            panic!("expected Return");
+        };
+        assert_eq!(projections[0].alias.as_deref(), Some("last"));
+    }
+
+    #[test]
+    fn soft_keyword_property_keys() {
+        let stmt = lower_statement("MATCH (n {first: 1}) RETURN n.last");
+        assert!(matches!(return_exprs(&stmt)[0], Expr::Prop { prop, .. } if prop == "last"));
+        let Clause::Match { pattern, .. } = &stmt.clauses[0] else {
+            panic!("expected Match");
+        };
+        let PatternElement::Node {
+            props: Some(Expr::Map(pairs)),
+            ..
+        } = &pattern.parts[0].elements[0]
+        else {
+            panic!("expected inline property map");
+        };
+        assert_eq!(pairs[0].0, "first");
     }
 }
