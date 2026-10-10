@@ -158,10 +158,12 @@ pub fn lower_statement(stmt: &Statement) -> Result<PlanStatement, PlanLowerError
 
 // ── Pre-lowering sanity scan (cy-wlr) ─────────────────────────────────────────
 
-/// Walk every expression reachable from `stmt.clauses` and return the first
-/// precondition violation, if any. See [`lower_statement`] for the contract.
+/// Walk every expression reachable from `stmt.clauses` and every `UNION`
+/// arm, and return the first precondition violation, if any. See
+/// [`lower_statement`] for the contract.
 fn precheck_statement(stmt: &Statement) -> Result<(), PlanLowerError> {
-    for clause in &stmt.clauses {
+    let union_clauses = stmt.unions.iter().flat_map(|arm| &arm.clauses);
+    for clause in stmt.clauses.iter().chain(union_clauses) {
         let span = clause.span();
         match clause {
             Clause::Match { pattern, .. } | Clause::Create { pattern, .. } => {
@@ -478,22 +480,37 @@ impl<'s> LowerCtx<'s> {
 
     // ── Top-level clause dispatch ─────────────────────────────────────────────
 
-    fn lower(&mut self, stmt: &Statement) {
-        // Handle UNION at statement level: a UNION query is two sub-statements
-        // separated by UNION / UNION ALL. In the HIR the clauses of each arm
-        // are simply concatenated — there is no explicit union clause node in
-        // the current HIR shape. We therefore lower all clauses sequentially;
-        // consumers that produce UNION must build paired PlanStatements
-        // themselves. Union construction from two Statement arms is handled
-        // by `lower_union_pair` (see below).
-        //
-        // For regular queries we walk the clause list and build up an operator
-        // chain.
+    /// Lower `stmt` (all `UNION` arms included) and return the root op.
+    fn lower(&mut self, stmt: &Statement) -> Option<OpId> {
+        // Each `UNION` arm lowers into the same op arena; the arms are then
+        // folded left-associatively, so `A UNION B UNION ALL C` becomes
+        // `Union[All](Union[Distinct](A, B), C)`. HIR gives every arm its
+        // own `VarId`s, so the arms never share plan variables.
+        let head = self.lower_clauses(&stmt.clauses);
+        let mut root = head;
+        for arm in &stmt.unions {
+            let right = self.lower_clauses(&arm.clauses);
+            let left = root.unwrap_or_else(|| self.push_source_all());
+            let right = right.unwrap_or_else(|| self.push_source_all());
+            let kind = if arm.all {
+                UnionKind::All
+            } else {
+                UnionKind::Distinct
+            };
+            root = Some(self.plan.push(ReadOp::Union { left, right, kind }));
+        }
+        root
+    }
+
+    /// Lower one `SingleQuery` clause list into an operator chain and
+    /// return the chain's root, or `None` when the clauses emitted no read
+    /// operator (e.g. a bare `CREATE`).
+    fn lower_clauses(&mut self, clauses: &[Clause]) -> Option<OpId> {
         let mut current_op: Option<OpId> = None;
 
         let mut i = 0;
-        while i < stmt.clauses.len() {
-            let clause = &stmt.clauses[i];
+        while i < clauses.len() {
+            let clause = &clauses[i];
             match clause {
                 Clause::Match {
                     pattern, optional, ..
@@ -600,7 +617,7 @@ impl<'s> LowerCtx<'s> {
                     // that synthetic clause — recover the per-variable key
                     // property names from its equality predicates so the
                     // structured `key_props` survives desugaring.
-                    let node_keys = match stmt.clauses.get(i + 1) {
+                    let node_keys = match clauses.get(i + 1) {
                         Some(Clause::Where { predicate, .. }) => collect_merge_key_props(predicate),
                         _ => Vec::new(),
                     };
@@ -652,6 +669,7 @@ impl<'s> LowerCtx<'s> {
             }
             i += 1;
         }
+        current_op
     }
 
     /// Push a degenerate all-node Source (used when a clause appears without
@@ -1732,9 +1750,9 @@ fn create_pattern_pairs(part: &PatternPart) -> Vec<CreatePair<'_>> {
 /// Lower two HIR statements joined by `UNION` / `UNION ALL` into a single
 /// [`PlanStatement`] whose root is a [`ReadOp::Union`].
 ///
-/// This helper is provided for callers that have already split a
-/// `UNION`-joined Cypher query into its left and right arms (e.g. a parser
-/// pass). Single-statement callers use [`lower_statement`] directly.
+/// A parsed `A UNION B` statement lowers through [`lower_statement`]
+/// directly (the arms live on [`Statement::unions`]). This helper is for
+/// callers holding two separately lowered HIR statements.
 ///
 /// # Errors
 ///
@@ -1745,40 +1763,27 @@ pub fn lower_union_pair(
     right: &Statement,
     kind: UnionKind,
 ) -> Result<PlanStatement, PlanLowerError> {
-    let mut left_plan = lower_statement(left)?;
-    let right_plan = lower_statement(right)?;
+    precheck_statement(left)?;
+    precheck_statement(right)?;
 
-    // The left plan's op arena is the base; we offset the right plan's OpIds.
-    // Plan arenas are limited to u32::MAX ops in practice; use truncating cast
-    // intentionally here — a plan with 4+ billion operators is unreachable.
-    #[allow(clippy::cast_possible_truncation)]
-    let offset = left_plan.ops.len() as u32;
-    #[allow(clippy::cast_possible_truncation)]
-    let right_root = OpId(right_plan.ops.len() as u32 - 1 + offset);
-
-    // Append right ops (no OpId rewriting needed — Union references by index).
-    left_plan.ops.extend(right_plan.ops);
-    left_plan.write_ops.extend(right_plan.write_ops);
-    // Merge var_maps (plan VarIds from the right are offset).
-    for (plan_var, hir_var) in right_plan.var_map {
-        left_plan
-            .var_map
-            .insert(VarId(plan_var.0 + offset), hir_var);
-    }
-
-    let left_root = OpId(offset - 1);
-    left_plan.ops.push(ReadOp::Union {
+    // Both arms lower into one arena so every `OpId` / `VarId` stays valid.
+    let mut ctx = LowerCtx::new(left);
+    let left_root = ctx.lower(left);
+    // `right` is a separately lowered HIR statement whose `VarId`s overlap
+    // `left`'s, so forget the left arm's mapping before lowering it.
+    ctx.hir_to_plan.clear();
+    let right_root = ctx.lower(right);
+    let left_root = left_root.unwrap_or_else(|| ctx.push_source_all());
+    let right_root = right_root.unwrap_or_else(|| ctx.push_source_all());
+    ctx.plan.push(ReadOp::Union {
         left: left_root,
         right: right_root,
         kind,
     });
 
-    // Re-collect the typed parameter surface over the merged arena so the
-    // combined `params` map reflects every `$param` from both arms in
-    // first-seen order (cy-7it, feat-request §2.4).
-    collect_params(&mut left_plan);
-
-    Ok(left_plan)
+    let mut plan = ctx.into_plan();
+    collect_params(&mut plan);
+    Ok(plan)
 }
 
 // ── Public helper: apply ORDER BY / SKIP / LIMIT ─────────────────────────────
@@ -2682,6 +2687,50 @@ mod tests {
         let plan = lower_union_pair(&left_hir, &right_hir, UnionKind::Distinct)
             .expect("UNION arms must be resolved/desugared");
         insta::assert_snapshot!("plan_union_distinct", render(&plan));
+    }
+
+    // 18b. UNION written in one statement lowers natively.
+    #[test]
+    fn snap_union_statement() {
+        let plan = plan_from("MATCH (n:Person) RETURN n UNION MATCH (n:Animal) RETURN n");
+        insta::assert_snapshot!("plan_union_statement", render(&plan));
+    }
+
+    // 18c. Three arms fold left-associatively with per-arm kinds.
+    #[test]
+    fn snap_union_three_arms() {
+        let plan = plan_from("RETURN 1 AS x UNION ALL RETURN 2 AS x UNION RETURN 3 AS x");
+        insta::assert_snapshot!("plan_union_three_arms", render(&plan));
+    }
+
+    /// Every operator input in a union plan must point at an earlier op in
+    /// the same arena (regression: `lower_union_pair` used to leave the
+    /// right arm's inputs pointing into the left arm).
+    #[test]
+    fn union_op_inputs_point_backwards() {
+        let left = desugar_statement(hir_lower("MATCH (a)-[:R]->(b) RETURN b"));
+        let right = desugar_statement(hir_lower("MATCH (c)-[:S]->(d) RETURN d"));
+        let paired = lower_union_pair(&left, &right, UnionKind::All).expect("lowers");
+        let native =
+            plan_from("MATCH (a)-[:R]->(b) RETURN b UNION ALL MATCH (c)-[:S]->(d) RETURN d");
+        for plan in [&paired, &native] {
+            for (i, op) in plan.ops.iter().enumerate() {
+                let inputs: Vec<OpId> = match op {
+                    ReadOp::Expand { input, .. } | ReadOp::Project { input, .. } => vec![*input],
+                    ReadOp::Union { left, right, .. } => vec![*left, *right],
+                    _ => vec![],
+                };
+                for input in inputs {
+                    assert!((input.0 as usize) < i, "op[{i}] reads op[{}]", input.0);
+                }
+            }
+            let Some(ReadOp::Union { left, right, .. }) = plan.ops.last() else {
+                panic!("root must be Union");
+            };
+            assert!(matches!(plan.ops[left.0 as usize], ReadOp::Project { .. }));
+            assert!(matches!(plan.ops[right.0 as usize], ReadOp::Project { .. }));
+        }
+        assert_eq!(paired.ops.len(), native.ops.len());
     }
 
     // 19. OPTIONAL MATCH

@@ -252,7 +252,8 @@ fn preceding_identifier(source: &str, offset: TextSize) -> Option<String> {
 /// variable is bound only as a relationship / path / value variable,
 /// or if its node pattern is unlabelled.
 fn node_label_for(stmt: &Statement, var_id: VarId) -> Option<SmolStr> {
-    for clause in &stmt.clauses {
+    let union_clauses = stmt.unions.iter().flat_map(|arm| &arm.clauses);
+    for clause in stmt.clauses.iter().chain(union_clauses) {
         let (Clause::Match { pattern, .. }
         | Clause::Create { pattern, .. }
         | Clause::Merge { pattern, .. }) = clause

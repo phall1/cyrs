@@ -1,0 +1,37 @@
+---
+source: crates/cyrs-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (n:A) RETURN n UNION MATCH (n:B) RETURN n\")"
+---
+Statement {
+  span: 0..47
+  bindings: [
+    Var(0) 0: n (Node) @7..8
+    Var(1) 1: n (Node) @34..35
+  ]
+  clauses: [
+    Match @0..11 {
+      Pattern {
+        part[0] [
+          Node(n[bind:Var(0)←Node@7..8]:A) @5..11
+        ]
+      }
+    }
+    Return(distinct=false) @11..20 {
+      proj[0]: Var(0)[n←Node@7..8]
+    }
+  ]
+  unions: [
+    Union @20..47 {
+      Match @26..38 {
+        Pattern {
+          part[0] [
+            Node(n[bind:Var(1)←Node@34..35]:B) @32..38
+          ]
+        }
+      }
+      Return(distinct=false) @38..47 {
+        proj[0]: Var(1)[n←Node@34..35]
+      }
+    }
+  ]
+}
