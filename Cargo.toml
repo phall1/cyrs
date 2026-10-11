@@ -92,7 +92,7 @@ predicates     = "3"
 toml           = "0.8"
 
 # incremental query engine (spec §11.1 — only cyrs-db and above may use this)
-salsa = "0.26"
+salsa = "0.28.5"
 
 # internal — version is set for cargo publish; local development still uses path.
 cyrs-syntax        = { version = "0.1.0", path = "crates/cyrs-syntax" }

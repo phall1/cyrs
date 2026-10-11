@@ -187,6 +187,7 @@ impl Fnv64 {
 #[salsa::input]
 pub struct FileOptions {
     /// Full analysis options for this file.
+    #[returns(clone)]
     pub options: AnalysisOptions,
 }
 
@@ -205,6 +206,7 @@ pub struct FileOptions {
 #[salsa::input]
 pub struct WorkspaceInputs {
     /// Workspace-scoped schema.  `None` = schema-free analysis.
+    #[returns(clone)]
     pub schema: Option<Arc<dyn SchemaProvider>>,
 }
 
@@ -219,7 +221,7 @@ pub struct WorkspaceInputs {
 /// changes.  Consumers that only need to know *whether* options changed
 /// (e.g. to decide if a cache entry is still valid) read this digest rather
 /// than comparing `AnalysisOptions` values directly.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn options_digest(db: &dyn CypherDb, file_opts: FileOptions) -> u64 {
     file_opts.options(db).digest()
 }
