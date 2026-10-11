@@ -53,10 +53,14 @@ name    = "bench_agent_throughput"
 harness = false
 
 # cy-wcv §11.6 / §17.10: 24-hour RSS soak (operator-triggered full run;
-# weekly CI soak runs with CY_SOAK_HOURS=4).
+# weekly CI soak runs with CY_SOAK_HOURS=4). `bench = false` keeps it out of
+# a plain `cargo bench` (the PR / main-baseline gate in bench.yml, which it
+# pushed past the 6 h job limit); nightly-benches.yml runs it explicitly
+# with `cargo bench --bench bench_incremental_24h`.
 [[bench]]
 name    = "bench_incremental_24h"
 harness = false
+bench   = false
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
