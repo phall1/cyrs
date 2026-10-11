@@ -152,23 +152,16 @@ print_stdout            = "allow"  # CLI/agent binaries legitimately print
 print_stderr            = "allow"
 
 # ---------------------------------------------------------------------------
-# Patched dependencies. Tracks upstream PRs that aren't in a release yet.
+# Patched dependencies: none.
 # ---------------------------------------------------------------------------
 #
-# rowan: phall1/rowan@fix/rowan-miri-complete stacks three fixes on top of
-# rust-analyzer/rowan#211 (Arc/ThinArc raw-ptr refcounts + cursor self_alloc
-# provenance):
-#   - GreenTokenData becomes a DST so retags widen past the slice tail;
-#   - cursor free()/sibling walks avoid a SharedReadWrite SB violation;
-#   - GreenNodeData/GreenTokenData::to_owned rebuild the node instead of
-#     forging a ThinArc from the shared `&self` ref (whose provenance does
-#     not cover the refcount).
-# Together these clear the longstanding ThinArc/NodeCache provenance UB miri
-# caught on cyrs CI (cy-pom + cy-934). Verified locally: `cargo +nightly
-# miri test --lib` passes under -Zmiri-strict-provenance for every
-# rowan-touching crate. Drop this patch once #211 merges upstream + ships.
-[patch.crates-io]
-rowan = { git = "https://github.com/phall1/rowan", branch = "fix/rowan-miri-complete" }
+# rowan used to be patched to phall1/rowan@fix/rowan-miri-complete, which
+# stacked miri provenance fixes on rust-analyzer/rowan#211 (cy-pom, cy-934).
+# That fork is no longer reachable (404), so dependency resolution failed
+# on every CI job and fresh checkout, and #211 was closed upstream without
+# merging. rowan now resolves to the crates.io release pinned in
+# [workspace.dependencies]. Strict miri runs will surface the ThinArc /
+# cursor provenance UB again until a reachable fix is wired back in here.
 
 [profile.release]
 lto           = "thin"
