@@ -43,10 +43,15 @@ use crate::{
 /// 2. `desugar_exprs` — recursively desugar expressions (subscript-to-
 ///    prop, list comprehension, map projection normalization).
 pub fn desugar_statement(mut stmt: Statement) -> Statement {
-    // Pass 1: shorthand property maps → WHERE predicates.
-    desugar_shorthand_props(&mut stmt);
-    // Pass 2: expression-level desugaring.
-    desugar_exprs_in_clauses(&mut stmt);
+    // Every `UNION` arm is desugared the same way as the leading one.
+    let arms = std::iter::once(&mut stmt.clauses)
+        .chain(stmt.unions.iter_mut().map(|arm| &mut arm.clauses));
+    for clauses in arms {
+        // Pass 1: shorthand property maps → WHERE predicates.
+        desugar_shorthand_props(clauses);
+        // Pass 2: expression-level desugaring.
+        desugar_exprs_in_clauses(clauses);
+    }
     stmt
 }
 
@@ -69,11 +74,11 @@ pub fn desugar_statement(mut stmt: Statement) -> Statement {
 /// ```
 ///
 /// Multiple properties produce `AND`-chained predicates.
-fn desugar_shorthand_props(stmt: &mut Statement) {
+fn desugar_shorthand_props(clauses: &mut Vec<Clause>) {
     // Collect (insert_after_index, where_clause) pairs to splice in.
     let mut inserts: Vec<(usize, Clause)> = Vec::new();
 
-    for (clause_idx, clause) in stmt.clauses.iter_mut().enumerate() {
+    for (clause_idx, clause) in clauses.iter_mut().enumerate() {
         let (Clause::Match { pattern, .. }
         | Clause::Create { pattern, .. }
         | Clause::Merge { pattern, .. }) = clause
@@ -153,7 +158,7 @@ fn desugar_shorthand_props(stmt: &mut Statement) {
 
     // Splice WHERE clauses in reverse order so indices stay valid.
     for (after_idx, where_clause) in inserts.into_iter().rev() {
-        stmt.clauses.insert(after_idx + 1, where_clause);
+        clauses.insert(after_idx + 1, where_clause);
     }
 }
 
@@ -167,8 +172,8 @@ fn desugar_shorthand_props(stmt: &mut Statement) {
 ///   sub-expressions are recursively desugared.
 /// - [`Expr::MapProjection`] — already in canonical form; sub-expressions
 ///   are recursively desugared.
-fn desugar_exprs_in_clauses(stmt: &mut Statement) {
-    for clause in &mut stmt.clauses {
+fn desugar_exprs_in_clauses(clauses: &mut [Clause]) {
+    for clause in clauses {
         desugar_exprs_in_clause(clause);
     }
 }

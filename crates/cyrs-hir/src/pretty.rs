@@ -167,6 +167,25 @@ impl OverlayCtx<'_> {
             self.print_clause(clause, out, 2);
         }
         writeln!(out, "  ]").unwrap();
+        // Omitted for non-UNION statements so existing renders are unchanged.
+        if !stmt.unions.is_empty() {
+            writeln!(out, "  unions: [").unwrap();
+            for arm in &stmt.unions {
+                let kw = if arm.all { "UnionAll" } else { "Union" };
+                writeln!(
+                    out,
+                    "    {kw} @{}..{} {{",
+                    u32::from(arm.span.start()),
+                    u32::from(arm.span.end())
+                )
+                .unwrap();
+                for clause in &arm.clauses {
+                    self.print_clause(clause, out, 3);
+                }
+                writeln!(out, "    }}").unwrap();
+            }
+            writeln!(out, "  ]").unwrap();
+        }
         writeln!(out, "}}").unwrap();
     }
 

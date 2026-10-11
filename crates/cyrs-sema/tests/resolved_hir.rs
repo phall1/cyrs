@@ -38,6 +38,9 @@
 //!  21  map projection with `VarShorthand`
 //!  22  CREATE binds Node var
 //!  23  CALL … YIELD … binds Value vars
+//!  24  UNION: each arm binds its own `n`
+//!  25  UNION ALL across three arms
+//!  26  UNION: name bound only in the other arm → E1001
 
 #![allow(clippy::too_many_lines)]
 
@@ -974,4 +977,31 @@ fn snap_23_call_yield() {
     });
 
     insta::assert_snapshot!("23_call_yield", pipeline_stmt(stmt, false));
+}
+
+// ---------------------------------------------------------------------------
+// 24–26: UNION arms — each arm is its own scope
+// ---------------------------------------------------------------------------
+#[test]
+fn snap_24_union_separate_scopes() {
+    insta::assert_snapshot!(
+        "24_union_separate_scopes",
+        pipeline("MATCH (n:A) RETURN n UNION MATCH (n:B) RETURN n")
+    );
+}
+
+#[test]
+fn snap_25_union_all_three_arms() {
+    insta::assert_snapshot!(
+        "25_union_all_three_arms",
+        pipeline("RETURN 1 AS x UNION ALL RETURN 2 AS x UNION ALL RETURN 3 AS x")
+    );
+}
+
+#[test]
+fn snap_26_union_cross_arm_reference() {
+    insta::assert_snapshot!(
+        "26_union_cross_arm_reference",
+        pipeline("MATCH (a) RETURN a UNION RETURN a")
+    );
 }

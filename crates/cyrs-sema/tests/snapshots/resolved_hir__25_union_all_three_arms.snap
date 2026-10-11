@@ -1,0 +1,26 @@
+---
+source: crates/cyrs-sema/tests/resolved_hir.rs
+expression: "pipeline(\"RETURN 1 AS x UNION ALL RETURN 2 AS x UNION ALL RETURN 3 AS x\")"
+---
+Statement {
+  span: 0..61
+  bindings: [
+  ]
+  clauses: [
+    Return(distinct=false) @0..13 {
+      proj[0]: 1 AS x
+    }
+  ]
+  unions: [
+    UnionAll @13..37 {
+      Return(distinct=false) @23..37 {
+        proj[0]: 2 AS x
+      }
+    }
+    UnionAll @37..61 {
+      Return(distinct=false) @47..61 {
+        proj[0]: 3 AS x
+      }
+    }
+  ]
+}

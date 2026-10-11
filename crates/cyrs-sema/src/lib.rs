@@ -90,9 +90,27 @@ pub fn analyse(
     options: &SemaOptions,
     sink: &mut DiagnosticsSink,
 ) {
-    // Pass 1: name resolution (§6.2).
+    // Pass 1: name resolution (§6.2). Scopes `UNION` arms itself.
     let _result = resolve::resolve(stmt, options.warn_shadowing, sink);
 
+    // Passes 2–5 assume a single clause list, so a `UNION` statement runs
+    // them once per arm.
+    if stmt.unions.is_empty() {
+        analyse_single_query(stmt, schema, options, sink);
+    } else {
+        for arm in stmt.union_arm_views() {
+            analyse_single_query(&arm, schema, options, sink);
+        }
+    }
+}
+
+/// Passes 2–5 of [`analyse`] over one `SingleQuery`.
+fn analyse_single_query(
+    stmt: &Statement,
+    schema: Option<&dyn SchemaProvider>,
+    options: &SemaOptions,
+    sink: &mut DiagnosticsSink,
+) {
     // Pass 2: kind-consistency (§6.3).
     kinds::check_kinds(stmt, sink);
 
