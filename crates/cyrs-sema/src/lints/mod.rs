@@ -83,6 +83,23 @@ pub fn run_lints(
     options: &LintOptions,
     sink: &mut DiagnosticsSink,
 ) {
+    // Every lint reasons about one clause list, so a `UNION` statement is
+    // linted arm by arm.
+    if stmt.unions.is_empty() {
+        lint_single_query(stmt, schema, options, sink);
+    } else {
+        for arm in stmt.union_arm_views() {
+            lint_single_query(&arm, schema, options, sink);
+        }
+    }
+}
+
+fn lint_single_query(
+    stmt: &Statement,
+    schema: Option<&dyn SchemaProvider>,
+    options: &LintOptions,
+    sink: &mut DiagnosticsSink,
+) {
     unused_var::check(stmt, sink);
     redundant_match::check(stmt, sink);
     if let Some(s) = schema {

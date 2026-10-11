@@ -60,7 +60,7 @@
 
 use crate::{
     Clause, Expr, MapProjectionItem, Pattern, PatternElement, PatternPart, Projection, RemoveItem,
-    SetItem, Statement, YieldItem,
+    SetItem, Statement, UnionArm, YieldItem,
 };
 
 /// Read-only HIR visitor.
@@ -75,6 +75,10 @@ use crate::{
 pub trait Visitor: Sized {
     fn visit_statement(&mut self, stmt: &Statement) {
         walk_statement(self, stmt);
+    }
+
+    fn visit_union_arm(&mut self, arm: &UnionArm) {
+        walk_union_arm(self, arm);
     }
 
     fn visit_clause(&mut self, clause: &Clause) {
@@ -124,6 +128,15 @@ pub trait Visitor: Sized {
 
 pub fn walk_statement<V: Visitor>(v: &mut V, s: &Statement) {
     for clause in &s.clauses {
+        v.visit_clause(clause);
+    }
+    for arm in &s.unions {
+        v.visit_union_arm(arm);
+    }
+}
+
+pub fn walk_union_arm<V: Visitor>(v: &mut V, arm: &UnionArm) {
+    for clause in &arm.clauses {
         v.visit_clause(clause);
     }
 }

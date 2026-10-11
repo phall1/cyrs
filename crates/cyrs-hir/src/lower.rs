@@ -183,8 +183,40 @@ impl LowerCtx {
 
     fn lower_stmt_node(&mut self, node: SyntaxNode) {
         for child in node.children() {
+            if child.kind() == SyntaxKind::UNION_TAIL {
+                self.lower_union_tail(child);
+            } else {
+                self.lower_clause_into(child);
+            }
+        }
+    }
+
+    /// Lower a `UNION_TAIL` node (`UNION [ALL] SingleQuery`) into a
+    /// [`crate::UnionArm`] appended to [`Statement::unions`].
+    ///
+    /// Each arm is an independent query: names bound in an earlier arm
+    /// are not visible in this one, so the name → `VarId` table is
+    /// cleared first. A name reused across arms gets a fresh `VarId` per
+    /// arm, and a reference to a name bound only in another arm lowers
+    /// to [`Expr::Unresolved`].
+    fn lower_union_tail(&mut self, node: SyntaxNode) {
+        let span = node.text_range();
+        let id = self.alloc_hir(node.clone());
+        let all = has_token(&node, SyntaxKind::ALL_KW);
+        self.var_names.clear();
+        // `lower_clause_into` pushes onto `stmt.clauses`; borrow that
+        // vector for the arm and restore the leading arm afterwards.
+        let head = std::mem::take(&mut self.stmt.clauses);
+        for child in node.children() {
             self.lower_clause_into(child);
         }
+        let clauses = std::mem::replace(&mut self.stmt.clauses, head);
+        self.stmt.unions.push(crate::UnionArm {
+            id,
+            all,
+            clauses,
+            span,
+        });
     }
 
     // --- cy-lp3y SESSION SET HIR ---
@@ -2472,5 +2504,93 @@ mod tests {
         let p = pattern.parts[0].named_as.expect("path binder");
         assert_eq!(stmt.bindings[&p].kind, VarKind::Path);
         assert!(matches!(**map_expr, Expr::Var(v) if v == p));
+    }
+
+    // --- UNION / UNION ALL ---
+
+    #[test]
+    fn union_tail_lowers_into_unions() {
+        let stmt = lower_statement("MATCH (a) RETURN a UNION MATCH (b) RETURN b");
+        assert_eq!(clause_kinds(&stmt), vec!["Match", "Return"]);
+        assert_eq!(stmt.unions.len(), 1);
+        let arm = &stmt.unions[0];
+        assert!(!arm.all);
+        let arm_kinds: Vec<String> = arm.clauses.iter().map(clause_tag).collect();
+        assert_eq!(arm_kinds, vec!["Match", "Return(distinct=false, items=1)"]);
+        assert!(stmt.syntax_for(arm.id).is_some());
+    }
+
+    #[test]
+    fn union_all_flag_and_arm_order() {
+        let stmt = lower_statement("RETURN 1 UNION ALL RETURN 2 UNION RETURN 3");
+        let flags: Vec<bool> = stmt.unions.iter().map(|a| a.all).collect();
+        assert_eq!(flags, vec![true, false]);
+        let Clause::Return { projections, .. } = &stmt.unions[1].clauses[0] else {
+            panic!("expected Return in last arm");
+        };
+        assert!(matches!(projections[0].expr, Expr::Int(3)));
+    }
+
+    #[test]
+    fn union_arms_get_distinct_var_ids() {
+        let stmt = lower_statement("MATCH (n) RETURN n UNION MATCH (n) RETURN n");
+        let ids: Vec<VarId> = stmt.bindings.values().map(|b| b.id).collect();
+        assert_eq!(ids.len(), 2, "each arm binds its own `n`");
+        let Clause::Return { projections, .. } = &stmt.unions[0].clauses[1] else {
+            panic!("expected Return in UNION arm");
+        };
+        assert!(matches!(projections[0].expr, Expr::Var(v) if v == ids[1]));
+    }
+
+    #[test]
+    fn union_arm_cannot_see_other_arm_names() {
+        let stmt = lower_statement("MATCH (a) RETURN a UNION RETURN a");
+        let Clause::Return { projections, .. } = &stmt.unions[0].clauses[0] else {
+            panic!("expected Return in UNION arm");
+        };
+        assert!(matches!(&projections[0].expr, Expr::Unresolved(name) if name == "a"));
+    }
+
+    #[test]
+    fn non_union_statement_has_no_unions() {
+        let stmt = lower_statement("MATCH (a) RETURN a");
+        assert!(stmt.unions.is_empty());
+        assert!(stmt.union_arm_views().is_empty());
+    }
+
+    #[test]
+    fn union_arm_views_split_clauses_and_bindings() {
+        let stmt = lower_statement("MATCH (a) RETURN a UNION MATCH (b) RETURN b");
+        let views = stmt.union_arm_views();
+        assert_eq!(views.len(), 2);
+        for (view, name) in views.iter().zip(["a", "b"]) {
+            assert_eq!(clause_kinds(view), vec!["Match", "Return"]);
+            assert!(view.unions.is_empty());
+            let names: Vec<&str> = view.bindings.values().map(|b| b.name.as_str()).collect();
+            assert_eq!(names, vec![name]);
+        }
+    }
+
+    #[test]
+    fn pattern_comprehension_inside_union_arm_uses_arm_scope() {
+        let stmt = lower_statement(
+            "MATCH (a) RETURN [(a)-->(b) | b] AS x UNION MATCH (a) RETURN [(a)-->(b) | b] AS x",
+        );
+        let arm_a = stmt.bindings.values().filter(|b| b.name == "a").count();
+        assert_eq!(arm_a, 2, "each arm binds its own `a`");
+        let Clause::Return { projections, .. } = &stmt.unions[0].clauses[1] else {
+            panic!("expected Return in UNION arm");
+        };
+        let Expr::PatternComprehension { pattern, .. } = &projections[0].expr else {
+            panic!("expected PatternComprehension");
+        };
+        let PatternElement::Node { bind: Some(v), .. } = pattern.parts[0].elements[0] else {
+            panic!("expected bound node");
+        };
+        assert_eq!(
+            stmt.bindings[&v].defined_at.start(),
+            51.into(),
+            "joins the arm's `a`"
+        );
     }
 }

@@ -1,0 +1,15 @@
+---
+source: crates/cyrs-plan/src/lower.rs
+expression: render(&plan)
+---
+read_ops: 8
+write_ops: 0
+var_map_entries: 0
+op[0]: Source(label=None, bind=0)
+op[1]: Project(input=0, cols=1)
+op[2]: Source(label=None, bind=0)
+op[3]: Project(input=2, cols=1)
+op[4]: Union(left=1, right=3, kind=All)
+op[5]: Source(label=None, bind=0)
+op[6]: Project(input=5, cols=1)
+op[7]: Union(left=4, right=6, kind=Distinct)

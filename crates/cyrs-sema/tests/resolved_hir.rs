@@ -38,8 +38,11 @@
 //!  21  map projection with `VarShorthand`
 //!  22  CREATE binds Node var
 //!  23  CALL … YIELD … binds Value vars
-//!  24  pattern comprehension: outer join var + local binders
-//!  25  pattern comprehension with a path binder
+//!  24  UNION: each arm binds its own `n`
+//!  25  UNION ALL across three arms
+//!  26  UNION: name bound only in the other arm → E1001
+//!  27  pattern comprehension: outer join var + local binders
+//!  28  pattern comprehension with a path binder
 
 #![allow(clippy::too_many_lines)]
 
@@ -979,20 +982,47 @@ fn snap_23_call_yield() {
 }
 
 // ---------------------------------------------------------------------------
-// 24–25: Pattern comprehension — outer `a` joins, `r` / `b` / `p` are local
+// 24–26: UNION arms — each arm is its own scope
 // ---------------------------------------------------------------------------
 #[test]
-fn snap_24_pattern_comprehension() {
+fn snap_24_union_separate_scopes() {
     insta::assert_snapshot!(
-        "24_pattern_comprehension",
+        "24_union_separate_scopes",
+        pipeline("MATCH (n:A) RETURN n UNION MATCH (n:B) RETURN n")
+    );
+}
+
+#[test]
+fn snap_25_union_all_three_arms() {
+    insta::assert_snapshot!(
+        "25_union_all_three_arms",
+        pipeline("RETURN 1 AS x UNION ALL RETURN 2 AS x UNION ALL RETURN 3 AS x")
+    );
+}
+
+#[test]
+fn snap_26_union_cross_arm_reference() {
+    insta::assert_snapshot!(
+        "26_union_cross_arm_reference",
+        pipeline("MATCH (a) RETURN a UNION RETURN a")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 27–28: Pattern comprehension — outer `a` joins, `r` / `b` / `p` are local
+// ---------------------------------------------------------------------------
+#[test]
+fn snap_27_pattern_comprehension() {
+    insta::assert_snapshot!(
+        "27_pattern_comprehension",
         pipeline("MATCH (a) RETURN [(a)-[r:KNOWS]->(b:Person) WHERE b.age > 30 | b.name]")
     );
 }
 
 #[test]
-fn snap_25_pattern_comprehension_path() {
+fn snap_28_pattern_comprehension_path() {
     insta::assert_snapshot!(
-        "25_pattern_comprehension_path",
+        "28_pattern_comprehension_path",
         pipeline("MATCH (a) RETURN [p = (a)-->() | length(p)]")
     );
 }
