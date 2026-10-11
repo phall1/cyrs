@@ -220,7 +220,7 @@ const _: fn() = || {
 /// the CST `SyntaxNode`.  This query returns the cached `ParseOutput` wrapped
 /// in an `Arc` so that downstream consumers can cheaply obtain the syntax root
 /// without re-parsing.
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn parse_ast(db: &dyn CypherDb, file: SourceFile) -> AstOutput {
     let cst = parse_cst(db, file);
     AstOutput::new(cst)
@@ -236,7 +236,7 @@ pub fn parse_ast(db: &dyn CypherDb, file: SourceFile) -> AstOutput {
 /// `SyntaxNode` (which is `!Sync`) and therefore cannot be returned from a
 /// `#[salsa::tracked]` function.  The HIR lowering cost is dominated by the
 /// upstream `parse_cst`, which is cached.
-#[salsa::tracked(lru = 256)]
+#[salsa::tracked(lru = 256, returns(clone))]
 pub fn resolved_names(
     db: &dyn CypherDb,
     file: SourceFile,
@@ -265,7 +265,7 @@ pub fn resolved_names(
 /// options or schema re-executes this query but leaves `parse_cst` cached.
 ///
 /// HIR lowering is performed inline (see module doc for rationale).
-#[salsa::tracked(lru = 256)]
+#[salsa::tracked(lru = 256, returns(clone))]
 pub fn sema_diagnostics(
     db: &dyn CypherDb,
     file: SourceFile,
@@ -307,7 +307,7 @@ pub fn sema_diagnostics(
 /// dialect; options and schema do not affect the plan shape in v1).
 ///
 /// HIR lowering is performed inline (see module doc for rationale).
-#[salsa::tracked(lru = 256)]
+#[salsa::tracked(lru = 256, returns(clone))]
 pub fn plan_of(db: &dyn CypherDb, file: SourceFile) -> PlanOutput {
     // Establish Salsa dependency on the parsed CST; lower from it
     // directly via `lower_parse` (cy-cfi) — no second parse.
@@ -336,7 +336,7 @@ pub fn plan_of(db: &dyn CypherDb, file: SourceFile) -> PlanOutput {
 /// Cache key: `parse_cst` + `sema_diagnostics`. Changing source invalidates
 /// both parse and sema layers; changing only options/schema invalidates only
 /// the sema layer (parse cache survives).
-#[salsa::tracked]
+#[salsa::tracked(returns(clone))]
 pub fn all_diagnostics(
     db: &dyn CypherDb,
     file: SourceFile,

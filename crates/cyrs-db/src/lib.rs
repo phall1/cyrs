@@ -210,10 +210,12 @@ mod source_file_input {
         pub source: String,
 
         /// Dialect used when parsing this file.
+        #[returns(copy)]
         pub dialect: DialectMode,
 
         /// Hash of options that affect derived queries.
         /// Shape is stabilised in cy-nk7; zero is a valid "no options" value.
+        #[returns(copy)]
         pub options_digest: u64,
 
         /// Optional pre-computed parse, supplied by the incremental edit
@@ -246,7 +248,7 @@ pub use source_file_input::SourceFile;
 ///
 /// The hint is cleared on every non-incremental source mutation so a
 /// follow-up `set_source` always produces a fresh full parse.
-#[salsa::tracked(lru = 256)]
+#[salsa::tracked(lru = 256, returns(clone))]
 pub fn parse_cst(db: &dyn CypherDb, file: SourceFile) -> ParseOutput {
     if let Some(hint) = file.precomputed_parse(db) {
         return hint.clone();
