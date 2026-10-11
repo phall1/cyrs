@@ -1136,6 +1136,10 @@ impl PatternComprehension {
         &self.syntax
     }
 
+    pub fn pattern(&self) -> Option<Pattern> {
+        self.syntax.children().find_map(Pattern::cast)
+    }
+
     pub fn where_clause(&self) -> Option<WhereClause> {
         self.syntax.children().find_map(WhereClause::cast)
     }

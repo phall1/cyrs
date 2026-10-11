@@ -522,6 +522,19 @@ impl SchemaCtx<'_> {
                 self.check_pattern(pat, false);
             }
 
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                ..
+            } => {
+                self.check_pattern(pattern, false);
+                if let Some(f) = filter {
+                    self.check_expr(f);
+                }
+                self.check_expr(map_expr);
+            }
+
             Expr::ListComprehension {
                 iterable,
                 filter,

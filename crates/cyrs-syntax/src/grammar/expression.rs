@@ -352,13 +352,19 @@ fn atom(p: &mut Parser<'_>, depth: u32) -> Option<CompletedMarker> {
 }
 
 /// `ListLiteral = '[' (Expr (',' Expr)*)? ']'` — spec `cypher.ungrammar`
-/// `ListLiteral`. List comprehensions (`[x IN xs WHERE p | f(x)]`) share
-/// the opening `[` with literals and are disambiguated here: if the first
-/// element is an IDENT followed by `IN`, this parses as a
-/// [`SyntaxKind::LIST_COMPREHENSION`]; otherwise it is a
+/// `ListLiteral`. List comprehensions (`[x IN xs WHERE p | f(x)]`) and
+/// pattern comprehensions (`[(a)-->(b) | b]`) share the opening `[` with
+/// literals and are disambiguated here: an IDENT followed by `IN` parses
+/// as a [`SyntaxKind::LIST_COMPREHENSION`], a relationship pattern (see
+/// [`at_pattern_comprehension`]) as a
+/// [`SyntaxKind::PATTERN_COMPREHENSION`]; anything else is a
 /// [`SyntaxKind::LIST_LITERAL`].
 fn list_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     debug_assert!(p.at(SyntaxKind::L_BRACK));
+
+    if at_pattern_comprehension(p) {
+        return pattern_comprehension(p, depth);
+    }
 
     // Comprehension lookahead: `[ IDENT IN ...`.
     // The first significant token past `[` is at nth(1); the IN check sits
@@ -484,6 +490,115 @@ fn list_comprehension(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     }
 
     m.complete(p, SyntaxKind::LIST_COMPREHENSION)
+}
+
+/// Pattern-comprehension lookahead, entered at `[`.
+///
+/// Accepts an optional path binder `IDENT =`, then a parenthesised group
+/// shaped like a node pattern (same rule as [`at_bare_pattern_predicate`]),
+/// then scans the rest of the pattern: node groups and relationship
+/// tokens (`-`, `->`, `<-`, and bracketed detail) at nesting depth 0.
+/// The first other depth-0 token decides. `|` or `WHERE` means a
+/// comprehension. Anything else (`]`, `,`, an operator) means a list
+/// literal, so `[(a)]`, `[(a)-->(b)]` (a list holding a pattern
+/// predicate) and `[p = (a)]` keep their existing parse.
+fn at_pattern_comprehension(p: &Parser<'_>) -> bool {
+    debug_assert!(p.at(SyntaxKind::L_BRACK));
+    let mut toks = p.lookahead().skip(1).peekable();
+    if matches!(
+        toks.peek(),
+        Some(SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT)
+    ) && p.nth(2) == SyntaxKind::EQ
+    {
+        toks.next();
+        toks.next();
+    }
+    if toks.next() != Some(SyntaxKind::L_PAREN) {
+        return false;
+    }
+    let node_shaped = match toks.peek() {
+        Some(SyntaxKind::R_PAREN | SyntaxKind::COLON | SyntaxKind::L_BRACE) => true,
+        Some(SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT) => {
+            toks.next();
+            matches!(
+                toks.peek(),
+                Some(SyntaxKind::R_PAREN | SyntaxKind::COLON | SyntaxKind::L_BRACE)
+            )
+        }
+        _ => false,
+    };
+    if !node_shaped {
+        return false;
+    }
+    let mut depth = 1u32;
+    for tok in toks {
+        match tok {
+            SyntaxKind::L_PAREN | SyntaxKind::L_BRACK | SyntaxKind::L_BRACE => depth += 1,
+            SyntaxKind::R_PAREN | SyntaxKind::R_BRACK | SyntaxKind::R_BRACE if depth > 0 => {
+                depth -= 1;
+            }
+            SyntaxKind::EOF => return false,
+            _ if depth > 0 => {}
+            SyntaxKind::MINUS | SyntaxKind::ARROW_R | SyntaxKind::ARROW_L => {}
+            SyntaxKind::PIPE | SyntaxKind::WHERE_KW => return true,
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Parse a pattern comprehension (openCypher 9 `PatternComprehension`,
+/// ungrammar `PatternComprehension`):
+///
+/// ```text
+/// PatternComprehension = '[' Pattern WhereClause? '|' Expr ']'
+/// ```
+///
+/// The pattern reuses [`pattern::pattern`], so a path binder
+/// (`[p = (a)-->(b) | p]`) lands in the usual `NAMED_PATTERN_PART`. The
+/// predicate is wrapped in a `WHERE_CLAUSE` node, which keeps the
+/// projection the only direct expression child. Unlike a list
+/// comprehension, the `|` projection is mandatory; a missing `|` emits
+/// `E0106`.
+fn pattern_comprehension(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
+    debug_assert!(p.at(SyntaxKind::L_BRACK));
+    let m = p.start();
+    p.bump(SyntaxKind::L_BRACK);
+    pattern::pattern(p);
+
+    if p.at(SyntaxKind::WHERE_KW) {
+        let w = p.start();
+        p.bump(SyntaxKind::WHERE_KW);
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_WHERE_EXPR,
+                "expected predicate expression after `WHERE` in pattern comprehension",
+            );
+        }
+        w.complete(p, SyntaxKind::WHERE_CLAUSE);
+    }
+
+    if p.eat(SyntaxKind::PIPE) {
+        if expr_bp_depth(p, 0, depth + 1).is_none() {
+            p.error_code(
+                sc::EXPECTED_BINOP_RHS,
+                "expected projection expression after `|` in pattern comprehension",
+            );
+        }
+    } else {
+        p.error_code(
+            sc::EXPECTED_PIPE_PATTERN_COMP,
+            "expected `|` and a projection in pattern comprehension",
+        );
+    }
+
+    if !p.eat(SyntaxKind::R_BRACK) {
+        p.error_code(
+            sc::EXPECTED_RBRACK_LIST,
+            "expected ']' to close pattern comprehension",
+        );
+    }
+    m.complete(p, SyntaxKind::PATTERN_COMPREHENSION)
 }
 
 /// `MapLiteral = '{' (PropertyKV (',' PropertyKV)*)? '}'` — spec
@@ -1510,6 +1625,39 @@ mod tests {
     }
 
     // --- EXISTS subquery forms (cy-p1u5) -------------------------
+
+    #[test]
+    fn pattern_comprehension_dispatch() {
+        for src in [
+            "RETURN [(a)-->(b) | b]",
+            "RETURN [(a)--(b) | b]",
+            "RETURN [(a)<--(b) | b]",
+            "RETURN [(a)-[:R*1..2]->(b) WHERE b.x | b]",
+            "RETURN [(:L)-->() | 1]",
+            "RETURN [({k: [1, 2]})-->(b) | b]",
+            "RETURN [p = (a)-->(b) | p]",
+        ] {
+            assert_clean(src);
+            assert!(has_kind(src, SyntaxKind::PATTERN_COMPREHENSION), "{src}");
+        }
+        // These keep their list-literal parse.
+        for src in [
+            "RETURN [(a)]",
+            "RETURN [(a), (b)]",
+            "RETURN [(1 + 2) - 3]",
+            "RETURN [(a)-->(b)]",
+            "RETURN [p = (a)]",
+            "RETURN [x IN xs | x]",
+        ] {
+            assert_clean(src);
+            assert!(!has_kind(src, SyntaxKind::PATTERN_COMPREHENSION), "{src}");
+        }
+    }
+
+    #[test]
+    fn pattern_comprehension_missing_pipe_is_e0106() {
+        assert!(parse_codes("RETURN [(a)-->(b) WHERE b.x]").contains(&106));
+    }
 
     #[test]
     fn exists_braced_subquery_parses() {

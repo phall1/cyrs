@@ -349,6 +349,11 @@ fn check_expr(expr: &HirExpr, span: HirSpan) -> Result<(), PlanLowerError> {
             kind: "ListComprehension",
             span,
         }),
+        // No plan operator evaluates a per-row subpattern into a list yet.
+        HirExpr::PatternComprehension { .. } => Err(PlanLowerError::UndesugaredExpr {
+            kind: "PatternComprehension",
+            span,
+        }),
         HirExpr::MapProjection { .. } => Err(PlanLowerError::UndesugaredExpr {
             kind: "MapProjection",
             span,
@@ -1455,6 +1460,14 @@ impl<'s> LowerCtx<'s> {
                 }
             }
 
+            HirExpr::PatternComprehension { .. } => {
+                debug_assert!(
+                    false,
+                    "PatternComprehension encountered in HIR→Plan lowering; \
+                     the pre-lowering scan rejects it"
+                );
+                Expr::Null
+            }
             HirExpr::ListComprehension { .. } => {
                 // List comprehensions must be desugared to Unwind + Filter
                 // before lowering (see cy-mla).
@@ -3349,6 +3362,19 @@ mod tests {
         match err {
             PlanLowerError::UnresolvedName { name, .. } => assert_eq!(name, "foo"),
             other => panic!("expected UnresolvedName, got {other:?}"),
+        }
+    }
+
+    /// A pattern comprehension has no plan operator yet and must surface
+    /// as `UndesugaredExpr`, not a panic or a silent `Null`.
+    #[test]
+    fn lower_statement_returns_err_on_pattern_comprehension() {
+        let stmt = desugar_statement(hir_lower("MATCH (a) RETURN [(a)-->(b) | b]"));
+        match lower_statement(&stmt).expect_err("pattern comprehension must be rejected") {
+            PlanLowerError::UndesugaredExpr { kind, .. } => {
+                assert_eq!(kind, "PatternComprehension");
+            }
+            other => panic!("expected UndesugaredExpr(PatternComprehension), got {other:?}"),
         }
     }
 

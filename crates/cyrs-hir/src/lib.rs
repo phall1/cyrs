@@ -734,6 +734,21 @@ pub enum Expr {
         filter: Option<Box<Expr>>,
         map_expr: Box<Expr>,
     },
+    /// Pattern comprehension `[p = (a)-[r]->(b) WHERE pred | map_expr]`.
+    ///
+    /// Evaluates to the list of `map_expr` values, one per match of
+    /// `pattern` that satisfies `filter`. Variables the pattern binds
+    /// for the first time are local to the comprehension (visible in
+    /// `filter` and `map_expr` only); a name already bound outside is a
+    /// join point and keeps its outer `VarId`. A path binder lands on
+    /// [`PatternPart::named_as`] as usual. `span` covers the whole
+    /// `[ … ]`.
+    PatternComprehension {
+        pattern: Pattern,
+        filter: Option<Box<Expr>>,
+        map_expr: Box<Expr>,
+        span: TextRange,
+    },
     /// A list predicate — `ANY|ALL|NONE|SINGLE(v IN xs [WHERE p(v)])`
     /// (cy-8x5, spec §19 row "List predicates").
     ///

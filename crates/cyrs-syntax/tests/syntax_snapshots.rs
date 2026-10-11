@@ -875,3 +875,31 @@ fn err_unterminated_string() {
 fn err_missing_closing_bracket_in_rel() {
     insta::assert_snapshot!(format_with_errors("MATCH (a)-[r (b) RETURN a"));
 }
+
+// --- pattern comprehensions ---
+
+#[test]
+fn expr_pattern_comprehension_basic() {
+    insta::assert_snapshot!(format_with_errors("MATCH (a) RETURN [(a)-->(b) | b.name]"));
+}
+
+#[test]
+fn expr_pattern_comprehension_where_and_detail() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) RETURN [(a)-[r:KNOWS|LIKES]->(b:Person {x: 1}) WHERE b.age > 1 | r]"
+    ));
+}
+
+#[test]
+fn expr_pattern_comprehension_named_path() {
+    insta::assert_snapshot!(format_with_errors(
+        "MATCH (a) RETURN [p = (a)<-[:R]-() | length(p)]"
+    ));
+}
+
+#[test]
+fn err_pattern_comprehension_missing_projection() {
+    // `WHERE` commits to a pattern comprehension; the missing `|`
+    // surfaces E0106.
+    insta::assert_snapshot!(format_with_errors("MATCH (a) RETURN [(a)-->(b) WHERE b.x]"));
+}

@@ -1063,6 +1063,7 @@ impl LowerCtx {
             SyntaxKind::LIST_PREDICATE_EXPR => Some(self.lower_list_predicate(node)),
             SyntaxKind::MAP_PROJECTION => Some(self.lower_map_projection(node)),
             SyntaxKind::PATTERN_PREDICATE => Some(self.lower_pattern_predicate(node)),
+            SyntaxKind::PATTERN_COMPREHENSION => Some(self.lower_pattern_comprehension(node)),
             // --- cy-p1u5 EXISTS parser-only ---
             // `EXISTS { … }` / `EXISTS ( MATCH … )` (ISO §10.7 / §14.10,
             // bead cy-p1u5). Lower to an inert `ExistsSubqueryDeferred`
@@ -1618,6 +1619,40 @@ impl LowerCtx {
     /// `WHERE (a)-->(:X)` — is lowered to an existential check on the
     /// contained pattern. Downstream sema produces the actual existence
     /// check; HIR just flags it as `PatternPredicate`.
+    /// Lower a `PATTERN_COMPREHENSION` node into
+    /// [`Expr::PatternComprehension`].
+    ///
+    /// Names the pattern binds for the first time are local to the
+    /// comprehension: the name → `VarId` table is restored afterwards so
+    /// they don't resolve in later clauses. Names already bound outside
+    /// reuse their `VarId` (correlation).
+    fn lower_pattern_comprehension(&mut self, node: SyntaxNode) -> Expr {
+        let span = node.text_range();
+        let outer_names = self.var_names.clone();
+        let parts = node
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::PATTERN)
+            .flat_map(|pat| self.lower_pattern_wrapper(&pat))
+            .collect();
+        let filter = node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::WHERE_CLAUSE)
+            .and_then(|w| w.children().find_map(|n| self.try_lower_expr(n)))
+            .map(Box::new);
+        // The `|` projection is the only direct expression child.
+        let map_expr = node
+            .children()
+            .find_map(|n| self.try_lower_expr(n))
+            .unwrap_or(Expr::Null);
+        self.var_names = outer_names;
+        Expr::PatternComprehension {
+            pattern: Pattern { parts },
+            filter,
+            map_expr: Box::new(map_expr),
+            span,
+        }
+    }
+
     fn lower_pattern_predicate(&mut self, node: SyntaxNode) -> Expr {
         // PATTERN_PREDICATE wraps one or more PATTERN children.
         let parts: Vec<PatternPart> = node
@@ -2415,6 +2450,62 @@ mod tests {
         assert_eq!(via_str.bindings.len(), via_parse.bindings.len());
     }
 
+    // --- pattern comprehension ---
+
+    fn single_projection(stmt: &Statement) -> &Expr {
+        let Some(Clause::Return { projections, .. }) = stmt.clauses.last() else {
+            panic!("expected trailing Return");
+        };
+        &projections[0].expr
+    }
+
+    #[test]
+    fn pattern_comprehension_lowers_pattern_filter_and_map() {
+        let stmt = lower_statement("MATCH (a) RETURN [(a)-[r]->(b) WHERE b.x | b.name]");
+        let Expr::PatternComprehension {
+            pattern,
+            filter,
+            map_expr,
+            ..
+        } = single_projection(&stmt)
+        else {
+            panic!("expected PatternComprehension");
+        };
+        let a = stmt.bindings.values().find(|b| b.name == "a").unwrap().id;
+        let b = stmt.bindings.values().find(|b| b.name == "b").unwrap().id;
+        assert_eq!(pattern.parts.len(), 1);
+        assert_eq!(pattern.parts[0].elements.len(), 3);
+        // The outer `a` is reused as a join point, not re-bound.
+        assert!(matches!(
+            pattern.parts[0].elements[0],
+            PatternElement::Node { bind: Some(v), .. } if v == a
+        ));
+        assert!(
+            matches!(filter.as_deref(), Some(Expr::Prop { target, .. }) if matches!(**target, Expr::Var(v) if v == b))
+        );
+        assert!(matches!(&**map_expr, Expr::Prop { prop, .. } if prop == "name"));
+    }
+
+    #[test]
+    fn pattern_comprehension_binders_do_not_leak() {
+        let stmt = lower_statement("MATCH (a) WITH [(a)-->(b) | b] AS bs RETURN b");
+        assert!(matches!(single_projection(&stmt), Expr::Unresolved(n) if n == "b"));
+    }
+
+    #[test]
+    fn pattern_comprehension_path_binder() {
+        let stmt = lower_statement("MATCH (a) RETURN [p = (a)-->() | p]");
+        let Expr::PatternComprehension {
+            pattern, map_expr, ..
+        } = single_projection(&stmt)
+        else {
+            panic!("expected PatternComprehension");
+        };
+        let p = pattern.parts[0].named_as.expect("path binder");
+        assert_eq!(stmt.bindings[&p].kind, VarKind::Path);
+        assert!(matches!(**map_expr, Expr::Var(v) if v == p));
+    }
+
     // --- UNION / UNION ALL ---
 
     #[test]
@@ -2478,5 +2569,28 @@ mod tests {
             let names: Vec<&str> = view.bindings.values().map(|b| b.name.as_str()).collect();
             assert_eq!(names, vec![name]);
         }
+    }
+
+    #[test]
+    fn pattern_comprehension_inside_union_arm_uses_arm_scope() {
+        let stmt = lower_statement(
+            "MATCH (a) RETURN [(a)-->(b) | b] AS x UNION MATCH (a) RETURN [(a)-->(b) | b] AS x",
+        );
+        let arm_a = stmt.bindings.values().filter(|b| b.name == "a").count();
+        assert_eq!(arm_a, 2, "each arm binds its own `a`");
+        let Clause::Return { projections, .. } = &stmt.unions[0].clauses[1] else {
+            panic!("expected Return in UNION arm");
+        };
+        let Expr::PatternComprehension { pattern, .. } = &projections[0].expr else {
+            panic!("expected PatternComprehension");
+        };
+        let PatternElement::Node { bind: Some(v), .. } = pattern.parts[0].elements[0] else {
+            panic!("expected bound node");
+        };
+        assert_eq!(
+            stmt.bindings[&v].defined_at.start(),
+            51.into(),
+            "joins the arm's `a`"
+        );
     }
 }

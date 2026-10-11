@@ -327,6 +327,18 @@ pub fn walk_expr<V: Visitor>(v: &mut V, e: &Expr) {
             v.visit_expr(list);
         }
         Expr::PatternPredicate(pat) => v.visit_pattern(pat),
+        Expr::PatternComprehension {
+            pattern,
+            filter,
+            map_expr,
+            ..
+        } => {
+            v.visit_pattern(pattern);
+            if let Some(f) = filter {
+                v.visit_expr(f);
+            }
+            v.visit_expr(map_expr);
+        }
         Expr::ListComprehension {
             iterable,
             filter,

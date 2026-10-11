@@ -1,0 +1,62 @@
+---
+source: crates/cyrs-syntax/tests/syntax_snapshots.rs
+expression: "format_with_errors(\"MATCH (a) RETURN [p = (a)<-[:R]-() | length(p)]\")"
+---
+SOURCE_FILE@0..47
+  STATEMENT@0..47
+    MATCH_CLAUSE@0..9
+      MATCH_KW@0..5 "MATCH"
+      PATTERN@5..9
+        PATTERN_PART@5..9
+          NODE_PATTERN@5..9
+            WHITESPACE@5..6 " "
+            L_PAREN@6..7 "("
+            NAME@7..8
+              IDENT@7..8 "a"
+            R_PAREN@8..9 ")"
+    RETURN_CLAUSE@9..47
+      WHITESPACE@9..10 " "
+      RETURN_KW@10..16 "RETURN"
+      RETURN_BODY@16..47
+        RETURN_ITEMS@16..47
+          RETURN_ITEM@16..47
+            PATTERN_COMPREHENSION@16..47
+              WHITESPACE@16..17 " "
+              L_BRACK@17..18 "["
+              PATTERN@18..34
+                NAMED_PATTERN_PART@18..34
+                  NAME@18..19
+                    IDENT@18..19 "p"
+                  WHITESPACE@19..20 " "
+                  EQ@20..21 "="
+                  PATTERN_PART@21..34
+                    NODE_PATTERN@21..25
+                      WHITESPACE@21..22 " "
+                      L_PAREN@22..23 "("
+                      NAME@23..24
+                        IDENT@23..24 "a"
+                      R_PAREN@24..25 ")"
+                    REL_PATTERN@25..32
+                      ARROW_L@25..27 "<-"
+                      REL_DETAIL@27..31
+                        L_BRACK@27..28 "["
+                        REL_TYPE_EXPR@28..30
+                          COLON@28..29 ":"
+                          IDENT@29..30 "R"
+                        R_BRACK@30..31 "]"
+                      MINUS@31..32 "-"
+                    NODE_PATTERN@32..34
+                      L_PAREN@32..33 "("
+                      R_PAREN@33..34 ")"
+              WHITESPACE@34..35 " "
+              PIPE@35..36 "|"
+              FUNCTION_CALL@36..46
+                VAR_EXPR@36..43
+                  WHITESPACE@36..37 " "
+                  IDENT@37..43 "length"
+                L_PAREN@43..44 "("
+                ARG_LIST@44..45
+                  VAR_EXPR@44..45
+                    IDENT@44..45 "p"
+                R_PAREN@45..46 ")"
+              R_BRACK@46..47 "]"

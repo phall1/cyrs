@@ -319,6 +319,25 @@ fn desugar_expr(expr: &mut Expr) {
             }
             desugar_expr(map_expr);
         }
+        // Pattern comprehensions keep their shape; recurse into the
+        // pattern's inline property maps and the sub-expressions.
+        Expr::PatternComprehension {
+            pattern,
+            filter,
+            map_expr,
+            ..
+        } => {
+            for elem in pattern.parts.iter_mut().flat_map(|p| &mut p.elements) {
+                let (PatternElement::Node { props, .. } | PatternElement::Rel { props, .. }) = elem;
+                if let Some(props) = props {
+                    desugar_expr(props);
+                }
+            }
+            if let Some(f) = filter {
+                desugar_expr(f);
+            }
+            desugar_expr(map_expr);
+        }
         // List predicates survive desugaring as-is — they have no
         // canonical rewrite in terms of simpler HIR forms (unlike
         // `MapProjection` which expands to explicit `Expr::Map`).
@@ -535,6 +554,19 @@ mod tests {
             Expr::PatternPredicate(pat) => {
                 format!("PatternPredicate(parts={})", pat.parts.len())
             }
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                ..
+            } => format!(
+                "PatternComp(parts={}, filter={}, map={})",
+                pattern.parts.len(),
+                filter
+                    .as_ref()
+                    .map_or_else(|| "None".to_string(), |e| render_expr(e)),
+                render_expr(map_expr)
+            ),
             Expr::ListComprehension {
                 filter_var,
                 iterable,

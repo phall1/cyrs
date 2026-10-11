@@ -53,6 +53,7 @@
 //! Exercised: E0101 — label-expression `!` with no primary (cy-p3cl, §16.4), UI fixture `label_expr_bang_missing_primary`.
 //! Exercised: E0102 — parenthesised label-expression missing `)` (cy-p3cl, §16.4), UI fixture `label_expr_unclosed_paren`.
 //! Exercised: E0103 — `:` followed by no label primary in node pattern (cy-p3cl, §16.4), UI fixture `label_expr_missing_primary`.
+//! Exercised: E0106 — pattern comprehension with no `|` projection, UI fixture `pattern_comprehension_missing_pipe`.
 //!
 //! Properties implemented here (cy-gkh.1):
 //!

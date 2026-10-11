@@ -348,6 +348,18 @@ impl KindCtx<'_> {
             Expr::PatternPredicate(pat) => {
                 self.check_pattern(pat, sink);
             }
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                ..
+            } => {
+                self.check_pattern(pattern, sink);
+                if let Some(f) = filter {
+                    self.check_expr(f, ExprCtx::General, sink);
+                }
+                self.check_expr(map_expr, ExprCtx::General, sink);
+            }
             // Unresolved vars, literals, and params carry no kind-check.
             // Unresolved refs already have E1001 from name resolution.
             Expr::Unresolved(_)

@@ -1,0 +1,11 @@
+---
+source: crates/cyrs-sema/src/resolve.rs
+expression: "render_src(\"MATCH (a) RETURN [(a)-[r]->(b) WHERE b.x | b.name], b\")"
+---
+scopes: 4
+  scope[0] kind=Root parent=None bindings=[]
+  scope[1] kind=Match parent=Some(0) bindings=["a"]
+  scope[2] kind=Return parent=Some(1) bindings=[]
+  scope[3] kind=PatternComprehension parent=Some(1) bindings=["b", "r"]
+diagnostics: 1
+  E1001: unresolved variable `b`

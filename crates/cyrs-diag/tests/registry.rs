@@ -182,6 +182,9 @@ fn all_count_pinned() {
     //          expressions `(n:A&B)`, `(n:A|B)`, `(n:!A)`, `(n:%)`,
     //          `(n:(A|B)&C)` (ISO/IEC 39075:2024 §16.4). Bumped 154 →
     //          157.
-    const EXPECTED: usize = 157;
+    // pattern comprehension: added E0106 (`EXPECTED_PIPE_PATTERN_COMP`)
+    //          for the missing `|` in `[(a)-->(b) | e]`. Bumped 157 →
+    //          158.
+    const EXPECTED: usize = 158;
     assert_eq!(DiagCode::ALL.len(), EXPECTED);
 }

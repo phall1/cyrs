@@ -41,6 +41,8 @@
 //!  24  UNION: each arm binds its own `n`
 //!  25  UNION ALL across three arms
 //!  26  UNION: name bound only in the other arm → E1001
+//!  27  pattern comprehension: outer join var + local binders
+//!  28  pattern comprehension with a path binder
 
 #![allow(clippy::too_many_lines)]
 
@@ -1003,5 +1005,24 @@ fn snap_26_union_cross_arm_reference() {
     insta::assert_snapshot!(
         "26_union_cross_arm_reference",
         pipeline("MATCH (a) RETURN a UNION RETURN a")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 27–28: Pattern comprehension — outer `a` joins, `r` / `b` / `p` are local
+// ---------------------------------------------------------------------------
+#[test]
+fn snap_27_pattern_comprehension() {
+    insta::assert_snapshot!(
+        "27_pattern_comprehension",
+        pipeline("MATCH (a) RETURN [(a)-[r:KNOWS]->(b:Person) WHERE b.age > 30 | b.name]")
+    );
+}
+
+#[test]
+fn snap_28_pattern_comprehension_path() {
+    insta::assert_snapshot!(
+        "28_pattern_comprehension_path",
+        pipeline("MATCH (a) RETURN [p = (a)-->() | length(p)]")
     );
 }
