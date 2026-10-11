@@ -462,9 +462,10 @@ ListPredicateExpr =
   ('ANY' | 'ALL' | 'NONE' | 'SINGLE')
   '(' bind:NameDef 'IN' source:Expr WhereClause? ')'
 
-// `[ (a)-[r]->(b) WHERE p | e ]`. Desugared in HIR (spec §6.1).
+// `[ (a)-[r]->(b) WHERE p | e ]`, optionally with a path binder
+// `[ p = (a)-->(b) | p ]`. Lowered to `Expr::PatternComprehension`.
 PatternComprehension =
-  '[' path:PathPattern WhereClause? '|' projection:Expr ']'
+  '[' Pattern WhereClause? '|' projection:Expr ']'
 
 // `CASE` with optional scrutinee, one or more `CaseWhenArm` children,
 // and an optional trailing `CaseElseArm` — spec §19 row "CASE" (cy-41u).

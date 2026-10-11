@@ -1678,13 +1678,14 @@ mod tests {
     // ---------- PatternComprehension ----------
     #[test]
     fn ast_pattern_comprehension_accessors() {
-        let root = parse_root("RETURN [(a)-->(b) WHERE a.x > 0 | b]");
-        if let Some(pc_node) = descend_kind(&root, SyntaxKind::PATTERN_COMPREHENSION) {
-            let pc = PatternComprehension::cast(pc_node).expect("PatternComprehension");
-            assert_eq!(pc.syntax().kind(), SyntaxKind::PATTERN_COMPREHENSION);
-            assert!(pc.where_clause().is_some());
-            let _ = pc.projection();
-        }
+        let root = parse_root("RETURN [(a)-->(b) WHERE a.x > 0 | b + 1]");
+        let pc_node =
+            descend_kind(&root, SyntaxKind::PATTERN_COMPREHENSION).expect("PATTERN_COMPREHENSION");
+        let pc = PatternComprehension::cast(pc_node).expect("PatternComprehension");
+        assert_eq!(pc.syntax().kind(), SyntaxKind::PATTERN_COMPREHENSION);
+        assert!(pc.pattern().is_some());
+        assert!(pc.where_clause().is_some());
+        assert!(matches!(pc.projection(), Some(Expr::BinaryExpr(_))));
         assert!(PatternComprehension::cast(root).is_none());
     }
 

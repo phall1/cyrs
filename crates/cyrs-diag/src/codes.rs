@@ -765,6 +765,9 @@ pub enum DiagCode {
     /// Expected a label expression — a label name, `%`, `!`, or `(`
     /// (cy-p3cl, ISO/IEC 39075:2024 §16.4).
     E0103 = 103,
+    /// Expected `|` before the projection of a pattern comprehension
+    /// `[(a)-->(b) WHERE p | e]` (openCypher 9 `PatternComprehension`).
+    E0106 = 106,
 
     // --- warnings (6000..) -------------------------------------------
     /// Dead WITH — projection with no downstream reader.
@@ -941,6 +944,7 @@ impl DiagCode {
             Self::E0101 => "E0101",
             Self::E0102 => "E0102",
             Self::E0103 => "E0103",
+            Self::E0106 => "E0106",
             Self::E1001 => "E1001",
             Self::E1002 => "E1002",
             Self::E2007 => "E2007",
@@ -1128,6 +1132,7 @@ impl DiagCode {
         Self::E0101,
         Self::E0102,
         Self::E0103,
+        Self::E0106,
         Self::E1001,
         Self::E1002,
         Self::E2007,
@@ -1371,6 +1376,7 @@ mod tests {
             DiagCode::E0101,
             DiagCode::E0102,
             DiagCode::E0103,
+            DiagCode::E0106,
             DiagCode::E1001,
             DiagCode::E1002,
             DiagCode::E2007,
@@ -1451,21 +1457,21 @@ mod tests {
     /// rejected by the fallible lookup (cy-emb3).
     #[test]
     fn try_from_u16_unknown_codes() {
-        // Gaps: E0073..=E0077, E0085, E0087, E0101..=E0103, E0106+.
-        // Gaps: E0073..=E0077, E0085, E0087, E0106+.
+        // Gaps: E0073..=E0077, E0085, E0087, E0107+.
         // E0083 INSERT, E0084 FILTER, E0086 EXCLUDE, E0088/E0089 TYPED,
         // E0090 path-mode, E0091–E0098 SESSION SET (cy-9kzx),
         // E0099/E0100 GROUP BY (cy-71t0), E0101–E0103 label-expression
         // operators (cy-p3cl), E0104/E0105 OFFSET + NULLS FIRST/LAST
         // (cy-z0x8) are claimed. cy-dwem (truthValue, §20.1) reserved
         // no syntax-range codes — it recovers via the existing
-        // E0025 path — so E0106 is the next unclaimed slot.
+        // E0025 path. E0106 is the pattern-comprehension `|` (missing
+        // pipe), so E0107 is the next unclaimed slot.
         assert_eq!(DiagCode::try_from_u16(0), None);
         assert_eq!(DiagCode::try_from_u16(73), None);
         assert_eq!(DiagCode::try_from_u16(77), None);
         assert_eq!(DiagCode::try_from_u16(85), None);
         assert_eq!(DiagCode::try_from_u16(87), None);
-        assert_eq!(DiagCode::try_from_u16(106), None);
+        assert_eq!(DiagCode::try_from_u16(107), None);
         // Unassigned ranges.
         assert_eq!(DiagCode::try_from_u16(999), None);
         assert_eq!(DiagCode::try_from_u16(9999), None);

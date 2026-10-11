@@ -1,0 +1,24 @@
+---
+source: crates/cyrs-sema/tests/resolved_hir.rs
+expression: "pipeline(\"MATCH (a) RETURN [(a)-[r:KNOWS]->(b:Person) WHERE b.age > 30 | b.name]\")"
+---
+Statement {
+  span: 0..70
+  bindings: [
+    Var(0) 0: a (Node) @7..8
+    Var(1) 1: r (Relationship) @23..24
+    Var(2) 2: b (Node) @34..35
+  ]
+  clauses: [
+    Match @0..9 {
+      Pattern {
+        part[0] [
+          Node(a[bind:Var(0)←Node@7..8]) @5..9
+        ]
+      }
+    }
+    Return(distinct=false) @9..70 {
+      proj[0]: PatternComp[(a[bind:Var(0)←Node@7..8])->[r[bind:Var(1)←Relationship@23..24]]:KNOWS(b[bind:Var(2)←Node@34..35]):Person WHERE (Var(2)[b←Node@34..35].age > 30) | Var(2)[b←Node@34..35].name]
+    }
+  ]
+}

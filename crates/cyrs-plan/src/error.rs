@@ -35,7 +35,8 @@ pub enum PlanLowerError {
     },
     /// An expression that must be desugared before plan lowering
     /// survived into the entry point (cy-mla). Possible `kind` values
-    /// are `"ListComprehension"`, `"MapProjection"`, and
+    /// are `"ListComprehension"`, `"MapProjection"`,
+    /// `"PatternComprehension"`, `"ExistsSubqueryDeferred"`, and
     /// `"PatternPredicate"`.
     UndesugaredExpr {
         /// The name of the offending HIR expression variant.

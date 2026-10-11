@@ -574,6 +574,27 @@ impl ResolveCtx<'_> {
                     }
                 }
             }
+            // Pattern comprehension: the pattern binds its new names in a
+            // child scope, so they are visible to the predicate and the
+            // projection but not to the rest of the query. Names already
+            // visible are join points and resolve to the outer binding.
+            Expr::PatternComprehension {
+                pattern,
+                filter,
+                map_expr,
+                span,
+            } => {
+                let child = self.graph.add_scope_with_span(
+                    ScopeKind::PatternComprehension,
+                    Some(scope),
+                    *span,
+                );
+                self.bind_pattern(pattern, child, sink);
+                if let Some(f) = filter {
+                    self.resolve_expr(f, child, sink);
+                }
+                self.resolve_expr(map_expr, child, sink);
+            }
             // Literals, params, and pattern predicates (deferred in v1)
             // carry no variable references.
             Expr::PatternPredicate(_)
@@ -700,6 +721,7 @@ mod tests {
                 format!("WithBarrier[{}]", names.join(","))
             }
             ScopeKind::Return => "Return".into(),
+            ScopeKind::PatternComprehension => "PatternComprehension".into(),
         }
     }
 
@@ -877,6 +899,18 @@ mod tests {
         insta::assert_snapshot!(
             "scope_match_where_resolved",
             render_src("MATCH (n) WHERE n.name = 'Alice' RETURN n")
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Pattern comprehension: new names live in a child scope; the outer
+    // `a` is a join point; `b` is not visible outside the comprehension.
+    // -----------------------------------------------------------------------
+    #[test]
+    fn snap_scope_pattern_comprehension() {
+        insta::assert_snapshot!(
+            "scope_pattern_comprehension",
+            render_src("MATCH (a) RETURN [(a)-[r]->(b) WHERE b.x | b.name], b")
         );
     }
 
