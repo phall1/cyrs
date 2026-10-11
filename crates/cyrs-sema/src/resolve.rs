@@ -86,6 +86,15 @@ pub fn resolve(
         current = ctx.lower_clause(clause, current, sink);
     }
 
+    // Each `UNION` arm is an independent query: it starts again from the
+    // root scope, so nothing bound in an earlier arm is visible to it.
+    for arm in &stmt.unions {
+        let mut current = root;
+        for clause in &arm.clauses {
+            current = ctx.lower_clause(clause, current, sink);
+        }
+    }
+
     ResolveResult {
         scope_graph: ctx.graph,
         resolved_names: ctx.resolved,

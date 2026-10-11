@@ -95,13 +95,9 @@ rand_chacha  = { version = "0.3", default-features = false }
 # nodes — same version cyrs-syntax uses internally. Must match the
 # workspace pin (rowan = 0.16, cy-yrz) or libfuzzer-driven targets fail
 # to compile with "multiple versions of crate `rowan` in the dependency
-# graph". The [patch.crates-io] below pins to the phall1/rowan fork
-# (cy-yrz: SB / cursor::free fixes) — fuzz/ has its own [workspace] so
-# the patch must be repeated here.
+# graph". fuzz/ has its own [workspace], so any [patch.crates-io] in the
+# root Cargo.toml must be mirrored here (there is none at present).
 rowan        = "0.16"
-
-[patch.crates-io]
-rowan = { git = "https://github.com/phall1/rowan", branch = "fix/sb-node-cache-rehash" }
 
 [profile.release]
 debug         = true

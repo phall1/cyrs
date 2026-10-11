@@ -232,6 +232,10 @@ pub struct Statement {
     /// See [`session`] for the variant shape.
     pub session_set: Option<SessionSetHir>,
     // --- end cy-lp3y ---
+    /// `UNION [ALL] SingleQuery` arms following the leading query, in
+    /// source order. `clauses` holds the leading arm; each entry here is
+    /// one further arm. Empty for a non-`UNION` statement.
+    pub unions: Vec<UnionArm>,
     /// Monotonic counter for [`Self::alloc_id`]. Starts at 1 so that
     /// [`HirId::DUMMY`] remains a distinguishable sentinel.
     next_id: u32,
@@ -248,6 +252,7 @@ impl Statement {
             // --- cy-lp3y SESSION SET HIR ---
             session_set: None,
             // --- end cy-lp3y ---
+            unions: Vec::new(),
             next_id: 1,
         }
     }
@@ -298,6 +303,57 @@ impl Statement {
     pub fn node_count(&self) -> usize {
         self.node_map.len()
     }
+
+    /// Split a `UNION` statement into one standalone [`Statement`] per
+    /// arm, leading arm first.
+    ///
+    /// Each view carries only its arm's clauses, an empty
+    /// [`Statement::unions`], a span covering the arm, and only the
+    /// bindings defined inside that arm. The `node_map` is shared, so
+    /// [`HirId`]s keep resolving. Passes written against a single query
+    /// (one clause list, one variable namespace) can run on each view
+    /// unchanged.
+    ///
+    /// Returns an empty `Vec` for a non-`UNION` statement; callers use
+    /// `self` directly in that case.
+    pub fn union_arm_views(&self) -> Vec<Statement> {
+        let Some(first) = self.unions.first() else {
+            return Vec::new();
+        };
+        let head_span = TextRange::new(self.span.start(), first.span.start());
+        std::iter::once((head_span, &self.clauses))
+            .chain(self.unions.iter().map(|arm| (arm.span, &arm.clauses)))
+            .map(|(span, clauses)| Statement {
+                clauses: clauses.clone(),
+                bindings: self
+                    .bindings
+                    .iter()
+                    .filter(|(_, b)| span.contains_range(b.defined_at))
+                    .map(|(id, b)| (*id, b.clone()))
+                    .collect(),
+                span,
+                node_map: self.node_map.clone(),
+                session_set: None,
+                unions: Vec::new(),
+                next_id: self.next_id,
+            })
+            .collect()
+    }
+}
+
+/// One `UNION [ALL] SingleQuery` arm of a statement (see
+/// [`Statement::unions`]).
+#[derive(Debug, Clone)]
+pub struct UnionArm {
+    /// Id of the `UNION_TAIL` node this arm was lowered from.
+    pub id: HirId,
+    /// `true` for `UNION ALL` (keep duplicates), `false` for `UNION`.
+    pub all: bool,
+    /// The arm's clauses, in source order. The arm has its own variable
+    /// namespace: names bound in another arm are not visible here.
+    pub clauses: Vec<Clause>,
+    /// Span of the whole tail, `UNION` keyword included.
+    pub span: TextRange,
 }
 
 /// A single clause in a statement. Each variant carries its own
