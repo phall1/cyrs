@@ -89,15 +89,12 @@ fn path_selector(p: &mut Parser<'_>) {
     m.complete(p, SyntaxKind::PATH_SELECTOR);
 }
 
-/// A path binder is `IDENT '='` before an `L_PAREN` — the `=` disambiguates
-/// from a bare node pattern or a following clause. We require the `=`
-/// token to sit between two valid positions, so one-token lookahead
-/// suffices.
+/// A path binder is a name (`IDENT`, or a soft keyword such as `last`)
+/// followed by `'='` before an `L_PAREN` — the `=` disambiguates from a
+/// bare node pattern or a following clause. We require the `=` token to
+/// sit between two valid positions, so one-token lookahead suffices.
 fn is_path_binder(p: &mut Parser<'_>) -> bool {
-    if !(p.current() == SyntaxKind::IDENT || p.current() == SyntaxKind::QUOTED_IDENT) {
-        return false;
-    }
-    p.nth(1) == SyntaxKind::EQ
+    p.at_name_like() && p.nth(1) == SyntaxKind::EQ
 }
 
 /// `PathPattern = ShortestPathPattern | NodePattern (RelPattern NodePattern)*`

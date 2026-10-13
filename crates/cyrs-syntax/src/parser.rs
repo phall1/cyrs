@@ -327,15 +327,7 @@ impl<'a> Parser<'a> {
     /// parser folds them back into name position so openCypher TCK
     /// queries like `WITH … AS first, … AS last` keep parsing.
     pub(crate) fn at_name_like(&self) -> bool {
-        matches!(
-            self.current(),
-            SyntaxKind::IDENT
-                | SyntaxKind::QUOTED_IDENT
-                | SyntaxKind::OFFSET_KW
-                | SyntaxKind::NULLS_KW
-                | SyntaxKind::FIRST_KW
-                | SyntaxKind::LAST_KW
-        )
+        is_name_like(self.current())
     }
 
     /// Consume the current token if it is name-like ([`at_name_like`]).
@@ -349,6 +341,11 @@ impl<'a> Parser<'a> {
         } else {
             false
         }
+    }
+
+    /// Name-like at lookahead offset `n` ([`Self::nth`] + [`is_name_like`]).
+    pub(crate) fn nth_name_like(&self, n: usize) -> bool {
+        is_name_like(self.nth(n))
     }
 
     /// Byte offset of the current token (or end-of-input if exhausted).
@@ -800,6 +797,23 @@ pub(crate) mod syntax_codes {
 }
 
 /// Advance `idx` past any leading trivia tokens.
+/// Whether a token of this kind can stand in for an identifier in name
+/// position: `IDENT` / `QUOTED_IDENT` plus the soft keywords `OFFSET`,
+/// `NULLS`, `FIRST`, `LAST` (see [`Parser::at_name_like`]). Lookahead
+/// helpers use this so a soft-keyword name dispatches the same way an
+/// ordinary identifier does.
+pub(crate) fn is_name_like(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::IDENT
+            | SyntaxKind::QUOTED_IDENT
+            | SyntaxKind::OFFSET_KW
+            | SyntaxKind::NULLS_KW
+            | SyntaxKind::FIRST_KW
+            | SyntaxKind::LAST_KW
+    )
+}
+
 fn skip_trivia(tokens: &[LexToken], mut idx: usize) -> usize {
     while idx < tokens.len() && tokens[idx].kind.is_trivia() {
         idx += 1;
