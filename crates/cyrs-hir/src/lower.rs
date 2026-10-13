@@ -2666,4 +2666,30 @@ mod tests {
             "joins the arm's `a`"
         );
     }
+
+    #[test]
+    fn soft_keyword_binders_in_expressions() {
+        let stmt =
+            lower_statement("RETURN [last IN [1] | last], any(first IN [1] WHERE first > 0)");
+        let names: Vec<&str> = stmt.bindings.values().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, vec!["last", "first"]);
+
+        let stmt = lower_statement("MATCH last = (a)-->(b) RETURN last");
+        let Clause::Match { pattern, .. } = &stmt.clauses[0] else {
+            panic!("expected Match");
+        };
+        let p = pattern.parts[0].named_as.expect("path binder");
+        assert_eq!(stmt.bindings[&p].name, "last");
+        assert_eq!(stmt.bindings[&p].kind, VarKind::Path);
+    }
+
+    #[test]
+    fn soft_keyword_map_projection_items() {
+        let stmt = lower_statement("MATCH (n) RETURN n {.last, first: 1}");
+        let Expr::MapProjection { items, .. } = return_exprs(&stmt)[0] else {
+            panic!("expected MapProjection");
+        };
+        assert!(matches!(&items[0], MapProjectionItem::PropCopy { prop } if prop == "last"));
+        assert!(matches!(&items[1], MapProjectionItem::Computed { key, .. } if key == "first"));
+    }
 }
