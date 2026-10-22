@@ -3,7 +3,7 @@
 # Matrix dimensions (§17.15):
 #   toolchain : stable | beta | nightly
 #   os        : ubuntu-latest (x86_64) | ubuntu-latest-arm (aarch64)
-#             | macos-latest (x86_64)  | macos-14 (aarch64, Apple Silicon)
+#             | macos-15-intel (x86_64)  | macos-15 (aarch64, Apple Silicon)
 #             | windows-latest (x86_64)
 #   features  : default | no-default-features | lsp-only | fmt-only | schema-only
 #
@@ -128,7 +128,7 @@ jobs:
   #
   # ARM runners:
   #   ubuntu-latest-arm  — GitHub-hosted Linux aarch64
-  #   macos-14           — Apple M1 (aarch64); macos-latest is x86_64
+  #   macos-15           — Apple M1 (aarch64); macos-15-intel is x86_64
   # ---------------------------------------------------------------
   matrix:
     name: >-
@@ -148,19 +148,19 @@ jobs:
           # ── (ubuntu-latest-arm rows dropped — paid-tier runner not
           #    available on this repo's plan; aarch64 Linux coverage is
           #    deferred until a self-hosted runner is provisioned.
-          #    aarch64 coverage is still exercised on macos-14.)
-          # ── stable × macos-latest (x86_64) ─────────────────────
-          - { toolchain: stable,  os: macos-latest,      features: default             }
-          - { toolchain: stable,  os: macos-latest,      features: no-default-features }
-          - { toolchain: stable,  os: macos-latest,      features: lsp-only            }
-          - { toolchain: stable,  os: macos-latest,      features: fmt-only            }
-          - { toolchain: stable,  os: macos-latest,      features: schema-only         }
-          # ── stable × macos-14 (aarch64 / Apple Silicon) ────────
-          - { toolchain: stable,  os: macos-14,          features: default             }
-          - { toolchain: stable,  os: macos-14,          features: no-default-features }
-          - { toolchain: stable,  os: macos-14,          features: lsp-only            }
-          - { toolchain: stable,  os: macos-14,          features: fmt-only            }
-          - { toolchain: stable,  os: macos-14,          features: schema-only         }
+          #    aarch64 coverage is still exercised on macos-15.)
+          # ── stable × macos-15-intel (x86_64) ─────────────────────
+          - { toolchain: stable,  os: macos-15-intel,    features: default             }
+          - { toolchain: stable,  os: macos-15-intel,    features: no-default-features }
+          - { toolchain: stable,  os: macos-15-intel,    features: lsp-only            }
+          - { toolchain: stable,  os: macos-15-intel,    features: fmt-only            }
+          - { toolchain: stable,  os: macos-15-intel,    features: schema-only         }
+          # ── stable × macos-15 (aarch64 / Apple Silicon) ────────
+          - { toolchain: stable,  os: macos-15,          features: default             }
+          - { toolchain: stable,  os: macos-15,          features: no-default-features }
+          - { toolchain: stable,  os: macos-15,          features: lsp-only            }
+          - { toolchain: stable,  os: macos-15,          features: fmt-only            }
+          - { toolchain: stable,  os: macos-15,          features: schema-only         }
           # ── stable × windows-latest (x86_64) ───────────────────
           - { toolchain: stable,  os: windows-latest,    features: default             }
           - { toolchain: stable,  os: windows-latest,    features: no-default-features }
@@ -174,18 +174,18 @@ jobs:
           - { toolchain: beta,    os: ubuntu-latest,     features: fmt-only            }
           - { toolchain: beta,    os: ubuntu-latest,     features: schema-only         }
           # ── (beta × ubuntu-latest-arm rows dropped: see stable note above)
-          # ── beta × macos-latest (x86_64) ───────────────────────
-          - { toolchain: beta,    os: macos-latest,      features: default             }
-          - { toolchain: beta,    os: macos-latest,      features: no-default-features }
-          - { toolchain: beta,    os: macos-latest,      features: lsp-only            }
-          - { toolchain: beta,    os: macos-latest,      features: fmt-only            }
-          - { toolchain: beta,    os: macos-latest,      features: schema-only         }
-          # ── beta × macos-14 (aarch64) ──────────────────────────
-          - { toolchain: beta,    os: macos-14,          features: default             }
-          - { toolchain: beta,    os: macos-14,          features: no-default-features }
-          - { toolchain: beta,    os: macos-14,          features: lsp-only            }
-          - { toolchain: beta,    os: macos-14,          features: fmt-only            }
-          - { toolchain: beta,    os: macos-14,          features: schema-only         }
+          # ── beta × macos-15-intel (x86_64) ───────────────────────
+          - { toolchain: beta,    os: macos-15-intel,    features: default             }
+          - { toolchain: beta,    os: macos-15-intel,    features: no-default-features }
+          - { toolchain: beta,    os: macos-15-intel,    features: lsp-only            }
+          - { toolchain: beta,    os: macos-15-intel,    features: fmt-only            }
+          - { toolchain: beta,    os: macos-15-intel,    features: schema-only         }
+          # ── beta × macos-15 (aarch64) ──────────────────────────
+          - { toolchain: beta,    os: macos-15,          features: default             }
+          - { toolchain: beta,    os: macos-15,          features: no-default-features }
+          - { toolchain: beta,    os: macos-15,          features: lsp-only            }
+          - { toolchain: beta,    os: macos-15,          features: fmt-only            }
+          - { toolchain: beta,    os: macos-15,          features: schema-only         }
           # ── beta × windows-latest (x86_64) ─────────────────────
           - { toolchain: beta,    os: windows-latest,    features: default             }
           - { toolchain: beta,    os: windows-latest,    features: no-default-features }
@@ -199,18 +199,18 @@ jobs:
           - { toolchain: nightly, os: ubuntu-latest,     features: fmt-only            }
           - { toolchain: nightly, os: ubuntu-latest,     features: schema-only         }
           # ── (nightly × ubuntu-latest-arm rows dropped: see stable note above)
-          # ── nightly × macos-latest — non-blocking ──────────────
-          - { toolchain: nightly, os: macos-latest,      features: default             }
-          - { toolchain: nightly, os: macos-latest,      features: no-default-features }
-          - { toolchain: nightly, os: macos-latest,      features: lsp-only            }
-          - { toolchain: nightly, os: macos-latest,      features: fmt-only            }
-          - { toolchain: nightly, os: macos-latest,      features: schema-only         }
-          # ── nightly × macos-14 — non-blocking ──────────────────
-          - { toolchain: nightly, os: macos-14,          features: default             }
-          - { toolchain: nightly, os: macos-14,          features: no-default-features }
-          - { toolchain: nightly, os: macos-14,          features: lsp-only            }
-          - { toolchain: nightly, os: macos-14,          features: fmt-only            }
-          - { toolchain: nightly, os: macos-14,          features: schema-only         }
+          # ── nightly × macos-15-intel — non-blocking ──────────────
+          - { toolchain: nightly, os: macos-15-intel,    features: default             }
+          - { toolchain: nightly, os: macos-15-intel,    features: no-default-features }
+          - { toolchain: nightly, os: macos-15-intel,    features: lsp-only            }
+          - { toolchain: nightly, os: macos-15-intel,    features: fmt-only            }
+          - { toolchain: nightly, os: macos-15-intel,    features: schema-only         }
+          # ── nightly × macos-15 — non-blocking ──────────────────
+          - { toolchain: nightly, os: macos-15,          features: default             }
+          - { toolchain: nightly, os: macos-15,          features: no-default-features }
+          - { toolchain: nightly, os: macos-15,          features: lsp-only            }
+          - { toolchain: nightly, os: macos-15,          features: fmt-only            }
+          - { toolchain: nightly, os: macos-15,          features: schema-only         }
           # ── nightly × windows-latest — non-blocking ────────────
           - { toolchain: nightly, os: windows-latest,    features: default             }
           - { toolchain: nightly, os: windows-latest,    features: no-default-features }
