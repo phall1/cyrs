@@ -35,7 +35,7 @@
 //! `EXISTS(...)`, `COUNT(*)` standalone form.
 
 use crate::SyntaxKind;
-use crate::parser::{CompletedMarker, Marker, Parser, TokenSet, syntax_codes as sc};
+use crate::parser::{CompletedMarker, Marker, Parser, TokenSet, is_name_like, syntax_codes as sc};
 
 use super::{pattern, statement};
 
@@ -370,9 +370,7 @@ fn list_literal(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     // The first significant token past `[` is at nth(1); the IN check sits
     // at nth(2). We only dispatch to the comprehension parse path on an
     // exact match to avoid regressing the list-literal grammar (cy-7s6.1).
-    if matches!(p.nth(1), SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT)
-        && p.nth(2) == SyntaxKind::IN_KW
-    {
+    if p.nth_name_like(1) && p.nth(2) == SyntaxKind::IN_KW {
         return list_comprehension(p, depth);
     }
 
@@ -430,8 +428,8 @@ fn list_comprehension(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     // NameDef — wrap the identifier in a NAME node so lowering can find it.
     {
         let name = p.start();
-        if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
-            // The dispatch lookahead guarantees we are at an IDENT here.
+        if !p.eat_name_like() {
+            // The dispatch lookahead guarantees we are at a name here.
             // Defensive fallback: emit and close an empty NAME so the tree
             // still round-trips.
             p.error_code(
@@ -505,11 +503,7 @@ fn list_comprehension(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
 fn at_pattern_comprehension(p: &Parser<'_>) -> bool {
     debug_assert!(p.at(SyntaxKind::L_BRACK));
     let mut toks = p.lookahead().skip(1).peekable();
-    if matches!(
-        toks.peek(),
-        Some(SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT)
-    ) && p.nth(2) == SyntaxKind::EQ
-    {
+    if p.nth_name_like(1) && p.nth(2) == SyntaxKind::EQ {
         toks.next();
         toks.next();
     }
@@ -518,7 +512,7 @@ fn at_pattern_comprehension(p: &Parser<'_>) -> bool {
     }
     let node_shaped = match toks.peek() {
         Some(SyntaxKind::R_PAREN | SyntaxKind::COLON | SyntaxKind::L_BRACE) => true,
-        Some(SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT) => {
+        Some(&k) if is_name_like(k) => {
             toks.next();
             matches!(
                 toks.peek(),
@@ -734,7 +728,7 @@ fn list_predicate(p: &mut Parser<'_>, depth: u32) -> CompletedMarker {
     // uniformly (mirrors how `UNWIND ... AS v` and LIST_COMPREHENSION
     // emit a NAME child).
     let name_marker = p.start();
-    if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+    if !p.eat_name_like() {
         p.error_code(
             sc::EXPECTED_IDENT,
             "expected binder identifier in list predicate",
@@ -1009,8 +1003,9 @@ fn at_bare_pattern_predicate(p: &mut Parser<'_>) -> bool {
         // `()` — empty node pattern. Also `(:Label)`, `({k: v})` —
         // node pattern without a binder.
         SyntaxKind::R_PAREN | SyntaxKind::COLON | SyntaxKind::L_BRACE => true,
-        // `(IDENT …)` — inspect the next token to decide.
-        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => matches!(
+        // `(IDENT …)` — inspect the next token to decide. Soft-keyword
+        // names (`(first)`, `(last)`) dispatch like any identifier.
+        k if is_name_like(k) => matches!(
             p.nth(2),
             // Label decoration → pattern.
             SyntaxKind::COLON
@@ -1455,7 +1450,7 @@ fn map_projection_item(p: &mut Parser<'_>, depth: u32) {
             p.bump(SyntaxKind::DOT);
             if p.at(SyntaxKind::STAR) {
                 p.bump(SyntaxKind::STAR);
-            } else if !(p.eat(SyntaxKind::IDENT) || p.eat(SyntaxKind::QUOTED_IDENT)) {
+            } else if !p.eat_name_like() {
                 p.error_code(
                     sc::EXPECTED_PROP_OR_STAR_AFTER_DOT_IN_PROJECTION,
                     "expected property name or '*' after '.' in map projection item",
@@ -1468,7 +1463,7 @@ fn map_projection_item(p: &mut Parser<'_>, depth: u32) {
             p.bump(SyntaxKind::STAR);
         }
         // `IDENT ':' Expr` — literal item, same shape as a map-literal entry.
-        SyntaxKind::IDENT | SyntaxKind::QUOTED_IDENT => {
+        k if is_name_like(k) => {
             p.bump_any();
             if !p.eat(SyntaxKind::COLON) {
                 p.error_code(
@@ -1651,6 +1646,49 @@ mod tests {
         ] {
             assert_clean(src);
             assert!(!has_kind(src, SyntaxKind::PATTERN_COMPREHENSION), "{src}");
+        }
+    }
+
+    /// Soft keywords (`OFFSET` / `NULLS` / `FIRST` / `LAST`) used as names
+    /// dispatch exactly like identifiers in every name-driven lookahead.
+    #[test]
+    fn soft_keyword_names_in_lookaheads() {
+        for (src, kind) in [
+            (
+                "MATCH (first) RETURN [(first)-->(b) | b]",
+                SyntaxKind::PATTERN_COMPREHENSION,
+            ),
+            (
+                "MATCH (a) RETURN [last = (a)-->() | last]",
+                SyntaxKind::PATTERN_COMPREHENSION,
+            ),
+            (
+                "MATCH (first) WHERE (first)-->() RETURN first",
+                SyntaxKind::PATTERN_PREDICATE,
+            ),
+            (
+                "MATCH (offset) WHERE (offset) RETURN offset",
+                SyntaxKind::PATTERN_PREDICATE,
+            ),
+            (
+                "MATCH last = (a)-->(b) RETURN last",
+                SyntaxKind::NAMED_PATTERN_PART,
+            ),
+            (
+                "RETURN [last IN [1, 2] WHERE last > 1 | last]",
+                SyntaxKind::LIST_COMPREHENSION,
+            ),
+            (
+                "RETURN any(first IN [1, 2] WHERE first > 1)",
+                SyntaxKind::LIST_PREDICATE_EXPR,
+            ),
+            (
+                "MATCH (n) RETURN n {.last, first: 1}",
+                SyntaxKind::MAP_PROJECTION,
+            ),
+        ] {
+            assert_clean(src);
+            assert!(has_kind(src, kind), "{src}: expected {kind:?}");
         }
     }
 
