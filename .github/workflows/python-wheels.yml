@@ -66,8 +66,8 @@ jobs:
         platform:
           - { os: linux,   arch: x86_64,  runner: ubuntu-latest,     target: x86_64-unknown-linux-gnu }
           - { os: linux,   arch: aarch64, runner: ubuntu-latest-arm, target: aarch64-unknown-linux-gnu }
-          - { os: macos,   arch: x86_64,  runner: macos-latest,      target: x86_64-apple-darwin }
-          - { os: macos,   arch: aarch64, runner: macos-14,          target: aarch64-apple-darwin }
+          - { os: macos,   arch: x86_64,  runner: macos-15-intel,    target: x86_64-apple-darwin }
+          - { os: macos,   arch: aarch64, runner: macos-15,          target: aarch64-apple-darwin }
           - { os: windows, arch: x86_64,  runner: windows-latest,    target: x86_64-pc-windows-msvc }
     steps:
       - uses: actions/checkout@v4
@@ -142,7 +142,7 @@ jobs:
       matrix:
         platform:
           - { os: linux,   runner: ubuntu-latest }
-          - { os: macos,   runner: macos-14 }
+          - { os: macos,   runner: macos-15 }
           - { os: windows, runner: windows-latest }
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
@@ -156,7 +156,7 @@ jobs:
       - name: Download wheels
         uses: actions/download-artifact@v4
         with:
-          # Linux runner consumes the x86_64 wheel; macOS-14 is
+          # Linux runner consumes the x86_64 wheel; macOS-15 is
           # aarch64; Windows is x86_64.  If we later add an aarch64
           # Windows or x86_64 Mac to the test matrix we'll parameterise
           # this too.
